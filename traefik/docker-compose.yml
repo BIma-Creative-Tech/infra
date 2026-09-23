@@ -45,6 +45,9 @@ services:
       # H1: backend Odoo (odoo-pool-a, odoo-staging :8069/:8072) HANYA di network ini — bukan di
       # `proxy`. Tanpa gw_priority (default 0): gateway tetap `proxy` (lihat komentar di atas).
       odoo-edge: {}
+      # ProyekKas DRMS: backend drms-pk-{web,stg}:3000 HANYA di network ini (bukan `proxy`).
+      # Tanpa gw_priority (default 0): gateway tetap `proxy`.
+      drms-kas-edge: {}
       # T14a: network internal (--internal, 10.100.5.0/24) — Prometheus scrape :8082. Internal network
       # tidak punya gateway → tidak memengaruhi pemilihan gateway (proxy tetap gw_priority 1).
       metrics: {}
@@ -80,6 +83,10 @@ networks:
     # Dibuat scripts/bootstrap.sh: 10.100.3.0/24 (H1) — anggota: traefik + pool Odoo saja.
     external: true
     name: odoo-edge
+  drms-kas-edge:
+    # Dibuat scripts/bootstrap.sh: 10.100.7.0/24 gw 10.100.7.1 — anggota: traefik + web ProyekKas DRMS saja.
+    external: true
+    name: drms-kas-edge
   metrics:
     # Dibuat observability/scripts/bootstrap.sh: 10.100.5.0/24 --internal (T14a) — anggota:
     # prometheus + target scrape (traefik, crowdsec, keycloak).

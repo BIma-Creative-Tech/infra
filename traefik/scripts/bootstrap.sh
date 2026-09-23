@@ -3,6 +3,7 @@
 #  1. network docker `proxy` (bridge, subnet tetap) — dipakai bersama semua service HTTP
 #     + network `odoo-edge` (H1): HANYA traefik + pool Odoo, agar container lain di `proxy`
 #     tidak bisa menghubungi Odoo :8069/:8072 langsung (melewati CrowdSec/ratelimit/header DB)
+#     + network `drms-kas-edge` (ProyekKas client DRMS): HANYA traefik + container web ProyekKas
 #  2. direktori acme/ (700) + acme-staging.json & acme.json (600) milik uid Traefik
 #  3. direktori logs/ (750, grup adm) milik uid Traefik + secrets/ (700)
 #  4. pasang konfigurasi logrotate host untuk access log (salin, bukan symlink: logrotate
@@ -35,6 +36,10 @@ ensure_network proxy 10.100.0.0/24 10.100.0.1
 # odoo-edge: traefik + odoo-pool-a + odoo-staging saja. Bukan --internal: Odoo tetap butuh egress
 # (sebelumnya lewat `proxy`, mis. OIDC ke auth.bimacreative.tech / SMTP keluar).
 ensure_network odoo-edge 10.100.3.0/24 10.100.3.1
+# drms-kas-edge: traefik + container web ProyekKas DRMS (drms-pk-web, drms-pk-stg) saja (pola odoo-edge).
+# Bukan --internal: app butuh egress (FCM, issuer publik Keycloak via hairpin). Runbook
+# docs/runbooks/proyekkas-drms-onboarding.md §Langkah 0.
+ensure_network drms-kas-edge 10.100.7.0/24 10.100.7.1
 
 install -d -o "$TRAEFIK_UID" -g "$TRAEFIK_GID" -m 0700 "$STACK_DIR/acme"
 for f in acme-staging.json acme.json; do
