@@ -1,0 +1,11 @@
+# {{ ansible_managed }} — role backup (T13, ADR 0006)
+[Unit]
+Description=Timer: Retensi restic (forget --prune 7d/4w/3m) + check
+
+[Timer]
+OnCalendar={{ restic_prune_oncalendar }}
+# Jalankan susulan bila host mati saat jadwal (systemd.timer Persistent=).
+Persistent=true
+
+[Install]
+WantedBy=timers.target

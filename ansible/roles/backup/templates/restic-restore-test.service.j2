@@ -1,0 +1,18 @@
+# {{ ansible_managed }} — role backup (T13, ADR 0006)
+[Unit]
+Description=Restore test bulanan restic (DB + file filestore) + check --read-data-subset
+Wants=docker.service
+After=docker.service network-online.target
+
+[Service]
+Type=oneshot
+ExecStart={{ infra_root }}/scripts/restore-test.sh
+# Hasil/ringkasan ke journal: journalctl -u restic-restore-test.service
+SyslogIdentifier=restic-restore-test
+UMask=0077
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+PrivateTmp=yes
+NoNewPrivileges=yes
+TimeoutStartSec=6h

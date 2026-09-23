@@ -1,0 +1,18 @@
+# {{ ansible_managed }} — role backup (T13, ADR 0006)
+[Unit]
+Description=Backup harian restic (pg_dump per DB + filestore Odoo + config)
+Wants=docker.service
+After=docker.service network-online.target
+
+[Service]
+Type=oneshot
+ExecStart={{ infra_root }}/scripts/backup.sh run
+# Hasil/ringkasan ke journal: journalctl -u restic-backup.service
+SyslogIdentifier=restic-backup
+UMask=0077
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+PrivateTmp=yes
+NoNewPrivileges=yes
+TimeoutStartSec=6h

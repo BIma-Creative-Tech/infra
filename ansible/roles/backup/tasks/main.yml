@@ -1,0 +1,170 @@
+---
+# Backup restic — T13 (ADR 0006). Idempoten: binary diunduh + diverifikasi hanya bila versi
+# terpasang != restic_version. Password repo dibangkitkan sekali di host (tidak pernah di git,
+# tidak ditampilkan). Skrip dijalankan dari repo: /opt/infra/scripts/{backup,restore,restore-test}.sh.
+- name: Prasyarat (bzip2 untuk dekompresi rilis, gnupg untuk verifikasi tanda tangan)
+  ansible.builtin.apt:
+    name: [bzip2, gnupg, curl]
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Versi restic terpasang
+  ansible.builtin.command: "{{ restic_bin }} version"
+  register: restic_installed
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Unduh, verifikasi (GPG + sha256), pasang restic {{ restic_version }}
+  when: ("restic " ~ restic_version ~ " ") not in (restic_installed.stdout | default(''))
+  block:
+    - name: Direktori kerja sementara
+      ansible.builtin.tempfile:
+        state: directory
+        suffix: restic
+      register: restic_tmp
+
+    - name: Kunci publik restic (vendored di role; fingerprint dicek di bawah)
+      ansible.builtin.copy:
+        src: restic-gpg-key-alex.asc
+        dest: "{{ restic_tmp.path }}/key.asc"
+        mode: "0600"
+
+    - name: Unduh SHA256SUMS + SHA256SUMS.asc
+      ansible.builtin.get_url:
+        url: "{{ restic_release_url }}/{{ item }}"
+        dest: "{{ restic_tmp.path }}/{{ item }}"
+        mode: "0600"
+      loop: [SHA256SUMS, SHA256SUMS.asc]
+
+    - name: Verifikasi tanda tangan SHA256SUMS (VALIDSIG kunci primer = fingerprint pin)
+      ansible.builtin.shell: |
+        set -euo pipefail
+        export GNUPGHOME="{{ restic_tmp.path }}/gnupg"
+        install -d -m 700 "$GNUPGHOME"
+        gpg --batch --quiet --import "{{ restic_tmp.path }}/key.asc" 2>/dev/null
+        gpg --batch --status-fd 1 --verify "{{ restic_tmp.path }}/SHA256SUMS.asc" "{{ restic_tmp.path }}/SHA256SUMS" 2>/dev/null \
+          | awk '$2 == "VALIDSIG" { print $NF }'
+      args:
+        executable: /bin/bash
+      register: restic_sig
+      changed_when: false
+      failed_when: restic_sig.rc != 0 or (restic_sig.stdout_lines | select('equalto', restic_gpg_fingerprint) | list | length) != 1
+
+    - name: SHA256SUMS bertanda tangan memuat sha256 pin untuk {{ restic_asset }}
+      ansible.builtin.command: grep -qxF "{{ restic_asset_sha256 }}  {{ restic_asset }}" "{{ restic_tmp.path }}/SHA256SUMS"
+      changed_when: false
+
+    - name: Unduh {{ restic_asset }} (checksum sha256 pin)
+      ansible.builtin.get_url:
+        url: "{{ restic_release_url }}/{{ restic_asset }}"
+        dest: "{{ restic_tmp.path }}/{{ restic_asset }}"
+        checksum: "sha256:{{ restic_asset_sha256 }}"
+        mode: "0600"
+
+    - name: Dekompresi + pasang binary
+      ansible.builtin.shell: |
+        set -euo pipefail
+        bunzip2 -c "{{ restic_tmp.path }}/{{ restic_asset }}" > "{{ restic_tmp.path }}/restic"
+        install -o root -g root -m 0755 "{{ restic_tmp.path }}/restic" "{{ restic_bin }}"
+      args:
+        executable: /bin/bash
+      changed_when: true
+
+    - name: Cek versi hasil pasang
+      ansible.builtin.command: "{{ restic_bin }} version"
+      register: restic_after
+      changed_when: false
+      failed_when: ("restic " ~ restic_version ~ " ") not in restic_after.stdout
+  always:
+    - name: Hapus direktori kerja sementara
+      ansible.builtin.file:
+        path: "{{ restic_tmp.path }}"
+        state: absent
+      when: restic_tmp.path is defined
+
+- name: Direktori konfigurasi & cache (root 700)
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+  loop:
+    - "{{ restic_etc_dir }}"
+    - "{{ restic_cache_dir }}"
+    - "{{ infra_root }}/backups"
+
+- name: Bangkitkan password repo bila belum ada (acak, tidak ditampilkan)
+  ansible.builtin.shell: |
+    set -euo pipefail
+    umask 077
+    openssl rand -base64 48 | tr -d '\n' > "{{ restic_password_file }}"
+  args:
+    executable: /bin/bash
+    creates: "{{ restic_password_file }}"
+  no_log: true
+
+- name: Permission file password repo
+  ansible.builtin.file:
+    path: "{{ restic_password_file }}"
+    owner: root
+    group: root
+    mode: "0600"
+
+- name: local.env (repo lokal — tanpa secret; password lewat file)
+  ansible.builtin.template:
+    src: local.env.j2
+    dest: "{{ restic_etc_dir }}/local.env"
+    owner: root
+    group: root
+    mode: "0600"
+
+- name: remote.env placeholder (hanya dibuat bila belum ada — isi manual saat S3 dipilih)
+  ansible.builtin.copy:
+    src: "{{ infra_root }}/scripts/restic-remote.env.example"
+    remote_src: true
+    dest: "{{ restic_etc_dir }}/remote.env"
+    owner: root
+    group: root
+    mode: "0600"
+    force: false
+
+- name: Inisialisasi repo lokal bila belum ada
+  ansible.builtin.command: "{{ restic_bin }} init"
+  args:
+    creates: "{{ restic_repository }}/config"
+  environment:
+    RESTIC_REPOSITORY: "{{ restic_repository }}"
+    RESTIC_PASSWORD_FILE: "{{ restic_password_file }}"
+    RESTIC_CACHE_DIR: "{{ restic_cache_dir }}"
+
+- name: Unit systemd backup/prune/restore-test
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "/etc/systemd/system/{{ item }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - restic-backup.service
+    - restic-backup.timer
+    - restic-prune.service
+    - restic-prune.timer
+    - restic-restore-test.service
+    - restic-restore-test.timer
+  notify: Reload systemd (backup)
+
+- name: Terapkan daemon-reload sebelum mengaktifkan timer
+  ansible.builtin.meta: flush_handlers
+
+- name: Timer aktif
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    enabled: true
+    state: started
+  loop:
+    - restic-backup.timer
+    - restic-prune.timer
+    - restic-restore-test.timer

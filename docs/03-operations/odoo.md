@@ -163,7 +163,8 @@ Tambah path hanya bila FP nyata terbukti; catat di sini. Diketahui masih mungkin
    cd /opt/infra/staging/odoo/addons/shared && git fetch && git checkout <commit>
    cd /opt/infra/staging/odoo && docker compose up -d --force-recreate   # muat kode baru
    ```
-2. **Backup setiap DB terdampak** (wajib sebelum `-u`; T13 akan menyediakan `scripts/backup.sh`):
+2. **Backup setiap DB terdampak** (wajib sebelum `-u`): `systemctl start restic-backup.service` (T13, `backup.md`)
+   → `RESULT status=ok`. Alternatif manual satu DB (file lokal):
    ```bash
    DB=<db>; C=<odoo-staging|odoo-pool-a>; TS=$(date +%Y%m%d-%H%M%S); B=/opt/infra/backups/odoo
    install -d -m 700 $B

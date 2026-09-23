@@ -93,3 +93,26 @@ crowdsec_fw_bouncer_version: "0.0.36"
 crowdsec_fw_bouncer_name: host-firewall-bouncer
 crowdsec_fw_bouncer_api_url: "http://127.0.0.1:8080/"
 crowdsec_fw_bouncer_key_file: /etc/crowdsec/bouncers/crowdsec-firewall-bouncer.key
+
+# ---------------------------------------------------------------------------
+# Backup restic (T13, ADR 0006). Binary resmi GitHub release v0.19.1 (2026-07-05):
+# sha256 dari SHA256SUMS yang ditandatangani (SHA256SUMS.asc) — kunci restic
+# (docs v0.19.1 doc/020_installation.rst: 0x91A6868BD3F7A907,
+# fingerprint CF8F18F2844575973F79D4E191A6868BD3F7A907); sama dengan digest aset
+# api.github.com/repos/restic/restic/releases/tags/v0.19.1 (diverifikasi 2026-09-23).
+# Password repo TIDAK di sini: dibangkitkan di host (restic_password_file, 600 root).
+# ---------------------------------------------------------------------------
+restic_version: "0.19.1"
+restic_release_url: "https://github.com/restic/restic/releases/download/v0.19.1"
+restic_asset: restic_0.19.1_linux_amd64.bz2
+restic_asset_sha256: f415415624dcc452f2a02b8c33641791a8c6d6d3b65bbb3543fcf9a25151585c
+restic_gpg_fingerprint: CF8F18F2844575973F79D4E191A6868BD3F7A907
+restic_bin: /usr/local/bin/restic
+restic_etc_dir: /etc/restic
+restic_password_file: /etc/restic/password
+restic_repository: /opt/infra/backups/restic
+restic_cache_dir: /var/cache/restic
+# Jadwal systemd (OnCalendar, zona Asia/Jakarta eksplisit — ADR 0006 §Jadwal)
+restic_backup_oncalendar: "*-*-* 01:30:00 Asia/Jakarta"
+restic_prune_oncalendar: "Sun *-*-* 03:00:00 Asia/Jakarta"
+restic_restore_test_oncalendar: "*-*-01 04:00:00 Asia/Jakarta"

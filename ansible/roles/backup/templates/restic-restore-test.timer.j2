@@ -1,0 +1,11 @@
+# {{ ansible_managed }} — role backup (T13, ADR 0006)
+[Unit]
+Description=Timer: Restore test bulanan restic (DB + file filestore) + check --read-data-subset
+
+[Timer]
+OnCalendar={{ restic_restore_test_oncalendar }}
+# Jalankan susulan bila host mati saat jadwal (systemd.timer Persistent=).
+Persistent=true
+
+[Install]
+WantedBy=timers.target

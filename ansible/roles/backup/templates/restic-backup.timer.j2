@@ -1,0 +1,11 @@
+# {{ ansible_managed }} — role backup (T13, ADR 0006)
+[Unit]
+Description=Timer: Backup harian restic (pg_dump per DB + filestore Odoo + config)
+
+[Timer]
+OnCalendar={{ restic_backup_oncalendar }}
+# Jalankan susulan bila host mati saat jadwal (systemd.timer Persistent=).
+Persistent=true
+
+[Install]
+WantedBy=timers.target

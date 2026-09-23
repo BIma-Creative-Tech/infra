@@ -1,0 +1,97 @@
+#!/usr/bin/env bash
+# Restore test — T13 (ADR 0006 §Jadwal: bulanan, laporan ke journal). Harus root.
+#
+#   restore-test.sh [<db>]
+#     1) DB: restore snapshot terbaru <db> (default: acak dari *_prod, bila tidak ada *_demo) ke DB
+#        BARU <db>_restoretest (owner postgres, CONNECT PUBLIC dicabut) via scripts/restore.sh,
+#        bandingkan jumlah tabel + count baris tabel kunci (res_users, res_partner, ir_module_module
+#        bila ada) sumber vs hasil, lalu DROP <db>_restoretest (hanya nama berakhiran _restoretest).
+#     2) Filestore: pulihkan satu file acak (lebih tua dari snapshot `files` terbaru) ke direktori
+#        sementara, bandingkan sha256 dengan file live, hapus direktori sementara.
+#     3) restic check --read-data-subset=<n>/5 (n = bulan mod 5 + 1 → seluruh data terbaca tiap 5 bulan).
+#   Catatan: smoke `odoo --stop-after-init` dari ADR 0006 TIDAK dijalankan — pg_hba/dbfilter pool
+#   hanya mengizinkan DB *_prod/*_demo/*_staging, DB *_restoretest tidak bisa dibuka role pool.
+# Output baris terakhir: RESULT key=value … (exit ≠ 0 bila ada perbedaan/gagal).
+set -euo pipefail
+LOG_TAG=infra-restore-test
+SCRIPT_DIR="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
+# shellcheck source=lib/restic-common.sh
+. "$SCRIPT_DIR/lib/restic-common.sh"
+
+KEY_TABLES=(res_users res_partner ir_module_module)
+
+pick_db() {
+  local list
+  list="$(pg_psql -d postgres -c "SELECT datname FROM pg_database WHERE datname ~ '^[a-z0-9_]+_prod\$' ORDER BY 1")"
+  [[ -n "$list" ]] || list="$(pg_psql -d postgres -c "SELECT datname FROM pg_database WHERE datname ~ '^[a-z0-9_]+_demo\$' ORDER BY 1")"
+  [[ -n "$list" ]] || return 1
+  shuf -n1 <<<"$list"
+}
+
+# db_stats <db> → baris "tables=<n>" lalu "<tabel>=<count>" per tabel kunci yang ada
+db_stats() {
+  local db="$1" t
+  echo "tables=$(pg_psql -d "$db" -c "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE'")"
+  for t in "${KEY_TABLES[@]}"; do
+    if [[ "$(pg_psql -d "$db" -c "SELECT to_regclass('public.$t') IS NOT NULL")" == t ]]; then
+      echo "$t=$(pg_psql -d "$db" -c "SELECT count(*) FROM public.$t")"
+    fi
+  done
+}
+
+test_db() {
+  local db="$1" target="${1}_restoretest" src dst rc=0
+  valid_db "$db" || die "nama DB tidak valid: $db"
+  db_exists "$db" || die "DB $db tidak ada"
+  db_exists "$target" && die "$target sudah ada (sisa uji sebelumnya?) — periksa lalu DROP manual"
+  "$SCRIPT_DIR/restore.sh" "$db" "$target" || { warn "restore $db gagal"; return 1; }
+  src="$(db_stats "$db")"; dst="$(db_stats "$target")"
+  log "sumber   $db: $(tr '\n' ' ' <<<"$src")"
+  log "restore  $target: $(tr '\n' ' ' <<<"$dst")"
+  if [[ "$src" == "$dst" ]]; then log "DB $db: SAMA (jumlah tabel & count tabel kunci)"
+  else warn "DB $db: BERBEDA sumber vs restore"; rc=1; fi
+  [[ "$target" == *_restoretest ]] || die "guard: menolak DROP $target"
+  pg_psql -d postgres -c "DROP DATABASE \"$target\" WITH (FORCE)" >/dev/null
+  if db_exists "$target"; then warn "DROP $target gagal"; rc=1; else log "DB $target dihapus"; fi
+  return $rc
+}
+
+test_filestore_file() {
+  local snap_json snap_time snap_id vol mp db file rel tmp h_live h_rest
+  snap_json="$(restic snapshots --json --latest 1 --tag files)"
+  snap_id="$(python3 -c 'import json,sys; s=json.load(sys.stdin); print(s[-1]["short_id"] if s else "")' <<<"$snap_json")"
+  snap_time="$(python3 -c 'import json,sys; s=json.load(sys.stdin); print(s[-1]["time"] if s else "")' <<<"$snap_json")"
+  [[ -n "$snap_id" ]] || { warn "tidak ada snapshot files"; return 1; }
+  for vol in $(shuf -e "${FILESTORE_VOLUMES[@]}"); do
+    mp="$(volume_mountpoint "$vol")"; [[ -n "$mp" && -d "$mp/filestore" ]] || continue
+    file="$(find "$mp/filestore" -type f ! -newermt "$snap_time" 2>/dev/null | shuf -n1 || true)"
+    [[ -n "$file" ]] && break
+  done
+  [[ -n "${file:-}" ]] || { warn "tidak ada file filestore yang lebih tua dari snapshot $snap_id"; return 1; }
+  rel="${file#"$mp/filestore/"}"; db="${rel%%/*}"; rel="${rel#*/}"
+  tmp="$INFRA_DIR/backups/.restoretest-$$"
+  "$SCRIPT_DIR/restore.sh" --filestore "$vol" "$db" "$tmp" --snapshot "$snap_id" --path "$rel" \
+    || { rm -rf -- "$tmp"; warn "restore file filestore gagal"; return 1; }
+  h_live="$(sha256sum < "$file" | cut -d' ' -f1)"
+  h_rest="$(sha256sum < "$tmp$file" | cut -d' ' -f1)"
+  rm -rf -- "$tmp"
+  if [[ "$h_live" == "$h_rest" ]]; then log "filestore $vol/$db/$rel: sha256 SAMA ($h_live)"; return 0; fi
+  warn "filestore $vol/$db/$rel: sha256 BERBEDA (live $h_live, restore $h_rest)"; return 1
+}
+
+main() {
+  require_root
+  load_local_env
+  acquire_lock
+  local db="${1:-}" t0=$SECONDS db_rc=0 fs_rc=0 chk_rc=0 subset
+  if [[ -z "$db" ]]; then db="$(pick_db)" || die "tidak ada DB *_prod/*_demo untuk diuji"; fi
+  test_db "$db" || db_rc=1
+  test_filestore_file || fs_rc=1
+  subset="$(( 10#$(date +%m) % 5 + 1 ))/5"
+  restic check --read-data-subset="$subset" || chk_rc=1
+  local status=ok; (( db_rc + fs_rc + chk_rc == 0 )) || status=failed
+  log "RESULT status=$status db=$db db_compare=$([[ $db_rc -eq 0 ]] && echo ok || echo failed) filestore=$([[ $fs_rc -eq 0 ]] && echo ok || echo failed) check_subset=$subset:$([[ $chk_rc -eq 0 ]] && echo ok || echo failed) rto_seconds=$((SECONDS - t0))"
+  [[ $status == ok ]]
+}
+
+main "$@"
