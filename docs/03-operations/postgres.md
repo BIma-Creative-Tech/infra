@@ -9,7 +9,7 @@
 |---|---|---|
 | `docker-compose.yml` | service `postgres`, volume `postgres_pgdata`, network external `db` | ya |
 | `conf/pg_hba.conf` | aturan autentikasi (dimount ro, `-c hba_file=`) | ya |
-| `.env` | `POSTGRES_PASSWORD`, `PG_KEYCLOAK_PASSWORD`, `PG_CONTROL_PLANE_PASSWORD`, `PG_DATAMART_PASSWORD`, `PG_ODOO_POOL_A_PASSWORD`, `PG_ODOO_STAGING_PASSWORD` (T10) — mode 600 root | **tidak** |
+| `.env` | `POSTGRES_PASSWORD`, `PG_KEYCLOAK_PASSWORD`, `PG_CONTROL_PLANE_PASSWORD`, `PG_DATAMART_PASSWORD`, `PG_ODOO_POOL_A_PASSWORD`, `PG_ODOO_STAGING_PASSWORD` (T10), `PG_PK_DRMS{,_STG}_{OWNER,APP,RO}_PASSWORD` (ProyekKas DRMS) — mode 600 root | **tidak** |
 | `.env.example` | placeholder | ya |
 | `scripts/bootstrap.sh` | idempoten: network `db` + `.env` dengan password acak (`openssl rand`, 48 char alnum); tidak mencetak password, tidak menimpa nilai yang ada | ya |
 | `scripts/init-roles.sh` | idempoten: role + DB `keycloak`, `control_plane`, `datamart`; set password dari `.env` (via stdin psql); `REVOKE ALL ON DATABASE … FROM PUBLIC` | ya |
@@ -20,11 +20,14 @@
   cluster + start berjalan tanpa capability karena volume sudah dimiliki 999 (entrypoint tidak perlu
   `chown`/`gosu`). `read_only: true` + tmpfs `/var/run/postgresql`, `/tmp` (uid 999). `shm_size: 256mb`.
 - initdb: `--auth-host=scram-sha-256 --auth-local=peer --data-checksums`.
-- Tuning (ADR 0004, ESTIMASI): `shared_buffers=512MB`, `work_mem=6MB`, `max_connections=150`,
+- Tuning (ADR 0004, ESTIMASI): `shared_buffers=512MB`, `work_mem=6MB`, `max_connections=200` (150 → 200 pada 2026-09-23, onboarding ProyekKas DRMS — ADR 0004 riwayat revisi),
   `password_encryption=scram-sha-256`. `mem_limit 2048m`, `cpus 1.5`. Revisi di T07.
 - `pg_hba.conf`: socket lokal hanya `postgres` via `peer`; superuser **ditolak** lewat TCP;
   satu baris `host <db> <role> 10.100.1.0/24 scram-sha-256` per aplikasi; sisanya `reject`.
-- Connection limit role: keycloak 30, control_plane 20, datamart 10, odoo_pool_a 48, odoo_staging 24 (ESTIMASI).
+- Connection limit role: keycloak 30, control_plane 20, datamart 10, odoo_pool_a 48, odoo_staging 24,
+  `pk_drms_{owner,app,ro}` 2/25/3, `pk_drms_stg_{owner,app,ro}` 2/10/2 (ESTIMASI) — total 176 ≤ `max_connections` 200.
+- **ProyekKas DRMS (2026-09-23):** DB `pk_drms`, `pk_drms_stg` (owner `*_owner`, CONNECT hanya role DB itu, PUBLIC
+  dicabut); baris hba eksplisit per DB. Runbook `docs/runbooks/proyekkas-drms-onboarding.md` §Langkah 1.
 - **Role pool Odoo (T10)**: `odoo_pool_a`, `odoo_staging` — `LOGIN CREATEDB NOSUPERUSER NOCREATEROLE`, tanpa DB
   sendiri, `GRANT CONNECT ON DATABASE postgres`. `pg_hba` memakai **regex nama DB (PG16)**:
   `/^[a-z0-9_]+_(prod|demo)$` hanya untuk `odoo_pool_a`, `/^[a-z0-9_]+_staging$` hanya untuk `odoo_staging`.
@@ -73,6 +76,9 @@ mis. `sed -i`, Edit tool) membuat container tetap melihat versi lama → reload 
 `docker compose restart postgres` (terjadi di T10). Untuk reload tanpa restart, tulis di tempat:
 `cat pg_hba.new > conf/pg_hba.conf` lalu `pg_reload_conf()`.
 Cek: `docker exec postgres psql -U postgres -c '\l'` dan `-c '\du'`.
+Perubahan `command` (mis. `max_connections`) → `docker compose up -d` (recreate), bukan `restart`. Durasi terukur
+2026-09-23: healthy ±6,4 s setelah recreate; Odoo/Keycloak/cp-worker mencatat error koneksi selama jendela itu lalu
+pulih sendiri (tidak perlu restart konsumen).
 
 ## Rotasi password
 

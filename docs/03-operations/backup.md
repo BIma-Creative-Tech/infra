@@ -34,7 +34,7 @@
 | `scripts/backup.sh` | `run` (default) · `prune` · `check` | 755 | ya |
 | `scripts/restore.sh` | restore DB ke DB baru / file filestore ke direktori baru | 755 | ya |
 | `scripts/restore-test.sh` | uji restore bulanan (DB + 1 file filestore + `check --read-data-subset`) | 755 | ya |
-| `scripts/lib/restic-common.sh` | fungsi bersama, daftar volume filestore (`FILESTORE_VOLUMES`) | 644 | ya |
+| `scripts/lib/restic-common.sh` | fungsi bersama, daftar volume filestore (`FILESTORE_VOLUMES`) & media app non-Odoo (`MEDIA_VOLUMES`) | 644 | ya |
 
 ## Isi snapshot
 
@@ -42,7 +42,7 @@
 |---|---|---|
 | `pg`,`pg-globals` | `/pg/globals.sql` | `docker exec postgres pg_dumpall -U postgres --globals-only` (role + hash password role) |
 | `pg`,`db:<db>` — satu snapshot per DB | `/pg/<db>.dump` | `docker exec postgres pg_dump -U postgres -Fc -Z 0 -d <db>` — daftar DB **dinamis** (`pg_database`, bukan template, `datallowconn`; `*_restoretest` dilewati) |
-| `files` | `/opt/infra` (kecuali `backups/`, `traefik/logs/`, `ansible/collections/`) + `/var/lib/docker/volumes/<vol>/_data/filestore` per pool | semua `.env`, `*/secrets/`, `traefik/acme/*.json`, `security/crowdsec/data`, realm export, repo git; filestore `odoo_pool_a_data`, `odoo_staging_data` |
+| `files` | `/opt/infra` (kecuali `backups/`, `traefik/logs/`, `ansible/collections/`) + `/var/lib/docker/volumes/<vol>/_data/filestore` per pool | semua `.env`, `*/secrets/`, `traefik/acme/*.json`, `security/crowdsec/data`, realm export, repo git; filestore `odoo_pool_a_data`, `odoo_staging_data`; **seluruh root volume** `MEDIA_VOLUMES` (`drms_pk_media_{prod,stg}`, ProyekKas DRMS) bila volume ada — belum ada → log info `volume media … belum ada — dilewati` |
 
 - Dump dialirkan langsung (`restic backup --stdin-from-command -- …`, doc 0.19.1 `040_backup.rst`): tidak ada
   file dump sementara; exit code ≠ 0 dari `pg_dump` → restic membatalkan, **tidak ada snapshot** (bukan snapshot kosong).
@@ -55,6 +55,10 @@
   (tanpa quiesce) → snapshot bisa tidak konsisten; risiko diterima karena isi Kuma dapat dibuat ulang
   (`observability/scripts/uptime-kuma-provision.sh`) dan datasource Grafana di-provision dari git (`observability.md`).
 - `web/control-plane/.env` (T16a) kini di `/opt/infra` → ikut backup; `/opt/src/control-plane/.env` tidak lagi dipakai.
+- `MEDIA_VOLUMES` (2026-09-23): diuji via `restic-backup.service` dengan volume dummy `drms_pk_media_stg` berisi 1 file →
+  file ada di snapshot `files` (`restic dump`), volume dummy dihapus. `restore-test.sh` belum menguji file media.
+  Catatan retensi: `forget` mengelompokkan per host+paths → setiap perubahan daftar path (volume media muncul/hilang)
+  membuat grup snapshot baru; grup lama tetap menyimpan snapshot terakhirnya sesuai kebijakan keep.
 - **Belum** di-backup (stack belum ada): data mail DMS (T11) — tambahkan volumenya
   saat stack itu hadir. Tidak di-backup: TSDB Prometheus/Loki, image Docker, sesi Odoo.
 - `/opt/src/control-plane/.env` (di luar `/opt/infra`) **tidak** ikut — sejak T16a deployment memakai `web/control-plane/.env` (ikut backup).

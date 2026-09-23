@@ -10,6 +10,21 @@
   untuk membaca secret client (`keycloak.md` §Akses admin console); jendela downtime Keycloak ±5 menit (langkah 3) dan
   restart singkat Postgres ±10–30 detik (langkah 1); langkah 0 (commit infra Lead) sudah diterapkan.
 
+## Status penerapan
+
+| Langkah | Status | Tanggal | Bukti ringkas |
+|---|---|---|---|
+| 0. Prasyarat infra Lead | **DONE** | 2026-09-23 | network `drms-kas-edge` 10.100.7.0/24 (traefik anggota, host tetap 10.100.0.1); `backup.sh` membaca `MEDIA_VOLUMES` (diuji volume dummy); `max_connections` 200 — branch `feat/infra-drms-apply` |
+| 1. Postgres | **DONE** | 2026-09-23 | 2 DB + 6 role; pg_hba 0 error; login `pk_drms_app`→`pk_drms` OK, →`control_plane`/`pk_drms_stg` ditolak; `pk_drms_stg_app`→`pk_drms` ditolak; Odoo/Keycloak/cp pulih |
+| 2. Traefik | **DONE** | 2026-09-23 | router `drms-pk-stg-{web,api-v1,api-rest}` & `auth-drms-token` termuat tanpa error; cert `(STAGING)`; host staging 502 (app belum ada); token realm `platform` tetap `auth-login` |
+| 3. Keycloak | belum | — | dikerjakan Lead (jendela downtime) |
+| 4. Backup | sebagian | 2026-09-23 | loop media aktif; dump `pk_drms*` & volume media nyata diverifikasi setelah app naik |
+
+Catatan penerapan: Postgres di-**recreate** (`docker compose up -d`, bukan `restart`) karena `command` berubah
+(`max_connections`); ini sekaligus memuat inode baru `pg_hba.conf`. Traefik di-recreate di langkah 0 (join network) →
+file `dynamic/clients/drms-proyekkas-*.yml` sudah termuat & sertifikat staging diterbitkan saat start; HUP langkah 2
+tetap dikirim (tanpa efek tambahan).
+
 ## Nama yang ditetapkan (sumber: arsitektur §3.1–§3.4 + keputusan branch ini)
 
 | Objek | Prod | Staging | Catatan |
@@ -45,7 +60,7 @@ service account `service-account-proyekkas-admin-api` (tanpa kredensial) pembawa
   App tidak menjangkau `keycloak:8080` (sengaja) — server-side OIDC/JWKS/Admin REST lewat
   `https://auth.bimacreative.tech` (hairpin); token call melewati router `auth-drms-token`.
 - **`scripts/backup.sh`**: loop `MEDIA_VOLUMES` (root volume, tanpa `filestore/`) setelah loop `FILESTORE_VOLUMES`,
-  urutan tetap DB dulu lalu file (ADR 0006). Branch ini hanya menyediakan daftar di `lib/restic-common.sh`.
+  urutan tetap DB dulu lalu file (ADR 0006); volume yang belum ada dilewati dengan log info. (DONE 2026-09-23)
 - **Postgres `max_connections` 150 → 200** (lihat Catatan §Limit koneksi).
 
 ## Langkah 1. Postgres — DB, role, pg_hba

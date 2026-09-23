@@ -90,6 +90,15 @@
   dari host tetap tiba sebagai `10.100.0.1` (diverifikasi di access log setelah perubahan, 2026-09-23).
 - Jangan menambahkan service lain ke `odoo-edge`; jangan menambahkan pool Odoo ke `proxy`.
 
+## Network `drms-kas-edge` (ProyekKas DRMS)
+
+- Bridge **`10.100.7.0/24`, gateway `10.100.7.1`**, dibuat `scripts/bootstrap.sh` (`ensure_network`), bukan
+  `--internal` (app butuh egress: FCM, issuer publik Keycloak via hairpin). Anggota **hanya** `traefik` + container
+  web ProyekKas (`drms-pk-web`, `drms-pk-stg`) — bukan `proxy`.
+- Traefik join **tanpa** `gw_priority` → koneksi host tetap `10.100.0.1` (diverifikasi access log 2026-09-23).
+- Router: `dynamic/clients/drms-proyekkas-{staging,middlewares,kc-token}.yml` (manual, bukan
+  `render-client-route.sh`); runbook `docs/runbooks/proyekkas-drms-onboarding.md`.
+
 ## Start / stop / reload
 
 ```bash
