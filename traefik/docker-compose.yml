@@ -63,33 +63,6 @@ services:
         max-size: "10m"
         max-file: "3"
 
-  # Service UJI T03 (router dynamic/test/whoami-status.yml). Tidak publish port.
-  # Hapus bersama router uji saat T14 memasang Uptime Kuma di status.bimacreative.tech.
-  whoami:
-    image: traefik/whoami:v1.12.0@sha256:c4717a8d1f0134a7444e24f881160e033991f23027c6c5a9a3f8fd22e70d1d44
-    container_name: whoami
-    restart: unless-stopped
-    user: "65532:65532"
-    command: ["-port", "8080"]
-    read_only: true
-    networks:
-      - proxy
-    healthcheck:
-      # Image scratch (hanya binary /whoami) — tidak ada shell/curl; binary tidak punya mode
-      # healthcheck. Sehat = proses hidup; dicek dari Traefik via curl (lihat docs operasional).
-      disable: true
-    mem_limit: 32m
-    cpus: 0.1
-    cap_drop:
-      - ALL
-    security_opt:
-      - no-new-privileges:true
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
-
 networks:
   proxy:
     # Dibuat oleh scripts/bootstrap.sh: bridge, subnet tetap 10.100.0.0/24, gateway 10.100.0.1.

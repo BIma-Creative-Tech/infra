@@ -13,7 +13,7 @@
 | `dynamic/platform/<svc>.yml` | router layanan platform (T06 `auth.yml`, T14 `grafana.yml`/`status.yml`, …) — satu file per task | ya |
 | `dynamic/platform/odoo-pools.yml` | service `odoo-pool-a-{http,ws}`, `odoo-staging-{http,ws}` + middleware `odoo-security-headers` (T10) | ya |
 | `dynamic/clients/<slug>-<env>.yml` | router tenant Odoo, dirender `scripts/render-client-route.sh` dari `templates/traefik-client.yml` (T10) — lihat `odoo.md` | ya |
-| `dynamic/test/whoami-status.yml` | **router uji** `status.bimacreative.tech` → `whoami` (resolver staging). Hapus saat T14 memasang Uptime Kuma | ya |
+| ~~`dynamic/test/whoami-status.yml`~~ | **dihapus 2026-09-23 (H2, QA-T17A-05/06/08)** bersama service `whoami`. `status.bimacreative.tech` kini tanpa router (404) sampai T14 menambah `dynamic/platform/status.yml` (Uptime Kuma) | — |
 | `acme/acme-staging.json`, `acme/acme.json` | akun ACME + private key sertifikat. Dir 700, file 600, owner 65532 | **tidak** (`traefik/.gitignore`) |
 | `secrets/crowdsec-bouncer.key` | API key bouncer CrowdSec (T05). Dir 700, file 600, owner 65532 | **tidak** |
 | `dynamic/middlewares/crowdsec.yml` | middleware plugin bouncer CrowdSec + AppSec (T05) — lihat `crowdsec.md` | ya |
