@@ -26,7 +26,7 @@ Isi tiap direktori pool:
 |---|---|---|
 | `docker-compose.yml` | service `odoo`, network `db` + `odoo-edge` (H1), tanpa port publish | ya |
 | `odoo.conf` | opsi server — **tanpa secret** (lihat §Secret) | ya |
-| `addons/shared` | **git submodule** `odoo-addons-shared` ter-pin (saat ini `18f6bcf`) | gitlink |
+| `addons/shared` | **git submodule** `odoo-addons-shared` ter-pin (prod `18f6bcf`, staging `5fa8b70` sejak T15) | gitlink |
 | `addons/clients/<slug>` | repo addons client (`odoo-addons-<slug>`) — kosong saat ini | ya (per client) |
 | `.env` | `PGHOST/PGPORT/PGUSER/PGPASSWORD`, `ODOO_ADMIN_PASSWD` (hash) — 600 root | **tidak** |
 | `secrets/master-password` | master password plaintext (48 char) — 600 root | **tidak** |
@@ -155,6 +155,84 @@ docker exec crowdsec cscli alerts inspect <id> -d     # rule_name, matched_zones
 ```
 Tambah path hanya bila FP nyata terbukti; catat di sini. Diketahui masih mungkin FP: teks berisi pola SQL
 (mis. "UNION SELECT") pada field biasa (rule 942 tetap aktif).
+
+## SSO — `sh_auth_oidc` ↔ Keycloak (T15)
+
+Desain: ADR 0003 D2 + README modul (`addons/shared/sh_auth_oidc/README.md`). Aktif di `demo_staging`
+(staging, modul `19.0.1.1.0`, submodule staging `5fa8b70`). **Prod (`pool-a`, `demo_demo`) belum** — menyusul setelah QA.
+
+### Komponen per tenant
+
+| Komponen | Nilai (`demo_staging`) | Pola |
+|---|---|---|
+| Client Keycloak | `odoo-demo-staging` @ realm `platform-staging` | `odoo-<slug>-<env>` |
+| Konfigurasi client | confidential (`client-secret`), standard flow saja (implicit/direct grant/service account/device/CIBA/token exchange OFF), `pkce.code.challenge.method=S256`, `id.token.signed.response.alg=RS256`, `fullScopeAllowed=false`, default scopes `basic profile email acr`, optional scopes kosong, web origins kosong, frontchannel logout OFF | sama |
+| Redirect URI (eksak) | `https://demo.staging.bimacreative.tech/sh_auth_oidc/callback` | `https://<host tenant>/sh_auth_oidc/callback` |
+| Secret client | `/opt/infra/identity/keycloak/secrets/platform-staging-odoo-demo-staging.secret` (600, tanpa newline) | `<realm>-<client>.secret` |
+| Env pool (`.env` 600) | `SH_OIDC_ODOO_DEMO_STAGING_SECRET=<secret>`, `SH_OIDC_TRUSTED_ISSUERS=https://auth.bimacreative.tech/realms/platform-staging` | `SH_OIDC_<CLIENT>_SECRET`; issuer dipisah koma |
+| Provider Odoo | `Keycloak (platform-staging)`, client_id `odoo-demo-staging`, *OIDC Code Flow + PKCE* ON, issuer realm, token/JWKS/userinfo endpoint realm, *Client Secret Env Variable* `SH_OIDC_ODOO_DEMO_STAGING_SECRET`, *Allow Sign Up* OFF | sama |
+| Parameter DB | `auth_oauth.authorization_header=True`, `auth_signup.invitation_scope=b2b` (install `auth_oauth` menarik `auth_signup` yang default-nya `b2c` = signup publik), provider bawaan *Odoo.com Accounts* dinonaktifkan | sama |
+
+Compose **tidak** diubah: `env_file: .env` sudah meneruskan semua variabel ke container. Env baru butuh
+`docker compose up -d --force-recreate`. `odoo-pool-bootstrap.sh` mempertahankan kunci lain di `.env` (hanya
+menulis `PG*`/`ODOO_ADMIN_PASSWD`).
+
+Client dibuat lewat Admin REST dengan client `automation` (service account, token dari
+`/realms/platform-staging/protocol/openid-connect/token`, Admin API via `--resolve auth.bimacreative.tech:443:127.0.0.1`).
+**Catatan WAF:** CrowdSec AppSec (CRS 911100 "Method is not allowed by policy") memblok **PUT/DELETE** ke Admin
+API lewat edge → ubah/hapus client/user lewat admin console (SSH tunnel, `keycloak.md`) — atau keputusan Lead
+untuk pengecualian sempit. `partial-export` butuh `manage-realm` (tidak dimiliki `automation`) → realm-export
+git belum memuat client ini (konfigurasi tercatat di tabel di atas).
+
+### Aktivasi tenant (urutan)
+1. Backup DB (§Upgrade langkah 2).
+2. Checkout submodule pool ke commit modul → `docker compose up -d --force-recreate`.
+3. `docker exec -i <pool> odoo -c /etc/odoo/odoo.conf -d <db> --no-http --workers=0 --max-cron-threads=0 -i sh_auth_oidc --stop-after-init` (`-u` bila sudah ter-install).
+4. Buat client Keycloak (tabel) → simpan secret (600, tanpa newline) → tambah `SH_OIDC_*` ke `<pool>/.env` → recreate pool.
+5. Buat provider (Settings > Users & Companies > OAuth Providers, mode debug, atau `odoo shell`), set parameter DB (tabel).
+6. Uji: `/web/login` menampilkan tombol "Masuk dengan SSO" (`/sh_auth_oidc/authorize?provider=<id>`).
+
+### Menautkan user (tanpa auto-create)
+Login SSO hanya untuk `res.users` dengan `oauth_provider_id` = provider **dan** `oauth_uid` = Keycloak user id
+(claim `sub`, UUID di Admin API `GET /admin/realms/<realm>/users?username=<u>&exact=true` → `id`). Tidak ada
+pencocokan email. Set di form user tab **SSO (OIDC)** (admin, mode biasa) atau `odoo shell`:
+```python
+p = env['auth.oauth.provider'].search([('client_id', '=', 'odoo-demo-staging')])
+env['res.users'].search([('login', '=', '<login>')]).write({'oauth_provider_id': p.id, 'oauth_uid': '<keycloak user id>'})
+env.cr.commit()
+```
+**Efek kebijakan password (T15):** begitu tertaut, password lokal Odoo user tersebut **ditolak** (web login,
+`/web/session/authenticate`, XML-RPC/JSON-RPC, identity check ganti password/API key). API key yang sudah ada tetap
+berlaku untuk RPC. User tanpa tautan (mis. `admin` tenant = admin teknis platform, portal) tetap memakai password.
+Admin teknis yang tertaut tetap boleh password hanya bila anggota `base.group_system` **dan** centang
+*OIDC: Allow Local Password (technical admin)*. Detail: README modul §Local password policy.
+
+### Rotasi secret client
+1. Admin console (tunnel) → realm → Clients → `odoo-<slug>-<env>` → Credentials → *Regenerate* (atau
+   `POST /admin/realms/<realm>/clients/<uuid>/client-secret` dengan `automation` — metode POST, belum diuji).
+2. Tulis ke file secret tanpa newline (600), update baris `SH_OIDC_<CLIENT>_SECRET` di `<pool>/.env`
+   (jangan `echo` nilai ke terminal/log).
+3. `cd <pool> && docker compose up -d --force-recreate` (±10 s). Login SSO yang sedang di tengah jalan saat rotasi gagal sekali (ulangi).
+4. Uji login SSO.
+
+### Rollback
+- **Nonaktifkan SSO tenant**: provider → *Allowed* OFF (tombol hilang, `/sh_auth_oidc/*` menolak provider nonaktif).
+  User tertaut tidak bisa login password selama tautan ada → pilih: (a) `ir.config_parameter`
+  `sh_auth_oidc.password_login_policy = allow` (kebijakan password mati untuk DB itu; user perlu password yang
+  diketahui — reset oleh admin), atau (b) hapus tautan (`oauth_provider_id`/`oauth_uid` kosong) per user.
+  Kembalikan: hapus parameter / set ke nilai lain (nilai selain `allow` = kebijakan aktif, fail-closed).
+- **Modul**: uninstall `sh_auth_oidc` per DB (login password lokal kembali untuk semua user), atau
+  submodule kembali ke `18f6bcf` + `-u sh_auth_oidc` (versi tanpa kebijakan password).
+- Backup sebelum aktivasi `demo_staging`: `/opt/infra/backups/odoo/demo_staging-20260923-142718.{dump,filestore.tgz}`.
+
+### Uji E2E (T15, 2026-09-23, `demo_staging`)
+curl + cookie jar: `/web/login` (200, link provider) → `/sh_auth_oidc/authorize?provider=4` (303 ke Keycloak,
+parameter `response_type client_id redirect_uri scope state nonce code_challenge code_challenge_method`) →
+form login Keycloak (200) → POST kredensial (302 ke `/sh_auth_oidc/callback?state&session_state&iss&code`) →
+callback (303 → `/odoo`) → `/web/session/get_session_info` = `db demo_staging`, `uid` = user uji. Negatif:
+password lokal user tertaut via `/web/session/authenticate` → `AccessDenied`, via XML-RPC → `False`; `admin` tenant
+password → OK; callback dengan `state` palsu → 303 `/web/login?oauth_error=2`, tanpa sesi. ID token contoh
+(Admin API `evaluate-scopes/generate-example-id-token`): `iss` realm, `aud`=`azp`=`odoo-demo-staging`, `sub` = user id.
 
 ## Upgrade modul (staging dulu, backup sebelum `-u`)
 

@@ -174,3 +174,10 @@ image). Dependensi pihak ketiga baru hanya lewat ADR + audit (§3.6 "audit modul
 - 2026-09-23 (T10, keputusan Lead, CRS diratifikasi user): pengecualian AppSec sempit untuk Odoo —
   `RemoveInBandRuleByTag("attack-xss")` hanya pada POST ke endpoint editor/chatter
   (`security/crowdsec/appsec-configs/odoo-crs-exclusions.yaml`); Odoo men-sanitasi HTML di sisi server.
+- 2026-09-23 (T15, odoo-developer, perlu ratifikasi Lead): kebijakan password lokal `sh_auth_oidc` 19.0.1.1.0 —
+  user dengan `oauth_provider_id` + `oauth_uid` ditolak login password (override `res.users._check_credentials`,
+  dicek setelah core: tanpa oracle password, API key RPC tetap berlaku); pengecualian hanya `base.group_system` +
+  flag `sh_oidc_password_exempt`; user tanpa tautan tidak berubah (bukan "semua internal user wajib SSO", agar user
+  belum dimigrasi/portal tidak terkunci); saklar rollback per DB `sh_auth_oidc.password_login_policy = allow`
+  (nilai lain/kosong = aktif). Install `auth_oauth` menarik `auth_signup` (default `invitation_scope=b2c`) →
+  per tenant SSO di-set `b2b` dan provider bawaan *Odoo.com Accounts* (implicit) dinonaktifkan.
