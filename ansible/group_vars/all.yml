@@ -12,7 +12,7 @@
 # --tags ssh_phase_X hanya diizinkan untuk fase = nilai ini atau fase tepat
 # berikutnya (guard di site.yml pre_tasks) — mencegah regresi dan lompat fase.
 # ---------------------------------------------------------------------------
-ssh_phase: a
+ssh_phase: b
 ssh_port_new: 2221
 ssh_port_legacy: 22
 ssh_allow_users: [admin, deploy]
