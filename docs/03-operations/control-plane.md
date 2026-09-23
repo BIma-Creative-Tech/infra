@@ -29,15 +29,29 @@ tanpa port publish. `web` & `worker` `depends_on: migrate (service_completed_suc
 
 | Router | Rule | Middleware |
 |---|---|---|
-| `cp-auth` (prio 100) | `Host(cp…) && PathPrefix(/api/auth)` | `crowdsec`, `security-headers`, **`ratelimit-login`** (10/menit/IP, burst 10) |
-| `cp` (prio 1) | `Host(cp…)` | `crowdsec`, `security-headers`, `ratelimit-default` |
+| `cp-auth` (prio 100) | `Host(cp…) && (PathPrefix(/api/auth/signin) \|\| PathPrefix(/api/auth/callback))` | `crowdsec`, `security-headers`, **`ratelimit-login`** (10/menit/IP, burst 10) |
+| `cp-login-action` (prio 90) | `Host(cp…) && Path(/login) && Method(POST)` | `crowdsec`, `security-headers`, **`ratelimit-login`** |
+| `cp` (prio 1) | `Host(cp…)` — termasuk `/api/auth/{session,csrf,providers,signout}` | `crowdsec`, `security-headers`, `ratelimit-default` |
 
 CSP **tidak** diset Traefik — aplikasi (`src/proxy.ts`) mengirim CSP dengan nonce per request. `security-headers`
 hanya menambah HSTS (`max-age=300`, naik setelah QA), nosniff, `X-Frame-Options: DENY`, referrer & permissions policy.
 
-> Catatan `ratelimit-login` pada seluruh `/api/auth/*`: termasuk `/api/auth/session` yang dipanggil klien saat
-> navigasi/refresh sesi. Bila pengguna nyata mendapat 429, persempit router `cp-auth` ke
-> `/api/auth/(signin|callback)` (keputusan Lead setelah ada trafik nyata).
+**Ratelimit login dipersempit (H3, 2026-09-23).** Sebelumnya `ratelimit-login` berlaku untuk seluruh `/api/auth/*`,
+termasuk `/api/auth/session` yang dipanggil klien saat navigasi/refresh sesi. Sekarang hanya:
+- `/api/auth/signin*` — memulai alur OIDC (cookie state/PKCE/nonce + redirect ke Keycloak);
+- `/api/auth/callback*` — menukar authorization code → token (request keluar ke Keycloak = amplifikasi);
+- `POST /login` — tombol "Masuk" adalah Server Action (`src/app/actions.ts` `loginAction` → `signIn()` di server),
+  **tidak** lewat `/api/auth/signin`; tanpa router ini alur login nyata hanya kena `ratelimit-default`.
+
+`/api/auth/csrf` **tidak** diberi `ratelimit-login`: hanya token HMAC tanpa state server; provider satu-satunya
+Keycloak OIDC (tidak ada Credentials provider) → tidak ada permukaan brute-force password di control plane.
+Brute-force password ditangani Keycloak (`ratelimit-login` pada `/login-actions` + brute force detection realm).
+Bucket rate limit per router: `cp-auth` (signin + callback bersama) dan `cp-login-action` terpisah.
+
+Verifikasi (container uji `--network proxy --ip 10.100.0.250`, `--resolve cp.bimacreative.tech:443:<ip traefik>`):
+15× `GET /api/auth/session` → 15× 200; 15× `GET /api/auth/csrf` → 15× 200; 15× `GET /api/auth/signin/keycloak` →
+10× 302 lalu 5× 429; `GET /api/auth/callback/keycloak` berikutnya → 429 (bucket sama); 12× `POST /login` → 10× 200
+lalu 2× 429; 15× `GET /login` → 15× 200.
 
 ## Deploy / upgrade
 

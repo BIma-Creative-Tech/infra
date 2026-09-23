@@ -9,7 +9,8 @@ http:
         average: 50
         period: 1s
         burst: 100
-    # Path login (Odoo /web/login, Keycloak /realms/*/login-actions, control plane /api/auth):
+    # Path login (Odoo /web/login, Keycloak /realms/*/login-actions, control plane
+    # /api/auth/{signin,callback}* + POST /login — H3, lihat dynamic/platform/cp.yml):
     # rata-rata 10 req/menit per IP, burst 10.
     ratelimit-login:
       rateLimit:
