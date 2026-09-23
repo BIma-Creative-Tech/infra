@@ -2,7 +2,7 @@
 # Bootstrap idempoten stack Traefik (T03). Jalankan sebagai root.
 #  1. network docker `proxy` (bridge, subnet tetap) — dipakai bersama semua service HTTP
 #  2. direktori acme/ (700) + acme-staging.json & acme.json (600) milik uid Traefik
-#  3. direktori logs/ (750) milik uid Traefik
+#  3. direktori logs/ (750, grup adm) milik uid Traefik + secrets/ (700)
 #  4. pasang konfigurasi logrotate host untuk access log (salin, bukan symlink: logrotate
 #     menolak file konfigurasi yang bisa ditulis selain root)
 set -euo pipefail
@@ -33,8 +33,11 @@ for f in acme-staging.json acme.json; do
   chown "$TRAEFIK_UID:$TRAEFIK_GID" "$STACK_DIR/acme/$f"
   chmod 0600 "$STACK_DIR/acme/$f"
 done
-install -d -o "$TRAEFIK_UID" -g "$TRAEFIK_GID" -m 0750 "$STACK_DIR/logs"
-echo "acme/ & logs/: ok"
+# logs/: grup adm (gid 4) agar CrowdSec (T05, root tanpa capability + gid 4) bisa membaca access log.
+install -d -o "$TRAEFIK_UID" -g 4 -m 0750 "$STACK_DIR/logs"
+# secrets/: file API key bouncer CrowdSec (T05) — dibaca plugin Traefik, tidak di-commit.
+install -d -o "$TRAEFIK_UID" -g "$TRAEFIK_GID" -m 0700 "$STACK_DIR/secrets"
+echo "acme/, logs/, secrets/: ok"
 
 install -o root -g root -m 0644 "$STACK_DIR/logrotate/traefik" /etc/logrotate.d/traefik
 logrotate --debug /etc/logrotate.d/traefik >/dev/null 2>&1 && echo "logrotate: ok" || { echo "logrotate: konfigurasi invalid" >&2; exit 1; }

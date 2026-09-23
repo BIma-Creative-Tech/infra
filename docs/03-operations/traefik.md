@@ -14,7 +14,9 @@
 | `dynamic/clients/<slug>.yml` | router client Odoo (T10, dirender control plane) | ya |
 | `dynamic/test/whoami-status.yml` | **router uji** `status.bimacreative.tech` → `whoami` (resolver staging). Hapus saat T14 memasang Uptime Kuma | ya |
 | `acme/acme-staging.json`, `acme/acme.json` | akun ACME + private key sertifikat. Dir 700, file 600, owner 65532 | **tidak** (`traefik/.gitignore`) |
-| `logs/access.log` | access log JSON (dibaca CrowdSec T05, Alloy T14) | **tidak** |
+| `secrets/crowdsec-bouncer.key` | API key bouncer CrowdSec (T05). Dir 700, file 600, owner 65532 | **tidak** |
+| `dynamic/middlewares/crowdsec.yml` | middleware plugin bouncer CrowdSec + AppSec (T05) — lihat `crowdsec.md` | ya |
+| `logs/access.log` | access log JSON (dibaca CrowdSec T05, Alloy T14). Dir `65532:adm` 750 | **tidak** |
 | `logrotate/traefik` | dipasang ke `/etc/logrotate.d/traefik` oleh bootstrap | ya |
 | `scripts/bootstrap.sh` | idempoten: network `proxy`, dir/file acme & logs, logrotate | ya |
 
@@ -83,7 +85,13 @@ docker compose ps                 # traefik: (healthy)
 docker logs --tail 50 traefik
 docker compose down               # stop (network proxy & acme tetap)
 ```
-- Perubahan `dynamic/**` di-reload otomatis (watch). Perubahan `traefik.yml` → `docker compose restart traefik`.
+- **Watch hanya untuk file di level atas `dynamic/`** — file di subdirektori (`middlewares/`, `platform/`,
+  `clients/`, `test/`) dimuat saat start tetapi perubahannya **tidak** terdeteksi (source v3.7
+  `pkg/provider/file/file.go`: `// ignore sub-dir`; diuji 2026-09-23). Setelah mengubah/menambah file di
+  subdirektori: `docker kill --signal=HUP traefik` (provider file memuat ulang konfigurasi saat SIGHUP).
+  Berlaku juga untuk control plane (T10) yang merender `dynamic/clients/<slug>.yml`.
+- Perubahan `traefik.yml` → `docker compose restart traefik` (plugin CrowdSec diunduh ulang ke tmpfs
+  `/plugins-storage` dan diverifikasi `hash`).
 - Validasi sebelum restart: `docker compose config -q`.
 
 ## Cek sertifikat
@@ -97,12 +105,16 @@ docker logs traefik 2>&1 | grep -i -E 'acme|lego|certificate' | tail
 Jangan me-restart berulang bila ACME gagal: baca log, perbaiki (DNS/port 80), baru ulang —
 limit LE: 5 authorization failure / identifier / jam (ADR 0002).
 
-## Pindah staging → production (keputusan Lead, BELUM dilakukan)
+## Pindah staging → production (DILAKUKAN 2026-09-23 untuk `status` & `auth`, T05/T06)
 
 1. Backup: `cp -a acme/acme-staging.json acme/acme-staging.json.bak-$(date +%F)`.
-2. Per router: `certResolver: le-http-staging` → `le-http` (file `dynamic/**`, reload otomatis).
-3. Verifikasi issuer tidak lagi `(STAGING)`.
-4. Naikkan HSTS di `security-headers.yml` (`stsSeconds: 31536000`) setelah semua host stabil.
+2. Per router: `certResolver: le-http-staging` → `le-http`.
+3. **Hapus entri sertifikat staging untuk hostname itu dari `acme-staging.json`** (akun tetap) lalu
+   `docker compose restart traefik`. Tanpa langkah ini `le-http` TIDAK meminta sertifikat: provider ACME
+   menganggap domain sudah tercakup sertifikat yang ada di TLS store (source v3.7 `getUncheckedDomains`),
+   termasuk sertifikat staging (diuji: SIGHUP saja → tetap staging, tanpa log ACME).
+4. Verifikasi issuer tidak lagi `(STAGING)`: `openssl s_client … -verify_return_error` → `Verify return code: 0`.
+5. Naikkan HSTS di `security-headers.yml` & `auth-security-headers` (`stsSeconds: 31536000`) — keputusan Lead setelah QA.
 
 ## Rotasi / secret
 
@@ -114,11 +126,14 @@ limit LE: 5 authorization failure / identifier / jam (ADR 0002).
 ## Admin via SSH tunnel (catatan penting)
 
 Daemon Docker memakai `userland-proxy: false`. Koneksi yang berasal dari host itu sendiri
-(termasuk `ssh -L 8443:127.0.0.1:443 …`) tiba di Traefik dengan IP sumber **gateway network
-`proxy` = `10.100.0.1`**, bukan `127.0.0.1` (terlihat di `X-Real-Ip`/access log). Koneksi dari
-internet tetap membawa IP asli client. Konsekuensi: `ipallowlist-admin` default (`127.0.0.1/32`)
-**tidak** meloloskan SSH tunnel; agar tunnel berfungsi, tambahkan `10.100.0.1/32` — artinya "semua
-proses di host". Menunggu keputusan Lead.
+(termasuk `ssh -L 8443:127.0.0.1:443 …` dan curl ke IP publik sendiri) tiba di Traefik dengan IP sumber
+**gateway network `proxy` = `10.100.0.1`**, bukan `127.0.0.1`. Koneksi dari internet tetap membawa IP asli
+client. **Keputusan Lead (2026-09-23): `10.100.0.1/32` ditambahkan ke `ipallowlist-admin`** (= semua proses
+di host; host hanya bisa diakses admin via SSH 2221). Syarat: Traefik harus memakai `proxy` sebagai network
+gateway (`gw_priority: 1` di compose) — bila tidak, sumbernya menjadi gateway network lain (mis. 10.100.2.1).
+Konsekuensi: uji "dari publik" tidak bisa dilakukan dari host (hairpin = 10.100.0.1); gunakan container uji
+di network `proxy` dengan IP tetap (mis. `--ip 10.100.0.250`) atau uji dari luar. Contoh admin Keycloak:
+`keycloak.md` §Akses admin console.
 
 ## Rollback
 

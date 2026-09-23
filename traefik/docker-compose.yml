@@ -27,11 +27,21 @@ services:
       - ./dynamic:/etc/traefik/dynamic:ro
       - ./acme:/etc/traefik/acme          # acme*.json 600, owner 65532
       - ./logs:/var/log/traefik           # access.log (CrowdSec T05), rotasi via logrotate host
+      # API key bouncer CrowdSec (T05) — file 600 uid 65532, tidak di-commit (traefik/.gitignore).
+      - ./secrets/crowdsec-bouncer.key:/etc/traefik/secrets/crowdsec-bouncer.key:ro
     read_only: true
     tmpfs:
       - /tmp:uid=65532,gid=65532,mode=1777
+      # Plugin Traefik diunduh ke ./plugins-storage relatif WORKDIR "/" (source v3.7
+      # cmd/traefik/plugins.go: outputDir = "./plugins-storage/"). Diunduh ulang tiap start.
+      - /plugins-storage:uid=65532,gid=65532,mode=0700
     networks:
-      - proxy
+      proxy:
+        # WAJIB: network gateway default = proxy. Tanpa ini Docker memilih `crowdsec` (urutan
+        # nama) → port 80/443 di-DNAT lewat bridge crowdsec dan koneksi dari host/SSH tunnel
+        # tiba sebagai 10.100.2.1, bukan 10.100.0.1 (ipallowlist-admin). Diuji 2026-09-23.
+        gw_priority: 1
+      crowdsec: {}   # T05: LAPI :8080 & AppSec :7422 container crowdsec (tidak ada di network proxy)
     healthcheck:
       test: ["CMD", "traefik", "healthcheck", "--configFile=/etc/traefik/traefik.yml"]
       interval: 15s
@@ -83,3 +93,7 @@ networks:
     # Service HTTP lain join sebagai `external: true, name: proxy`.
     external: true
     name: proxy
+  crowdsec:
+    # Dibuat security/crowdsec/scripts/bootstrap.sh: 10.100.2.0/24 (T05).
+    external: true
+    name: crowdsec

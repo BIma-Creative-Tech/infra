@@ -1,0 +1,68 @@
+# T06 — Keycloak auth.bimacreative.tech. DNS pre-check (ADR 0002 #5) lulus 2026-09-23:
+# A = 31.97.50.221 (@apollo.dns-parking.com, @1.1.1.1, @8.8.8.8), tanpa AAAA.
+#
+# Paparan path mengikuti docs Keycloak 26.7.4 guides/server/reverseproxy.adoc §Exposed path
+# recommendations: publik HANYA /realms/, /resources/, /.well-known/. /admin/ (console + Admin
+# REST API /admin/realms/...) dan /realms/master/ (realm administratif) = internal → allowlist.
+# Sisanya (/, /metrics, /health, …) juga allowlist (router catch-all prioritas terendah).
+# Health/metrics ada di management port 9000 yang tidak di-route sama sekali.
+http:
+  routers:
+    # Admin console + Admin REST API + realm master: hanya dari ipallowlist-admin (SSH tunnel).
+    auth-admin:
+      entryPoints: [websecure]
+      rule: "Host(`auth.bimacreative.tech`) && (PathPrefix(`/admin`) || PathPrefix(`/realms/master/`))"
+      priority: 100
+      middlewares: [crowdsec, ipallowlist-admin, auth-security-headers, ratelimit-default]
+      service: keycloak
+      tls:
+        certResolver: le-http
+    # Alur login & token (brute force): rate limit ketat per IP.
+    auth-login:
+      entryPoints: [websecure]
+      rule: "Host(`auth.bimacreative.tech`) && (PathRegexp(`^/realms/[^/]+/login-actions/`) || PathRegexp(`^/realms/[^/]+/protocol/openid-connect/(auth|token)$`))"
+      priority: 90
+      middlewares: [crowdsec, auth-security-headers, ratelimit-login]
+      service: keycloak
+      tls:
+        certResolver: le-http
+    # Endpoint publik lain yang dibutuhkan OIDC (discovery, certs/JWKS, userinfo, logout, aset).
+    auth-public:
+      entryPoints: [websecure]
+      rule: "Host(`auth.bimacreative.tech`) && (PathPrefix(`/realms/`) || PathPrefix(`/resources/`) || PathPrefix(`/.well-known/`))"
+      priority: 50
+      middlewares: [crowdsec, auth-security-headers, ratelimit-default]
+      service: keycloak
+      tls:
+        certResolver: le-http
+    # Semua path lain di host ini (/, /metrics, …) → allowlist.
+    auth-other:
+      entryPoints: [websecure]
+      rule: "Host(`auth.bimacreative.tech`)"
+      priority: 1
+      middlewares: [crowdsec, ipallowlist-admin, auth-security-headers, ratelimit-default]
+      service: keycloak
+      tls:
+        certResolver: le-http
+
+  middlewares:
+    # Varian security-headers untuk Keycloak: TANPA frameDeny/X-Frame-Options DENY — Keycloak
+    # mengatur X-Frame-Options SAMEORIGIN + CSP frame-ancestors 'self' per realm, dan admin console
+    # memakai iframe same-origin (login-status-iframe). Header lain sama dengan `security-headers`.
+    auth-security-headers:
+      headers:
+        stsSeconds: 300              # tetap pendek; dinaikkan Lead setelah QA (sama dgn security-headers)
+        stsIncludeSubdomains: false
+        stsPreload: false
+        contentTypeNosniff: true
+        referrerPolicy: "strict-origin-when-cross-origin"
+        permissionsPolicy: "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+        customResponseHeaders:
+          X-Powered-By: ""
+          Server: ""
+
+  services:
+    keycloak:
+      loadBalancer:
+        servers:
+          - url: "http://keycloak:8080"

@@ -1,0 +1,70 @@
+# T05 — CrowdSec v1.8.1 (agent + LAPI + AppSec). Plan 02, ADR 0001 (AppSec menggantikan Coraza).
+# Jalankan scripts/bootstrap.sh sekali sebelum `docker compose up -d`.
+name: crowdsec
+
+services:
+  crowdsec:
+    # ADR 0001: crowdsecurity/crowdsec:v1.8.1 (+ digest index multi-arch, diambil 2026-09-23)
+    image: crowdsecurity/crowdsec:v1.8.1@sha256:0f2523fa61ef507f15d953045cface490cc880670c62f2755ced17524107f71a
+    container_name: crowdsec
+    restart: unless-stopped
+    # Root di dalam container TANPA capability (cap_drop ALL): file data preload image
+    # (/staging/var/lib/crowdsec/data/*.mmdb) mode 600 root, jadi uid non-root tidak bisa
+    # memakainya. Root tanpa CAP_DAC_OVERRIDE hanya bisa membaca file yang dimiliki root atau
+    # lewat grup: auth.log host (syslog:adm 640) & traefik/logs (grup adm 750) dibaca via gid 4.
+    group_add:
+      - "4"   # adm (gid 4 di host dan di image alpine)
+    environment:
+      # Nama collection diverifikasi di hub (cscli collections list setelah start).
+      # crowdsecurity/linux = parser syslog + sshd; appsec-* = WAF (virtual patching + generic).
+      # appsec-crs-inband = OWASP CRS blocking (SQLi/XSS/LFI/RCE generik) — virtual-patching +
+      # generic-rules saja TIDAK memblok SQLi/XSS generik (diuji 2026-09-23). Butuh ratifikasi
+      # ADR 0001 oleh Lead; rollback: hapus baris ini + crs-inband di acquis.d/appsec.yaml,
+      # lalu `cscli collections remove crowdsecurity/appsec-crs-inband`.
+      COLLECTIONS: >-
+        crowdsecurity/linux
+        crowdsecurity/sshd
+        crowdsecurity/traefik
+        crowdsecurity/http-cve
+        crowdsecurity/appsec-virtual-patching
+        crowdsecurity/appsec-generic-rules
+        crowdsecurity/appsec-crs-inband
+    ports:
+      # LAPI hanya untuk crowdsec-firewall-bouncer di host — terikat loopback (plan 02 §3/§5).
+      # AppSec 7422 & metrics 6060 TIDAK di-publish.
+      - "127.0.0.1:8080:8080/tcp"
+    volumes:
+      - ./data/config:/etc/crowdsec
+      - ./data/db:/var/lib/crowdsec/data
+      - ./acquis.d:/etc/crowdsec/acquis.d:ro
+      - ../../traefik/logs:/var/log/traefik:ro
+      - /var/log:/var/log/host:ro
+    read_only: true
+    tmpfs:
+      - /tmp
+    networks:
+      - crowdsec
+    healthcheck:
+      # Autentikasi machine lokal ke LAPI (bukan sekadar proses hidup).
+      test: ["CMD", "cscli", "lapi", "status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
+    mem_limit: 384m      # ADR 0004
+    cpus: 0.5
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  crowdsec:
+    # Dibuat scripts/bootstrap.sh: 10.100.2.0/24. Anggota: crowdsec, traefik.
+    external: true
+    name: crowdsec

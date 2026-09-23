@@ -1,0 +1,64 @@
+# T06 — Keycloak 26.7.4 (plan 02, ADR 0001/0004). Mode produksi `start --optimized`.
+# Jalankan scripts/bootstrap.sh sekali sebelum `docker compose up -d --build`.
+# Opsi diverifikasi dengan `kc.sh start --help` image 26.7.4 dan docs guides/server/{hostname,
+# reverseproxy,containers,management-interface}.adoc tag 26.7.4.
+name: keycloak
+
+services:
+  keycloak:
+    build:
+      context: .
+      dockerfile: Containerfile
+    image: infra/keycloak:26.7.4-optimized
+    container_name: keycloak
+    restart: unless-stopped
+    command: ["start", "--optimized"]
+    env_file:
+      - .env      # KC_DB_PASSWORD, KC_BOOTSTRAP_ADMIN_* (600, tidak di git)
+    environment:
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_POOL_MAX_SIZE: "20"          # role keycloak CONNECTION LIMIT 30 (postgres/init-roles.sh)
+      # URL publik tetap (issuer token). Admin console memakai URL tunnel SSH (lokal :8443) —
+      # /admin & /realms/master diblok publik oleh Traefik (ipallowlist-admin).
+      KC_HOSTNAME: https://auth.bimacreative.tech
+      KC_HOSTNAME_ADMIN: https://auth.bimacreative.tech:8443
+      # TLS di-terminate Traefik (edge) → listener HTTP 8080 hanya di network proxy.
+      KC_HTTP_ENABLED: "true"
+      KC_PROXY_HEADERS: xforwarded
+      # Satu node: cache lokal (tanpa clustering JGroups/port tambahan).
+      KC_CACHE: local
+      # Heap default image = 70% dari limit container (ADR 0004). Log ke stdout.
+    networks:
+      - proxy     # Traefik → keycloak:8080 (tidak publish port ke host)
+      - db        # → postgres:5432
+    read_only: true
+    tmpfs:
+      - /tmp:uid=1000,gid=0,mode=1770
+      - /opt/keycloak/data:uid=1000,gid=0,mode=0770
+    healthcheck:
+      # Management interface :9000 (internal, tidak di-route Traefik). docs observability/health.adoc.
+      test: ["CMD-SHELL", "{ printf 'HEAD /health/ready HTTP/1.0\\r\\n\\r\\n' >&0; grep 'HTTP/1.0 200'; } 0<>/dev/tcp/localhost/9000"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 90s
+    mem_limit: 1360m     # ADR 0004 (angka resmi Keycloak 26.7)
+    cpus: 1.0
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  proxy:
+    external: true
+    name: proxy
+  db:
+    external: true
+    name: db

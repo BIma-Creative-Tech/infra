@@ -1,0 +1,12 @@
+# AppSec (WAF) — docs crowdsec appsec/quickstart/traefik.mdx & data_sources/appsec.md.
+# listen 0.0.0.0 DI DALAM container; port 7422 TIDAK di-publish — hanya dicapai Traefik lewat
+# network internal `crowdsec`.
+source: appsec
+listen_addr: 0.0.0.0:7422
+path: /
+appsec_configs:
+  - crowdsecurity/appsec-default
+  # OWASP CRS blocking (collection crowdsecurity/appsec-crs-inband) — lihat docker-compose.yml.
+  - crowdsecurity/crs-inband
+labels:
+  type: appsec

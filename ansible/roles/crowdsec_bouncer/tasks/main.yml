@@ -1,0 +1,83 @@
+---
+# Firewall bouncer host (nftables) — T05, plan 02. Membaca decision dari LAPI container crowdsec
+# (127.0.0.1:8080) dan memasang set nftables (hook input + forward, default paket) → IP yang
+# di-ban diblok untuk SSH 2221 dan port publish Docker. Butuh repo APT dari role crowdsec_repo
+# dan container `crowdsec` berjalan (security/crowdsec). Paket di-pin + hold.
+- name: Pasang crowdsec-firewall-bouncer-nftables versi pin
+  ansible.builtin.apt:
+    name: "crowdsec-firewall-bouncer-nftables={{ crowdsec_fw_bouncer_version }}"
+    state: present
+    install_recommends: false
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Hold paket firewall bouncer
+  ansible.builtin.dpkg_selections:
+    name: crowdsec-firewall-bouncer-nftables
+    selection: hold
+
+- name: Buat API key bouncer bila belum ada (acak 64 hex, tidak ditampilkan)
+  ansible.builtin.shell: |
+    set -eu
+    umask 077
+    openssl rand -hex 32 > "{{ crowdsec_fw_bouncer_key_file }}"
+  args:
+    creates: "{{ crowdsec_fw_bouncer_key_file }}"
+  no_log: true
+
+- name: Permission file API key
+  ansible.builtin.file:
+    path: "{{ crowdsec_fw_bouncer_key_file }}"
+    owner: root
+    group: root
+    mode: "0600"
+
+- name: Baca API key bouncer
+  ansible.builtin.slurp:
+    src: "{{ crowdsec_fw_bouncer_key_file }}"
+  register: crowdsec_fw_key_raw
+  no_log: true
+  check_mode: false
+  failed_when: false
+
+- name: Daftar bouncer terdaftar di LAPI
+  ansible.builtin.command: docker exec crowdsec cscli bouncers list -o json
+  register: crowdsec_bouncers_json
+  changed_when: false
+  check_mode: false
+
+- name: Daftarkan bouncer ke LAPI bila belum terdaftar
+  ansible.builtin.command:
+    argv:
+      - docker
+      - exec
+      - crowdsec
+      - cscli
+      - bouncers
+      - add
+      - "{{ crowdsec_fw_bouncer_name }}"
+      - --key
+      - "{{ crowdsec_fw_key_raw.content | b64decode | trim }}"
+  when:
+    - crowdsec_fw_key_raw.content is defined
+    - crowdsec_fw_bouncer_name not in (crowdsec_bouncers_json.stdout | from_json | default([], true) | map(attribute='name') | list)
+  no_log: true
+
+- name: Override konfigurasi bouncer (.yaml.local, berisi API key)
+  ansible.builtin.template:
+    src: crowdsec-firewall-bouncer.yaml.local.j2
+    dest: /etc/crowdsec/bouncers/crowdsec-firewall-bouncer.yaml.local
+    owner: root
+    group: root
+    mode: "0600"
+  vars:
+    crowdsec_fw_bouncer_api_key: "{{ crowdsec_fw_key_raw.content | b64decode | trim }}"
+  when: crowdsec_fw_key_raw.content is defined
+  no_log: true
+  notify: Restart crowdsec-firewall-bouncer
+
+- name: Firewall bouncer aktif
+  ansible.builtin.systemd_service:
+    name: crowdsec-firewall-bouncer
+    enabled: true
+    state: started

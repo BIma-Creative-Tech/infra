@@ -1,0 +1,4 @@
+# State & secret Keycloak — jangan di-commit
+.env
+.bootstrap-done
+.admin-credentials

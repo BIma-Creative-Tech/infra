@@ -83,3 +83,13 @@ docker_packages:
 crowdsec_apt_key_url: https://packagecloud.io/crowdsec/crowdsec/gpgkey
 crowdsec_apt_key_fingerprint: 6A89E3C2303A901A889971D3376ED5326E93CD0C
 crowdsec_apt_uri: https://packagecloud.io/crowdsec/crowdsec/any/
+
+# ---------------------------------------------------------------------------
+# CrowdSec firewall bouncer host (T05, plan 02) — `apt-cache policy` 2026-09-23:
+# candidate 0.0.36 (v0.0.37 di GitHub masih prerelease). API key TIDAK di sini:
+# dibuat di host (crowdsec_fw_bouncer_key_file, 600) oleh role crowdsec_bouncer.
+# ---------------------------------------------------------------------------
+crowdsec_fw_bouncer_version: "0.0.36"
+crowdsec_fw_bouncer_name: host-firewall-bouncer
+crowdsec_fw_bouncer_api_url: "http://127.0.0.1:8080/"
+crowdsec_fw_bouncer_key_file: /etc/crowdsec/bouncers/crowdsec-firewall-bouncer.key

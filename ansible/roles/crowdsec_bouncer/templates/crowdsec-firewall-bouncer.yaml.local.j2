@@ -1,0 +1,8 @@
+# {{ ansible_managed }} — role crowdsec_bouncer (T05).
+# Override di atas file paket /etc/crowdsec/bouncers/crowdsec-firewall-bouncer.yaml
+# (mekanisme `.yaml.local`, docs cs-firewall-bouncer ≥ v0.0.25). Berisi API key → 600 root,
+# tidak pernah di-commit (dibuat di host dari {{ crowdsec_fw_bouncer_key_file }}).
+mode: nftables
+# LAPI container crowdsec, di-publish HANYA di 127.0.0.1:8080 (security/crowdsec/docker-compose.yml).
+api_url: {{ crowdsec_fw_bouncer_api_url }}
+api_key: {{ crowdsec_fw_bouncer_api_key }}

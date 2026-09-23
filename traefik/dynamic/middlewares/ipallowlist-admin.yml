@@ -2,7 +2,7 @@
 # Berbasis IP sumber koneksi (tanpa ipStrategy → X-Forwarded-For client tidak dipercaya).
 # Opsi: docs v3.7 .../middlewares/ipallowlist.md
 #
-# Default HANYA loopback → admin via SSH tunnel. Tambahkan IP publik kantor/admin di bawah
+# Default loopback + gateway `proxy` (SSH tunnel). IP publik kantor/admin hanya ditambahkan
 # (satu per baris, CIDR) setelah disetujui Lead. CATATAN: dengan userland-proxy=false, koneksi
 # SSH tunnel ke 127.0.0.1:443 di host tiba di Traefik dengan IP sumber gateway network `proxy`
 # (10.100.0.1), bukan 127.0.0.1 — lihat docs/03-operations/traefik.md §Admin via SSH tunnel.
@@ -12,5 +12,8 @@ http:
       ipAllowList:
         sourceRange:
           - "127.0.0.1/32"
-          # - "<IP-admin>/32"
+          # Gateway network `proxy` = asal koneksi dari host itu sendiri, termasuk SSH tunnel
+          # (`ssh -p 2221 -L 8443:127.0.0.1:443 …`). Keputusan Lead 2026-09-23 (T05/T06): host hanya
+          # dapat diakses admin via SSH 2221 key-only. TIDAK ada IP publik di allowlist.
+          - "10.100.0.1/32"
         rejectStatusCode: 403

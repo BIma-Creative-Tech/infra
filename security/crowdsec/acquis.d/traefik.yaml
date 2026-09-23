@@ -1,0 +1,8 @@
+# Access log JSON Traefik (traefik.yml accessLog.format=json). Direktori di-mount read-only;
+# rotasi logrotate (rename + USR1) → file baru dibuka ulang oleh datasource file (tail by name).
+# Label type=traefik dipakai parser crowdsecurity/traefik-logs (collection crowdsecurity/traefik).
+source: file
+filenames:
+  - /var/log/traefik/access.log
+labels:
+  type: traefik
