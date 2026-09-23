@@ -9,7 +9,7 @@
 |---|---|---|
 | `docker-compose.yml` | service `postgres`, volume `postgres_pgdata`, network external `db` | ya |
 | `conf/pg_hba.conf` | aturan autentikasi (dimount ro, `-c hba_file=`) | ya |
-| `.env` | `POSTGRES_PASSWORD`, `PG_KEYCLOAK_PASSWORD`, `PG_CONTROL_PLANE_PASSWORD`, `PG_DATAMART_PASSWORD` — mode 600 root | **tidak** |
+| `.env` | `POSTGRES_PASSWORD`, `PG_KEYCLOAK_PASSWORD`, `PG_CONTROL_PLANE_PASSWORD`, `PG_DATAMART_PASSWORD`, `PG_ODOO_POOL_A_PASSWORD`, `PG_ODOO_STAGING_PASSWORD` (T10) — mode 600 root | **tidak** |
 | `.env.example` | placeholder | ya |
 | `scripts/bootstrap.sh` | idempoten: network `db` + `.env` dengan password acak (`openssl rand`, 48 char alnum); tidak mencetak password, tidak menimpa nilai yang ada | ya |
 | `scripts/init-roles.sh` | idempoten: role + DB `keycloak`, `control_plane`, `datamart`; set password dari `.env` (via stdin psql); `REVOKE ALL ON DATABASE … FROM PUBLIC` | ya |
@@ -24,7 +24,12 @@
   `password_encryption=scram-sha-256`. `mem_limit 2048m`, `cpus 1.5`. Revisi di T07.
 - `pg_hba.conf`: socket lokal hanya `postgres` via `peer`; superuser **ditolak** lewat TCP;
   satu baris `host <db> <role> 10.100.1.0/24 scram-sha-256` per aplikasi; sisanya `reject`.
-- Connection limit role: keycloak 30, control_plane 20, datamart 10 (ESTIMASI).
+- Connection limit role: keycloak 30, control_plane 20, datamart 10, odoo_pool_a 48, odoo_staging 24 (ESTIMASI).
+- **Role pool Odoo (T10)**: `odoo_pool_a`, `odoo_staging` — `LOGIN CREATEDB NOSUPERUSER NOCREATEROLE`, tanpa DB
+  sendiri, `GRANT CONNECT ON DATABASE postgres`. `pg_hba` memakai **regex nama DB (PG16)**:
+  `/^[a-z0-9_]+_(prod|demo)$` hanya untuk `odoo_pool_a`, `/^[a-z0-9_]+_staging$` hanya untuk `odoo_staging`.
+  DB tenant dibuat Odoo (owner = role pool); `scripts/provision-odoo-db.sh` mencabut CONNECT PUBLIC per DB.
+  Verifikasi: `SELECT database, user_name, error FROM pg_hba_file_rules;`.
 - Data: named volume `postgres_pgdata` (`/var/lib/docker/volumes/postgres_pgdata/_data`, mode 700 oleh Postgres).
 
 ## Network `db` — cara service lain terhubung
@@ -63,6 +68,10 @@ docker compose ps               # (healthy) — healthcheck pg_isready via socke
 docker compose down             # stop; volume postgres_pgdata TETAP
 ```
 Reload `pg_hba.conf` tanpa restart: `docker exec postgres psql -U postgres -c 'SELECT pg_reload_conf()'`.
+**Perhatian:** `pg_hba.conf` di-bind-mount sebagai *file tunggal*. Editor yang menulis file baru (inode baru —
+mis. `sed -i`, Edit tool) membuat container tetap melihat versi lama → reload tidak berefek; perlu
+`docker compose restart postgres` (terjadi di T10). Untuk reload tanpa restart, tulis di tempat:
+`cat pg_hba.new > conf/pg_hba.conf` lalu `pg_reload_conf()`.
 Cek: `docker exec postgres psql -U postgres -c '\l'` dan `-c '\du'`.
 
 ## Rotasi password

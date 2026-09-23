@@ -11,7 +11,8 @@
 | `dynamic/middlewares/*.yml` | `security-headers`, `ratelimit-default`, `ratelimit-login`, `ipallowlist-admin`, `strip-odoo-db-headers` | ya |
 | `dynamic/tls.yml` | TLS option `default` (min TLS 1.2) | ya |
 | `dynamic/platform/<svc>.yml` | router layanan platform (T06 `auth.yml`, T14 `grafana.yml`/`status.yml`, …) — satu file per task | ya |
-| `dynamic/clients/<slug>.yml` | router client Odoo (T10, dirender control plane) | ya |
+| `dynamic/platform/odoo-pools.yml` | service `odoo-pool-a-{http,ws}`, `odoo-staging-{http,ws}` + middleware `odoo-security-headers` (T10) | ya |
+| `dynamic/clients/<slug>-<env>.yml` | router tenant Odoo, dirender `scripts/render-client-route.sh` dari `templates/traefik-client.yml` (T10) — lihat `odoo.md` | ya |
 | `dynamic/test/whoami-status.yml` | **router uji** `status.bimacreative.tech` → `whoami` (resolver staging). Hapus saat T14 memasang Uptime Kuma | ya |
 | `acme/acme-staging.json`, `acme/acme.json` | akun ACME + private key sertifikat. Dir 700, file 600, owner 65532 | **tidak** (`traefik/.gitignore`) |
 | `secrets/crowdsec-bouncer.key` | API key bouncer CrowdSec (T05). Dir 700, file 600, owner 65532 | **tidak** |

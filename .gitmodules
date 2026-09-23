@@ -1,0 +1,6 @@
+[submodule "odoo/pool-a/addons/shared"]
+	path = odoo/pool-a/addons/shared
+	url = /opt/src/odoo-addons-shared
+[submodule "staging/odoo/addons/shared"]
+	path = staging/odoo/addons/shared
+	url = /opt/src/odoo-addons-shared

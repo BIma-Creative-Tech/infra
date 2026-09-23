@@ -1,0 +1,66 @@
+# T10 — Odoo CE 19.0 pool shared STAGING (plan 02; ADR 0001 pin, ADR 0003 D1, ADR 0004 §2).
+# Jalankan dulu: /opt/infra/scripts/odoo-pool-bootstrap.sh staging  (membuat .env 600 + secrets/).
+# DB tenant: /opt/infra/scripts/provision-odoo-db.sh <slug> staging. Router: render-client-route.sh.
+# Tidak ada port di-publish: Traefik menjangkau odoo-staging:8069 (HTTP) & :8072 (/websocket) via `proxy`.
+name: odoo-staging
+
+services:
+  odoo:
+    # ADR 0001: odoo:19.0-20260908 (+ digest index multi-arch, diverifikasi 2026-09-23
+    # `docker buildx imagetools inspect` = hub.docker.com tags API).
+    image: odoo:19.0-20260908@sha256:144175ec0039d52daff1d79f7e51c9281ca3c98b96c830feb49d09764a9f5d7c
+    container_name: odoo-staging
+    hostname: odoo-staging
+    restart: unless-stopped
+    # uid/gid `odoo` di image (100:101) — non-root.
+    user: "100:101"
+    env_file:
+      - .env        # PGHOST/PGPORT/PGUSER/PGPASSWORD + ODOO_ADMIN_PASSWD (hash) — 600, tidak di git
+    # Entry point image: wait-for-psql.py (PG* dari env) lalu `odoo`. Opsi di odoo.conf.
+    command: ["odoo"]
+    volumes:
+      - ./odoo.conf:/etc/odoo/odoo.conf:ro
+      # addons/shared = git submodule odoo-addons-shared ter-pin, addons/clients/<slug> = repo client
+      # (docs/03-operations/odoo.md §Addons). Satu mount ro untuk seluruh /mnt/extra-addons: image
+      # mendeklarasikan VOLUME /mnt/extra-addons → tanpa ini Docker membuat volume anonim writable.
+      - ./addons:/mnt/extra-addons:ro
+      # filestore + sessions — volume terpisah per pool
+      - filestore:/var/lib/odoo
+    read_only: true
+    tmpfs:
+      # wkhtmltopdf/report & upload sementara. uid odoo.
+      - /tmp:uid=100,gid=101,mode=1777,size=512m
+    networks:
+      - db
+      - proxy
+    healthcheck:
+      # /web/health tidak butuh DB/header (README sh_dbfilter_header). curl ada di image.
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://127.0.0.1:8069/web/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    # ADR 0004 §2: staging 1280 MiB / 1.0 CPU (workers=2, max_cron_threads=1), always-on.
+    mem_limit: 1280m
+    cpus: 1.0
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  filestore:
+    name: odoo_staging_data
+
+networks:
+  db:
+    external: true
+    name: db
+  proxy:
+    external: true
+    name: proxy

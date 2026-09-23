@@ -1,0 +1,59 @@
+# Template router Traefik untuk SATU tenant Odoo (T10; ADR 0003 D1, plan 02 §4).
+# JANGAN edit hasil render di traefik/dynamic/clients/ secara manual — render ulang dengan
+#   /opt/infra/scripts/render-client-route.sh <slug> <env> [--host <fqdn>]
+# Placeholder (divalidasi regex oleh skrip sebelum substitusi):
+#   __ROUTE__  odoo-<slug>-<env>          __HOST__  FQDN tenant (DNS pre-check lulus)
+#   __DB__     <slug '-'→'_'>_<env>        __POOL__  odoo-pool-a | odoo-staging
+#   __SLUG__ / __ENV__ / __GENERATED__   hanya untuk komentar
+#
+# Tenant: slug=__SLUG__ env=__ENV__ db=__DB__ pool=__POOL__ (dirender __GENERATED__)
+#
+# Urutan middleware (semua router): crowdsec (paling depan) → odoo-security-headers →
+# ratelimit-default [→ ratelimit-login] → strip-odoo-db-headers → __ROUTE__-db (set header eksak).
+# Service: __POOL__-http (:8069) / __POOL__-ws (:8072), didefinisikan di dynamic/platform/odoo-pools.yml.
+http:
+  routers:
+    # Database manager/selector: tidak pernah publik (list_db=False juga menolaknya di Odoo).
+    __ROUTE__-dbmanager:
+      entryPoints: [websecure]
+      rule: "Host(`__HOST__`) && PathPrefix(`/web/database`)"
+      priority: 300
+      middlewares: [crowdsec, ipallowlist-admin, odoo-security-headers, ratelimit-default, strip-odoo-db-headers, __ROUTE__-db]
+      service: __POOL__-http
+      tls:
+        certResolver: le-http
+    # Websocket/bus → gevent :8072. Header DB yang sama dengan router utama.
+    __ROUTE__-websocket:
+      entryPoints: [websecure]
+      rule: "Host(`__HOST__`) && PathPrefix(`/websocket`)"
+      priority: 200
+      middlewares: [crowdsec, odoo-security-headers, ratelimit-default, strip-odoo-db-headers, __ROUTE__-db]
+      service: __POOL__-ws
+      tls:
+        certResolver: le-http
+    # Endpoint autentikasi (form login, JSON-RPC session/authenticate, reset password, signup).
+    __ROUTE__-login:
+      entryPoints: [websecure]
+      rule: "Host(`__HOST__`) && (Path(`/web/login`) || Path(`/web/session/authenticate`) || PathPrefix(`/web/reset_password`) || PathPrefix(`/web/signup`))"
+      priority: 200
+      middlewares: [crowdsec, odoo-security-headers, ratelimit-default, ratelimit-login, strip-odoo-db-headers, __ROUTE__-db]
+      service: __POOL__-http
+      tls:
+        certResolver: le-http
+    __ROUTE__:
+      entryPoints: [websecure]
+      rule: "Host(`__HOST__`)"
+      priority: 100
+      middlewares: [crowdsec, odoo-security-headers, ratelimit-default, strip-odoo-db-headers, __ROUTE__-db]
+      service: __POOL__-http
+      tls:
+        certResolver: le-http
+
+  middlewares:
+    # Nama DB EKSAK untuk sh_dbfilter_header (menimpa nilai dari client) + hapus header bawaan
+    # Odoo 19 X-Odoo-Database ("" = hapus, docs v3.7 middlewares/headers.md).
+    __ROUTE__-db:
+      headers:
+        customRequestHeaders:
+          X-Sh-Odoo-Db: "__DB__"
+          X-Odoo-Database: ""

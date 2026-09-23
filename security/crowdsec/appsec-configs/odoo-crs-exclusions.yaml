@@ -1,0 +1,36 @@
+# T10 — pengecualian SEMPIT OWASP CRS (crowdsecurity/crs-inband) untuk Odoo 19.
+# Dimuat lewat acquis.d/appsec.yaml (appsec_configs) — di-mount read-only dari git.
+# Sintaks: crowdsec-docs docs/appsec/configuration.md & hooks.md (`pre_eval`,
+# `RemoveInBandRuleByTag`, `req.URL.Path`, `req.Method`, `IsInBand`).
+#
+# Masalah (diuji 2026-09-23, T10): simpan record Odoo dengan konten editor HTML biasa
+# (inline style, <img>, warna teks) dan posting chatter HTML → 403, rule CRS 941100/941160
+# (XSS libinjection) pada ARGS.json.params.… Field Html Odoo memang berisi HTML; sanitasi
+# dilakukan server Odoo (fields.Html sanitize) dan endpoint ini butuh sesi login (auth='user').
+#
+# Cakupan pengecualian:
+#   - hanya rule bertag `attack-xss` (CRS REQUEST-941, 33 rule) — SQLi/RCE/LFI/PHP/Java/
+#     protocol CRS, virtual patching & generic rules TETAP aktif;
+#   - hanya request in-band, method POST, path endpoint JSON-RPC Odoo yang membawa HTML:
+#       /web/dataset/call_kw/…, /web/dataset/call_button/…  (ORM: web_save/create/write)
+#       /mail/message/…, /mail/thread/…, /discuss/channel/… (chatter & Discuss)
+#       /html_editor/…, /web_editor/…                        (editor HTML)
+#   - path lain (mis. /web/login, /website/form publik, host non-Odoo) tidak terpengaruh.
+# Menambah path hanya setelah false positive nyata terbukti di log (`cscli alerts list`) — catat
+# di docs/03-operations/odoo.md §AppSec.
+# Rollback: hapus dari acquis.d/appsec.yaml + mount di docker-compose.yml → `docker compose up -d`.
+name: local/odoo-crs-exclusions
+default_remediation: ban
+pre_eval:
+  - filter: >-
+      IsInBand && req.Method == "POST" && (
+        req.URL.Path startsWith "/web/dataset/call_kw/" ||
+        req.URL.Path startsWith "/web/dataset/call_button/" ||
+        req.URL.Path startsWith "/mail/message/" ||
+        req.URL.Path startsWith "/mail/thread/" ||
+        req.URL.Path startsWith "/discuss/channel/" ||
+        req.URL.Path startsWith "/html_editor/" ||
+        req.URL.Path startsWith "/web_editor/"
+      )
+    apply:
+      - RemoveInBandRuleByTag("attack-xss")

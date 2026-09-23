@@ -8,5 +8,8 @@ appsec_configs:
   - crowdsecurity/appsec-default
   # OWASP CRS blocking (collection crowdsecurity/appsec-crs-inband) — lihat docker-compose.yml.
   - crowdsecurity/crs-inband
+  # T10: pre_eval — nonaktifkan rule CRS `attack-xss` hanya untuk endpoint JSON-RPC Odoo yang
+  # membawa HTML (security/crowdsec/appsec-configs/odoo-crs-exclusions.yaml).
+  - local/odoo-crs-exclusions
 labels:
   type: appsec

@@ -1,0 +1,3 @@
+# State & secret pool Odoo (T10) — jangan di-commit
+.env
+secrets/

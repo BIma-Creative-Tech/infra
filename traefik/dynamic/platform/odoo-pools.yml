@@ -1,0 +1,45 @@
+# T10 — service backend pool Odoo + middleware bersama untuk router client Odoo.
+# Router per tenant dirender dari templates/traefik-client.yml ke dynamic/clients/<slug>-<env>.yml
+# (scripts/render-client-route.sh). File di subdirektori tidak di-watch → setelah mengubah:
+# `docker kill --signal=HUP traefik` (docs/03-operations/traefik.md).
+#
+# Odoo 19 (workers > 0): HTTP di :8069, websocket/bus di gevent :8072 (deploy.rst 19.0 §LiveChat,
+# odoo.conf gevent_port). Tidak ada port Odoo yang di-publish ke host.
+http:
+  services:
+    odoo-pool-a-http:
+      loadBalancer:
+        servers:
+          - url: "http://odoo-pool-a:8069"
+    odoo-pool-a-ws:
+      loadBalancer:
+        servers:
+          - url: "http://odoo-pool-a:8072"
+    odoo-staging-http:
+      loadBalancer:
+        servers:
+          - url: "http://odoo-staging:8069"
+    odoo-staging-ws:
+      loadBalancer:
+        servers:
+          - url: "http://odoo-staging:8072"
+
+  middlewares:
+    # Varian `security-headers` untuk Odoo (opsi: docs v3.7 middlewares/headers.md):
+    #  - TANPA frameDeny: Odoo 19 mengatur X-Frame-Options sendiri per route (webclient `DENY`,
+    #    /web/login `SAMEORIGIN` + CSP frame-ancestors 'self', portal/website `SAMEORIGIN`;
+    #    addons/web/controllers/home.py, portal/controllers/portal.py) dan memakai iframe same-origin
+    #    (editor HTML/website builder). frameDeny akan menimpa semuanya menjadi DENY.
+    #  - Permissions-Policy: camera/microphone/geolocation = (self) — dipakai Discuss (panggilan
+    #    RTC), scan barcode kamera, hr_attendance (geolokasi). Lainnya tetap ditolak.
+    odoo-security-headers:
+      headers:
+        stsSeconds: 300              # sama dengan security-headers; dinaikkan Lead setelah QA
+        stsIncludeSubdomains: false
+        stsPreload: false
+        contentTypeNosniff: true
+        referrerPolicy: "strict-origin-when-cross-origin"
+        permissionsPolicy: "camera=(self), microphone=(self), geolocation=(self), payment=(), usb=()"
+        customResponseHeaders:
+          X-Powered-By: ""
+          Server: ""

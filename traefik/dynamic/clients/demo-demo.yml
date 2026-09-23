@@ -1,0 +1,52 @@
+# DIRENDER OTOMATIS oleh scripts/render-client-route.sh dari templates/traefik-client.yml — jangan edit manual.
+# Tenant: slug=demo env=demo db=demo_demo pool=odoo-pool-a (dirender oleh render-client-route.sh)
+#
+# Urutan middleware (semua router): crowdsec (paling depan) → odoo-security-headers →
+# ratelimit-default [→ ratelimit-login] → strip-odoo-db-headers → odoo-demo-demo-db (set header eksak).
+# Service: odoo-pool-a-http (:8069) / odoo-pool-a-ws (:8072), didefinisikan di dynamic/platform/odoo-pools.yml.
+http:
+  routers:
+    # Database manager/selector: tidak pernah publik (list_db=False juga menolaknya di Odoo).
+    odoo-demo-demo-dbmanager:
+      entryPoints: [websecure]
+      rule: "Host(`demo.erp.bimacreative.tech`) && PathPrefix(`/web/database`)"
+      priority: 300
+      middlewares: [crowdsec, ipallowlist-admin, odoo-security-headers, ratelimit-default, strip-odoo-db-headers, odoo-demo-demo-db]
+      service: odoo-pool-a-http
+      tls:
+        certResolver: le-http
+    # Websocket/bus → gevent :8072. Header DB yang sama dengan router utama.
+    odoo-demo-demo-websocket:
+      entryPoints: [websecure]
+      rule: "Host(`demo.erp.bimacreative.tech`) && PathPrefix(`/websocket`)"
+      priority: 200
+      middlewares: [crowdsec, odoo-security-headers, ratelimit-default, strip-odoo-db-headers, odoo-demo-demo-db]
+      service: odoo-pool-a-ws
+      tls:
+        certResolver: le-http
+    # Endpoint autentikasi (form login, JSON-RPC session/authenticate, reset password, signup).
+    odoo-demo-demo-login:
+      entryPoints: [websecure]
+      rule: "Host(`demo.erp.bimacreative.tech`) && (Path(`/web/login`) || Path(`/web/session/authenticate`) || PathPrefix(`/web/reset_password`) || PathPrefix(`/web/signup`))"
+      priority: 200
+      middlewares: [crowdsec, odoo-security-headers, ratelimit-default, ratelimit-login, strip-odoo-db-headers, odoo-demo-demo-db]
+      service: odoo-pool-a-http
+      tls:
+        certResolver: le-http
+    odoo-demo-demo:
+      entryPoints: [websecure]
+      rule: "Host(`demo.erp.bimacreative.tech`)"
+      priority: 100
+      middlewares: [crowdsec, odoo-security-headers, ratelimit-default, strip-odoo-db-headers, odoo-demo-demo-db]
+      service: odoo-pool-a-http
+      tls:
+        certResolver: le-http
+
+  middlewares:
+    # Nama DB EKSAK untuk sh_dbfilter_header (menimpa nilai dari client) + hapus header bawaan
+    # Odoo 19 X-Odoo-Database ("" = hapus, docs v3.7 middlewares/headers.md).
+    odoo-demo-demo-db:
+      headers:
+        customRequestHeaders:
+          X-Sh-Odoo-Db: "demo_demo"
+          X-Odoo-Database: ""

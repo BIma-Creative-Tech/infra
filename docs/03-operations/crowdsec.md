@@ -30,7 +30,7 @@
 |---|---|---|---|
 | `traefik.yaml` | `/var/log/traefik/access.log` (= `traefik/logs/`, ro) | `type: traefik` | `crowdsecurity/traefik-logs` |
 | `sshd.yaml` | `/var/log/host/auth.log` (= `/var/log` host, ro) | `type: syslog` | `syslog-logs` → `sshd-logs` |
-| `appsec.yaml` | listener AppSec `0.0.0.0:7422` | `type: appsec` | configs `appsec-default` + `crs-inband` |
+| `appsec.yaml` | listener AppSec `0.0.0.0:7422` | `type: appsec` | configs `appsec-default` + `crs-inband` + `local/odoo-crs-exclusions` (T10) |
 
 - sshd → **`/var/log/auth.log`** (rsyslog aktif di host; journald tidak dipakai karena image alpine tanpa `journalctl`).
 - Permission: container jalan sebagai root **tanpa capability** (tidak bisa bypass DAC). Membaca log lewat
@@ -49,6 +49,13 @@
 > pada form login Keycloak (password dengan `' -- ; < > & #`) → tidak terblok. Tuning FP lanjutan di staging
 > (Odoo, T10). Rollback CRS: hapus dari `COLLECTIONS` + `crs-inband` di `acquis.d/appsec.yaml` →
 > `docker exec crowdsec cscli collections remove crowdsecurity/appsec-crs-inband` → `docker compose up -d`.
+
+### Pengecualian CRS untuk Odoo (T10)
+
+`appsec-configs/odoo-crs-exclusions.yaml` (di-mount ro ke `/etc/crowdsec/appsec-configs/`, nama
+`local/odoo-crs-exclusions`): hook `pre_eval` → `RemoveInBandRuleByTag("attack-xss")` hanya untuk POST ke
+endpoint JSON-RPC Odoo yang membawa HTML (`/web/dataset/call_kw/`, `/mail/message/`, …). Alasan & uji: `odoo.md`
+§AppSec. Verifikasi dimuat: `docker exec crowdsec cscli appsec-configs list` → `local/odoo-crs-exclusions  enabled,local`.
 
 ## Start / stop
 
