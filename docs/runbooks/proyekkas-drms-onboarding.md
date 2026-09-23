@@ -324,3 +324,9 @@ page publik).
 - Backup pra-migrasi: `/opt/infra/backups/proyekkas/pk_drms_stg-20260923-194622-pre-f8529e6.dump` (600).
 - Migrasi `20260923_122029_email` OK; SMTP no-reply@ aktif; limit web 384m / worker 192m.
 - Rollback: `.env` → tag `0.1.0-stg-3b05b83`, `docker compose up -d`; bila skema perlu mundur, restore dump di atas (destruktif, konfirmasi user).
+
+### Upgrade 2026-09-24 00:32 WIB → `0.1.0-stg-4d952ba` (F2)
+- Backup pra-migrasi: `/opt/infra/backups/proyekkas/pk_drms_stg-20260924-003213-pre-4d952ba.dump` (600).
+- Migrasi: f2a_flow, f2a_security, f2b_lpj_notifications, f2b_security — OK (±0,5 s). Compose tidak berubah.
+- Verifikasi: health/ready/admin 200; view admin baru tanpa login = shell 200 + redirect klien (tanpa data); RAM web 84/384, worker 53/192.
+- Rollback: tag `0.1.0-stg-f8529e6` (+ restore dump bila skema perlu mundur — destruktif, konfirmasi user).
