@@ -9,8 +9,9 @@ STACK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 PW="$STACK_DIR/secrets/uptime-kuma-admin-password"
 if [[ ! -s "$PW" ]]; then
-  ( umask 077; openssl rand -base64 48 | tr -dc 'A-Za-z0-9' | head -c 40 > "$PW" )
-  echo "secrets/uptime-kuma-admin-password: dibuat"
+  # Sejak 2026-09-24 password admin Kuma dipegang user (file awal dihapus). Untuk provisioning, taruh
+  # password SEMENTARA: `install -m 600 /dev/stdin $PW` (Ctrl+D), jalankan skrip, lalu `shred -u $PW`.
+  echo "secrets/uptime-kuma-admin-password tidak ada — lihat komentar di skrip" >&2; exit 2
 fi
 chmod 0600 "$PW"
 

@@ -259,3 +259,9 @@ Rollback H3 (kembali ke socket-proxy — **tidak disarankan**, lihat §Log): `gi
 `tag`/`labels` di `daemon.json` boleh tetap (hanya menambah field `attrs`, ±100 byte/baris); bila dicabut: ubah
 `roles/docker/defaults/main.yml` → `ansible-playbook site.yml --tags docker` (restart dockerd, live-restore; gangguan
 ±2 s — DNS embedded Docker & bouncer CrowdSec sempat gagal → 403/timeout, diukur 2026-09-23) lalu recreate container.
+
+
+## Kredensial awal dihapus (2026-09-24)
+- Password admin Grafana & Uptime Kuma diganti user dan disimpan di password manager user; file `secrets/grafana-admin-password` dan `secrets/uptime-kuma-admin-password` di-`shred`.
+- Grafana tidak lagi memakai `GF_SECURITY_ADMIN_PASSWORD__FILE` (password di DB Grafana).
+- Provisioning Kuma butuh password sementara di `secrets/uptime-kuma-admin-password` (lihat komentar `scripts/uptime-kuma-provision.sh`), lalu `shred -u`.

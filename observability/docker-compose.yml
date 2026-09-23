@@ -146,7 +146,7 @@ services:
       # H5b: panel hanya di entrypoint Traefik `admin` (:8443, tunnel) → URL absolut (appUrl, redirect, tautan) memuat port.
       GF_SERVER_ROOT_URL: https://grafana.bimacreative.tech:8443/
       GF_SECURITY_ADMIN_USER: admin
-      GF_SECURITY_ADMIN_PASSWORD__FILE: /run/secrets/grafana-admin-password
+      # Password admin Grafana tersimpan di DB Grafana (diganti user 2026-09-24); file awal dihapus.
       GF_SECURITY_COOKIE_SECURE: "true"
       GF_SECURITY_DISABLE_GRAVATAR: "true"
       GF_AUTH_ANONYMOUS_ENABLED: "false"
@@ -164,7 +164,6 @@ services:
     volumes:
       - ./data/grafana:/var/lib/grafana
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
-      - ./secrets/grafana-admin-password:/run/secrets/grafana-admin-password:ro
     read_only: true
     tmpfs:
       - /tmp:uid=472,gid=472,mode=0700

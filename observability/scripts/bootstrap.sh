@@ -46,10 +46,10 @@ echo "data/: ok"
 
 install -d -o root -g root -m 0700 "$STACK_DIR/secrets"
 PW="$STACK_DIR/secrets/grafana-admin-password"
-if [[ ! -s "$PW" ]]; then
+# Password awal HANYA untuk instalasi baru (DB Grafana belum ada); setelah user mengganti password, file dihapus.
+if [[ ! -e "$STACK_DIR/data/grafana/grafana.db" && ! -s "$PW" ]]; then
   ( umask 077; openssl rand -base64 48 | tr -dc 'A-Za-z0-9' | head -c 40 > "$PW" )
-  echo "secrets/grafana-admin-password: dibuat"
+  echo "secrets/grafana-admin-password: dibuat (instalasi baru — tambahkan env __FILE + mount sementara)"
 fi
-chown "$GRAFANA_UID:$GRAFANA_UID" "$PW"
-chmod 0600 "$PW"
+[[ -e "$PW" ]] && { chown "$GRAFANA_UID:$GRAFANA_UID" "$PW"; chmod 0600 "$PW"; }
 echo "secrets/: ok"
