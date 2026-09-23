@@ -1,6 +1,6 @@
 # ProyekKas STAGING (client DRMS) — drms-kas.staging.bimacreative.tech → container `drms-pk-stg:3000`.
 # BUKAN hasil render-client-route.sh (bukan tenant Odoo) — edit manual, lalu
-# `docker kill --signal=HUP traefik` (subdirektori dynamic/ tidak di-watch).
+# `docker exec traefik kill -HUP 1` (subdirektori dynamic/ tidak di-watch).
 # Desain: /opt/src/proyekkas/docs/proyekkas/architecture.md §3.2–§3.3, §6.1; runbook
 # docs/runbooks/proyekkas-drms-onboarding.md.
 #

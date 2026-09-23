@@ -1,0 +1,17 @@
+# H7(a) — pelengkap pengecualian 920420 untuk admin Payload ProyekKas (appsec-configs/drms-payload-crs-exclusions.yaml):
+# paksa body processor JSON pada Server Action (text/plain) agar rule CRS XSS/SQLi/RCE/LFI tetap memeriksa isi body,
+# dan tolak body yang bukan JSON valid. Pola & verifikasi = H6 (appsec-rules/controlplane-server-action.yaml, 19100/19101).
+# Kondisi = kondisi pengecualian: Next-Action hex 40–64, Content-Type diawali text/plain, Host drms-kas(.staging),
+# path (REQUEST_FILENAME, tanpa query) diawali /admin/. ID 19102/19103 tidak dipakai rule lain (grep data/config).
+name: local/drms-payload-server-action-json
+description: "H7(a): JSON body processor + tolak body non-JSON untuk Server Action admin Payload ProyekKas"
+seclang_rules:
+ - SecRule REQUEST_HEADERS:Next-Action "@rx ^[0-9a-f]{40,64}$" "id:19102,phase:1,pass,t:none,nolog,noauditlog,msg:'H7a Payload Server Action JSON body processor',chain"
+ - SecRule REQUEST_HEADERS:Content-Type "@rx ^text/plain" "t:none,t:lowercase,chain"
+ - SecRule REQUEST_FILENAME "@beginsWith /admin/" "t:none,chain"
+ - SecRule REQUEST_HEADERS:Host "@rx ^drms-kas(?:\.staging)?\.bimacreative\.tech$" "t:none,t:lowercase,ctl:requestBodyProcessor=JSON"
+ - SecRule REQBODY_ERROR "!@eq 0" "id:19103,phase:2,deny,status:403,t:none,log,msg:'H7a Payload Server Action body is not valid JSON',chain"
+ - SecRule REQUEST_HEADERS:Next-Action "@rx ^[0-9a-f]{40,64}$" "t:none,chain"
+ - SecRule REQUEST_HEADERS:Content-Type "@rx ^text/plain" "t:none,t:lowercase,chain"
+ - SecRule REQUEST_FILENAME "@beginsWith /admin/" "t:none,chain"
+ - SecRule REQUEST_HEADERS:Host "@rx ^drms-kas(?:\.staging)?\.bimacreative\.tech$" "t:none,t:lowercase"

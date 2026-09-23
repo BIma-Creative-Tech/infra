@@ -1,0 +1,15 @@
+# {{ ansible_managed }} — role healthcheck (H7)
+[Unit]
+Description=Pemeriksaan kesehatan stack infra + alert email (H7)
+Wants=docker.service
+After=docker.service network-online.target
+
+[Service]
+Type=oneshot
+# exit 1 = ada masalah (unit tampil failed sampai run berikutnya OK); detail: journalctl -t infra-healthcheck
+ExecStart={{ healthcheck_script }}
+SyslogIdentifier=infra-healthcheck
+UMask=0077
+PrivateTmp=yes
+NoNewPrivileges=yes
+TimeoutStartSec=5min

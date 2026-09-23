@@ -113,8 +113,8 @@ Keduanya idempoten, harus root, output baris terakhir `RESULT key=value …` (ex
 
 `render-client-route.sh`: syarat DB ada; **DNS pre-check** (A = 31.97.50.221 di 1.1.1.1/8.8.8.8, tanpa
 AAAA); hostname belum dipakai router client lain; render `templates/traefik-client.yml` →
-`traefik/dynamic/clients/<slug>-<env>.yml` (644); isi sama → tidak menulis/HUP; berubah → `docker kill
---signal=HUP traefik` + cek log error. `--remove` menghapus router (suspend) + HUP.
+`traefik/dynamic/clients/<slug>-<env>.yml` (644); isi sama → tidak menulis/HUP; berubah → `docker exec
+traefik kill -HUP 1` + cek log error (H7: bukan `docker kill`, lihat `traefik.md`). `--remove` menghapus router (suspend) + HUP.
 Env `demo` **wajib** `--host` (pola default `<slug>-demo.erp…` bisa bentrok dengan slug lain).
 
 Tenant uji:

@@ -181,8 +181,20 @@ docker compose down               # stop (network proxy & acme tetap)
 - **Watch hanya untuk file di level atas `dynamic/`** — file di subdirektori (`middlewares/`, `platform/`,
   `clients/`, `test/`) dimuat saat start tetapi perubahannya **tidak** terdeteksi (source v3.7
   `pkg/provider/file/file.go`: `// ignore sub-dir`; diuji 2026-09-23). Setelah mengubah/menambah file di
-  subdirektori: `docker kill --signal=HUP traefik` (provider file memuat ulang konfigurasi saat SIGHUP).
+  subdirektori: `docker exec traefik kill -HUP 1` (provider file memuat ulang konfigurasi saat SIGHUP; bukti reload:
+  metrik `traefik_config_reloads_total` naik — hanya bila konfigurasi berubah).
+- **H7 — JANGAN `docker kill --signal=<apa pun>`** ke container yang harus hidup terus (Traefik, CrowdSec, dst.). Docker
+  v29.8.1 `daemon/kill.go` `killWithSignal` untuk sinyal APA PUN (juga HUP/USR1, container tetap berjalan) men-set
+  `HasBeenManuallyStopped=true` di `config.v2.json` **dan** membatalkan restart manager (`ExitOnNext`) → `unless-stopped`
+  tidak start saat reboot, dan crash berikutnya tidak di-restart (bahkan `always`) sampai container di-start ulang.
+  Insiden 2026-09-23 21:03 WIB (CrowdSec mati ±1 j 51 m). Pakai `docker exec <c> kill -<SIG> 1` (sinyal dikirim dari
+  dalam container oleh uid yang sama dengan PID 1; `/bin/kill` busybox ada di image Traefik v3.7.13 & CrowdSec v1.8.1).
   Berlaku juga untuk control plane (T10) yang merender `dynamic/clients/<slug>.yml`.
+- `restart: always` (H7, keputusan user 2026-09-23, pengecualian CLAUDE.md §3.5): start saat daemon/reboot walau flag
+  manual-stop ter-set. `docker stop traefik` tidak bertahan melewati reboot → matikan permanen dengan `docker compose down`.
+  Recreate H7: tanpa respons 23:24:35.9–23:24:39.4 WIB (±3.5 s). Uji reload H7 (`docker exec traefik kill -HUP 1` +
+  file uji di `dynamic/platform/`): `traefik_config_reloads_total` 2 → 3 → 4 (tambah/hapus file), HUP tanpa perubahan → tetap
+  4; `HasBeenManuallyStopped` tetap `False`.
 - Perubahan `traefik.yml` → `docker compose restart traefik`; perubahan `ports`/`networks` compose → `docker compose up -d`
   (recreate; terukur H5: 5 s tanpa respons, 17:18:18–17:18:23 WIB) (plugin CrowdSec diunduh ulang ke tmpfs
   `/plugins-storage` dan diverifikasi `hash`).
@@ -215,7 +227,8 @@ limit LE: 5 authorization failure / identifier / jam (ADR 0002).
 - `acme*.json` berisi private key → 600, masuk backup terenkripsi (ADR 0006). Hapus akun/sertifikat
   staging = hapus isi `acme-staging.json` (**destruktif — konfirmasi Lead**), lalu restart.
 - Access log: logrotate harian, simpan 14, `maxsize 100M`, `postrotate` mengirim USR1
-  (`docker kill --signal=USR1 traefik`) — diuji `logrotate -f`, file baru dibuat Traefik.
+  (`docker exec traefik kill -USR1 1`; sebelum H7 `docker kill --signal=USR1` — men-set flag manual-stop, lihat
+  §Start/stop/reload) — diuji `logrotate -f`, file baru dibuat Traefik.
 
 ## Admin via SSH tunnel (catatan penting)
 

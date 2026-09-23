@@ -182,15 +182,74 @@ Cek label container di Loki: `…/loki/api/v1/series --data-urlencode 'match[]={
 
 ## Belum / berikutnya
 
-- Alert: belum ada aturan alert (Prometheus tanpa Alertmanager; Grafana alerting belum dikonfigurasi) — termasuk alert
-  yang diminta T13 (`REMOTE NOT CONFIGURED`, unit `restic-*` failed, disk `/` > 70%, swap > 1 GiB). Butuh kanal notifikasi.
+- Alert: belum ada aturan alert Prometheus/Grafana (tanpa Alertmanager). Kanal email **sudah ada** (H7, §Healthcheck &
+  alert email) dan mencakup unit `restic-*` failed; yang belum: `REMOTE NOT CONFIGURED`, disk `/` > 70%, swap > 1 GiB.
 - Grafana login via Keycloak (client OIDC baru) — keputusan Lead berikutnya.
 - Dashboard: belum ada yang di-provision (hanya datasource Prometheus & Loki).
+
+## Healthcheck & alert email (H7, keputusan user 2026-09-23)
+
+Pemicu: insiden 2026-09-23 21:03 WIB — setelah reboot CrowdSec tidak start (`HasBeenManuallyStopped=true` akibat reload
+`docker kill --signal=HUP`, lihat `traefik.md` §Start/stop/reload) dan tidak ada yang memberi tahu selama ±1 j 51 m.
+
+| Komponen | Isi |
+|---|---|
+| `scripts/infra-healthcheck.sh` | pemeriksaan + state anti-spam + kirim email (root) |
+| `scripts/lib/infra_alert_mail.py` | kirim email: `smtplib` host → `mail.bimacreative.tech:587` STARTTLS (sertifikat diverifikasi) + AUTH `alerts@bimacreative.tech`; password dibaca dari file, tidak di argv/env |
+| role Ansible `healthcheck` | `/etc/infra-healthcheck/alert.env` (tanpa secret), `infra-healthcheck.service` + `.timer` (`OnBootSec=3min`, `OnUnitActiveSec=5min`), template `infra-unit-failure@.service` |
+| role `backup` | `OnFailure=infra-unit-failure@%n.service` di `restic-{backup,prune,restore-test}.service` |
+| mailbox `alerts@bimacreative.tech` | kuota 256M, password `mail/secrets/alerts@bimacreative.tech.password` (600 root) — **dipakai sistem, jangan di-`shred`** (berbeda dari mailbox manusia di `mail.md` §Akun) |
+| state | `/var/lib/infra-healthcheck/active/<kunci>` (epoch kirim terakhir + pesan) |
+
+Yang diperiksa tiap run: (1) setiap service `restart` ≠ `"no"` dari compose stack `healthcheck_stacks` (dibaca `docker
+compose config`; saat ini 19 container) ada, running, dan `healthy` bila punya healthcheck — `starting` hanya warning;
+(2) `crowdsec-firewall-bouncer` active; (3) tidak ada container berjalan dengan `HasBeenManuallyStopped=true`
+(`config.v2.json`); (4) unit `healthcheck_units` (restic-*) tidak `failed`. Hasil: `journalctl -t infra-healthcheck`
+(`err` per masalah, `info` bila OK). Exit 1 bila ada masalah → `infra-healthcheck.service` tampil failed sampai run OK.
+
+Email: satu email `[ALERT]` berisi semua masalah baru; masalah yang sama dikirim ulang paling cepat tiap
+`infra_alert_repeat_minutes` (60); `[RESOLVED]` saat masalah hilang. Email gagal → state tidak berubah → dicoba lagi 5 menit
+kemudian. **Keterbatasan:** bila `mailserver` sendiri mati / mail keluar ditahan, alert hanya di journal (masalah
+`container-mailserver` tetap tercatat `err`).
+
+### Mengganti penerima alert
+1. Edit **satu** variabel `infra_alert_to` di `ansible/group_vars/all.yml` (beberapa alamat: pisahkan koma, mis.
+   `postmaster@bimacreative.tech,nama@gmail.com`) → commit.
+2. `cd /opt/infra/ansible && /opt/ansible-venv/bin/ansible-playbook site.yml --tags healthcheck` (menulis ulang
+   `/etc/infra-healthcheck/alert.env`; tidak perlu restart apa pun — dibaca tiap run).
+3. Uji: `sudo /opt/infra/scripts/infra-healthcheck.sh --selftest` (email `[ALERT]` masalah palsu) lalu
+   `sudo /opt/infra/scripts/infra-healthcheck.sh` (email `[RESOLVED]`).
+- Sementara/sekali jalan: `sudo ALERT_TO=nama@contoh.id /opt/infra/scripts/infra-healthcheck.sh --selftest` (env proses menang
+  atas file).
+- **Alamat di luar domain lokal** (mis. Gmail) tertahan di antrean Postfix selama guard `defer_transports = smtp` aktif
+  (sampai PTR diset — `mail.md` §PTR). Sampai itu gunakan mailbox lokal (`postmaster@`, baca via IMAPS 993).
+
+### Perintah
+```bash
+systemctl list-timers infra-healthcheck.timer
+sudo /opt/infra/scripts/infra-healthcheck.sh --no-mail      # cek saja, tanpa email & tanpa ubah state
+journalctl -t infra-healthcheck --since -1h                  # hasil; -p err untuk masalah saja
+ls /var/lib/infra-healthcheck/active/                        # masalah yang sudah di-alert & belum pulih
+sudo HC_EXTRA_CONTAINERS=nama-fiktif /opt/infra/scripts/infra-healthcheck.sh --no-mail   # uji negatif tanpa email
+```
+Flag manual-stop terdeteksi → `docker restart <c>` di jendela pemeliharaan (Traefik ±5 s; CrowdSec ±40 s 403). Untuk
+`traefik`/`crowdsec` (`restart: always`) flag tidak menghalangi start saat reboot, tetapi crash tetap tidak di-restart
+sampai container di-start ulang.
+
+Uji 2026-09-23: run manual → `OK: 19 container …`; `HC_EXTRA_CONTAINERS=h7-fiktif-tidak-ada` + container uji yang
+di-`docker kill --signal=HUP` → dua `MASALAH` (exit 1, `--no-mail`); `--selftest` → email `[ALERT]` di maildir postmaster
+(23:32:56, submission `sasl_username=alerts@`, LMTP `Saved`); `--selftest` kedua → tanpa email (anti-spam); run normal →
+`[RESOLVED]` (23:33:16); unit dummy `h7-dummy-fail.service` (`OnFailure=infra-unit-failure@%n.service`, `exit 3`) → email
+`[ALERT] unit h7-dummy-fail.service gagal` (23:33:29) → setelah `reset-failed` + hapus unit, run normal → `[RESOLVED]`.
+
+Rollback: `systemctl disable --now infra-healthcheck.timer`; hapus role dari `site.yml` + unit di `/etc/systemd/system/`
+(`infra-healthcheck.*`, `infra-unit-failure@.service`) + baris `OnFailure=` di template role `backup` → `ansible-playbook
+site.yml --tags backup` → `systemctl daemon-reload`.
 
 ## Rollback
 
 `docker compose down` di `observability/` (volume & `data/` tetap). Lepas integrasi: hapus
-`traefik/dynamic/platform/{status,grafana}.yml` + SIGHUP Traefik; kembalikan `traefik/traefik.yml` & compose
+`traefik/dynamic/platform/{status,grafana}.yml` + `docker exec traefik kill -HUP 1`; kembalikan `traefik/traefik.yml` & compose
 traefik/crowdsec/keycloak dari git (`git checkout <rev> -- …`) lalu `docker compose up -d` per stack (recreate:
 crowdsec ±40 s fail-closed 403, keycloak ±25–60 s, traefik ±7 s). Network: `docker network rm metrics observability`
 setelah tidak ada anggota. Hapus volume/data = destruktif → konfirmasi.

@@ -8,7 +8,11 @@ services:
     # ADR 0001: traefik:v3.7.13 (+ digest index multi-arch, diambil 2026-09-23)
     image: traefik:v3.7.13@sha256:24841fe2de7304c149343d877d2923b4c8800a38ba015dea9174c23b20e344a0
     container_name: traefik
-    restart: unless-stopped
+    # H7 (keputusan user 2026-09-23, ADR 0001 riwayat revisi): `always`, BUKAN `unless-stopped` (pengecualian
+    # CLAUDE.md §3.5) — satu-satunya pintu 80/443. `always` tetap di-start saat daemon Docker start walau
+    # HasBeenManuallyStopped=true (docs Docker "Start containers automatically"; moby v29.8.1
+    # restartmanager.ShouldRestart). Reload konfigurasi: `docker exec traefik kill -HUP 1`, bukan `docker kill`.
+    restart: always
     # Non-root tanpa capability: Docker menset net.ipv4.ip_unprivileged_port_start=0 di netns
     # container, sehingga uid biasa boleh bind :80/:443 (diuji; NET_BIND_SERVICE tidak diperlukan
     # dan tidak efektif untuk proses non-root). Sysctl ditulis eksplisit agar tidak bergantung default.

@@ -17,5 +17,8 @@ appsec_configs:
   # H6: pre_eval — nonaktifkan HANYA rule CRS 920420 (content type text/plain) untuk Server Action Next.js
   # control plane (host cp / cp.staging, POST + Next-Action) — appsec-configs/controlplane-crs-exclusions.yaml.
   - local/controlplane-crs-exclusions
+  # H7(a): pre_eval — nonaktifkan HANYA rule CRS 920420 untuk Server Action admin Payload ProyekKas
+  # (host drms-kas(.staging), POST /admin/* + Next-Action) — appsec-configs/drms-payload-crs-exclusions.yaml.
+  - local/drms-payload-crs-exclusions
 labels:
   type: appsec

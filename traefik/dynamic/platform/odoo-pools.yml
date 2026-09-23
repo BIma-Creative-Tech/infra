@@ -1,7 +1,7 @@
 # T10 — service backend pool Odoo + middleware bersama untuk router client Odoo.
 # Router per tenant dirender dari templates/traefik-client.yml ke dynamic/clients/<slug>-<env>.yml
 # (scripts/render-client-route.sh). File di subdirektori tidak di-watch → setelah mengubah:
-# `docker kill --signal=HUP traefik` (docs/03-operations/traefik.md).
+# `docker exec traefik kill -HUP 1` (docs/03-operations/traefik.md).
 #
 # Odoo 19 (workers > 0): HTTP di :8069, websocket/bus di gevent :8072 (deploy.rst 19.0 §LiveChat,
 # odoo.conf gevent_port). Tidak ada port Odoo yang di-publish ke host.

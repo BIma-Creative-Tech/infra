@@ -264,6 +264,7 @@ Semua aksi dicatat audit (siapa, kapan, hasil). Role: `superadmin`, `ops`, `clie
 - Wajib: `restart: unless-stopped`, `mem_limit`/`cpus`, `healthcheck`, `logging` (json-file
   max-size 10m/3 files), `read_only: true` + `tmpfs` bila memungkinkan, `cap_drop: [ALL]`
   + `cap_add` minimal, `security_opt: [no-new-privileges:true]`, user non-root.
+- Pengecualian (H7, keputusan user 2026-09-23): `traefik` & `crowdsec` = `restart: always` (edge kritis; ADR 0001 riwayat revisi).
 - Data persisten hanya di named volume atau `/opt/infra/<stack>/data/`.
 - Template client di `/opt/infra/templates/`, di-render oleh control plane/skrip. Perubahan
   template harus backward compatible dengan client yang berjalan.

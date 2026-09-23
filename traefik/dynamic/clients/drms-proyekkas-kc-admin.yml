@@ -1,6 +1,6 @@
 # ProyekKas (client DRMS) — Admin REST API Keycloak HANYA realm `drms` (prod) / `drms-staging` (staging),
 # dari app ProyekKas (web + worker) tanpa hairpin. H5, keputusan user infra 2026-09-23.
-# Edit manual, lalu `docker kill --signal=HUP traefik` (subdirektori dynamic/ tidak di-watch).
+# Edit manual, lalu `docker exec traefik kill -HUP 1` (subdirektori dynamic/ tidak di-watch).
 #
 # Jalur: app join network --internal `drms-kc-admin` (10.100.8.0/24, prod) / `drms-kc-admin-stg`
 # (10.100.9.0/24, staging). Traefik join keduanya dengan alias `auth.bimacreative.tech` → DNS Docker di

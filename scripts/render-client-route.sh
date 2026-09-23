@@ -4,8 +4,10 @@
 #   scripts/render-client-route.sh <slug> <prod|demo|staging> [--host <fqdn>]   # tulis + HUP
 #   scripts/render-client-route.sh <slug> <env> --remove                        # hapus + HUP (suspend)
 #
-# Menulis traefik/dynamic/clients/<slug>-<env>.yml lalu `docker kill --signal=HUP traefik`
+# Menulis traefik/dynamic/clients/<slug>-<env>.yml lalu `docker exec traefik kill -HUP 1`
 # (file di subdirektori tidak di-watch file provider). Isi identik → tidak ditulis, tidak HUP.
+# H7: JANGAN `docker kill --signal=HUP` — men-set HasBeenManuallyStopped=true + membatalkan restart
+# manager (moby daemon/kill.go) → container tidak start setelah reboot (docs/03-operations/traefik.md).
 # Syarat sebelum menulis (ADR 0002 #5, CLAUDE.md §3.5.1):
 #   - DB tenant sudah ada & dimiliki role pool (jalankan provision-odoo-db.sh dulu);
 #   - DNS pre-check: A <fqdn> = IP VPS di 1.1.1.1 dan 8.8.8.8 (minimal satu menjawab, tidak ada
@@ -35,7 +37,7 @@ OUT="$TRAEFIK_CLIENTS_DIR/${SLUG}-${TENANT_ENV}.yml"
 
 hup() {
   local since; since="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  docker kill --signal=HUP "$TRAEFIK_CONTAINER" >/dev/null
+  docker exec "$TRAEFIK_CONTAINER" kill -HUP 1
   sleep 3
   # Traefik tidak punya API aktif (dashboard off) → cek log error konfigurasi sejak HUP.
   if docker logs --since "$since" "$TRAEFIK_CONTAINER" 2>&1 | grep -E '"level":"(error|fatal)"' | grep -F -e "$ROUTE_NAME" -e "clients/"; then

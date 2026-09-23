@@ -1,0 +1,12 @@
+# {{ ansible_managed }} — role healthcheck (H7)
+[Unit]
+Description=Timer: pemeriksaan kesehatan stack infra (H7)
+
+[Timer]
+# systemd.timer(5): monotonic — relatif terhadap boot dan terhadap aktivasi terakhir unit service.
+OnBootSec={{ healthcheck_on_boot_sec }}
+OnUnitActiveSec={{ healthcheck_on_unit_active_sec }}
+AccuracySec=30s
+
+[Install]
+WantedBy=timers.target

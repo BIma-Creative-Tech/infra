@@ -3,6 +3,8 @@
 Description=Backup harian restic (pg_dump per DB + filestore Odoo + config)
 Wants=docker.service
 After=docker.service network-online.target
+# H7: gagal → email alert segera (role healthcheck, scripts/infra-healthcheck.sh --unit-failed).
+OnFailure=infra-unit-failure@%n.service
 
 [Service]
 Type=oneshot

@@ -1,0 +1,15 @@
+# {{ ansible_managed }} — role healthcheck (H7)
+# Dipicu `OnFailure=infra-unit-failure@%n.service` (systemd.unit(5)) di unit restic-* → email alert segera.
+# %i = nama instance apa adanya (mis. restic-backup.service); %I tidak dipakai (mengubah "-" menjadi "/").
+[Unit]
+Description=Alert email: unit %i gagal (H7)
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart={{ healthcheck_script }} --unit-failed %i
+SyslogIdentifier=infra-healthcheck
+UMask=0077
+PrivateTmp=yes
+NoNewPrivileges=yes
+TimeoutStartSec=5min

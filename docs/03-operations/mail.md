@@ -110,7 +110,10 @@ docker exec mailserver setup email del user@bimacreative.tech # DESTRUKTIF (tany
 - **Suspend mailbox bocor/spam (ADR 0005 #13):** `mailbox-add.sh --rotate <alamat>` (sesi IMAP lama: `docker exec mailserver
   doveadm kick <alamat>`), lalu periksa `rspamd.log` (`Ratelimit … exceeded`, `user: <alamat>`) dan antrean (`postqueue -p`).
 - Kuota: default 2 GiB per mailbox (ADR 0005 #15); total janji kuota semua client ≤ ±40 GiB sampai ada data nyata.
-- Akun saat ini: `postmaster@`, `dmarc@` (penerima `rua` DMARC) — mailbox; `abuse@` → alias ke `postmaster@`.
+- Akun saat ini: `postmaster@`, `dmarc@` (penerima `rua` DMARC), `alerts@` (H7: pengirim alert `infra-healthcheck`, kuota
+  256M — password `secrets/alerts@bimacreative.tech.password` **dibaca sistem, jangan di-`shred`**; rotasi `--rotate` aman,
+  skrip membaca file tiap kirim) — mailbox; `abuse@` → alias ke `postmaster@`. Penerima alert default = `postmaster@`
+  (`observability.md` §Healthcheck & alert email).
 
 ## DKIM
 
@@ -247,11 +250,11 @@ docker exec crowdsec cscli explain --log '<baris mail.log>' --type syslog      #
 
 - Stack: `cd /opt/infra/mail && docker compose down` — layanan lain tidak terpengaruh; pengirim eksternal me-retry (MX tetap).
   Data tetap di `data/`. Hapus `data/` / `secrets/` = destruktif → konfirmasi.
-- Router sertifikat: hapus `traefik/dynamic/platform/mail.yml` → `docker kill --signal=HUP traefik` (sertifikat tetap di
+- Router sertifikat: hapus `traefik/dynamic/platform/mail.yml` → `docker exec traefik kill -HUP 1` (sertifikat tetap di
   `acme.json` sampai kedaluwarsa).
 - Firewall: hapus `ufw_allow_tcp_ports_mail` + task di role `firewall` **dan** `ufw delete allow from 0.0.0.0/0 to any port <p>
   proto tcp` per port (role hanya menambah).
 - CrowdSec: hapus `acquis.d/mail.yaml`, `scenarios/mail-postfix-sasl-bf.yaml` (+ mount & baris `COLLECTIONS`), `cscli collections
-  remove crowdsecurity/postfix crowdsecurity/dovecot` → `docker kill --signal=HUP crowdsec` (403 fail-closed ±8 s) atau
+  remove crowdsecurity/postfix crowdsecurity/dovecot` → `docker exec crowdsec kill -HUP 1` (403 fail-closed ±8 s) atau
   `docker compose up -d` (recreate ±40 s).
 - Uptime Kuma: hapus dua entri MONITORS + hapus monitor di UI (skrip tidak menghapus).

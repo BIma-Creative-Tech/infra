@@ -35,7 +35,7 @@
 | `traefik.yaml` | `/var/log/traefik/access.log` (= `traefik/logs/`, ro) | `type: traefik` | `crowdsecurity/traefik-logs` |
 | `sshd.yaml` | `/var/log/host/auth.log` (= `/var/log` host, ro) | `type: syslog` | `syslog-logs` → `sshd-logs` |
 | `mail.yaml` (T11) | `/var/log/host/mailserver/dms/mail.log` (log docker-mailserver) | `type: syslog` | `syslog-logs` → `postfix-logs`/`postscreen-logs`/`dovecot-logs` — lihat `mail.md` §CrowdSec |
-| `appsec.yaml` | listener AppSec `0.0.0.0:7422` | `type: appsec` | configs `appsec-default` + `crs-inband` + `local/odoo-crs-exclusions` (T10) + `local/keycloak-admin-exclusions` (H4) + `local/controlplane-crs-exclusions` (H6) |
+| `appsec.yaml` | listener AppSec `0.0.0.0:7422` | `type: appsec` | configs `appsec-default` + `crs-inband` + `local/odoo-crs-exclusions` (T10) + `local/keycloak-admin-exclusions` (H4) + `local/controlplane-crs-exclusions` (H6) + `local/drms-payload-crs-exclusions` (H7(a)) |
 
 - sshd → **`/var/log/auth.log`** (rsyslog aktif di host; journald tidak dipakai karena image alpine tanpa `journalctl`).
 - Permission: container jalan sebagai root **tanpa capability** (tidak bisa bypass DAC). Membaca log lewat
@@ -50,7 +50,7 @@
 
 Skenario lokal (T11): `scenarios/mail-postfix-sasl-bf.yaml` (mount ro, nama `infra/mail-postfix-sasl-bf`) — brute force SASL
 submission (`mail.md` §CrowdSec). T11 memasang collection + acquisition + skenario **live** (`cscli collections install` +
-`docker kill --signal=HUP crowdsec`: 403 fail-closed 18:03:48–18:03:55 WIB, ±8 s); compose sudah memuat perubahan yang sama →
+reload SIGHUP: 403 fail-closed 18:03:48–18:03:55 WIB, ±8 s — reload kini **hanya** `docker exec crowdsec kill -HUP 1`, H7); compose sudah memuat perubahan yang sama →
 recreate berikutnya tidak mengubah perilaku.
 
 > `appsec-virtual-patching` + `appsec-generic-rules` (daftar ADR 0001) **tidak** memblok SQLi/XSS generik —
@@ -143,6 +143,37 @@ Uji H6 (2026-09-23, dari host = 10.100.0.1 privat → alert tanpa decision; tota
 | Alur nyata: `GET /login` → id `$ACTION_ID_…` → `POST /login` NA + `[]` | redirect Keycloak | GET 200; POST 200 + `x-action-redirect: https://auth.bimacreative.tech/realms/platform/protocol/openid-connect/auth?…;push`, cookie `__Secure-authjs.{state,pkce.code_verifier,nonce,callback-url}` |
 
 `cscli decisions list` setelah uji: tidak ada `10.100.*` / `103.108.130.9`.
+
+### Pengecualian CRS 920420 untuk Server Action admin Payload ProyekKas (H7(a), disetujui user 2026-09-23)
+
+Pemicu: ban 20:55 WIB (`POST /admin/collections/users/create` drms-kas.staging) — admin Payload CMS memakai Server Action
+Next.js 16.3.6 (`serverFunction` di `app/(payload)/layout.tsx` + satu action `@payloadcms/next` Root layout; id 42 hex dari
+`.next/server/server-reference-manifest.json` image `proyekkas-web:0.1.0-stg-f8529e6`), di-POST ke URL halaman `/admin/...`
+dengan `text/plain` → 920420 → 403. Pola sama persis dengan H6, file terpisah (host/path berbeda, rollback terpisah):
+- `appsec-configs/drms-payload-crs-exclusions.yaml` (`local/drms-payload-crs-exclusions`): `pre_eval` →
+  `RemoveInBandRuleByID(920420)` hanya bila: in-band, POST, `req.Host` ∈ {`drms-kas.staging.bimacreative.tech`,
+  `drms-kas.bimacreative.tech`} (prod: router belum ada), path diawali `/admin/`, `Next-Action` tepat satu nilai hex kecil
+  40–64, `Content-Type` tepat satu nilai diawali `text/plain`. Multipart (upload File) tidak disentuh (sudah diizinkan CRS).
+- `appsec-rules/drms-payload-server-action.yaml` (`local/drms-payload-server-action-json`): **19102** (phase 1,
+  `ctl:requestBodyProcessor=JSON`) + **19103** (phase 2, 403 bila `REQBODY_ERROR`), kondisi sama (+ `REQUEST_FILENAME
+  @beginsWith /admin/`).
+- Uji kompilasi sebelum recreate: `crowdsec -t` di container sementara (salinan `data/`) → exit 0; kontrol negatif
+  (`@beginsWithX`) → `fatal … operator beginsWithX not found`.
+- Recreate (bersamaan dengan `restart: always` H7): 403 fail-closed 23:26:00–23:26:38 WIB (±38 s).
+- Rollback: hapus kedua file + barisnya di `acquis.d/appsec.yaml` + dua mount di `docker-compose.yml` → `docker compose up -d`.
+
+Uji H7(a) (2026-09-23, dari host = 10.100.0.1 → alert tanpa decision; 6 POST; id acak 42 hex):
+
+| # | Request (`https://drms-kas.staging.bimacreative.tech`) | Harapan | Hasil (Downstream / Origin, rule) |
+|---|---|---|---|
+| 1 | `POST /admin/collections/users/create` NA acak + text/plain `[]` | bukan 403 WAF | 404 / 404 (Next.js: action id tidak dikenal) |
+| 2 | idem tanpa `Next-Action` | 403 (920420 tetap) | 403 / 0, `native_rule:920420` |
+| 3 | idem NA + `["<script>alert(1)</script>"]` | 403 | 403 / 0, `xss: 20` pada `ARGS.json.0` (19102 aktif) |
+| 4 | idem NA + body `not-json <b>x` | 403 (19103) | 403 / 0, `native_rule:19103` (`REQBODY_ERROR`) |
+| 5 | `POST /` NA + `[]` (di luar `/admin/`) | 403 (920420) | 403 / 0, `native_rule:920420` |
+| 6 | Alur nyata: action id asli `4016d1f3…4c00` (`serverFunction`) + `[{"name":"h7-noop","args":{}}]` | sampai ke app, tanpa data dibuat | 500 / 500, log app `Error: Unknown Server Function: h7-noop` (content-type `text/x-component`) |
+
+`cscli decisions list` setelah uji: tidak ada `10.100.*`.
 
 > Celah platform (di luar H6, belum ditangani): CRS/base-config crowdsec tidak punya rule `REQBODY_ERROR` global — body
 > `application/json` yang rusak tidak di-parse dan tidak ditolak. H6 hanya menutupnya untuk Server Action cp (19101).
@@ -261,11 +292,15 @@ cd /opt/infra/ansible && /opt/ansible-venv/bin/ansible-playbook site.yml --tags 
 
 ## Catatan
 
-- **Crowdsec mati = semua router ber-`crowdsec` 403.** `restart: unless-stopped` tidak menyalakan container yang pernah
-  di-`docker stop` manual, termasuk setelah reboot (`HasBeenManuallyStopped: true`). Insiden 2026-09-23: reboot 21:03 WIB
-  setelah container di-stop manual → crowdsec tidak start → 403 di semua host publik hingga 22:54 WIB (±1 j 51 m); firewall
-  bouncer restart-loop (LAPI mati). Setelah reboot/pemulihan: `docker compose ps` di stack ini **dan** cek
-  `cscli decisions list` untuk IP admin **sebelum** firewall bouncer aktif.
+- **Crowdsec mati = semua router ber-`crowdsec` 403.** Insiden 2026-09-23: reboot 21:03 WIB → crowdsec tidak start → 403 di
+  semua host publik hingga 22:54 WIB (±1 j 51 m); firewall bouncer restart-loop (LAPI mati). Akar masalah (H7): reload
+  `docker kill --signal=HUP crowdsec` men-set `HasBeenManuallyStopped=true` walau container tetap berjalan (Docker v29.8.1
+  `daemon/kill.go`, sinyal apa pun) → `unless-stopped` tidak start saat reboot. **Sejak H7:** reload hanya
+  `docker exec crowdsec kill -HUP 1` (diuji 23:33:59 WIB: log `SIGHUP received, reloading`, 403 ±8.5 s, flag tetap
+  `False`, `StartedAt`/`RestartCount` tidak berubah) dan `restart: always` (start saat daemon start walau flag `True`).
+  `docker stop crowdsec` tidak bertahan melewati reboot → mematikan permanen: `docker compose down`. `infra-healthcheck`
+  (5 menit) mengirim email bila crowdsec tidak running/healthy atau ada container ber-flag manual-stop
+  (`observability.md` §Healthcheck). Setelah reboot/pemulihan: cek `cscli decisions list` untuk IP admin.
 
 - CAPI aktif (default image): sinyal serangan dikirim ke CrowdSec dan blocklist komunitas ditarik. Console
   (`app.crowdsec.net`) **tidak** di-enroll (log `Machine is not enrolled in the console` = normal).

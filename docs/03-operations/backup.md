@@ -80,8 +80,11 @@ journalctl -u restic-backup.service -n 50          # log lengkap run terakhir
 journalctl -t infra-backup -t infra-restore -t infra-restore-test -p warning --since -7d   # hanya warning/error
 journalctl -t infra-backup --since today | grep RESULT
 ```
-Alert: belum ada kanal alert (observability T14). Sampai itu, `REMOTE NOT CONFIGURED` dan kegagalan tercatat di
-journal (prioritas `warning`/`err`) dan unit berstatus `failed` (`systemctl --failed`). T14 wajib mengambil keduanya.
+Alert (H7, 2026-09-23): ketiga unit `restic-*.service` memuat `OnFailure=infra-unit-failure@%n.service` → unit gagal =
+**email alert segera** dari `alerts@bimacreative.tech` ke `infra_alert_to` (default `postmaster@`); `infra-healthcheck.timer`
+(5 menit) memantau unit yang `failed` dan mengirim **RESOLVED** setelah run berikutnya sukses (atau `systemctl reset-failed`).
+Detail & cara mengganti penerima: `observability.md` §Healthcheck & alert email. Diuji dengan unit dummy yang gagal (bukan
+backup nyata). **Belum** di-alert: warning `REMOTE NOT CONFIGURED` (unit tetap sukses) — hanya journal `warning`.
 
 ## Menjalankan manual
 

@@ -163,3 +163,23 @@ sistem sampai FASE 2.
   hex + `text/plain`) ditambah rule lokal 19100/19101 (body diparse JSON agar XSS/SQLi tetap terdeteksi; body non-JSON 403).
   Rollback: hapus kunci dari template/var → `ansible-playbook site.yml --tags crowdsec_bouncer`; WAF: lihat
   `docs/03-operations/crowdsec.md` §Pengecualian CRS 920420.
+- 2026-09-23 (H7, **keputusan user 2026-09-23**, menyimpang dari CLAUDE.md §3.5 "`restart: unless-stopped`"):
+  **`traefik` dan `crowdsec` memakai `restart: always`.** Insiden: reboot 21:03 WIB → CrowdSec tidak start → semua router
+  ber-`crowdsec` 403 fail-closed ±1 j 51 m. Akar masalah: reload `docker kill --signal=HUP crowdsec` — Docker v29.8.1
+  (`daemon/kill.go` `killWithSignal`) untuk sinyal **apa pun** men-set `HasBeenManuallyStopped=true` (disimpan di
+  `config.v2.json`) dan membatalkan restart manager walau container tetap berjalan; `unless-stopped` lalu tidak start saat
+  daemon start (`daemon/internal/restartmanager` `ShouldRestart`: `IsUnlessStopped() && !hasBeenManuallyStopped`).
+  Dibuktikan dengan container uji (HUP & USR1 via `docker kill` → flag `True`; crash sesudahnya tidak di-restart walau
+  `always`). Dua lapis perbaikan: (1) semua reload/rotasi memakai `docker exec <c> kill -<SIG> 1` (flag tetap `False`,
+  diuji pada Traefik & CrowdSec nyata) — termasuk postrotate logrotate Traefik (USR1) yang sebelumnya akan men-set flag
+  setiap malam; (2) `always` untuk dua service edge: docs Docker *Start containers automatically* — "If it's manually
+  stopped, it's restarted only when Docker daemon restarts" (juga `ShouldRestart`: `IsAlways()` → restart). Konsekuensi:
+  `docker stop traefik|crowdsec` tidak bertahan melewati restart daemon/reboot — untuk mematikan permanen pakai
+  `docker compose down`. Service lain tetap `unless-stopped`. Ditambah `scripts/infra-healthcheck.sh` (timer 5 menit, role
+  Ansible `healthcheck`): container stack running/healthy, firewall bouncer active, tanpa flag manual-stop, unit restic
+  tidak failed → email alert dari `alerts@bimacreative.tech` (anti-spam 60 menit, RESOLVED). Detail:
+  `docs/03-operations/{traefik,crowdsec,observability}.md`.
+- 2026-09-23 (H7(a), disetujui user): **pengecualian CRS 920420 sempit untuk Server Action admin Payload ProyekKas**
+  (host `drms-kas.staging.bimacreative.tech` / `drms-kas.bimacreative.tech`, POST, path `/admin/*`, `Next-Action` hex 40–64,
+  `text/plain`) + rule lokal 19102/19103 (body diparse JSON; body non-JSON 403) — pola H6. Rollback: `crowdsec.md`
+  §Pengecualian CRS 920420 admin Payload.

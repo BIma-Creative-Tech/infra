@@ -1,0 +1,7 @@
+---
+# Role healthcheck (H7). Nilai utama (penerima alert) di group_vars/all.yml: infra_alert_to.
+healthcheck_etc_dir: /etc/infra-healthcheck
+healthcheck_state_dir: /var/lib/infra-healthcheck
+healthcheck_script: "{{ infra_root }}/scripts/infra-healthcheck.sh"
+healthcheck_on_boot_sec: 3min
+healthcheck_on_unit_active_sec: 5min

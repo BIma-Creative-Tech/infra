@@ -3,6 +3,8 @@
 Description=Restore test bulanan restic (DB + file filestore) + check --read-data-subset
 Wants=docker.service
 After=docker.service network-online.target
+# H7: gagal → email alert segera (role healthcheck, scripts/infra-healthcheck.sh --unit-failed).
+OnFailure=infra-unit-failure@%n.service
 
 [Service]
 Type=oneshot

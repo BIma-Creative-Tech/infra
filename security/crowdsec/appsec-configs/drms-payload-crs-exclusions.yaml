@@ -1,0 +1,37 @@
+# H7(a) — pengecualian SEMPIT OWASP CRS (crowdsecurity/crs-inband) untuk Server Action admin Payload CMS ProyekKas
+# (client DRMS). Pola SAMA dengan H6 (appsec-configs/controlplane-crs-exclusions.yaml) — baca komentar file itu untuk
+# verifikasi sintaks/helper dari source crowdsec v1.8.1 (GetPreEvalEnv, request.go r.Clone, akses header via expr).
+#
+# Pemicu: 2026-09-23 20:55 WIB `POST /admin/collections/users/create` di drms-kas.staging (Server Action Payload admin,
+# header `Next-Action`, `Content-Type: text/plain;charset=UTF-8`, body JSON) → CRS 920420 → 403 + ban appsec-native.
+# Server Action di image proyekkas-web 0.1.0-stg-f8529e6 (Next.js 16.3.6, .next/server/server-reference-manifest.json):
+# `serverFunction` app/(payload)/layout.tsx dan satu action @payloadcms/next layouts/Root — id 42 hex, worker
+# `app/(payload)/admin/[[...segments]]/page` → di-POST ke URL halaman admin (/admin/...).
+#
+# Keputusan user infra 2026-09-23 (ADR 0001 §Riwayat revisi, H7(a)). Cakupan — SEMUA syarat harus terpenuhi:
+#   - HANYA rule 920420; rule CRS lain, virtual patching & generic rules TETAP aktif;
+#   - in-band; host PERSIS drms-kas.staging.bimacreative.tech / drms-kas.bimacreative.tech (prod: router belum ada,
+#     disiapkan agar tidak lupa saat prod naik); method POST; path diawali /admin/;
+#   - header `Next-Action` tepat satu nilai hex kecil 40–64 char; `Content-Type` tepat satu nilai diawali `text/plain`.
+#   Upload File admin = multipart/form-data → sudah diizinkan CRS, tidak disentuh.
+# Pelengkap wajib: appsec-rules/drms-payload-server-action.yaml (19102 JSON body processor, 19103 tolak body non-JSON).
+# Rollback: hapus file ini + appsec-rules/drms-payload-server-action.yaml + barisnya di acquis.d/appsec.yaml + kedua
+# mount di docker-compose.yml → `docker compose up -d` (recreate, fail-closed ±40 s).
+name: local/drms-payload-crs-exclusions
+default_remediation: ban
+inband_rules:
+  - local/drms-payload-server-action-json
+pre_eval:
+  - filter: >-
+      IsInBand &&
+      req.Method == "POST" &&
+      req.Host in ["drms-kas.staging.bimacreative.tech", "drms-kas.bimacreative.tech"] &&
+      req.URL.Path startsWith "/admin/" &&
+      "Next-Action" in req.Header &&
+      len(req.Header["Next-Action"]) == 1 &&
+      req.Header["Next-Action"][0] matches "^[0-9a-f]{40,64}$" &&
+      "Content-Type" in req.Header &&
+      len(req.Header["Content-Type"]) == 1 &&
+      req.Header["Content-Type"][0] startsWith "text/plain"
+    apply:
+      - RemoveInBandRuleByID(920420)

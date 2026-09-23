@@ -147,7 +147,7 @@ Hak per tabel (`ALTER DEFAULT PRIVILEGES`, DELETE eksplisit, REVOKE UPDATE/DELET
 Pre-check DNS ulang tepat sebelum HUP (ADR 0002 #5): `dig +short A drms-kas.staging.bimacreative.tech @1.1.1.1` dan
 `@8.8.8.8` → `31.97.50.221`; `dig +short AAAA …` kosong (2026-09-23: lulus, termasuk NS otoritatif).
 ```
-docker kill --signal=HUP traefik      # file baru di dynamic/clients/ (subdir tidak di-watch)
+docker exec traefik kill -HUP 1      # file baru di dynamic/clients/ (subdir tidak di-watch); H7: bukan `docker kill`
 ```
 **Verifikasi:**
 ```
@@ -289,7 +289,7 @@ page publik).
 - **Postgres:** `git revert` commit postgres → `docker compose restart postgres` (pg_hba tanpa baris pk_drms → login
   ditolak). DB/role dibiarkan (tidak berbahaya: tanpa baris hba). Hapus DB/role = **destruktif**, hanya dengan
   konfirmasi eksplisit: `DROP DATABASE pk_drms_stg; DROP DATABASE pk_drms; DROP ROLE …` (6 role). Var `.env` boleh tetap.
-- **Traefik:** `git revert` commit traefik → `docker kill --signal=HUP traefik` → verifikasi host staging 404 dan
+- **Traefik:** `git revert` commit traefik → `docker exec traefik kill -HUP 1` → verifikasi host staging 404 dan
   token `drms*` kembali lewat `auth-login` (access log).
 - **Keycloak:** admin console → realm → *Enabled* OFF (reversibel), atau hapus realm `drms`/`drms-staging`
   (**destruktif**, konfirmasi). Realm lain tidak tersentuh (`--override false`, UUID baru). Kegagalan import di

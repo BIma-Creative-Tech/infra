@@ -7,7 +7,11 @@ services:
     # ADR 0001: crowdsecurity/crowdsec:v1.8.1 (+ digest index multi-arch, diambil 2026-09-23)
     image: crowdsecurity/crowdsec:v1.8.1@sha256:0f2523fa61ef507f15d953045cface490cc880670c62f2755ced17524107f71a
     container_name: crowdsec
-    restart: unless-stopped
+    # H7 (keputusan user 2026-09-23, ADR 0001 riwayat revisi): `always`, BUKAN `unless-stopped` (pengecualian
+    # CLAUDE.md §3.5) — edge kritis: CrowdSec mati = semua router ber-crowdsec 403 fail-closed. `always` tetap
+    # di-start saat daemon Docker start walau HasBeenManuallyStopped=true (docs Docker "Start containers
+    # automatically"; moby v29.8.1 restartmanager.ShouldRestart: IsAlways → restart). Insiden 2026-09-23 21:03 WIB.
+    restart: always
     # Root di dalam container TANPA capability (cap_drop ALL): file data preload image
     # (/staging/var/lib/crowdsec/data/*.mmdb) mode 600 root, jadi uid non-root tidak bisa
     # memakainya. Root tanpa CAP_DAC_OVERRIDE hanya bisa membaca file yang dimiliki root atau
@@ -47,6 +51,9 @@ services:
       - ./appsec-configs/controlplane-crs-exclusions.yaml:/etc/crowdsec/appsec-configs/controlplane-crs-exclusions.yaml:ro
       # H6: rule lokal JSON body processor Server Action (dirujuk config di atas). Nama rule: local/controlplane-server-action-json.
       - ./appsec-rules/controlplane-server-action.yaml:/etc/crowdsec/appsec-rules/controlplane-server-action.yaml:ro
+      # H7(a): pengecualian CRS 920420 + rule JSON body (19102/19103) untuk Server Action admin Payload ProyekKas.
+      - ./appsec-configs/drms-payload-crs-exclusions.yaml:/etc/crowdsec/appsec-configs/drms-payload-crs-exclusions.yaml:ro
+      - ./appsec-rules/drms-payload-server-action.yaml:/etc/crowdsec/appsec-rules/drms-payload-server-action.yaml:ro
       # T11: skenario lokal brute force SASL submission (infra/mail-postfix-sasl-bf). Log mail dibaca lewat
       # /var/log/host/mailserver/dms/ (mount /var/log di bawah) — acquis.d/mail.yaml.
       - ./scenarios/mail-postfix-sasl-bf.yaml:/etc/crowdsec/scenarios/mail-postfix-sasl-bf.yaml:ro

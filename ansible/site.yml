@@ -6,6 +6,7 @@
 #   S9 --tags base,fail2ban,auditd,sysctl_swap,docker,unattended,layout,crowdsec_repo
 #   T05 --tags crowdsec_bouncer (setelah stack security/crowdsec up)
 #   T13 --tags backup (restic + timer; skrip di scripts/backup.sh, restore.sh, restore-test.sh)
+#   H7  --tags healthcheck,backup (timer infra-healthcheck + alert email; OnFailure restic)
 # Tag ssh_phase_b / ssh_phase_c hanya boleh dijalankan Lead bersama user (S4–S7).
 - name: Bootstrap host VPS
   hosts: vps
@@ -54,5 +55,8 @@
     - { role: crowdsec_repo, tags: [crowdsec_repo] }
     # T05 (plan 02): butuh container crowdsec berjalan (security/crowdsec). Jalankan --tags crowdsec_bouncer.
     - { role: crowdsec_bouncer, tags: [crowdsec_bouncer] }
+    # H7: healthcheck stack infra (timer 5 menit) + alert email + unit infra-unit-failure@ (OnFailure restic).
+    #     Sebelum backup: unit OnFailure= yang dirujuk restic-* sudah ada.
+    - { role: healthcheck, tags: [healthcheck] }
     # T13 (plan 02, ADR 0006): restic 0.19.1 terverifikasi + repo lokal + timer backup/prune/restore-test.
     - { role: backup, tags: [backup] }

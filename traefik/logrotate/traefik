@@ -1,5 +1,8 @@
 # Dipasang ke /etc/logrotate.d/traefik oleh traefik/scripts/bootstrap.sh.
 # Traefik membuka ulang file log saat menerima USR1 (docs v3.7 logs-and-accesslogs.md §Log Rotation).
+# H7: sinyal dikirim lewat `docker exec … kill -USR1 1`, BUKAN `docker kill --signal=USR1` — `docker kill`
+# (sinyal apa pun) men-set HasBeenManuallyStopped=true + membatalkan restart manager (moby v29.8.1
+# daemon/kill.go killWithSignal) → container tidak start lagi setelah reboot (docs/03-operations/traefik.md).
 /opt/infra/traefik/logs/*.log {
     daily
     rotate 14
@@ -13,6 +16,6 @@
     su root root
     sharedscripts
     postrotate
-        /usr/bin/docker kill --signal=USR1 traefik >/dev/null 2>&1 || true
+        /usr/bin/docker exec traefik kill -USR1 1 >/dev/null 2>&1 || true
     endscript
 }
