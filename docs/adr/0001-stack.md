@@ -1,0 +1,102 @@
+# ADR 0001 — Stack & pin versi
+
+- **Status:** proposed (menunggu GATE 1)
+- **Tanggal:** 2026-09-23
+- **Penulis:** Analyst (FASE 1)
+- **Terkait:** CLAUDE.md §0.2, §0.10, §0.12, §3; `docs/discovery/2026-09-23.md`; ADR 0002–0006
+
+## Context
+
+CLAUDE.md §3 menetapkan stack (Traefik v3, CrowdSec, Postgres 16, Keycloak, Odoo CE 19.0,
+Next.js 15 + Node 22, docker-mailserver, restic, Grafana/Loki/Promtail/Prometheus, Uptime Kuma,
+docker-socket-proxy). §0.12 melarang `latest`; §0.2 mewajibkan verifikasi tag yang benar-benar ada.
+Keputusan user FASE 1: OCA tidak dipakai (ADR 0003), DNS manual tanpa API (ADR 0002), spek tetap
+4 vCPU / 15,6 GiB (ADR 0004).
+
+Metode verifikasi (dijalankan 2026-09-23, ±01:30–02:30 UTC, dari VPS `srv2001692`):
+- Docker Hub: `https://hub.docker.com/v2/repositories/<ns>/<repo>/tags?name=<prefix>&ordering=last_updated`
+- Quay: `https://quay.io/api/v1/repository/keycloak/keycloak/tag/?filter_tag_name=like:26.7`
+- GitHub releases: `https://api.github.com/repos/<owner>/<repo>/releases`
+- APT Docker: `https://download.docker.com/linux/ubuntu/dists/noble/stable/binary-amd64/Packages.gz`
+- PyPI: `https://pypi.org/pypi/<pkg>/json`; npm: `https://registry.npmjs.org/<pkg>`
+- Galaxy: `https://galaxy.ansible.com/api/v3/plugin/ansible/content/published/collections/index/<ns>/<name>/`
+
+## Decision — tabel pin
+
+Semua tanggal cek = **2026-09-23**. "Rilis" = tanggal publish tag/rilis dari sumber.
+
+| Komponen | Pin yang diusulkan | Rilis | Sumber (di-fetch) | Lisensi (sumber) | Catatan |
+|---|---|---|---|---|---|
+| Docker Engine | `docker-ce=5:29.8.1-1~ubuntu.24.04~noble` | — | download.docker.com …/noble/stable/binary-amd64/Packages.gz | Apache-2.0 (UNVERIFIED — tidak di-fetch sesi ini) | Repo resmi Docker, bukan `docker.io` Ubuntu (29.1.3) |
+| Docker Compose plugin | `docker-compose-plugin=5.5.1-1~ubuntu.24.04~noble` | — | idem | Apache-2.0 (UNVERIFIED) | Compose v5 |
+| Traefik | `traefik:v3.7.13` | 2026-09-04 | hub.docker.com library/traefik; api.github.com/repos/traefik/traefik/releases | MIT (GitHub API) | Opsi config diverifikasi dari `raw.githubusercontent.com/traefik/traefik/v3.7/docs/content/...` (lihat ADR 0002) |
+| CrowdSec (agent+LAPI+AppSec) | `crowdsecurity/crowdsec:v1.8.1` | 2026-09-03 | hub.docker.com crowdsecurity/crowdsec; GitHub releases | MIT (GitHub API) | v1.8.0 baru 2026-08-31 → uji di staging dulu; fallback `v1.7.8` (2026-05-11) |
+| CrowdSec bouncer Traefik (plugin) | `github.com/maxlerebourg/crowdsec-bouncer-traefik-plugin` `v1.7.1` | 2026-07-31 | api.github.com/repos/maxlerebourg/crowdsec-bouncer-traefik-plugin/releases; README v1.7.1 | Apache-2.0 | `v1.8.0-alpha` = prerelease, jangan dipakai. Plugin Traefik masih **experimental** (docs plugins.md) |
+| CrowdSec firewall bouncer (host) | paket `crowdsec-firewall-bouncer-iptables` atau `-nftables` | versi UNVERIFIED | raw.githubusercontent.com/crowdsecurity/crowdsec-docs/main/crowdsec-docs/unversioned/bouncers/firewall.mdx | MIT (repo cs-firewall-bouncer) | Pin versi paket saat implementasi (`apt-cache policy`) |
+| WAF | **Usulan ganti:** CrowdSec AppSec (collections `crowdsecurity/appsec-virtual-patching`, `crowdsecurity/appsec-generic-rules`) menggantikan Coraza plugin | — | crowdsec-docs …/docs/appsec/quickstart/traefik.mdx | MIT | Lihat "Perubahan CLAUDE.md" #2 |
+| (ditolak) Coraza plugin Traefik | `jcchavezs/coraza-http-wasm-traefik` v0.3.0 | 2024-10-29 | api.github.com/repos/jcchavezs/coraza-http-wasm-traefik | Apache-2.0 | commit terakhir 2026-01-13 (> 6 bulan) → **gagal kriteria §0.10** |
+| PostgreSQL | `postgres:16.15-bookworm` | 2026-09-19 | hub.docker.com library/postgres | PostgreSQL License (COPYRIGHT di repo) | EOL PG16 = 2028-11-09 (postgresql.org/support/versioning). PG18 tersedia, tetap 16 sesuai §3 |
+| Keycloak | `quay.io/keycloak/keycloak:26.7.4` | 2026-09-16 | quay.io API; GitHub releases keycloak/keycloak | Apache-2.0 | Sizing resmi: request 1250 MB / limit 1360 MB per pod (keycloak.org/high-availability/multi-cluster/concepts-memory-and-cpu-sizing) |
+| Odoo CE | `odoo:19.0-20260908` | 2026-09-16 (last_updated) | hub.docker.com library/odoo; Dockerfile `github.com/odoo/docker/master/19.0/Dockerfile` (`ODOO_RELEASE=20260908`) | LGPL-3 (LICENSE repo odoo 19.0) | Pin juga digest saat implementasi (`docker buildx imagetools inspect`) |
+| Node.js | **Rekomendasi `node:24.21.0-bookworm-slim`**; alternatif sesuai §3 `node:22.23.2-bookworm-slim` | 2026-09-19 | hub.docker.com library/node; `raw.githubusercontent.com/nodejs/Release/main/schedule.json` | MIT (UNVERIFIED) | Node 22: maintenance sejak 2025-10-21, **EOL 2027-04-30**. Node 24: LTS, maintenance 2026-10-20, EOL 2028-04-30 |
+| Next.js | **Rekomendasi `next@16.3.6`**; alternatif `15.5.26` | 2026-09-22 | api.github.com/repos/vercel/next.js/releases; nextjs.org/support-policy | MIT | 15.x = Maintenance LTS, "two years following the initial release" (rilis 2024-10-21 → berakhir ±2026-10-21). 16.x Active LTS. `next@16.3.6` engines `node >=20.9.0` (registry.npmjs.org) |
+| Auth.js / next-auth | UNVERIFIED — keputusan diserahkan ke nextjs-developer | — | registry.npmjs.org/next-auth: `latest=4.24.15`, `beta=5.0.0-beta.32` | ISC (UNVERIFIED) | v5 masih beta per dist-tags → perlu ADR tersendiri |
+| Drizzle ORM | `0.45.3` (latest) | — | registry.npmjs.org/drizzle-orm | Apache-2.0 (UNVERIFIED) | |
+| docker-mailserver | `mailserver/docker-mailserver:16.0.1` | 2026-09-04 | hub.docker.com; GitHub releases | MIT | v16.0.0 major (2026-08-30) — changelog breaking changes **UNVERIFIED**, wajib dibaca mail implementer |
+| restic | binary resmi `restic_0.19.1_linux_amd64.bz2` + verifikasi `SHA256SUMS` & `SHA256SUMS.asc` | 2026-07-05 | api.github.com/repos/restic/restic/releases/tags/v0.19.1 | BSD-2-Clause | APT noble hanya 0.16.4 (`apt-cache policy restic`) — terlalu tua |
+| Grafana | `grafana/grafana:13.2.2` | 2026-09-15 | hub.docker.com; GitHub releases | AGPL-3.0 | |
+| Loki | `grafana/loki:3.7.8` | 2026-09-17 | hub.docker.com; GitHub releases | AGPL-3.0 | |
+| Log shipper | **Grafana Alloy `grafana/alloy:v1.19.2`** (ganti Promtail) | 2026-08-26 | hub.docker.com; GitHub releases grafana/alloy | Apache-2.0 | Loki docs v3.7.8 `send-data/promtail/_index.md`: "Promtail is end of life (EOL) as of March 2, 2026" |
+| Prometheus | `prom/prometheus:v3.13.3` (LTS) | 2026-09-07 | hub.docker.com; prometheus.io/docs/introduction/release-cycle/ (3.13 LTS, support s.d. 2027-07-31) | Apache-2.0 | 3.14.0 ada, tetapi non-LTS |
+| node-exporter | `prom/node-exporter:v1.12.1` | 2026-07-14 | hub.docker.com; GitHub releases | Apache-2.0 | |
+| cAdvisor | `v0.60.6` | 2026-09-18 | GitHub releases google/cadvisor | Apache-2.0 (LICENSE file) | **Registry/tag image UNVERIFIED** (gcr.io tags list tidak mengembalikan v0.60.x). Opsional — lihat ADR 0004 |
+| Uptime Kuma | `louislam/uptime-kuma:2.5.5-rootless` | 2026-09-16 | hub.docker.com | MIT | varian rootless dipilih (§3.5 non-root) — perilaku rootless UNVERIFIED |
+| docker-socket-proxy | `tecnativa/docker-socket-proxy:v0.5.0` | 2026-07-27 | hub.docker.com; GitHub releases | Apache-2.0 | |
+| Ansible | `ansible-core==2.21.4` (venv/pipx, butuh Python ≥ 3.12; host 3.12.3) | — | pypi.org/pypi/ansible-core/json | GPL-3.0 | APT noble: ansible-core 2.16.3 (lebih tua). Collections: `community.general 13.4.0`, `ansible.posix 2.2.2`, `community.docker 5.3.0` (Galaxy API) |
+| fail2ban | APT noble `1.0.2-3ubuntu0.1` | — | `apt-cache policy fail2ban` | GPL-2.0 (COPYING) | Lihat "Perubahan CLAUDE.md" #4 (lisensi GPL) |
+| auditd / chrony | APT `auditd 1:3.1.2-2.1build1.1`, `chrony 4.5-1ubuntu4.2` | — | `apt-cache policy` | GPL (UNVERIFIED) | |
+| dbt | `dbt-core==1.12.5`, `dbt-postgres==1.11.0` | — | pypi.org | Apache-2.0 (UNVERIFIED) | kompatibilitas 1.12 ↔ adapter 1.11 **UNVERIFIED** (bukan scope FASE 2 awal) |
+
+Aturan pin: image dipin tag eksplisit **+ digest** saat implementasi; paket APT di-pin versi
+di Ansible vars; tidak ada `latest`, `edge`, `master`, `nightly`.
+
+## Alternatives
+
+| Alternatif | Ditolak karena |
+|---|---|
+| Next.js 15 (sesuai §3) | Maintenance LTS berakhir ±2026-10-21 → proyek baru langsung di versi hampir tanpa patch |
+| Node 22 (sesuai §3) | EOL 2027-04-30 (7 bulan lagi) |
+| Promtail | EOL 2026-03-02 per docs Loki |
+| Coraza plugin Traefik | Maintenance tidak aktif (> 6 bulan), rilis terakhir 2024; plugin WASM menambah RAM/latensi |
+| Paket `docker.io` Ubuntu | Versi lebih tua (29.1.3) dan tidak menyertakan compose plugin v5 |
+| restic dari APT | 0.16.4, jauh di belakang 0.19.1 |
+| Postgres 17/18 | §3 sudah memutuskan 16; 16 didukung s.d. 2028-11 — cukup |
+
+## Consequences
+
+- Setiap kenaikan versi = PR terpisah + staging dulu (§3.7). Dependabot/Renovate memantau tag.
+- Next.js 16 / Node 24: nextjs-developer wajib membaca upgrade guide 16 sebelum scaffold (UNVERIFIED breaking changes).
+- CrowdSec 1.8.x baru — risiko regresi; fallback 1.7.8 dicatat.
+- Plugin Traefik diunduh dari katalog plugin saat start (docs plugins.md: "experimental") →
+  start Traefik bergantung jaringan ke katalog. Mitigasi yang harus dievaluasi saat implementasi:
+  `experimental.localPlugins` (ada di docs v3.7) dengan source plugin di-vendor + pin commit.
+
+## Security implications
+
+- Pin tag + digest mencegah supply-chain drift; Trivy memindai image sebelum deploy.
+- Grafana/Loki AGPL-3: dipakai apa adanya (tidak dimodifikasi/didistribusikan) → tidak ada kewajiban source tambahan dari kita (catatan, bukan nasihat hukum).
+- restic diverifikasi via `SHA256SUMS.asc` (kunci GPG restic — fingerprint diverifikasi saat implementasi).
+
+## Rollback
+
+Tiap service: kembalikan tag/digest sebelumnya di compose → `docker compose pull && up -d`.
+Paket APT: `apt install <pkg>=<versi-lama>` + `apt-mark hold`. ADR ini sendiri: tidak ada efek
+sistem sampai FASE 2.
+
+## Perubahan CLAUDE.md yang diusulkan (butuh persetujuan user; Analyst tidak mengedit)
+
+1. §3 Web: "Next.js 15 … Node 22 LTS" → "Next.js 16 … Node 24 LTS" (alasan di atas).
+2. §3 WAF: "Coraza (OWASP CRS) sebagai plugin Traefik" → "CrowdSec AppSec (virtual patching + generic rules) via bouncer Traefik yang sama"; §3.6 Edge "Coraza CRS paranoia level 1" diganti "AppSec collections + tuning false positive di staging".
+3. §3 Observability: "Promtail" → "Grafana Alloy".
+4. §0.10: tambahkan "GPL-2/GPL-3 diterima untuk tool host yang tidak di-link/didistribusikan (fail2ban, auditd, ansible)" — saat ini daftar lisensi tidak mencantumkan GPL padahal §3 sudah memakai fail2ban (GPL-2) dan Ansible (GPL-3).
+5. §3 SSO / §3.1 / §3.2 / §3.5.1: lihat ADR 0002 & 0003.
