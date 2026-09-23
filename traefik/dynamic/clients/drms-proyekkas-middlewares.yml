@@ -1,0 +1,32 @@
+# ProyekKas (client DRMS, Payload CMS) — middleware bersama router staging & prod (prod menyusul).
+# BUKAN hasil render-client-route.sh (bukan tenant Odoo) — edit manual, lalu HUP (subdirektori
+# dynamic/ tidak di-watch: docs/03-operations/traefik.md §Start/stop/reload).
+# Desain: /opt/src/proyekkas/docs/proyekkas/architecture.md §3.3, §6.5; ADR ProyekKas 0003/0004.
+# Opsi diverifikasi dari docs v3.7 reference/routing-configuration/http/middlewares/
+# {ratelimit,buffering,headers}.md (raw.githubusercontent.com/traefik/traefik/v3.7, 2026-09-23).
+http:
+  middlewares:
+    # /api/v1 (APK + custom view admin). Per IP sumber (default sourceCriterion = remote address).
+    # 20 req/s rata-rata, burst 40 = ESTIMASI arsitektur §6.5: satu IP NAT operator seluler bisa
+    # mewakili banyak perangkat staf; limit per user/perangkat ada di aplikasi (token bucket).
+    ratelimit-pk-api:
+      rateLimit:
+        average: 20
+        period: 1s
+        burst: 40
+
+    # Batas ukuran body request 10 MiB = crowdsecAppsecBodyLimit (middlewares/crowdsec.yml) dan
+    # upload.limits.requestSizeLimit Payload (ADR ProyekKas 0004). Lebih besar → 413 dari Traefik.
+    # CATATAN: buffering juga membuffer RESPONSE (memResponseBodyBytes default 1 MiB, lalu ke disk =
+    # tmpfs /tmp container traefik, dihitung ke mem_limit 256m). Lihat runbook §Catatan.
+    buffering-pk:
+      buffering:
+        maxRequestBodyBytes: 10485760
+
+    # Hapus header Authorization di luar /api/v1 (arsitektur §6.1): token Bearer APK tidak boleh
+    # dipakai ke REST generik Payload /api/<slug>. Nilai "" = "Removes" (docs headers.md
+    # customRequestHeaders; pola sama dengan middlewares/strip-odoo-db-headers.yml).
+    strip-authorization:
+      headers:
+        customRequestHeaders:
+          Authorization: ""

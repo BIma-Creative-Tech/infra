@@ -1,0 +1,30 @@
+# ProyekKas (client DRMS) — token endpoint realm `drms` & `drms-staging` di auth.bimacreative.tech
+# dengan rate limit lebih longgar (ADR ProyekKas 0003 §6). File terpisah: router `auth-login` /
+# middleware `ratelimit-login` global di platform/auth.yml TIDAK diubah.
+#
+# Alasan: APK me-refresh access token (lifespan 300 s) lewat POST .../protocol/openid-connect/token.
+# Staf lapangan di belakang satu IP NAT operator seluler → `ratelimit-login` (10/menit/IP) memberi 429
+# mulai ±10 perangkat. 60/menit/IP (burst 30) ≈ 1 refresh / 5 menit untuk ±300 perangkat per IP NAT,
+# tetap jauh di bawah ratelimit-default (50/s). ESTIMASI — tuning dari access log.
+# Hanya path token EKSAK (Path, sama cakupannya dengan regex `token$` di auth-login): /token/introspect
+# dll. tetap lewat router platform. login-actions & /auth tetap `ratelimit-login` (brute force).
+#
+# Prioritas 95 > auth-login (90) dan < auth-admin (100). Router ini TIDAK cocok untuk realm lain.
+# Middleware & service `auth-security-headers`, `keycloak` didefinisikan di platform/auth.yml.
+http:
+  routers:
+    auth-drms-token:
+      entryPoints: [websecure]
+      rule: "Host(`auth.bimacreative.tech`) && (Path(`/realms/drms/protocol/openid-connect/token`) || Path(`/realms/drms-staging/protocol/openid-connect/token`))"
+      priority: 95
+      middlewares: [crowdsec, auth-security-headers, ratelimit-drms-kc-token]
+      service: keycloak
+      tls:
+        certResolver: le-http
+
+  middlewares:
+    ratelimit-drms-kc-token:
+      rateLimit:
+        average: 60
+        period: 1m
+        burst: 30
