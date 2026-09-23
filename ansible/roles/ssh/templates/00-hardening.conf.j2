@@ -16,3 +16,13 @@ LoginGraceTime {{ ssh_login_grace_time }}
 X11Forwarding no
 AllowAgentForwarding no
 {% endif %}
+{% if ssh_render_phase == 'c' %}
+# H1 (Lead): user CI `deploy` tanpa forwarding TCP/Unix-socket dan tanpa PTY — lapisan sshd di atas
+# opsi `restrict` authorized_keys (man sshd AUTHORIZED_KEYS). Keyword diizinkan di Match (man
+# sshd_config §Match). Blok Match WAJIB paling akhir: berlaku sampai EOF file ini (diuji: tidak
+# bocor ke sshd_config utama — sshd -t lolos, `sshd -T -C user=admin` tetap default).
+Match User {{ deploy_user }}
+    AllowTcpForwarding no
+    AllowStreamLocalForwarding no
+    PermitTTY no
+{% endif %}
