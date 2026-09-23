@@ -1,0 +1,21 @@
+# T14a — Grafana 13.2.2 di grafana.bimacreative.tech → container `grafana:3000` (network proxy).
+# DNS pre-check (ADR 0002 #5) lulus 2026-09-23: A = 31.97.50.221 (@apollo.dns-parking.com, @1.1.1.1,
+# @8.8.8.8), tanpa AAAA.
+# SELURUH host di belakang ipallowlist-admin (CLAUDE.md §3.6) — akses admin via SSH tunnel
+# (docs/03-operations/observability.md). Login lokal admin (password acak, observability/secrets/),
+# anonymous & sign-up off. SSO Keycloak = belum (keputusan Lead berikutnya).
+http:
+  routers:
+    grafana:
+      entryPoints: [websecure]
+      rule: "Host(`grafana.bimacreative.tech`)"
+      middlewares: [crowdsec, ipallowlist-admin, security-headers, ratelimit-default]
+      service: grafana
+      tls:
+        certResolver: le-http
+
+  services:
+    grafana:
+      loadBalancer:
+        servers:
+          - url: "http://grafana:3000"

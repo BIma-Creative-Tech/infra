@@ -1,0 +1,61 @@
+// Grafana Alloy v1.19.2 (T14a) — log shipper ke Loki (pengganti Promtail, ADR 0001).
+// Komponen & argumen diverifikasi dari docs tag v1.19.2:
+//   reference/components/discovery/discovery.docker.md, loki/loki.source.docker.md,
+//   loki/loki.source.file.md.
+//
+// Docker API TIDAK lewat docker.sock langsung: host = obs-docker-socket-proxy (tecnativa v0.5.0,
+// CONTAINERS=1, POST=0 → hanya GET/HEAD /containers/*) di network internal `obs-dockerapi`.
+
+logging {
+  level  = "warn"
+  format = "logfmt"
+}
+
+// 1) Log stdout/stderr semua container (json-file) via Docker API /containers/{id}/logs.
+discovery.docker "containers" {
+  host             = "tcp://obs-docker-socket-proxy:2375"
+  refresh_interval = "30s"
+}
+
+discovery.relabel "containers" {
+  targets = []
+
+  // "/traefik" → container="traefik"
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(.*)"
+    target_label  = "container"
+  }
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_project"]
+    target_label  = "compose_project"
+  }
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+    target_label  = "compose_service"
+  }
+}
+
+loki.source.docker "containers" {
+  host             = "tcp://obs-docker-socket-proxy:2375"
+  targets          = discovery.docker.containers.targets
+  relabel_rules    = discovery.relabel.containers.rules
+  refresh_interval = "30s"
+  labels           = {"job" = "docker"}
+  forward_to       = [loki.write.local.receiver]
+}
+
+// 2) Access log JSON Traefik (file, bind mount read-only; dibaca lewat grup adm gid 4).
+loki.source.file "traefik_access" {
+  targets = [
+    {"__path__" = "/var/log/traefik/access.log", "job" = "traefik-access"},
+  ]
+  tail_from_end = true
+  forward_to    = [loki.write.local.receiver]
+}
+
+loki.write "local" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}

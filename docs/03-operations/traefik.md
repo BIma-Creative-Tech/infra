@@ -10,10 +10,10 @@
 | `traefik.yml` | static config: entrypoints `web` :80 (redirect → https) & `websecure` :443, `traefik` 127.0.0.1:8080 di dalam container (hanya `/ping`), file provider, resolver `le-http-staging` & `le-http`, access log JSON | ya |
 | `dynamic/middlewares/*.yml` | `security-headers`, `ratelimit-default`, `ratelimit-login`, `ipallowlist-admin`, `strip-odoo-db-headers` | ya |
 | `dynamic/tls.yml` | TLS option `default` (min TLS 1.2) | ya |
-| `dynamic/platform/<svc>.yml` | router layanan platform (T06 `auth.yml`, T14 `grafana.yml`/`status.yml`, …) — satu file per task | ya |
+| `dynamic/platform/<svc>.yml` | router layanan platform (T06 `auth.yml`, T16a `cp.yml`, T14a `status.yml`/`grafana.yml`, …) — satu file per task | ya |
 | `dynamic/platform/odoo-pools.yml` | service `odoo-pool-a-{http,ws}`, `odoo-staging-{http,ws}` + middleware `odoo-security-headers` (T10) | ya |
 | `dynamic/clients/<slug>-<env>.yml` | router tenant Odoo, dirender `scripts/render-client-route.sh` dari `templates/traefik-client.yml` (T10) — lihat `odoo.md` | ya |
-| ~~`dynamic/test/whoami-status.yml`~~ | **dihapus 2026-09-23 (H2, QA-T17A-05/06/08)** bersama service `whoami`. `status.bimacreative.tech` kini tanpa router (404) sampai T14 menambah `dynamic/platform/status.yml` (Uptime Kuma) | — |
+| ~~`dynamic/test/whoami-status.yml`~~ | **dihapus 2026-09-23 (H2, QA-T17A-05/06/08)** bersama service `whoami`. `status.bimacreative.tech` kini tanpa router (404) sampai T14 menambah `dynamic/platform/status.yml` (Uptime Kuma) — **sudah ditambahkan T14a** (`observability.md`) | — |
 | `acme/acme-staging.json`, `acme/acme.json` | akun ACME + private key sertifikat. Dir 700, file 600, owner 65532 | **tidak** (`traefik/.gitignore`) |
 | `secrets/crowdsec-bouncer.key` | API key bouncer CrowdSec (T05). Dir 700, file 600, owner 65532 | **tidak** |
 | `dynamic/middlewares/crowdsec.yml` | middleware plugin bouncer CrowdSec + AppSec (T05) — lihat `crowdsec.md` | ya |
@@ -35,6 +35,11 @@
 - `aliasHeadersStrategy: delete` di semua entrypoint: header bernama alias (`X_Sh_Odoo_Db`,
   `X.Odoo.Database`, …) dibuang sebelum routing — backend WSGI (Odoo) membaca alias itu sebagai
   header asli (docs `entrypoints.md` §aliasHeadersStrategy).
+- **Metrics Prometheus (T14a):** entrypoint `metrics` `:8082` di dalam container (tidak di-publish, compose tetap
+  hanya 80/443), `metrics.prometheus.entryPoint: metrics` (+ label entrypoint/router/service). Traefik join network
+  internal **`metrics`** (10.100.5.0/24, tanpa gateway → `proxy` tetap gateway). Scrape: `prometheus` → `traefik:8082/metrics`.
+  Semua router di `dynamic/` WAJIB menyebut `entryPoints` eksplisit — router tanpa `entryPoints` akan menempel ke
+  semua entrypoint termasuk `metrics`/`traefik`.
 - `forwardedHeaders` tidak diset → `X-Forwarded-For`/`X-Real-Ip` dari client **ditimpa** (diuji:
   kirim `X-Forwarded-For: 1.2.3.4` → backend menerima IP koneksi sebenarnya).
 - Email ACME: **kosong** (LE menerima akun tanpa email; notifikasi kedaluwarsa LE sudah dihentikan).
@@ -115,7 +120,7 @@ docker logs traefik 2>&1 | grep -i -E 'acme|lego|certificate' | tail
 Jangan me-restart berulang bila ACME gagal: baca log, perbaiki (DNS/port 80), baru ulang —
 limit LE: 5 authorization failure / identifier / jam (ADR 0002).
 
-## Pindah staging → production (DILAKUKAN 2026-09-23 untuk `status` & `auth`, T05/T06)
+## Pindah staging → production (DILAKUKAN 2026-09-23 untuk `status` & `auth` T05/T06, `cp` T16a, `grafana` T14a)
 
 1. Backup: `cp -a acme/acme-staging.json acme/acme-staging.json.bak-$(date +%F)`.
 2. Per router: `certResolver: le-http-staging` → `le-http`.

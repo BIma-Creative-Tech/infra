@@ -50,8 +50,27 @@ entryPoints:
     http:
       aliasHeadersStrategy: delete
 
+  # T14a: metrics Prometheus. Listen :8082 DI DALAM container; TIDAK di-publish (compose hanya 80/443)
+  # dan hanya bisa dicapai lewat network internal `metrics` (Prometheus). Semua router di dynamic/
+  # menyebut entryPoints eksplisit → tidak ada router aplikasi yang menempel ke entrypoint ini.
+  metrics:
+    address: ":8082"
+    http:
+      aliasHeadersStrategy: delete
+
 ping:
   entryPoint: traefik
+
+# T14a — docs v3.7 reference/install-configuration/observability/metrics.md §Prometheus:
+# `entryPoint` (default "traefik"), addEntryPointsLabels (default true), addRoutersLabels (default
+# false), addServicesLabels (default true). Router internal prometheus@internal dibuat otomatis di
+# entrypoint `metrics` (manualRouting=false).
+metrics:
+  prometheus:
+    entryPoint: metrics
+    addEntryPointsLabels: true
+    addRoutersLabels: true
+    addServicesLabels: true
 
 # api/dashboard: TIDAK diaktifkan (default api=false). Debug lewat `docker logs traefik`
 # dan file dynamic/. Bila kelak dibutuhkan: aktifkan api tanpa `insecure`, router di entrypoint

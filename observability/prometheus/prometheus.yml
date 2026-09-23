@@ -1,0 +1,44 @@
+# Prometheus v3.13.3 (T14a). Semua target di network internal (observability / metrics),
+# tidak ada yang di-publish ke host. Retensi diset di flag compose (15 hari, ADR 0004).
+global:
+  scrape_interval: 30s
+  scrape_timeout: 10s
+  evaluation_interval: 30s
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  # Host (CPU, RAM, disk, load). Metrik jaringan = netns container node-exporter (bukan host),
+  # lihat docs/03-operations/observability.md.
+  - job_name: node
+    static_configs:
+      - targets: ["node-exporter:9100"]
+
+  # Traefik: entrypoint `metrics` :8082 (traefik.yml), hanya di network `metrics`.
+  - job_name: traefik
+    static_configs:
+      - targets: ["traefik:8082"]
+
+  # CrowdSec: prometheus listen 0.0.0.0:6060 (config.yaml bawaan image v1.8.1), tidak di-publish.
+  - job_name: crowdsec
+    static_configs:
+      - targets: ["crowdsec:6060"]
+
+  # Keycloak: management interface :9000 (KC_METRICS_ENABLED=true saat build), tidak di-route Traefik.
+  - job_name: keycloak
+    static_configs:
+      - targets: ["keycloak:9000"]
+
+  - job_name: loki
+    static_configs:
+      - targets: ["loki:3100"]
+
+  - job_name: alloy
+    static_configs:
+      - targets: ["alloy:12345"]
+
+  - job_name: grafana
+    static_configs:
+      - targets: ["grafana:3000"]

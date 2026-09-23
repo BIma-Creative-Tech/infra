@@ -117,4 +117,5 @@ docker compose down                 # stop; data di Postgres
   server-to-server dari container platform tiba dengan satu IP sumber (gateway/host) → bisa kena 429 saat
   beban tinggi. Opsi (keputusan Lead): router token terpisah dengan limit lain, atau backchannel internal
   `http://keycloak:8080` + `KC_HOSTNAME_BACKCHANNEL_DYNAMIC=true` (docs hostname.adoc) — belum diterapkan.
-- Network: Keycloak di `proxy` (dan `db`). Jangan menambah router/path admin publik.
+- Network: Keycloak di `proxy` (dan `db`, serta `metrics` internal sejak T14a — Prometheus scrape `keycloak:9000/metrics`).
+  Jangan menambah router/path admin publik.

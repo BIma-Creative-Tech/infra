@@ -32,6 +32,7 @@ services:
     networks:
       - proxy     # Traefik → keycloak:8080 (tidak publish port ke host)
       - db        # → postgres:5432
+      - metrics   # T14a: internal 10.100.5.0/24 — Prometheus scrape management :9000 (/metrics)
     read_only: true
     tmpfs:
       - /tmp:uid=1000,gid=0,mode=1770
@@ -62,3 +63,7 @@ networks:
   db:
     external: true
     name: db
+  metrics:
+    # Dibuat observability/scripts/bootstrap.sh: 10.100.5.0/24 --internal (T14a).
+    external: true
+    name: metrics

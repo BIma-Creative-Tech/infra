@@ -15,10 +15,12 @@
 |---|---|---|
 | LAPI | `:8080` di container; publish **`127.0.0.1:8080`** saja | firewall bouncer host; Traefik via network `crowdsec` |
 | AppSec | `:7422` di container, **tidak** di-publish | Traefik via network `crowdsec` |
-| Prometheus | `:6060` di container, tidak di-publish | (T14) |
+| Prometheus | `:6060` di container, tidak di-publish | Prometheus (T14a) via network internal **`metrics`** (10.100.5.0/24) |
 
 - Network **`crowdsec`**: bridge `10.100.2.0/24` (bukan `--internal`: CrowdSec butuh egress ke hub &
   CAPI), anggota hanya `crowdsec` + `traefik`. Container lain di `proxy` **tidak** bisa ke LAPI/AppSec.
+- Network **`metrics`** (T14a): `--internal` `10.100.5.0/24`, anggota prometheus + traefik + crowdsec + keycloak — hanya
+  untuk scrape metrics. Gateway crowdsec tetap `crowdsec` (network internal tidak punya gateway; diverifikasi `ip route`).
 - Traefik join `proxy` (gw_priority 1) + `crowdsec`. **`gw_priority: 1` pada `proxy` wajib** — tanpa itu
   Docker memilih `crowdsec` sebagai gateway sehingga port 80/443 di-DNAT via bridge crowdsec dan akses
   dari host/SSH tunnel terlihat sebagai `10.100.2.1` (bukan `10.100.0.1` di `ipallowlist-admin`).

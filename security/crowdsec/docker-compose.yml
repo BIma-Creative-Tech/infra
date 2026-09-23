@@ -46,6 +46,7 @@ services:
       - /tmp
     networks:
       - crowdsec
+      - metrics   # T14a: internal 10.100.5.0/24 — Prometheus scrape :6060 (tidak di-publish)
     healthcheck:
       # Autentikasi machine lokal ke LAPI (bukan sekadar proses hidup).
       test: ["CMD", "cscli", "lapi", "status"]
@@ -70,3 +71,7 @@ networks:
     # Dibuat scripts/bootstrap.sh: 10.100.2.0/24. Anggota: crowdsec, traefik.
     external: true
     name: crowdsec
+  metrics:
+    # Dibuat observability/scripts/bootstrap.sh: 10.100.5.0/24 --internal (T14a).
+    external: true
+    name: metrics

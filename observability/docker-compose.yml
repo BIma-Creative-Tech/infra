@@ -1,0 +1,261 @@
+# T14a — Observability ringan (plan 02 T14, ADR 0001 pin, ADR 0004 sizing).
+# Jalankan scripts/bootstrap.sh sekali sebelum `docker compose up -d` (network, data/, secret Grafana).
+# Tidak ada port di-publish ke host. Publik hanya lewat Traefik:
+#   status.bimacreative.tech → uptime-kuma:3001 (traefik/dynamic/platform/status.yml)
+#   grafana.bimacreative.tech → grafana:3000, SELURUHNYA ipallowlist-admin (dynamic/platform/grafana.yml)
+# cAdvisor TIDAK dipasang (keputusan T14a, docs/03-operations/observability.md).
+name: observability
+
+x-base: &base
+  restart: unless-stopped
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+services:
+  prometheus:
+    <<: *base
+    image: prom/prometheus:v3.13.3@sha256:6976aa8a60fec930796ce5772b8d12da7a318a5daa8d40d69c5c7819a05eeed7
+    container_name: prometheus
+    user: "65534:65534"
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=15d     # ADR 0004
+      - --storage.tsdb.retention.size=3GB     # batas disk (ADR 0004 §3: 1–3 G)
+      - --web.listen-address=:9090
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    read_only: true
+    networks:
+      - observability
+      - metrics
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:9090/-/ready"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    mem_limit: 384m
+    cpus: 0.25
+
+  node-exporter:
+    <<: *base
+    image: prom/node-exporter:v1.12.1@sha256:1b4e4438faca4dd7e001dd445d161a4a2091b0fededa84093b3a8dfeae1f1be0
+    container_name: node-exporter
+    user: "65534:65534"
+    environment:
+      # Soft limit GC runtime Go (< mem_limit 32m) — pemakaian awal ±24 MiB (74%), 2026-09-23.
+      GOMEMLIMIT: 26MiB
+    command:
+      - --path.rootfs=/host
+      - --web.listen-address=:9100
+    volumes:
+      - /:/host:ro,rslave
+    read_only: true
+    networks:
+      - observability
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:9100/metrics"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    mem_limit: 32m
+    cpus: 0.1
+
+  loki:
+    <<: *base
+    image: grafana/loki:3.7.8@sha256:1107dd5274e0ada47e42472b7a7e71f3b2a2fe878878108f3e2f9e51528f0193
+    container_name: loki
+    user: "10001:10001"
+    command: ["-config.file=/etc/loki/config.yaml"]
+    volumes:
+      - ./loki/config.yaml:/etc/loki/config.yaml:ro
+      - loki_data:/loki
+    read_only: true
+    tmpfs:
+      - /tmp:uid=10001,gid=10001,mode=0700
+    networks:
+      - observability
+    # Image distroless (hanya /usr/bin/loki, tanpa shell/wget) dan tidak punya flag health →
+    # healthcheck Docker tidak bisa dijalankan. Kesehatan dipantau Prometheus (job `loki`,
+    # `up{job="loki"}`) dan `GET /ready` (docs/03-operations/observability.md).
+    healthcheck:
+      disable: true
+    mem_limit: 384m
+    cpus: 0.25
+
+  # Proxy Docker API read-only KHUSUS Alloy (bukan proxy control plane). Hanya GET/HEAD /containers/*,
+  # /networks* (discovery.docker selalu memanggil NetworkList untuk label __meta_docker_network_*;
+  # tanpa ini: 403 "error while computing network labels", diuji 2026-09-23) dan /_ping.
+  # EVENTS & VERSION dimatikan (tidak dipakai Alloy).
+  obs-docker-socket-proxy:
+    <<: *base
+    image: tecnativa/docker-socket-proxy:v0.5.0@sha256:1f5038b54f06c3e18422902cf00ba21803d1c97805aae032e5e6673d532d3459
+    container_name: obs-docker-socket-proxy
+    # Non-root: akses socket lewat grup `docker` host (gid 988). haproxy menulis /tmp/haproxy.cfg
+    # dan /run/haproxy.pid (tmpfs).
+    user: "65534:988"
+    environment:
+      CONTAINERS: "1"
+      NETWORKS: "1"
+      POST: "0"
+      EVENTS: "0"
+      VERSION: "0"
+      PING: "1"
+      DISABLE_IPV6: "1"
+      LOG_LEVEL: warning
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    read_only: true
+    tmpfs:
+      - /tmp:uid=65534,gid=988,mode=0700
+      - /run:uid=65534,gid=988,mode=0700
+    networks:
+      - obs-dockerapi
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:2375/_ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    mem_limit: 64m
+    cpus: 0.1
+
+  alloy:
+    <<: *base
+    image: grafana/alloy:v1.19.2@sha256:b8ec653c44235fbe910879145dac3597d66b0aaecf60bcbbe82580767771a839
+    container_name: alloy
+    user: "473:473"
+    group_add:
+      - "4"   # adm — baca traefik/logs (65532:adm 750) tanpa capability
+    command:
+      - run
+      - /etc/alloy/config.alloy
+      - --storage.path=/var/lib/alloy/data
+      - --server.http.listen-addr=0.0.0.0:12345   # hanya network observability (scrape Prometheus)
+      - --disable-reporting
+    volumes:
+      - ./alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - alloy_data:/var/lib/alloy/data
+      - ../traefik/logs:/var/log/traefik:ro
+    read_only: true
+    tmpfs:
+      - /tmp:uid=473,gid=473,mode=0700
+    depends_on:
+      - loki
+      - obs-docker-socket-proxy
+    networks:
+      - observability
+      - obs-dockerapi
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/12345 && printf 'GET /-/ready HTTP/1.0\\r\\n\\r\\n' >&3 && grep -q '200 OK' <&3"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    mem_limit: 192m
+    cpus: 0.2
+
+  grafana:
+    <<: *base
+    image: grafana/grafana:13.2.2@sha256:ac461fb352abc50da10a51c7d02462e9c05488f11f53f14b3ad79a8145f638a0
+    container_name: grafana
+    user: "472:472"
+    environment:
+      GF_SERVER_DOMAIN: grafana.bimacreative.tech
+      GF_SERVER_ROOT_URL: https://grafana.bimacreative.tech/
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD__FILE: /run/secrets/grafana-admin-password
+      GF_SECURITY_COOKIE_SECURE: "true"
+      GF_SECURITY_DISABLE_GRAVATAR: "true"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_USERS_ALLOW_ORG_CREATE: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES: "false"
+      GF_ANALYTICS_FEEDBACK_LINKS_ENABLED: "false"
+      GF_NEWS_NEWS_FEED_ENABLED: "false"
+      GF_PLUGINS_PREINSTALL_DISABLED: "true"
+      GF_LOG_MODE: console
+      # Soft limit GC runtime Go (< mem_limit 256m) — pemakaian awal ±203 MiB (79%), 2026-09-23.
+      GOMEMLIMIT: 210MiB
+    volumes:
+      - ./data/grafana:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./secrets/grafana-admin-password:/run/secrets/grafana-admin-password:ro
+    read_only: true
+    tmpfs:
+      - /tmp:uid=472,gid=472,mode=0700
+    depends_on:
+      - prometheus
+      - loki
+    networks:
+      - observability   # → prometheus, loki
+      - proxy           # Traefik → grafana:3000
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    mem_limit: 256m
+    cpus: 0.25
+
+  uptime-kuma:
+    <<: *base
+    # Varian rootless, ADR 0001. Dijalankan sebagai uid 10101 (bukan uid 1000 `node` image) karena
+    # uid 1000 di host = user `admin` → data Kuma tidak dimiliki user login host.
+    image: louislam/uptime-kuma:2.5.5-rootless@sha256:c4e17ce033deb811aff8a61a5f8f736f35b1bd937458ddeec46c59ca190f0e03
+    container_name: uptime-kuma
+    user: "10101:10101"
+    environment:
+      # SQLite; tanpa env ini Uptime Kuma 2.x menampilkan halaman "setup database" publik saat start
+      # pertama (server/setup-database.js). Embedded MariaDB (default env image) tidak dipakai.
+      UPTIME_KUMA_DB_TYPE: sqlite
+      TZ: Asia/Jakarta
+    volumes:
+      - ./data/uptime-kuma:/app/data
+    read_only: true
+    tmpfs:
+      - /tmp:uid=10101,gid=10101,mode=0700
+    networks:
+      - proxy   # Traefik → uptime-kuma:3001 + egress untuk probe URL publik
+    # HEALTHCHECK image: extra/healthcheck (interval 60s, start_period 180s)
+    healthcheck:
+      test: ["CMD-SHELL", "extra/healthcheck"]
+      interval: 60s
+      timeout: 30s
+      retries: 5
+      start_period: 180s
+    mem_limit: 192m
+    cpus: 0.2
+
+volumes:
+  prometheus_data:
+  loki_data:
+  alloy_data:
+
+networks:
+  # Semua dibuat scripts/bootstrap.sh (--internal, subnet tetap).
+  observability:
+    external: true
+    name: observability
+  metrics:
+    external: true
+    name: metrics
+  obs-dockerapi:
+    external: true
+    name: obs-dockerapi
+  proxy:
+    external: true
+    name: proxy

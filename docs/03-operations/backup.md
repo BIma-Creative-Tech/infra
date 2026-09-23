@@ -50,9 +50,14 @@
 - `-Z 0`: dump tidak dikompresi pg_dump agar deduplikasi restic antar hari efektif (restic mengompresi sendiri).
 - `files` diambil **setelah** semua dump DB (urutan ADR 0006). Filestore Odoo content-addressed → file yang ada
   saat snapshot identik dengan yang dirujuk DB.
-- **Belum** di-backup (stack belum ada): data mail DMS (T11), Uptime Kuma/Grafana (T14) — tambahkan volumenya
+- Uptime Kuma & Grafana (T14a): data di **bind mount** `/opt/infra/observability/data/{uptime-kuma,grafana}` (+
+  `observability/secrets/`) → otomatis ikut snapshot `files` (tanpa perubahan skrip). SQLite dibaca saat service hidup
+  (tanpa quiesce) → snapshot bisa tidak konsisten; risiko diterima karena isi Kuma dapat dibuat ulang
+  (`observability/scripts/uptime-kuma-provision.sh`) dan datasource Grafana di-provision dari git (`observability.md`).
+- `web/control-plane/.env` (T16a) kini di `/opt/infra` → ikut backup; `/opt/src/control-plane/.env` tidak lagi dipakai.
+- **Belum** di-backup (stack belum ada): data mail DMS (T11) — tambahkan volumenya
   saat stack itu hadir. Tidak di-backup: TSDB Prometheus/Loki, image Docker, sesi Odoo.
-- `/opt/src/control-plane/.env` (di luar `/opt/infra`) **tidak** ikut — lihat pertanyaan terbuka di laporan T13.
+- `/opt/src/control-plane/.env` (di luar `/opt/infra`) **tidak** ikut — sejak T16a deployment memakai `web/control-plane/.env` (ikut backup).
 
 ## Jadwal (systemd, Asia/Jakarta eksplisit di `OnCalendar`, `Persistent=true`)
 
