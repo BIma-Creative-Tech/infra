@@ -18,9 +18,12 @@ Kamu bekerja untuk Lead berdasarkan plan/ADR yang diberikan. Patuhi §0 CLAUDE.m
   `https://hub.docker.com/v2/repositories/library/odoo/tags?name=19.0&page_size=100`).
 - **odoo.conf** minimal prod:
   `proxy_mode = True`, `list_db = False`, `admin_passwd = <dari env, ≥32 char>`,
-  pemilihan DB via header dari Traefik (`dbfilter_from_header`, lihat CLAUDE.md §3.2 — BUKAN `^%d$`), `db_host/db_user/db_password`
+  pemilihan DB via header dari Traefik (modul sendiri `sh_dbfilter_header`, header
+  `X-Sh-Odoo-Db` eksak + fail-closed, lihat CLAUDE.md §3.2 dan `docs/adr/0003-odoo-no-oca.md`
+  D1 — BUKAN `^%d$`, BUKAN modul OCA `dbfilter_from_header`), `db_host/db_user/db_password`
   dari env, `workers`, `max_cron_threads`, `limit_memory_soft/hard`, `limit_time_cpu/real`,
-  `addons_path = /mnt/extra-addons/shared,/mnt/extra-addons/clients,/mnt/extra-addons/oca`,
+  `addons_path = /mnt/extra-addons/shared,/mnt/extra-addons/clients` (tidak ada path OCA —
+  OCA hanya referensi desain, tidak di-install/vendor, keputusan user #9),
   `data_dir = /var/lib/odoo`, `log_level = info`, `logfile` (stdout via docker).
   Verifikasi setiap key ada di `odoo --help` / `odoo/tools/config.py` versi 19.0.
 - **Multi-DB**: DB `<slug>_prod|_demo|_staging`. Skrip provisioning
@@ -38,9 +41,13 @@ Kamu bekerja untuk Lead berdasarkan plan/ADR yang diberikan. Patuhi §0 CLAUDE.m
     `README.rst`/`README.md`, `tests/`.
   - Run test: `docker exec <odoo> odoo -c /etc/odoo/odoo.conf -d <slug>_staging -i <modul>
     --test-enable --test-tags /<modul> --stop-after-init` dan tampilkan hasilnya.
-- **OIDC/SSO**: gunakan modul OCA `auth_oidc` (repo `OCA/server-auth`, branch 19.0 —
-  VERIFIKASI ada). Provider: Keycloak, flow `OpenID Connect (authorization code + PKCE)`,
-  client id/secret dari env, mapping `oauth_uid` = `sub`, auto-create user sesuai policy ADR.
+- **OIDC/SSO**: gunakan modul sendiri `sh_auth_oidc` (repo `odoo-addons-shared`, LGPL-3,
+  `depends: ['auth_oauth']` core) — **BUKAN** modul OCA `auth_oidc` (keputusan user #9, OCA
+  hanya referensi spesifikasi, tidak di-install/vendor; lihat `docs/adr/0003-odoo-no-oca.md`
+  D2). Provider: Keycloak, flow authorization code + PKCE (S256), state+nonce di session,
+  client id/secret dari env, mapping `oauth_uid` = claim `sub`, auto-create user sesuai
+  policy ADR. Clean-room ringan: tidak membuka source OCA saat menulis kode, cantumkan
+  referensi spesifikasi (OIDC Core, RFC 7636, RFC 9700) di README modul.
   Uji: login via browser flow (curl tidak cukup) → minta QA verifikasi E2E.
 - **API untuk Next.js**: hanya lewat controller JSON (`@http.route(type='json', auth='user'|'bearer')`)
   atau XML-RPC/JSON-RPC standar dengan API key (`res.users.apikeys`, scope). Tidak ada
@@ -56,4 +63,6 @@ Kamu bekerja untuk Lead berdasarkan plan/ADR yang diberikan. Patuhi §0 CLAUDE.m
 
 ## Output
 Laporan format §1.3 CLAUDE.md + path file + perintah verifikasi yang dijalankan beserta
-outputnya (ringkas). Jika modul OCA tidak tersedia untuk 19.0 → STATUS BLOCKED dengan opsi.
+outputnya (ringkas). Jika desain `sh_dbfilter_header`/`sh_auth_oidc` menemui kendala teknis
+yang butuh keputusan arsitektur baru → STATUS BLOCKED dengan opsi, jangan mengarang solusi
+atau diam-diam kembali memakai modul OCA.

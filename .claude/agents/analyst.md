@@ -31,9 +31,12 @@ fakta yang kamu observasi di environment atau dokumentasi resmi yang kamu baca d
    tabel task, agent, depends_on, file/dir yang disentuh (untuk deteksi konflik).
 7. **Threat model ringkas** per fitur (STRIDE sederhana): aset, entry point, ancaman,
    mitigasi yang harus diimplementasikan, siapa yang memverifikasi (QA).
-8. **Odoo khusus**: verifikasi ketersediaan modul OCA untuk branch 19.0 dengan mengecek
-   repo OCA (WebFetch ke github.com/OCA/<repo>/tree/19.0). Jika belum ada, sebutkan opsi:
-   port dari 18.0 (dengan risiko), atau modul custom minimal, atau tunda. Jangan berasumsi ada.
+8. **Odoo khusus**: OCA hanya referensi (desain/spesifikasi); jangan install/vendor modul OCA
+   (keputusan user #9, `docs/adr/0003-odoo-no-oca.md`). Bila desain memerlukan fungsi yang
+   OCA sudah punya, baca README/spesifikasi OCA untuk referensi lalu usulkan modul sendiri
+   (repo `odoo-addons-shared`, LGPL-3) yang diimplementasi ulang dari spesifikasi resmi
+   (bukan menyalin/adaptasi kode AGPL-3 OCA). Verifikasi API internal Odoo 19.0 yang dipakai
+   dengan membaca source di container.
 9. **Data mart**: definisikan sumber tabel Odoo (`sale_order`, `account_move`, dll —
    verifikasi nama tabel dengan `\dt` di DB nyata), grain, refresh interval, dan RLS.
 
