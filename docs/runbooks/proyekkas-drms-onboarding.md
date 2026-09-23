@@ -319,3 +319,8 @@ page publik).
 - `ratelimit-login` (10/menit/IP) tetap berlaku untuk `/auth/*` web dan login APK (`/protocol/openid-connect/auth`,
   login-actions); login massal dari satu IP NAT bisa kena 429 — offline token membuat login jarang.
 - File `dynamic/clients/drms-proyekkas-*.yml` BUKAN hasil `render-client-route.sh`; jangan pakai slug Odoo `drms-proyekkas`.
+
+### Upgrade 2026-09-23 19:46 WIB → `0.1.0-stg-f8529e6`
+- Backup pra-migrasi: `/opt/infra/backups/proyekkas/pk_drms_stg-20260923-194622-pre-f8529e6.dump` (600).
+- Migrasi `20260923_122029_email` OK; SMTP no-reply@ aktif; limit web 384m / worker 192m.
+- Rollback: `.env` → tag `0.1.0-stg-3b05b83`, `docker compose up -d`; bila skema perlu mundur, restore dump di atas (destruktif, konfirmasi user).
