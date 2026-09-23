@@ -4,6 +4,7 @@
 #   backup.sh run     (default) 1) pg_dumpall --globals-only  2) pg_dump -Fc per DB (daftar dinamis
 #                     dari pg_database, kecuali template & *_restoretest)  3) file: /opt/infra (config,
 #                     .env, secrets/, traefik/acme/, crowdsec data, git) + filestore Odoo per pool
+#                     + root volume media app non-Odoo (MEDIA_VOLUMES, bila volume ada)
 #                     4) restic copy ke remote bila dikonfigurasi, selain itu "REMOTE NOT CONFIGURED".
 #   backup.sh prune   forget --keep-daily 7 --keep-weekly 4 --keep-monthly 3 --prune, lalu check.
 #   backup.sh check   restic check (metadata saja).
@@ -62,6 +63,13 @@ cmd_run() {
     mp="$(volume_mountpoint "$v")"
     if [[ -n "$mp" && -d "$mp/filestore" ]]; then paths+=("$mp/filestore")
     else warn "volume $v / filestore tidak ditemukan — dilewati"; fi
+  done
+  # Media aplikasi non-Odoo (mis. ProyekKas DRMS): SELURUH root volume, dibaca read-only dari host.
+  # Volume belum ada (app belum di-deploy) = normal → log info, bukan warning/gagal.
+  for v in "${MEDIA_VOLUMES[@]}"; do
+    mp="$(volume_mountpoint "$v")"
+    if [[ -n "$mp" && -d "$mp" ]]; then paths+=("$mp")
+    else log "volume media $v belum ada — dilewati"; fi
   done
   local excl=()
   for e in "${FILE_EXCLUDES[@]}"; do excl+=(--exclude "$e"); done
