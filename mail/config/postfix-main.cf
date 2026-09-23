@@ -4,11 +4,5 @@
 # (atau `postconf -e` + `postfix reload` di container untuk perubahan live, lalu tetap sinkronkan file ini).
 # Disalin ke data/config/ oleh scripts/bootstrap.sh (sumber kebenaran = file ini di git).
 
-# TEMPORARY(2026-09-23): TAHAN semua pengiriman KELUAR (transport `smtp`) sampai PTR 31.97.50.221 =
-# mail.bimacreative.tech (ADR 0005 #5; brief T11: jangan kirim ke domain eksternal sebelum PTR benar).
-# Pengiriman lokal (virtual → Dovecot LMTP) tidak terpengaruh. Mail keluar tertahan di antrean (deferred),
-# kedaluwarsa sesuai maximal_queue_lifetime (default 5d) bila tidak dilepas.
-# postconf(5) defer_transports: "The names of message delivery transports that should not deliver mail
-# unless someone issues "sendmail -q" or equivalent" → JANGAN jalankan `postqueue -f` selama baris ini ada.
-# Cabut setelah `dig -x 31.97.50.221 +short` = mail.bimacreative.tech. — prosedur docs/03-operations/mail.md §PTR.
-defer_transports = smtp
+# 2026-09-23: guard defer_transports DICABUT setelah PTR 31.97.50.221 = mail.bimacreative.tech terverifikasi
+# (Cloudflare, Quad9, OpenDNS, Google). Prosedur: docs/03-operations/mail.md §PTR.
