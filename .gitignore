@@ -1,0 +1,10 @@
+# Secrets & state — jangan pernah di-commit (CLAUDE.md §0.9, §3 Secrets)
+.env
+.env.*
+!.env.example
+**/acme.json
+**/data/
+backups/
+*.key
+*.pem
+.claude/settings.local.json
