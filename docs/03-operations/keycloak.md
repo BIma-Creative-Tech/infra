@@ -13,7 +13,7 @@
 | Opsi (env) | Nilai | Alasan |
 |---|---|---|
 | `KC_HOSTNAME` | `https://auth.bimacreative.tech` | URL publik tetap → issuer token |
-| `KC_HOSTNAME_ADMIN` | `https://auth.bimacreative.tech:8443` | admin console hanya lewat SSH tunnel (lokal :8443) |
+| `KC_HOSTNAME_ADMIN` | `https://auth.bimacreative.tech:8443` | admin console hanya lewat SSH tunnel (lokal :8443 → entrypoint Traefik `admin` `127.0.0.1:8443` di VPS, H5) |
 | realm `master` atribut `frontendUrl` | `https://auth.bimacreative.tech:8443` | login realm master (form + token) juga lewat :8443; tanpa ini form login admin mem-POST ke :443 publik → 403 |
 | `KC_HTTP_ENABLED` | `true` | TLS di-terminate Traefik; 8080 hanya di network `proxy` |
 | `KC_PROXY_HEADERS` | `xforwarded` | Traefik menimpa `X-Forwarded-*` (forwardedHeaders tidak dipercaya dari klien) |
@@ -26,12 +26,19 @@ Hardening container: `user 1000`, `read_only` + tmpfs `/tmp` & `/opt/keycloak/da
 
 ## Paparan path (Traefik `auth.yml`, docs reverseproxy.adoc §Exposed path recommendations)
 
-| Router | Rule | Middleware | Publik? |
-|---|---|---|---|
-| `auth-admin` (prio 100) | `/admin*`, `/realms/master/*` | crowdsec, **ipallowlist-admin**, auth-security-headers, ratelimit-default | tidak (allowlist) |
-| `auth-login` (90) | `/realms/*/login-actions/*`, `/realms/*/protocol/openid-connect/(auth\|token)` | crowdsec, auth-security-headers, **ratelimit-login** | ya |
-| `auth-public` (50) | `/realms/*`, `/resources/*`, `/.well-known/*` | crowdsec, auth-security-headers, ratelimit-default | ya |
-| `auth-other` (1) | sisa host (`/`, `/metrics`, …) | crowdsec, **ipallowlist-admin**, … | tidak |
+| Router | Entrypoint | Rule | Middleware | Publik? |
+|---|---|---|---|---|
+| `auth-admin` (prio 100) | **`admin`** (127.0.0.1:8443 host) | `/admin*`, `/realms/master/*` | crowdsec, **ipallowlist-admin**, auth-security-headers, ratelimit-default | tidak (tunnel) |
+| `auth-other` (1) | **`admin`** | sisa host (`/`, `/resources/`, `/realms/<lain>/`, …) | crowdsec, **ipallowlist-admin**, … | tidak (tunnel) |
+| `drms-kc-admin-{stg,prod}` (120) | websecure | `ClientIP(10.100.{9,8}.0/24)` + `/admin/realms/drms{-staging,}/` | crowdsec, drms-kc-admin-strict-path, auth-security-headers, ratelimit-drms-kc-admin | tidak (network internal DRMS) |
+| `auth-admin-deny` (110) | websecure | `/admin*`, `/realms/master/*` | crowdsec, **deny-all** (403) | **ditolak** |
+| `auth-drms-token` (95) | websecure | token realm `drms`/`drms-staging` | crowdsec, …, ratelimit-drms-kc-token | ya |
+| `auth-login` (90) | websecure | `/realms/*/login-actions/*`, `/realms/*/protocol/openid-connect/(auth\|token)` | crowdsec, auth-security-headers, **ratelimit-login** | ya |
+| `auth-public` (50) | websecure | `/realms/*`, `/resources/*`, `/.well-known/*` | crowdsec, auth-security-headers, ratelimit-default | ya |
+
+H5 (keputusan user 2026-09-23): di :443 publik tidak ada router allowlist lagi — hairpin container (tiba sebagai
+`10.100.0.1`) dulu lolos `ipallowlist-admin`. Path lain di :443 (`/`, `/metrics`, …) → 404. Detail: `traefik.md`
+§Entrypoint `admin`.
 
 `auth-security-headers` = `security-headers` tanpa `frameDeny` (Keycloak sudah mengirim `X-Frame-Options:
 SAMEORIGIN` + CSP `frame-ancestors 'self'`; admin console memakai iframe same-origin). HSTS tetap `max-age=300`
@@ -66,12 +73,15 @@ grep -n -i -E '"(secret|privateKey|password|value)"' identity/keycloak/realm-exp
 Di laptop admin (butuh private key user `admin`):
 ```bash
 # 1) arahkan nama host ke loopback SELAMA sesi admin (sertifikat LE valid untuk nama ini)
-echo '127.0.0.1 auth.bimacreative.tech' | sudo tee -a /etc/hosts
-# 2) tunnel: port lokal 8443 → 127.0.0.1:443 di VPS (tiba di Traefik sebagai 10.100.0.1 = allowlist)
-ssh -p 2221 -N -L 8443:127.0.0.1:443 admin@31.97.50.221
+echo '127.0.0.1 auth.bimacreative.tech grafana.bimacreative.tech status.bimacreative.tech' | sudo tee -a /etc/hosts
+# 2) tunnel: port lokal 8443 → 127.0.0.1:8443 di VPS = entrypoint Traefik `admin` (H5; tiba sebagai 10.100.0.1 = allowlist)
+ssh -p 2221 -N -L 8443:127.0.0.1:8443 admin@31.97.50.221
 # 3) buka https://auth.bimacreative.tech:8443/admin/  → login platform-admin
 # 4) selesai: hapus baris /etc/hosts tadi
 ```
+H5 (2026-09-23): tunnel lama `-L 8443:127.0.0.1:443` tidak lagi membuka admin (:443 → 403). Diverifikasi dari host
+(`--resolve auth.bimacreative.tech:8443:127.0.0.1`): `GET :8443/admin/` → 302 ke `:8443/admin/master/console/` → 200,
+discovery realm master via :8443 → 200. Uji T06 (sebelum H5, jalur :443) di bawah tetap relevan untuk alur login.
 Status uji: sisi server tunnel **diemulasikan** di host (forwarder TCP 127.0.0.1:8443 → 127.0.0.1:443, jalur
 jaringan identik dengan `ssh -L`), dengan `auth.bimacreative.tech:443` sengaja di-blackhole: GET
 `/admin/` → 302 ke `:8443/admin/master/console/`; login code+PKCE client `security-admin-console` → 302 +
@@ -125,15 +135,19 @@ docker compose down                 # stop; data di Postgres
   semua PUT/DELETE ke `/admin/realms/…` (403 dari router `auth-admin`). Kini dikecualikan **hanya** rule 911100, hanya untuk
   host `auth.bimacreative.tech` (juga `:8443` tunnel), path `/admin/realms/*`, IP 127.0.0.1/10.100.0.1 — config
   `local/keycloak-admin-exclusions` (`crowdsec.md` §Pengecualian CRS 911100). Rule CRS lain tetap berlaku: body berisi
-  `${…}`/`<script>`/SQLi tetap 403. Contoh (token `automation`, tanpa menampilkan secret):
+  `${…}`/`<script>`/SQLi tetap 403. **Sejak H5 Admin REST dari host hanya via entrypoint `admin` `:8443`** (:443 → 403).
+  Contoh (token `automation`, tanpa menampilkan secret):
   ```bash
   S=/opt/infra/identity/keycloak/secrets/automation-platform-staging.secret
-  T=$(curl -s --resolve auth.bimacreative.tech:443:127.0.0.1 -d grant_type=client_credentials -d client_id=automation \
-      --data-urlencode "client_secret@$S" https://auth.bimacreative.tech/realms/platform-staging/protocol/openid-connect/token \
+  K=(--resolve auth.bimacreative.tech:8443:127.0.0.1); A=https://auth.bimacreative.tech:8443
+  T=$(curl -s "${K[@]}" -d grant_type=client_credentials -d client_id=automation \
+      --data-urlencode "client_secret@$S" $A/realms/platform-staging/protocol/openid-connect/token \
       | python3 -c 'import sys,json;sys.stdout.write(json.load(sys.stdin)["access_token"])')
-  curl -s -o /dev/null -w '%{http_code}\n' --resolve auth.bimacreative.tech:443:127.0.0.1 -X DELETE \
-       -H "Authorization: Bearer $T" https://auth.bimacreative.tech/admin/realms/platform-staging/users/<id>   # 204
+  curl -s -o /dev/null -w '%{http_code}\n' "${K[@]}" -X DELETE \
+       -H "Authorization: Bearer $T" $A/admin/realms/platform-staging/users/<id>   # 204
   ```
+  H5 diuji: `PUT`/`DELETE` ke user id acak via :8443 → 404 `{"error":"User not found"}` dari Keycloak (bukan 403 WAF).
   User uji T15 `t15-sso-test` (realm `platform-staging`) **dihapus** 2026-09-23 dengan cara ini (204, GET → 404).
 - Network: Keycloak di `proxy` (dan `db`, serta `metrics` internal sejak T14a — Prometheus scrape `keycloak:9000/metrics`).
-  Jangan menambah router/path admin publik.
+  Jangan menambah router/path admin publik. Keycloak **tidak** join `drms-kc-admin{,-stg}` (H5): app ProyekKas mencapai
+  Admin REST realm `drms`/`drms-staging` saja lewat Traefik (router `drms-kc-admin-*`, `traefik.md` §Network drms-kc-admin).

@@ -107,3 +107,9 @@ prosedur hardening itu dijalankan.
   terbukti berhasil (§5 S0/S4/S7 plan 01) — pola yang sama berlaku untuk pemulihan darurat.
 - Setelah insiden selesai, perbarui laporan §1.3 CLAUDE.md ke Lead: apa yang terjadi,
   perintah yang dijalankan, bukti pemulihan, dan tindak lanjut supaya tidak terulang.
+- **Panel admin (Keycloak/Grafana/Uptime Kuma) saat SSH tidak tersedia (H5, 2026-09-23):** panel admin hanya di
+  entrypoint Traefik `admin` yang di-publish `127.0.0.1:8443` di VPS — tidak bisa dibuka dari internet maupun lewat :443.
+  Normalnya: `ssh -p 2221 -N -L 8443:127.0.0.1:8443 admin@31.97.50.221` (`docs/03-operations/traefik.md` §Entrypoint
+  `admin`). Dari konsol Hostinger (root di VPS) yang bisa dilakukan hanya Admin REST via curl, mis.
+  `curl --resolve auth.bimacreative.tech:8443:127.0.0.1 https://auth.bimacreative.tech:8443/admin/…` (token akun
+  `automation`, `docs/03-operations/keycloak.md`). Pulihkan SSH dulu untuk akses browser.

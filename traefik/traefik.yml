@@ -44,6 +44,18 @@ entryPoints:
     http:
       aliasHeadersStrategy: delete
       tls: {}
+  # H5 (keputusan user 2026-09-23): entrypoint KHUSUS panel admin (Keycloak /admin & realm master,
+  # Grafana, dashboard Uptime Kuma). Compose mem-publish HANYA 127.0.0.1:8443 di host (SSH tunnel
+  # `ssh -L 8443:127.0.0.1:8443`), tidak pernah 0.0.0.0. Hairpin ke IP publik :443 tidak lagi mencapai
+  # router admin (router admin hanya di entrypoint ini). Di dalam container listen di semua interface:
+  # container lain yang menghubungi traefik:8443 langsung tiba dengan IP container-nya sendiri →
+  # 403 oleh ipallowlist-admin; hanya jalur loopback host yang tiba sebagai 10.100.0.1.
+  # Format address `[host]:port[/tcp|/udp]` (docs v3.7 reference/install-configuration/entrypoints.md).
+  admin:
+    address: ":8443"
+    http:
+      aliasHeadersStrategy: delete
+      tls: {}
   # Hanya untuk /ping healthcheck; terikat loopback DI DALAM container, tidak di-publish.
   traefik:
     address: "127.0.0.1:8080"

@@ -3,18 +3,49 @@
 #
 # Paparan path mengikuti docs Keycloak 26.7.4 guides/server/reverseproxy.adoc §Exposed path
 # recommendations: publik HANYA /realms/, /resources/, /.well-known/. /admin/ (console + Admin
-# REST API /admin/realms/...) dan /realms/master/ (realm administratif) = internal → allowlist.
-# Sisanya (/, /metrics, /health, …) juga allowlist (router catch-all prioritas terendah).
+# REST API /admin/realms/...) dan /realms/master/ (realm administratif) = internal.
+# H5 (keputusan user 2026-09-23): path internal HANYA di entrypoint `admin` (:8443, publish 127.0.0.1
+# host saja); di :443 publik /admin* & /realms/master/* → 403 (auth-admin-deny), sisanya tanpa router → 404.
+# Alasan: hairpin dari container mana pun ke IP publik :443 tiba sebagai 10.100.0.1 (gateway `proxy`,
+# userland-proxy=false) sehingga dulu lolos ipallowlist-admin.
 # Health/metrics ada di management port 9000 yang tidak di-route sama sekali.
 http:
   routers:
-    # Admin console + Admin REST API + realm master: hanya dari ipallowlist-admin (SSH tunnel).
+    # ---- Entrypoint `admin` (H5, 127.0.0.1:8443 host saja — SSH tunnel) ----------------------------
+    # Admin console + Admin REST API + realm master. KC_HOSTNAME_ADMIN & frontendUrl realm master = :8443.
+    # ipallowlist-admin tetap dipasang (defense-in-depth): lewat loopback host koneksi tiba sebagai
+    # 10.100.0.1; container yang menghubungi traefik:8443 langsung membawa IP-nya sendiri → 403.
     auth-admin:
-      entryPoints: [websecure]
+      entryPoints: [admin]
       rule: "Host(`auth.bimacreative.tech`) && (PathPrefix(`/admin`) || PathPrefix(`/realms/master/`))"
       priority: 100
       middlewares: [crowdsec, ipallowlist-admin, auth-security-headers, ratelimit-default]
       service: keycloak
+      tls:
+        certResolver: le-http   # sertifikat sudah ada di acme.json; pembaruan HTTP-01 lewat entrypoint `web`
+    # Semua path lain di host ini lewat :8443 (/, /resources/, /realms/<realm lain>/ untuk admin console,
+    # token automation, …) → tetap allowlist.
+    auth-other:
+      entryPoints: [admin]
+      rule: "Host(`auth.bimacreative.tech`)"
+      priority: 1
+      middlewares: [crowdsec, ipallowlist-admin, auth-security-headers, ratelimit-default]
+      service: keycloak
+      tls:
+        certResolver: le-http
+
+    # ---- Entrypoint `websecure` (publik :443) --------------------------------------------------------
+    # H5: /admin* & /realms/master/* DITOLAK untuk SEMUA IP di :443 (termasuk hairpin container yang tiba
+    # sebagai 10.100.0.1). Prioritas 110 > auth-drms-token (95) / auth-login (90) / auth-public (50) — tanpa
+    # router ini /realms/master/ akan cocok dengan auth-public. Pengecualian SATU-SATUNYA: router
+    # drms-kc-admin-* (prioritas 120, clients/drms-proyekkas-kc-admin.yml; ClientIP network internal DRMS).
+    # Path di luar /realms/, /resources/, /.well-known/ tidak punya router di :443 → 404 Traefik.
+    auth-admin-deny:
+      entryPoints: [websecure]
+      rule: "Host(`auth.bimacreative.tech`) && (PathPrefix(`/admin`) || PathPrefix(`/realms/master/`))"
+      priority: 110
+      middlewares: [crowdsec, deny-all]
+      service: deny-sink   # middlewares/deny-all.yml — backend tidak ada (502 bila deny-all terlepas)
       tls:
         certResolver: le-http
     # Alur login & token (brute force): rate limit ketat per IP.
@@ -32,15 +63,6 @@ http:
       rule: "Host(`auth.bimacreative.tech`) && (PathPrefix(`/realms/`) || PathPrefix(`/resources/`) || PathPrefix(`/.well-known/`))"
       priority: 50
       middlewares: [crowdsec, auth-security-headers, ratelimit-default]
-      service: keycloak
-      tls:
-        certResolver: le-http
-    # Semua path lain di host ini (/, /metrics, …) → allowlist.
-    auth-other:
-      entryPoints: [websecure]
-      rule: "Host(`auth.bimacreative.tech`)"
-      priority: 1
-      middlewares: [crowdsec, ipallowlist-admin, auth-security-headers, ratelimit-default]
       service: keycloak
       tls:
         certResolver: le-http

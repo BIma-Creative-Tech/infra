@@ -58,10 +58,57 @@ service account `service-account-proyekkas-admin-api` (tanpa kredensial) pembawa
 - **Network `drms-kas-edge`** (pola `odoo-edge`, H1): `10.100.7.0/24`, gw `10.100.7.1`, bukan `--internal` (app butuh
   egress: FCM, issuer publik Keycloak); anggota hanya `traefik` + container web ProyekKas (bukan `proxy`).
   App tidak menjangkau `keycloak:8080` (sengaja) — server-side OIDC/JWKS/Admin REST lewat
-  `https://auth.bimacreative.tech` (hairpin); token call melewati router `auth-drms-token`.
+  `https://auth.bimacreative.tech`; token call melewati router `auth-drms-token`. **Sejak H5 (2026-09-23) bukan hairpin
+  lagi:** app juga join network internal `drms-kc-admin{,-stg}` (alias `auth.bimacreative.tech` → Traefik) — §Network Admin API.
 - **`scripts/backup.sh`**: loop `MEDIA_VOLUMES` (root volume, tanpa `filestore/`) setelah loop `FILESTORE_VOLUMES`,
   urutan tetap DB dulu lalu file (ADR 0006); volume yang belum ada dilewati dengan log info. (DONE 2026-09-23)
 - **Postgres `max_connections` 150 → 200** (lihat Catatan §Limit koneksi).
+
+## Network Admin API Keycloak (H5, keputusan user infra 2026-09-23)
+
+Sejak H5, Admin REST Keycloak **tidak bisa** dicapai lewat IP publik :443 (hairpin → 403 `auth-admin-deny`). App ProyekKas
+(web **dan** worker) memanggil Admin REST realm env-nya lewat network `--internal` khusus:
+
+| Env | Network (external) | Subnet | Yang diizinkan (router, prioritas 120) |
+|---|---|---|---|
+| prod | `drms-kc-admin` | 10.100.8.0/24 | `/admin/realms/drms/…` saja (`drms-kc-admin-prod`) |
+| staging | `drms-kc-admin-stg` | 10.100.9.0/24 | `/admin/realms/drms-staging/…` saja (`drms-kc-admin-stg`) |
+
+- Dibuat `traefik/scripts/bootstrap.sh` (sudah ada di VPS). Traefik join dengan alias **`auth.bimacreative.tech`** → di dalam
+  container app nama itu me-resolve ke IP Traefik di network tsb (mis. `10.100.9.2`), jadi **URL app tidak berubah**:
+  issuer/token/JWKS/Admin REST tetap `https://auth.bimacreative.tech/...` (sertifikat LE valid, tanpa `--resolve`).
+- Compose app (web + worker, milik ProyekKas) menambahkan network external itu **selain** `drms-kas-edge` (ingress + egress;
+  network internal tidak punya egress/DNS publik) dan `db`:
+  ```yaml
+  services:
+    web:            # juga worker
+      networks: [drms-kas-edge, db, drms-kc-admin-stg]   # prod: drms-kc-admin
+  networks:
+    drms-kc-admin-stg:
+      external: true
+      name: drms-kc-admin-stg
+  ```
+  Jangan menetapkan IP statis; jangan join network env lain (subnet staging tidak bisa ke realm prod dan sebaliknya).
+- Batasan: path admin lain (`/admin/realms/<realm lain>/`, `/admin/realms/<realm>` tanpa `/` akhir, `/admin/master/…`,
+  `/realms/master/…`) → 403; karakter ter-encode ambigu di path (`%2F`, `%25`, …) → ditolak; rate limit 20 req/s burst 40
+  per container (ESTIMASI, `ratelimit-drms-kc-admin`); WAF CRS aktif penuh kecuali 911100 (PUT/DELETE) untuk subnet×realm
+  ini (`crowdsec.md` §Pengecualian CRS 911100). Body/query berisi `<script>`, SQLi, `${…}` → 403 AppSec.
+- Verifikasi (container sementara, tanpa app; secret dari stdin, tidak ditampilkan) — hasil 2026-09-23:
+  ```bash
+  docker run --rm -i --network drms-kc-admin-stg --entrypoint sh curlimages/curl:8.22.0 -c '
+    A=https://auth.bimacreative.tech; getent hosts auth.bimacreative.tech          # -> 10.100.9.2 (traefik)
+    curl -s -o /dev/null -w "%{http_code}\n" $A/admin/realms/drms-staging/users    # 401 (sampai Keycloak)
+    T=$(curl -s $A/realms/drms-staging/protocol/openid-connect/token -d grant_type=client_credentials \
+        -d client_id=proyekkas-admin-api --data-urlencode client_secret@- \
+        | sed -n "s/.*\"access_token\":\"\([^\"]*\)\".*/\1/p")
+    curl -s -o /dev/null -w "%{http_code}\n" -H "Authorization: Bearer $T" "$A/admin/realms/drms-staging/users?max=1"   # 200
+    curl -s -o /dev/null -w "%{http_code}\n" -H "Authorization: Bearer $T" $A/admin/realms/platform/users               # 403
+  ' < /opt/infra/identity/keycloak/secrets/drms-staging-proyekkas-admin-api.secret
+  ```
+  Hasil lengkap (stg & prod): tanpa token 401; dengan token GET users 200; PUT/DELETE user id acak 404 `User not found`
+  (Keycloak, bukan WAF); realm `platform` / realm env lain / realm tanpa `/` / `/admin/master/console/` /
+  `/realms/master/.well-known/…` → 403; `/realms/<realm env>/.well-known/openid-configuration` → 200; XSS → 403 AppSec;
+  `traefik:8443` (entrypoint admin) dari subnet ini → 403.
 
 ## Langkah 1. Postgres — DB, role, pg_hba
 
@@ -144,10 +191,11 @@ Regenerate** — dan disimpan tanpa newline (`printf '%s'`) di
 `/opt/infra/identity/keycloak/secrets/drms{,-staging}-{proyekkas-web,proyekkas-admin-api}.secret`
 (dir 700, file 600 root; `secrets/` di-ignore git, ikut backup restic `/opt/infra`). Compose app menyalinnya ke `.env` (600).
 
-**Verifikasi** (dari VPS; `/admin` hanya lewat allowlist → `--resolve …:127.0.0.1`):
+**Verifikasi** (dari VPS; sejak H5 `/admin` hanya lewat entrypoint `admin` → `:8443` + `--resolve …:8443:127.0.0.1`;
+uji dari network app: §Network Admin API):
 ```
-R=https://auth.bimacreative.tech; K=(--resolve auth.bimacreative.tech:443:127.0.0.1)
-curl -s $R/realms/drms-staging/.well-known/openid-configuration | python3 -c 'import json,sys;print(json.load(sys.stdin)["issuer"])'
+R=https://auth.bimacreative.tech:8443; K=(--resolve auth.bimacreative.tech:8443:127.0.0.1)
+curl -s "${K[@]}" $R/realms/drms-staging/.well-known/openid-configuration | python3 -c 'import json,sys;print(json.load(sys.stdin)["issuer"])'
 TOK=$(curl -s "${K[@]}" $R/realms/drms-staging/protocol/openid-connect/token -d grant_type=client_credentials \
   -d client_id=proyekkas-admin-api --data-urlencode client_secret@/opt/infra/identity/keycloak/secrets/drms-staging-proyekkas-admin-api.secret | python3 -c 'import json,sys;print(json.load(sys.stdin)["access_token"])')
 H="Authorization: Bearer $TOK"

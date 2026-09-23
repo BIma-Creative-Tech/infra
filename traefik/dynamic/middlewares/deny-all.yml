@@ -1,0 +1,24 @@
+# H5 — middleware `deny-all`: tolak SEMUA request dengan 403 (router deny eksplisit di websecure).
+# Traefik v3.7 OSS tidak punya middleware deny/ipDenyList (daftar docs reference/routing-configuration/
+# http/middlewares/ — ipdenylist.md tidak ada); service `noop@internal` membalas 418 (source v3.7
+# pkg/server/service/internalhandler.go) dan tidak di-log (lihat di bawah), jadi penolakan dibuat dengan
+# ipAllowList yang sourceRange-nya tidak mungkin dimiliki klien TCP (alamat broadcast terbatas 255.255.255.255) → rejectStatusCode 403.
+# Opsi: docs v3.7 .../middlewares/ipallowlist.md. Tanpa ipStrategy → IP koneksi (X-Forwarded-For diabaikan).
+http:
+  middlewares:
+    deny-all:
+      ipAllowList:
+        sourceRange:
+          - "255.255.255.255/32"
+        rejectStatusCode: 403
+
+  # Service tujuan router deny. BUKAN `noop@internal`: router ber-service `@internal` tidak masuk access log
+  # (source v3.7 pkg/server/router/router.go BuildEPChain(internal=HasSuffix(service,"@internal")) +
+  # pkg/server/middleware/observability.go shouldAccessLog: internal && !accessLog.addInternals → false),
+  # padahal CrowdSec membaca access log. Backend sengaja tidak ada (loopback container, port 9 tanpa listener):
+  # bila `deny-all` terlepas dari rantai middleware karena salah edit, hasilnya 502 — bukan meneruskan ke backend.
+  services:
+    deny-sink:
+      loadBalancer:
+        servers:
+          - url: "http://127.0.0.1:9"

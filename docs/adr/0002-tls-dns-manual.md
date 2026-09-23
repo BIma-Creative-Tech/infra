@@ -176,3 +176,12 @@ Konfigurasi resolver ada di static config Traefik; rollback = kembalikan file + 
   fase 1" dan "router dibuat setelah DNS pre-check, juga untuk hostname platform di luar wildcard".
 - §2: "Traefik menerbitkan TLS otomatis via HTTP-01" tetap; tambah "DNS platform manual (Hostinger)".
 - docs/00-server-environment.md §2/§3: hapus kebutuhan `DNS_API_TOKEN` dan wildcard DNS challenge.
+
+## Riwayat revisi
+
+- 2026-09-23 (H5, keputusan user): router panel admin (`auth-admin`, `auth-other`, `grafana`, `status-admin`) dipindah ke
+  entrypoint baru `admin` (:8443, publish `127.0.0.1:8443` host saja). Router tetap `certResolver: le-http`: challenge HTTP-01
+  memakai `certificatesResolvers.le-http.acme.httpChallenge.entryPoint: web` (:80), tidak bergantung pada entrypoint router,
+  sehingga pembaruan sertifikat hostname itu tetap berjalan. Tidak ada hostname/sertifikat baru; sertifikat yang ada di
+  `acme.json` dipakai di :8443 (diverifikasi `openssl s_client -connect 127.0.0.1:8443 -servername grafana.bimacreative.tech`
+  → issuer Let's Encrypt). Detail: `docs/03-operations/traefik.md` §Entrypoint `admin`.

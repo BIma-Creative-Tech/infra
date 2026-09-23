@@ -1,0 +1,61 @@
+# ProyekKas (client DRMS) — Admin REST API Keycloak HANYA realm `drms` (prod) / `drms-staging` (staging),
+# dari app ProyekKas (web + worker) tanpa hairpin. H5, keputusan user infra 2026-09-23.
+# Edit manual, lalu `docker kill --signal=HUP traefik` (subdirektori dynamic/ tidak di-watch).
+#
+# Jalur: app join network --internal `drms-kc-admin` (10.100.8.0/24, prod) / `drms-kc-admin-stg`
+# (10.100.9.0/24, staging). Traefik join keduanya dengan alias `auth.bimacreative.tech` → DNS Docker di
+# network itu me-resolve host Keycloak ke IP Traefik → koneksi langsung ke entrypoint `websecure` :443 dengan
+# IP sumber = IP container app (tanpa NAT). Keycloak TIDAK join network ini (Traefik → keycloak:8080 via proxy).
+#
+# Kunci per env: ClientIP subnet env × PathPrefix realm env (subnet staging TIDAK bisa ke realm prod dan
+# sebaliknya). Path admin lain (/admin/realms/<realm lain>/, /admin/master/console/, /realms/master/) dari
+# subnet ini jatuh ke `auth-admin-deny` (platform/auth.yml, prioritas 110) → 403. Endpoint OIDC biasa
+# (token, discovery, JWKS) dari subnet ini tetap lewat router publik (auth-drms-token/auth-login/auth-public).
+# Prioritas 120 > auth-admin-deny (110). ClientIP = IP koneksi, bukan X-Forwarded-For (docs v3.7
+# routing/rules-and-priority.md §ClientIP; source pkg/muxer/http/matcher.go RemoteAddrStrategy).
+# `/admin/realms/<realm>` TANPA garis miring akhir (representasi realm) sengaja tidak tercakup → 403.
+#
+# WAF: CRS 911100 (PUT/DELETE) dikecualikan sempit untuk subnet+prefix yang sama —
+# security/crowdsec/appsec-configs/keycloak-admin-exclusions.yaml. Rule CRS lain tetap aktif.
+# Middleware `auth-security-headers` & service `keycloak`: platform/auth.yml.
+http:
+  routers:
+    drms-kc-admin-stg:
+      entryPoints: [websecure]
+      rule: "Host(`auth.bimacreative.tech`) && ClientIP(`10.100.9.0/24`) && PathPrefix(`/admin/realms/drms-staging/`)"
+      priority: 120
+      middlewares: [crowdsec, drms-kc-admin-strict-path, auth-security-headers, ratelimit-drms-kc-admin]
+      service: keycloak
+      tls:
+        certResolver: le-http
+    drms-kc-admin-prod:
+      entryPoints: [websecure]
+      rule: "Host(`auth.bimacreative.tech`) && ClientIP(`10.100.8.0/24`) && PathPrefix(`/admin/realms/drms/`)"
+      priority: 120
+      middlewares: [crowdsec, drms-kc-admin-strict-path, auth-security-headers, ratelimit-drms-kc-admin]
+      service: keycloak
+      tls:
+        certResolver: le-http
+
+  middlewares:
+    # Per IP sumber (= per container app). 20 req/s rata-rata, burst 40 = ESTIMASI (sinkron user/role/sesi
+    # dari web + worker); tuning dari access log (RouterName drms-kc-admin-*).
+    ratelimit-drms-kc-admin:
+      rateLimit:
+        average: 20
+        period: 1s
+        burst: 40
+    # Tolak karakter ter-encode yang ambigu di path (%2F, %5C, %00, %3B, %25, %3F, %23) — mencegah
+    # PathPrefix realm dilewati lewat path yang di-decode berbeda oleh backend. Semua opsi default `false`
+    # (= ditolak) di middleware ini (docs v3.7 .../middlewares/encodedcharacters.md; nama field
+    # dari source v3.7 pkg/config/dynamic/middlewares.go `EncodedCharacters`); ditulis eksplisit.
+    # Admin REST Keycloak memakai UUID/nama sederhana di path; query string tidak terpengaruh.
+    drms-kc-admin-strict-path:
+      encodedCharacters:
+        allowEncodedSlash: false
+        allowEncodedBackSlash: false
+        allowEncodedNullCharacter: false
+        allowEncodedSemicolon: false
+        allowEncodedPercent: false
+        allowEncodedQuestionMark: false
+        allowEncodedHash: false

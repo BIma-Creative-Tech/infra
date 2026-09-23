@@ -16,11 +16,20 @@
 #     KC_HOSTNAME_ADMIN — plugin bouncer meneruskan Host apa adanya, termasuk port), path diawali
 #     /admin/realms/. Path itu di Traefik juga dibatasi ipallowlist-admin (router auth-admin).
 #   - HANYA IP klien 127.0.0.1 / 10.100.0.1 (= isi ipallowlist-admin) — kunci ganda bila routing berubah.
-#   - HANYA IP klien 127.0.0.1 / 10.100.0.1 (= isi ipallowlist-admin) — kunci ganda bila routing berubah.
 #     req.RemoteAddr = IP TANPA port: plugin bouncer v1.7.1 pkg/ip.GetRemoteIP (net.SplitHostPort) →
 #     header X-Crowdsec-Appsec-Ip → crowdsec v1.8.1 request.go `originalHTTPRequest.RemoteAddr = clientIP`.
 #   - Host/path lain (mis. /realms/platform/, status, Odoo) tetap kena 911100.
-# Rollback: hapus file ini + barisnya di acquis.d/appsec.yaml + mount di docker-compose.yml →
+#   - H5 (keputusan user 2026-09-23): kondisi KEDUA (hook terpisah) untuk app ProyekKas lewat network
+#     --internal DRMS (router traefik/dynamic/clients/drms-proyekkas-kc-admin.yml): host auth.bimacreative.tech
+#     (tanpa port, entrypoint websecure) DAN pasangan subnet×prefix EKSAK —
+#       10.100.8.0/24 (drms-kc-admin)     × /admin/realms/drms/
+#       10.100.9.0/24 (drms-kc-admin-stg) × /admin/realms/drms-staging/
+#     Helper `IpInRange(ip string, cidr string) bool` diverifikasi dari source crowdsec v1.8.1:
+#     pkg/exprhelpers/expr_lib.go (terdaftar di GetExprOptions) + helpers.go (net.ParseCIDR/Contains);
+#     pkg/appsec/appsec.go Hook.Build mengompilasi filter pre_eval dengan exprhelpers.GetExprOptions(env).
+#     Tetap HANYA rule 911100; subnet staging tidak dikecualikan untuk realm prod dan sebaliknya.
+# Rollback H5 saja: hapus entri pre_eval kedua. Rollback penuh: hapus file ini + barisnya di
+# acquis.d/appsec.yaml + mount di docker-compose.yml →
 # `docker compose up -d` (recreate, fail-closed ±50 s).
 name: local/keycloak-admin-exclusions
 default_remediation: ban
@@ -30,5 +39,15 @@ pre_eval:
       req.Host in ["auth.bimacreative.tech", "auth.bimacreative.tech:8443"] &&
       req.URL.Path startsWith "/admin/realms/" &&
       req.RemoteAddr in ["127.0.0.1", "10.100.0.1"]
+    apply:
+      - RemoveInBandRuleByID(911100)
+  # H5 — app ProyekKas via network internal DRMS (lihat header). Hook terpisah = kondisi OR terhadap hook pertama.
+  - filter: >-
+      IsInBand &&
+      req.Host == "auth.bimacreative.tech" &&
+      (
+        (IpInRange(req.RemoteAddr, "10.100.8.0/24") && req.URL.Path startsWith "/admin/realms/drms/") ||
+        (IpInRange(req.RemoteAddr, "10.100.9.0/24") && req.URL.Path startsWith "/admin/realms/drms-staging/")
+      )
     apply:
       - RemoveInBandRuleByID(911100)

@@ -19,9 +19,12 @@ services:
       - traefik
       - --configFile=/etc/traefik/traefik.yml
     ports:
-      # Hanya 80/443 yang di-publish (IPv4; tidak ada AAAA — ADR 0002 #4).
+      # Publik hanya 80/443 (IPv4; tidak ada AAAA — ADR 0002 #4) + 8443 loopback (H5).
       - "0.0.0.0:80:80/tcp"
       - "0.0.0.0:443:443/tcp"
+      # H5: entrypoint `admin` (panel admin) — HANYA loopback host; akses admin via
+      # `ssh -p 2221 -N -L 8443:127.0.0.1:8443 admin@31.97.50.221`. JANGAN ubah ke 0.0.0.0.
+      - "127.0.0.1:8443:8443/tcp"
     volumes:
       - ./traefik.yml:/etc/traefik/traefik.yml:ro
       - ./dynamic:/etc/traefik/dynamic:ro
@@ -51,6 +54,15 @@ services:
       # T14a: network internal (--internal, 10.100.5.0/24) — Prometheus scrape :8082. Internal network
       # tidak punya gateway → tidak memengaruhi pemilihan gateway (proxy tetap gw_priority 1).
       metrics: {}
+      # H5: network --internal khusus Admin REST ProyekKas (prod / staging). Alias
+      # `auth.bimacreative.tech` → app di network ini me-resolve host Keycloak ke IP Traefik di
+      # network tsb (tanpa hairpin), sehingga ClientIP = 10.100.8.x / 10.100.9.x → router
+      # dynamic/clients/drms-proyekkas-kc-admin.yml. Internal = tanpa gateway → tanpa gw_priority,
+      # `proxy` tetap gateway. Keycloak TIDAK join network ini.
+      drms-kc-admin:
+        aliases: [auth.bimacreative.tech]
+      drms-kc-admin-stg:
+        aliases: [auth.bimacreative.tech]
     healthcheck:
       test: ["CMD", "traefik", "healthcheck", "--configFile=/etc/traefik/traefik.yml"]
       interval: 15s
@@ -92,3 +104,11 @@ networks:
     # prometheus + target scrape (traefik, crowdsec, keycloak).
     external: true
     name: metrics
+  drms-kc-admin:
+    # Dibuat scripts/bootstrap.sh: 10.100.8.0/24 --internal (H5) — anggota: traefik + app ProyekKas prod.
+    external: true
+    name: drms-kc-admin
+  drms-kc-admin-stg:
+    # Dibuat scripts/bootstrap.sh: 10.100.9.0/24 --internal (H5) — anggota: traefik + app ProyekKas staging.
+    external: true
+    name: drms-kc-admin-stg

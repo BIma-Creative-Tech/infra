@@ -137,3 +137,12 @@ sistem sampai FASE 2.
   tetap aktif pada path itu; 911100 tetap berlaku di host/path lain (diuji, `docs/03-operations/crowdsec.md` §Pengecualian
   CRS 911100). Rollback: hapus `security/crowdsec/appsec-configs/keycloak-admin-exclusions.yaml` + barisnya di
   `acquis.d/appsec.yaml` + mount di `docker-compose.yml` → `docker compose up -d` (recreate, fail-closed ±40–50 s).
+- 2026-09-23 (H5, disetujui user): **panel admin hanya lewat entrypoint Traefik terpisah `admin` (:8443, publish
+  `127.0.0.1:8443` host saja)** — Keycloak `/admin*` & `/realms/master/*`, Grafana, dashboard Uptime Kuma. Alasan: hairpin
+  dari container mana pun ke IP publik :443 tiba sebagai `10.100.0.1` (gateway `proxy`, `userland-proxy: false`) dan lolos
+  `ipallowlist-admin` (bukti: container `drms-kas-edge` → `GET /admin/realms/drms-staging/users` = 401 dari Keycloak). Di :443
+  path itu kini 403 (`auth-admin-deny`) / 404. Tunnel admin: `ssh -p 2221 -N -L 8443:127.0.0.1:8443 admin@31.97.50.221`.
+  Sekaligus: network `--internal` `drms-kc-admin` (10.100.8.0/24) / `drms-kc-admin-stg` (10.100.9.0/24) — Traefik join dengan
+  alias `auth.bimacreative.tech`; app ProyekKas hanya boleh Admin REST realm `drms` / `drms-staging` (router `ClientIP` ×
+  `PathPrefix`), dan pengecualian CRS 911100 (H4) diperluas **sempit** ke pasangan subnet × prefix realm yang sama
+  (`IpInRange`, CrowdSec v1.8.1). Detail: `docs/03-operations/{traefik,keycloak,crowdsec}.md`.

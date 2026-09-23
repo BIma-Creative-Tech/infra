@@ -178,7 +178,8 @@ Compose **tidak** diubah: `env_file: .env` sudah meneruskan semua variabel ke co
 menulis `PG*`/`ODOO_ADMIN_PASSWD`).
 
 Client dibuat lewat Admin REST dengan client `automation` (service account, token dari
-`/realms/platform-staging/protocol/openid-connect/token`, Admin API via `--resolve auth.bimacreative.tech:443:127.0.0.1`).
+`/realms/platform-staging/protocol/openid-connect/token`, Admin API via `--resolve auth.bimacreative.tech:443:127.0.0.1` —
+sejak H5 (2026-09-23) Admin API hanya via entrypoint `admin`: `--resolve auth.bimacreative.tech:8443:127.0.0.1` + URL `:8443`).
 **Catatan WAF:** sejak H4 (2026-09-23) rule CRS 911100 dikecualikan HANYA untuk `auth.bimacreative.tech/admin/realms/*`
 dari IP allowlist → PUT/DELETE Admin REST via `automation` berfungsi (lihat `crowdsec.md` §Pengecualian CRS 911100).
 Body berisi `${…}` (rule 932130) tetap diblok — tulis nama klaim mapper secara literal. `partial-export` butuh `manage-realm` (tidak dimiliki `automation`) → realm-export

@@ -101,8 +101,11 @@ tidak mengubah gateway traefik/crowdsec/keycloak (diverifikasi `ip route` di cro
 | URL | Siapa | Router |
 |---|---|---|
 | `https://status.bimacreative.tech/` | publik — status page `platform` (host dipetakan ke status page) | `status-public` (prio 50): `/`, `/status*`, `/api/status-page/*`, `/api/entry-page`, `/assets/*`, `/upload/*`, ikon/manifest/serviceWorker/robots |
-| `https://status.bimacreative.tech/dashboard` dst. (`/socket.io/`, `/setup`, `/settings`, `/metrics`, `/api/push`, `/api/badge`, …) | **ipallowlist-admin** | `status-admin` (prio 1, catch-all) |
-| `https://grafana.bimacreative.tech/` | **ipallowlist-admin** seluruhnya | `grafana` |
+| `https://status.bimacreative.tech:8443/dashboard` dst. (`/socket.io/`, `/setup`, `/settings`, `/metrics`, `/api/push`, `/api/badge`, …) | **hanya entrypoint `admin`** (127.0.0.1:8443 host, SSH tunnel) + ipallowlist-admin | `status-admin` (entrypoint `admin`, seluruh host) |
+| `https://grafana.bimacreative.tech:8443/` | **hanya entrypoint `admin`** + ipallowlist-admin, seluruh host | `grafana` (entrypoint `admin`) |
+
+H5 (keputusan user 2026-09-23): di :443 publik `grafana.*` dan path dashboard Kuma tidak punya router → **404** (dulu
+allowlist; hairpin container tiba sebagai 10.100.0.1 dan lolos). Halaman status publik tetap di :443.
 
 Path publik diturunkan dari source image 2.5.5 (`server/server.js`, `server/routers/*.js`, `src/router.js`,
 `src/mixins/socket.js` `noSocketIOPages = [/^\/status-page$/, /^\/status/, /^\/$/]`): halaman status tidak membuka
@@ -110,14 +113,17 @@ socket.io; seluruh fungsi admin/login lewat socket.io → allowlist.
 
 ### Via SSH tunnel (laptop admin; pola sama dengan `keycloak.md` §Akses admin console)
 ```bash
-echo '127.0.0.1 grafana.bimacreative.tech status.bimacreative.tech' | sudo tee -a /etc/hosts   # selama sesi saja
-ssh -p 2221 -N -L 8443:127.0.0.1:443 admin@31.97.50.221
+echo '127.0.0.1 auth.bimacreative.tech grafana.bimacreative.tech status.bimacreative.tech' | sudo tee -a /etc/hosts   # selama sesi saja
+ssh -p 2221 -N -L 8443:127.0.0.1:8443 admin@31.97.50.221     # H5: entrypoint Traefik `admin` (bukan lagi :443)
 # Grafana:     https://grafana.bimacreative.tech:8443/        user `admin`, password: sudo cat /opt/infra/observability/secrets/grafana-admin-password
 # Uptime Kuma: https://status.bimacreative.tech:8443/dashboard user `platform-admin`, password: sudo cat /opt/infra/observability/secrets/uptime-kuma-admin-password
 ```
-Status uji: dari host (IP 10.100.0.1 = allowlist) `/dashboard` 200, handshake `/socket.io/?EIO=4&transport=polling` 200,
-Grafana `/login` 200. Tunnel dari laptop **belum** diuji (tidak ada private key di VPS); redirect Grafana dengan port :8443
-(root_url tanpa port) **UNVERIFIED** — bila bermasalah pakai `sudo ssh … -L 443:127.0.0.1:443` (port lokal 443).
+Status uji H5 (2026-09-23, dari host `--resolve <host>:8443:127.0.0.1`, access log `entryPointName=admin`, ClientHost
+10.100.0.1): Kuma `/dashboard` 200, `/socket.io/?EIO=4&transport=polling` 200; Grafana `/` → 302 `:8443/login`, `/login` 200.
+Lewat :443 publik: Grafana `/`, `/login`, Kuma `/dashboard`, `/socket.io/`, `/metrics` → 404. Tunnel dari laptop **belum** diuji
+(tidak ada private key di VPS); alur login Grafana penuh dengan port :8443 (`GF_SERVER_ROOT_URL` tanpa port) **UNVERIFIED** —
+redirect `/` → `/login` sudah mempertahankan :8443. Bila bermasalah: `sudo ssh … -L 443:127.0.0.1:8443` (port lokal 443,
+URL tanpa port).
 Setelah login pertama: ganti password Grafana di UI, aktifkan 2FA Uptime Kuma (Settings → Security), lalu hapus file
 `secrets/*-password` (`shred -u`) bila password sudah disimpan di password manager — **ingat**: Grafana membaca
 `GF_SECURITY_ADMIN_PASSWORD__FILE` saat start → setelah file dihapus, hapus juga baris env + mount itu dari compose.

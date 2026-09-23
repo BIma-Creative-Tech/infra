@@ -20,7 +20,7 @@ services:
       KC_DB_USERNAME: keycloak
       KC_DB_POOL_MAX_SIZE: "20"          # role keycloak CONNECTION LIMIT 30 (postgres/init-roles.sh)
       # URL publik tetap (issuer token). Admin console memakai URL tunnel SSH (lokal :8443) —
-      # /admin & /realms/master diblok publik oleh Traefik (ipallowlist-admin).
+      # /admin & /realms/master hanya di entrypoint Traefik `admin` (127.0.0.1:8443 host, H5); di :443 → 403.
       KC_HOSTNAME: https://auth.bimacreative.tech
       KC_HOSTNAME_ADMIN: https://auth.bimacreative.tech:8443
       # TLS di-terminate Traefik (edge) → listener HTTP 8080 hanya di network proxy.

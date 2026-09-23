@@ -73,6 +73,25 @@ endpoint JSON-RPC Odoo yang membawa HTML (`/web/dataset/call_kw/`, `/mail/messag
 - Rule CRS lain tetap aktif di path admin (XSS/SQLi/RCE/…); 911100 tetap aktif di host/path lain (mis. `/realms/<r>/`).
 - Rollback: hapus file + barisnya di `acquis.d/appsec.yaml` + mount di `docker-compose.yml` → `docker compose up -d`
   (recreate = fail-closed; terukur H4: 403 di semua router ber-`crowdsec` 17:00:43–17:01:22 WIB, ±40 s).
+- **H5 (keputusan user 2026-09-23) — hook `pre_eval` kedua** untuk app ProyekKas via network `--internal` DRMS (router
+  `traefik/dynamic/clients/drms-proyekkas-kc-admin.yml`): tetap **hanya** 911100, in-band, `req.Host ==
+  "auth.bimacreative.tech"`, dan pasangan eksak `IpInRange(req.RemoteAddr, "10.100.8.0/24")` × path `/admin/realms/drms/`
+  **atau** `IpInRange(req.RemoteAddr, "10.100.9.0/24")` × `/admin/realms/drms-staging/`. `IpInRange(ip, cidr)` diverifikasi
+  dari source v1.8.1 (`pkg/exprhelpers/expr_lib.go`, `helpers.go`; hook dikompilasi dengan `exprhelpers.GetExprOptions` di
+  `pkg/appsec/appsec.go`). Uji kompilasi sebelum recreate: `crowdsec -t` di container sementara (salinan `data/`) → exit 0;
+  kontrol negatif (nama helper salah) → `fatal … unknown name IpInRangeX`. Recreate H5: 403 fail-closed
+  17:20:43–17:21:27 WIB (±44 s). Rollback H5 saja: hapus entri hook kedua → `docker compose up -d --force-recreate`.
+
+Uji H5 (2026-09-23, container sementara `curlimages/curl:8.22.0` di `drms-kc-admin-stg` 10.100.9.3 / `drms-kc-admin`
+10.100.8.3, token service account `proyekkas-admin-api` realm env masing-masing):
+
+| Request | Harapan | Hasil (stg / prod) |
+|---|---|---|
+| `PUT …/admin/realms/<realm env>/users/<uuid acak>` | 404 Keycloak (bukan 403 911100) | 404 `User not found` / 404 |
+| `DELETE …/users/<uuid acak>` | 404 Keycloak | 404 / 404 |
+| `GET …/users?search=<script>alert(1)</script>` | 403 AppSec | 403 (alert `xss: 40`) / 403 |
+| `PUT …/users/<uuid>` body `<script>` | 403 AppSec | 403 (alert `xss: 20`) / 403 |
+| `GET …/<realm env>/..%2Fplatform/users` | 403 | 403 (alert `lfi: 15`) / 403 |
 
 Uji H4 (2026-09-23, dari host = 10.100.0.1, `--resolve …:443:127.0.0.1`, token service account `automation` realm
 `platform-staging`):

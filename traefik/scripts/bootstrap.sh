@@ -4,6 +4,7 @@
 #     + network `odoo-edge` (H1): HANYA traefik + pool Odoo, agar container lain di `proxy`
 #     tidak bisa menghubungi Odoo :8069/:8072 langsung (melewati CrowdSec/ratelimit/header DB)
 #     + network `drms-kas-edge` (ProyekKas client DRMS): HANYA traefik + container web ProyekKas
+#     + network `drms-kc-admin{,-stg}` (H5, --internal): traefik + app ProyekKas → Admin REST realm drms*
 #  2. direktori acme/ (700) + acme-staging.json & acme.json (600) milik uid Traefik
 #  3. direktori logs/ (750, grup adm) milik uid Traefik + secrets/ (700)
 #  4. pasang konfigurasi logrotate host untuk access log (salin, bukan symlink: logrotate
@@ -16,15 +17,20 @@ TRAEFIK_GID=65532
 
 [[ $EUID -eq 0 ]] || { echo "harus root" >&2; exit 1; }
 
-# ensure_network <nama> <subnet> <gateway> — buat bila belum ada; bila ada, subnet wajib sama.
+# ensure_network <nama> <subnet> <gateway> [internal] — buat bila belum ada; bila ada, subnet (dan flag
+# --internal) wajib sama. Argumen ke-4 `internal` → `docker network create --internal` (tanpa egress/gateway).
 ensure_network() {
-  local name="$1" net_subnet="$2" net_gateway="$3" subnet
+  local name="$1" net_subnet="$2" net_gateway="$3" want_internal=false subnet internal
+  local -a extra=()
+  if [[ "${4:-}" == "internal" ]]; then want_internal=true; extra=(--internal); fi
   if docker network inspect "$name" >/dev/null 2>&1; then
     subnet="$(docker network inspect -f '{{range .IPAM.Config}}{{.Subnet}}{{end}}' "$name")"
-    [[ "$subnet" == "$net_subnet" ]] || { echo "network $name subnet=$subnet (harus $net_subnet) — periksa manual" >&2; exit 1; }
+    internal="$(docker network inspect -f '{{.Internal}}' "$name")"
+    [[ "$subnet" == "$net_subnet" && "$internal" == "$want_internal" ]] \
+      || { echo "network $name subnet=$subnet internal=$internal (harus $net_subnet, $want_internal) — periksa manual" >&2; exit 1; }
     echo "network $name: ok (sudah ada)"
   else
-    docker network create --driver bridge \
+    docker network create --driver bridge "${extra[@]}" \
       --subnet "$net_subnet" --gateway "$net_gateway" \
       --label infra.stack=traefik "$name" >/dev/null
     echo "network $name: dibuat"
@@ -40,6 +46,12 @@ ensure_network odoo-edge 10.100.3.0/24 10.100.3.1
 # Bukan --internal: app butuh egress (FCM, issuer publik Keycloak via hairpin). Runbook
 # docs/runbooks/proyekkas-drms-onboarding.md §Langkah 0.
 ensure_network drms-kas-edge 10.100.7.0/24 10.100.7.1
+# H5 — drms-kc-admin (prod) / drms-kc-admin-stg (staging): --internal, anggota traefik (alias
+# auth.bimacreative.tech) + app ProyekKas (web/worker). Admin REST Keycloak HANYA realm drms / drms-staging
+# lewat router dynamic/clients/drms-proyekkas-kc-admin.yml (ClientIP subnet ini). Keycloak tidak join.
+# (10.100.6.0/24 = bekas obs-dockerapi, dihapus H3 — tidak dipakai ulang.)
+ensure_network drms-kc-admin     10.100.8.0/24 10.100.8.1 internal
+ensure_network drms-kc-admin-stg 10.100.9.0/24 10.100.9.1 internal
 
 install -d -o "$TRAEFIK_UID" -g "$TRAEFIK_GID" -m 0700 "$STACK_DIR/acme"
 for f in acme-staging.json acme.json; do
