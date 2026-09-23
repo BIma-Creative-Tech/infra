@@ -214,3 +214,19 @@ Hitungan per baris tabel: PASS 40 (A1–A12, B1–B8, B10–B11, C1–C4, D1–D
 - Output mentah (JSON gitleaks/trivy/semgrep) disimpan di scratchpad sesi, tidak di-commit (bisa memuat path/cuplikan).
   Jalankan ulang: `sudo qa/pipeline-scans.sh <dir>`.
 - Tidak ada konfigurasi, container, atau decision CrowdSec yang diubah. Tidak ada secret yang ditampilkan (password restic dibaca via `RESTIC_PASSWORD_FILE`).
+
+## Status temuan (pembaruan remediasi H2, 2026-09-23 — hasil uji asli di atas tidak diubah)
+
+Remediasi oleh infra-engineer, branch `feat/infra-h2-remediation` (infra) dan `chore/pre-commit-gitleaks`
+(odoo-addons-shared, control-plane).
+
+| Temuan | Severity | Status | Bukti / catatan |
+|---|---|---|---|
+| QA-T17A-01 Keycloak CVE CRITICAL | High | **OPEN (blocked upstream)** | Tidak ada rilis 26.x yang lebih baru dari 26.7.4 (quay.io & GitHub releases, dicek 2026-09-23). netty `CVE-2026-75595` fix hanya di `main`/nightly (keycloak#52549, backport 26.7 #52763 terbuka); bcprov `CVE-2026-8763` terbuka (#52971). Trivy ulang: 3/3 CRITICAL fixable, 7 HIGH (3 fixable) — tidak berubah. Konteks keterjangkauan: CVE netty = bypass pemilihan SslContext per-SNI di `SslClientHelloHandler`; Keycloak di sini hanya listener **HTTP** (TLS di-terminate Traefik). CVE bcprov = bypass Name Constraints X.509; relevan untuk validasi rantai sertifikat (mis. autentikator X.509/mTLS), tidak dikonfigurasi. Butuh keputusan Lead: risk acceptance bertanggal vs opsi lain |
+| QA-T17A-02 Postgres | Medium | OPEN (di luar scope H2) | keputusan Lead/user |
+| QA-T17A-03 CrowdSec HIGH fixable | Medium | **OPEN (blocked upstream)** | `v1.8.1` = rilis terbaru (Docker Hub/GitHub, digest sama). Trivy ulang: 0 CRITICAL, 26 HIGH (24 fixable) — tidak berubah. Varian `v1.8.1-slim` (tanpa plugin notifikasi & GeoIP) diuji Trivy: 14 HIGH (12 fixable) — **tidak diterapkan**, perubahan varian butuh keputusan Lead |
+| QA-T17A-04 Pipeline | Medium | **PARTIAL** | Hook `.githooks/pre-commit` (gitleaks v8.30.1 tag+digest, `git --pre-commit --staged`, fail-closed) + `core.hooksPath .githooks` di 3 repo. Uji di branch sementara (dihapus): secret palsu `github-pat` → DITOLAK di ketiga repo; commit bersih → lolos. CI/Semgrep/Trivy/branch protection masih open (belum ada remote) |
+| QA-T17A-05 whoami HIGH | Low | **FIXED** | service `whoami` & `traefik/dynamic/test/whoami-status.yml` dihapus; `docker ps -a --filter name=whoami` kosong |
+| QA-T17A-06 whoami healthcheck | Low | **FIXED** | container dihapus; 8/8 container tersisa `(healthy)` |
+| QA-T17A-07 kredensial awal admin Keycloak | Low | OPEN | aksi manual Lead/user |
+| QA-T17A-08 whoami bocor header + `.npmrc` | Low | **FIXED (whoami)** / OPEN (`.npmrc`) | `https://status.bimacreative.tech/` → `404 page not found` (dari host & probe `10.100.0.250`), hanya header `content-type`, `x-content-type-options`, `content-length`, `date` |

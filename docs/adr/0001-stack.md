@@ -113,3 +113,13 @@ sistem sampai FASE 2.
   unfixed vs alpine 0 CRITICAL / 4 HIGH; gate CI "gagal jika CRITICAL" (CLAUDE.md §3.6).
 - 2026-09-23 (T12): Auth.js v5 (`next-auth@5.0.0-beta.32`) dipakai meski berstatus beta — satu-satunya rilis
   dengan peer `next ^16`. Risiko diterima; pantau rilis stabil.
+- 2026-09-23 (H2, remediasi QA T17a): **pin Keycloak & CrowdSec TIDAK berubah** — tidak ada rilis resmi yang
+  lebih baru. Keycloak: `26.7.4` = rilis 26.x terbaru (quay.io tag list: `26.7`/`latest` → digest `82a778…` sama;
+  GitHub releases terbaru 26.7.4, 2026-09-16). CVE CRITICAL netty `CVE-2026-75595` sudah diperbaiki di `main`/nightly
+  (issue keycloak#52549) tetapi backport `release/26.7` masih terbuka (#52763); bouncycastle `CVE-2026-8763` masih
+  terbuka (#52971). CrowdSec: `v1.8.1` = rilis terbaru (Docker Hub & GitHub releases; digest `0f2523…` sama). Trivy
+  ulang 2026-09-23 (`aquasec/trivy:0.74.0`): Keycloak 3 CRITICAL / 7 HIGH (fixable 3/3), CrowdSec 0 CRITICAL /
+  26 HIGH (24 fixable) — sama dengan QA. Opsi lanjutan menunggu keputusan Lead (lihat laporan QA §Status temuan).
+- 2026-09-23 (H2): hook pre-commit gitleaks memakai `zricethezav/gitleaks:v8.30.1@sha256:c00b6bd0…abbb7f`
+  (Docker Hub, rilis 2026-03-21, MIT — GitHub API) di `.githooks/pre-commit` repo infra, odoo-addons-shared,
+  control-plane. Service uji `traefik/whoami:v1.12.0` dihapus (bukan bagian arsitektur).
