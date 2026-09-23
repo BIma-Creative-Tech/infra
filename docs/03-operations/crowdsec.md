@@ -7,6 +7,8 @@
 - **Bouncer host:** paket `crowdsec-firewall-bouncer-nftables` **0.0.36** (hold), role Ansible
   `crowdsec_bouncer` (`--tags crowdsec_bouncer`). Set nftables `table ip crowdsec` / `ip6 crowdsec6`,
   hook `input` + `forward` prioritas `filter - 10` → blok SSH 2221 **dan** port publish Docker.
+  **H6 (2026-09-23):** decision dari scenario AppSec (`crowdsecurity/appsec-*`) **tidak** diterapkan di host — lihat
+  §Kebijakan firewall bouncer.
 - **Terkait:** ADR 0001 (AppSec menggantikan Coraza), plan 02 §3–§5, CLAUDE.md §3.6
 
 ## Arsitektur & jaringan
@@ -33,7 +35,7 @@
 | `traefik.yaml` | `/var/log/traefik/access.log` (= `traefik/logs/`, ro) | `type: traefik` | `crowdsecurity/traefik-logs` |
 | `sshd.yaml` | `/var/log/host/auth.log` (= `/var/log` host, ro) | `type: syslog` | `syslog-logs` → `sshd-logs` |
 | `mail.yaml` (T11) | `/var/log/host/mailserver/dms/mail.log` (log docker-mailserver) | `type: syslog` | `syslog-logs` → `postfix-logs`/`postscreen-logs`/`dovecot-logs` — lihat `mail.md` §CrowdSec |
-| `appsec.yaml` | listener AppSec `0.0.0.0:7422` | `type: appsec` | configs `appsec-default` + `crs-inband` + `local/odoo-crs-exclusions` (T10) + `local/keycloak-admin-exclusions` (H4) |
+| `appsec.yaml` | listener AppSec `0.0.0.0:7422` | `type: appsec` | configs `appsec-default` + `crs-inband` + `local/odoo-crs-exclusions` (T10) + `local/keycloak-admin-exclusions` (H4) + `local/controlplane-crs-exclusions` (H6) |
 
 - sshd → **`/var/log/auth.log`** (rsyslog aktif di host; journald tidak dipakai karena image alpine tanpa `journalctl`).
 - Permission: container jalan sebagai root **tanpa capability** (tidak bisa bypass DAC). Membaca log lewat
@@ -99,6 +101,52 @@ Uji H5 (2026-09-23, container sementara `curlimages/curl:8.22.0` di `drms-kc-adm
 | `PUT …/users/<uuid>` body `<script>` | 403 AppSec | 403 (alert `xss: 20`) / 403 |
 | `GET …/<realm env>/..%2Fplatform/users` | 403 | 403 (alert `lfi: 15`) / 403 |
 
+### Pengecualian CRS 920420 untuk Server Action control plane (H6, disetujui user 2026-09-23)
+
+Insiden 2026-09-23 20:23 WIB: tombol "Masuk" `https://cp.bimacreative.tech/login` = Server Action Next.js 16 (`POST /login`,
+header `Next-Action: <id>`, `Content-Type: text/plain;charset=UTF-8`, body JSON `[]`) → CRS **920420** (content type tidak
+diizinkan) → 949110/980170 → 403 → `crowdsecurity/appsec-native` ban 4 jam → firewall host memblok IP user termasuk SSH 2221.
+
+Dua file (mount ro), keduanya wajib:
+- `appsec-configs/controlplane-crs-exclusions.yaml` (`local/controlplane-crs-exclusions`): `pre_eval` →
+  `RemoveInBandRuleByID(920420)` **hanya** bila semua: in-band, POST, `req.Host` ∈ {`cp.bimacreative.tech`,
+  `cp.staging.bimacreative.tech`}, path **bukan** `/api/*` / `/_next/*`, header `Next-Action` tepat satu nilai hex kecil
+  40–64 char (Next 16.3.6: 42), `Content-Type` tepat satu nilai diawali `text/plain`.
+- `appsec-rules/controlplane-server-action.yaml` (`local/controlplane-server-action-json`, dirujuk `inband_rules` config
+  di atas): seclang **19100** (phase 1) → `ctl:requestBodyProcessor=JSON` untuk request yang sama (Next-Action hex +
+  text/plain + Host cp); **19101** (phase 2) → 403 bila `REQBODY_ERROR` (body bukan JSON valid).
+  Alasan: tanpa processor, Coraza tidak mem-parse body text/plain menjadi ARGS → setelah 920420 dilepas payload XSS di body
+  **lolos** (terukur: `["<script>alert(1)</script>"]` + Next-Action → 404 dari app). Body Server Action text/plain = JSON
+  (React `encodeReply`; argumen FormData/Blob dikirim multipart). Dengan 19100 rule CRS 941/942/93x memeriksa `ARGS.json.*`.
+- Path tidak didaftar per halaman: Server Action di-POST ke URL halaman tempat form dirender (`loginAction` → `/login`,
+  `logoutAction` di `Nav` → `/dashboard`, `/clients`, halaman baru ber-Nav); daftar eksak akan diam-diam mematahkan logout.
+  Yang dilepas hanya cek content-type; isi body justru kini diperiksa sebagai JSON.
+- Akses header di `pre_eval` memakai operator expr standar (`"Next-Action" in req.Header`, `req.Header["Next-Action"][0]`),
+  bukan method `Header.Get`; `req.Header` = header asli klien (plugin v1.7.1 menyalin semua header; crowdsec v1.8.1
+  `request.go` `r.Clone`). Uji kompilasi `crowdsec -t` di container sementara (salinan `data/`) → exit 0; kontrol negatif
+  `req.Headerz` → `type http.Request has no field Headerz`; nama rule salah → `no appsec-rules found`; `chainX` → `invalid action`.
+- Recreate: #1 23:02:19–23:02:58 WIB (±39 s, exclusion saja), #2 23:06:44–23:07:24 WIB (±40 s, + rule 19100/19101) — 403
+  fail-closed di semua router ber-`crowdsec`.
+- Rollback: hapus kedua file + barisnya di `acquis.d/appsec.yaml` + dua mount di `docker-compose.yml` → `docker compose up -d`.
+
+Uji H6 (2026-09-23, dari host = 10.100.0.1 privat → alert tanpa decision; total 8 POST; id acak = 42 hex):
+
+| Request | Harapan | Hasil (Downstream / Origin) |
+|---|---|---|
+| (sebelum H6) `POST cp/login` NA acak + text/plain `[]` | 403 (920420) | 403 / 0, alert `anomaly: 5` |
+| `POST cp/login` NA acak + text/plain `[]` | bukan 403 AppSec | 404 / 404 (Next.js: action id tidak dikenal) |
+| `POST cp/login` tanpa NA + text/plain | 403 (920420 tetap) | 403 / 0 |
+| `POST cp/login` NA + `["<script>alert(1)</script>"]` (hanya exclusion) | 403 | **404 / 404 — lolos** → alasan rule 19100 |
+| idem setelah 19100/19101 | 403 | 403 / 0, rule 941100/941110/941160/941390 pada `ARGS.json.0` → 949110 |
+| `POST cp.staging/login` NA + `[]` | bukan 403 | 404 / 404 |
+| `POST cp.staging/login` NA + body `not-json <b>x` | 403 (19101) | 403 / 0, rule 19101 (`REQBODY_ERROR`) |
+| Alur nyata: `GET /login` → id `$ACTION_ID_…` → `POST /login` NA + `[]` | redirect Keycloak | GET 200; POST 200 + `x-action-redirect: https://auth.bimacreative.tech/realms/platform/protocol/openid-connect/auth?…;push`, cookie `__Secure-authjs.{state,pkce.code_verifier,nonce,callback-url}` |
+
+`cscli decisions list` setelah uji: tidak ada `10.100.*` / `103.108.130.9`.
+
+> Celah platform (di luar H6, belum ditangani): CRS/base-config crowdsec tidak punya rule `REQBODY_ERROR` global — body
+> `application/json` yang rusak tidak di-parse dan tidak ditolak. H6 hanya menutupnya untuk Server Action cp (19101).
+
 Uji H4 (2026-09-23, dari host = 10.100.0.1, `--resolve …:443:127.0.0.1`, token service account `automation` realm
 `platform-staging`):
 
@@ -156,8 +204,26 @@ docker exec crowdsec cscli decisions delete --ip <IP>
 ```
 Efek: Traefik ≤ 30 s (sinkron stream), nftables ≤ 10 s (`update_frequency`).
 
+### Kebijakan firewall bouncer (H6, keputusan user 2026-09-23)
+
+- Firewall host menerapkan decision ban **kecuali** yang scenario-nya mengandung `crowdsecurity/appsec-`
+  (`appsec-native`, `appsec-vpatch`, `appsec-generic-test`). Blocklist CAPI (scenario `http:scan`), sshd, `http-*`
+  (dari access log Traefik), mail, dan decision manual `cscli` tetap host-wide.
+- Bouncer Traefik (plugin) tetap menerapkan **semua** decision termasuk AppSec → IP yang memicu WAF tetap 403 di HTTP
+  selama ban, tetapi SSH 2221/mail tidak terputus.
+- Mekanisme: `scenarios_not_containing` di `crowdsec-firewall-bouncer.yaml.local` (var Ansible
+  `crowdsec_fw_bouncer_scenarios_not_containing`, role `crowdsec_bouncer`) → query LAPI
+  `/v1/decisions/stream?…&scenarios_not_containing=crowdsecurity%2Fappsec-`. Kunci diverifikasi: go-cs-bouncer v0.0.21
+  (tertanam di binary 0.0.36) `StreamBouncer.ScenariosNotContaining yaml:"scenarios_not_containing"`; LAPI v1.8.1
+  `pkg/database/decisionfilter.go` = `NOT(scenario ILIKE %v% OR …)`. `crowdsec-firewall-bouncer -T` menampilkan kunci.
+- Uji (2026-09-23): `cscli decisions add -i 203.0.113.77 -R crowdsecurity/appsec-native` → **tidak** ada di
+  `nft list table ip crowdsec`; `-i 203.0.113.78 -R crowdsecurity/ssh-bf` → ada di set `crowdsec-blacklists-cscli`; keduanya
+  dihapus → set kosong. (`cscli decisions add` tidak punya `--scenario`; `--reason` disimpan di kolom `scenario`.)
+- Restart otomatis: unit paket sudah `Restart=always` + `RestartSec=10` (bouncer keluar fatal bila LAPI belum siap lalu
+  pulih sendiri). Role memeriksa `Restart` ∈ {always, on-failure}; drop-in `on-failure` sengaja tidak dipasang (lebih sempit).
+
 ### Terkunci dari SSH (IP admin ter-ban)
-Firewall bouncer menerapkan **semua** decision ban, termasuk blocklist komunitas (CAPI) dan skenario sshd.
+Firewall bouncer menerapkan decision ban (kecuali AppSec, H6), termasuk blocklist komunitas (CAPI) dan skenario sshd.
 IP admin **tidak** di-whitelist (keputusan Lead: belum). Pemulihan: login via **konsol VPS Hostinger**
 (bukan SSH) → `docker exec crowdsec cscli decisions delete --ip <IP-admin>` (atau `--all` bila perlu) →
 cek `nft list table ip crowdsec`. Darurat terakhir: `systemctl stop crowdsec-firewall-bouncer` lalu pastikan dengan
@@ -194,6 +260,12 @@ cd /opt/infra/ansible && /opt/ansible-venv/bin/ansible-playbook site.yml --tags 
 - AppSec: `/?q=<script>alert(1)</script>`, `/?id=1' OR 1=1--`, `/.env`, path traversal → 403; normal → 200.
 
 ## Catatan
+
+- **Crowdsec mati = semua router ber-`crowdsec` 403.** `restart: unless-stopped` tidak menyalakan container yang pernah
+  di-`docker stop` manual, termasuk setelah reboot (`HasBeenManuallyStopped: true`). Insiden 2026-09-23: reboot 21:03 WIB
+  setelah container di-stop manual → crowdsec tidak start → 403 di semua host publik hingga 22:54 WIB (±1 j 51 m); firewall
+  bouncer restart-loop (LAPI mati). Setelah reboot/pemulihan: `docker compose ps` di stack ini **dan** cek
+  `cscli decisions list` untuk IP admin **sebelum** firewall bouncer aktif.
 
 - CAPI aktif (default image): sinyal serangan dikirim ke CrowdSec dan blocklist komunitas ditarik. Console
   (`app.crowdsec.net`) **tidak** di-enroll (log `Machine is not enrolled in the console` = normal).

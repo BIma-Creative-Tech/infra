@@ -1,0 +1,26 @@
+# H6 — pelengkap pengecualian 920420 (appsec-configs/controlplane-crs-exclusions.yaml): paksa body processor JSON
+# untuk Server Action Next.js control plane, supaya rule CRS XSS/SQLi/RCE/LFI tetap memeriksa isi body.
+#
+# Masalah (diuji 2026-09-23): body `Content-Type: text/plain` tidak di-parse menjadi ARGS oleh Coraza (rule
+# crowdsecurity/crs id 300–304 & base-config 100–104 hanya memetakan urlencoded/multipart/xml/json), sehingga
+# setelah 920420 dilepas, `["<script>alert(1)</script>"]` + Next-Action lolos ke app (404, bukan 403).
+# Body Server Action ber-text/plain = teks JSON (React encodeReply; argumen FormData/Blob → multipart), jadi JSON
+# processor tepat. Body yang BUKAN JSON valid pada request yang sama → 403 (rule 19101) agar tidak ada jalan pintas
+# "body rusak = tidak diperiksa".
+#
+# Kondisi = kondisi pengecualian (Next-Action hex 40–64, Content-Type diawali text/plain, Host cp/cp.staging).
+# Format & pemuatan diverifikasi dari source crowdsec v1.8.1: pkg/appsec/appsec_rules_collection.go
+# (`seclang_rules` → NativeRules), pkg/acquisition/modules/appsec/appsec_runner.go (MergeDedupRules → join "\n"
+# → coraza WithDirectives; header Host ditambahkan ke tx dari X-Crowdsec-Appsec-Host). Pola chain + `ctl:` di
+# mata rantai terakhir = CRS 901350 (REQUEST-901-INITIALIZATION.conf). ID 19100/19101 tidak dipakai rule lain.
+# Dirujuk dari appsec-config local/controlplane-crs-exclusions (inband_rules). Rollback: bersama file itu.
+name: local/controlplane-server-action-json
+description: "H6: JSON body processor + tolak body non-JSON untuk Server Action Next.js control plane"
+seclang_rules:
+ - SecRule REQUEST_HEADERS:Next-Action "@rx ^[0-9a-f]{40,64}$" "id:19100,phase:1,pass,t:none,nolog,noauditlog,msg:'H6 Server Action JSON body processor',chain"
+ - SecRule REQUEST_HEADERS:Content-Type "@rx ^text/plain" "t:none,t:lowercase,chain"
+ - SecRule REQUEST_HEADERS:Host "@rx ^cp(?:\.staging)?\.bimacreative\.tech$" "t:none,t:lowercase,ctl:requestBodyProcessor=JSON"
+ - SecRule REQBODY_ERROR "!@eq 0" "id:19101,phase:2,deny,status:403,t:none,log,msg:'H6 Server Action body is not valid JSON',chain"
+ - SecRule REQUEST_HEADERS:Next-Action "@rx ^[0-9a-f]{40,64}$" "t:none,chain"
+ - SecRule REQUEST_HEADERS:Content-Type "@rx ^text/plain" "t:none,t:lowercase,chain"
+ - SecRule REQUEST_HEADERS:Host "@rx ^cp(?:\.staging)?\.bimacreative\.tech$" "t:none,t:lowercase"

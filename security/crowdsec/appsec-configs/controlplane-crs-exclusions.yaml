@@ -1,0 +1,54 @@
+# H6 — pengecualian SEMPIT OWASP CRS (crowdsecurity/crs-inband) untuk Server Action Next.js control plane.
+# Dimuat lewat acquis.d/appsec.yaml (appsec_configs) — di-mount read-only dari git.
+#
+# Insiden 2026-09-23 20:23 WIB: tombol "Masuk" di https://cp.bimacreative.tech/login = Server Action Next.js 16
+# (src/app/actions.ts loginAction). Browser mengirim `POST /login` dengan header `Next-Action: <id>` dan
+# `Content-Type: text/plain;charset=UTF-8` (body = argumen terserialisasi React, mis. `[]`). CRS 920420
+# ("Request content type is not allowed by policy" — text/plain tidak ada di allowed_request_content_type)
+# → anomaly 949110/980170 → 403, lalu scenario crowdsecurity/appsec-native → ban 4 jam (host-wide saat itu).
+# Server Action lain: logoutAction (form di Nav) → `POST /dashboard`, `POST /clients` (halaman tempat Nav dirender).
+#
+# Keputusan user infra 2026-09-23 (ADR 0001 §Riwayat revisi, H6). Cakupan — SEMUA syarat harus terpenuhi:
+#   - HANYA rule 920420; rule CRS lain (XSS/SQLi/RCE/LFI/protocol, anomaly scoring), virtual patching & generic
+#     rules TETAP aktif pada request ini;
+#   - in-band; host PERSIS cp.bimacreative.tech / cp.staging.bimacreative.tech; method POST;
+#   - header `Next-Action` ada tepat satu nilai berformat id Server Action: hex huruf kecil 40–64 char
+#     (Next.js 16.3.6: `$ACTION_ID_00d59504…fad063` = 42 hex; id di luar format → 920420 tetap berlaku = fail-safe);
+#   - header `Content-Type` tepat satu nilai diawali `text/plain` (multipart/urlencoded/json memang sudah diizinkan CRS);
+#   - path BUKAN /api/* (route handler & Auth.js — tidak memakai Server Action) dan BUKAN /_next/* (aset statis).
+#     Path halaman TIDAK didaftar satu per satu: Server Action di-POST ke URL halaman tempat form dirender
+#     (/login, /dashboard, /clients, halaman baru ber-Nav), daftar eksak akan diam-diam mematahkan logout di halaman
+#     baru; yang dilepas hanya pemeriksaan content-type, isi body tetap diperiksa rule CRS lain.
+#
+# Sintaks & helper diverifikasi dari source crowdsec v1.8.1 (tag v1.8.1):
+#   pkg/appsec/waf_helpers.go GetPreEvalEnv: "req" = *http.Request (request.HTTPRequest), "IsInBand",
+#     "RemoveInBandRuleByID" func(id int);
+#   pkg/appsec/request.go: HTTPRequest = r.Clone() dari request bouncer → Header = header asli klien (plugin
+#     crowdsec-bouncer-traefik v1.7.1 bouncer.go appsecQuery menyalin semua httpReq.Header), Host = header
+#     X-Crowdsec-Appsec-Host, Method = X-Crowdsec-Appsec-Verb; header X-Crowdsec-Appsec-* dihapus.
+#   Akses header memakai operator standar expr (`"K" in map`, index `map["K"][0]`) — bukan method http.Header.Get;
+#   nama kunci kanonik Go (net/http Traefik + Header.Add di plugin → CanonicalMIMEHeaderKey: "Next-Action",
+#   "Content-Type"). `in` dievaluasi lebih dulu (&& short-circuit) → tidak ada index pada kunci yang tidak ada.
+# Rollback: hapus file ini + appsec-rules/controlplane-server-action.yaml + barisnya di acquis.d/appsec.yaml +
+# kedua mount di docker-compose.yml → `docker compose up -d` (recreate, fail-closed ±40 s).
+name: local/controlplane-crs-exclusions
+default_remediation: ban
+# Pelengkap wajib: JSON body processor + tolak body non-JSON (appsec-rules/controlplane-server-action.yaml) — tanpa
+# ini body text/plain tidak di-parse dan payload XSS/SQLi di body Server Action lolos setelah 920420 dilepas.
+inband_rules:
+  - local/controlplane-server-action-json
+pre_eval:
+  - filter: >-
+      IsInBand &&
+      req.Method == "POST" &&
+      req.Host in ["cp.bimacreative.tech", "cp.staging.bimacreative.tech"] &&
+      !(req.URL.Path startsWith "/api/") &&
+      !(req.URL.Path startsWith "/_next/") &&
+      "Next-Action" in req.Header &&
+      len(req.Header["Next-Action"]) == 1 &&
+      req.Header["Next-Action"][0] matches "^[0-9a-f]{40,64}$" &&
+      "Content-Type" in req.Header &&
+      len(req.Header["Content-Type"]) == 1 &&
+      req.Header["Content-Type"][0] startsWith "text/plain"
+    apply:
+      - RemoveInBandRuleByID(920420)

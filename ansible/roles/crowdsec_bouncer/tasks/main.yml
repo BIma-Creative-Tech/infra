@@ -81,3 +81,13 @@
     name: crowdsec-firewall-bouncer
     enabled: true
     state: started
+
+# H6: unit paket sudah `Restart=always` + `RestartSec=10` (bouncer keluar fatal bila LAPI belum siap, mis. setelah
+# reboot/recreate crowdsec, lalu pulih sendiri — terbukti NRestarts=637 pada 2026-09-23). Drop-in `on-failure` TIDAK
+# ditambahkan (lebih sempit dari `always`, systemd.service(5)); cukup jaga agar paket baru tidak menghilangkannya.
+- name: Pastikan unit bouncer punya kebijakan restart otomatis
+  ansible.builtin.command: systemctl show crowdsec-firewall-bouncer -p Restart --value
+  register: crowdsec_fw_restart_policy
+  changed_when: false
+  check_mode: false
+  failed_when: crowdsec_fw_restart_policy.stdout | trim not in ['always', 'on-failure']

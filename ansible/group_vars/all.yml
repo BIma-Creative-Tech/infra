@@ -96,6 +96,13 @@ crowdsec_fw_bouncer_version: "0.0.36"
 crowdsec_fw_bouncer_name: host-firewall-bouncer
 crowdsec_fw_bouncer_api_url: "http://127.0.0.1:8080/"
 crowdsec_fw_bouncer_key_file: /etc/crowdsec/bouncers/crowdsec-firewall-bouncer.key
+# H6 (keputusan user 2026-09-23): decision dari scenario AppSec TIDAK diterapkan firewall host (hanya HTTP
+# via bouncer Traefik). Diteruskan ke LAPI sebagai query `scenarios_not_containing` (go-cs-bouncer v0.0.21
+# StreamBouncer; crowdsec v1.8.1 pkg/database/decisionfilter.go = NOT(scenario ILIKE %v% OR ...)).
+# `crowdsecurity/appsec-` = appsec-native, appsec-vpatch, appsec-generic-test. CAPI (`http:scan`), sshd,
+# http-* & mail tetap diterapkan host-wide.
+crowdsec_fw_bouncer_scenarios_not_containing:
+  - crowdsecurity/appsec-
 
 # ---------------------------------------------------------------------------
 # Backup restic (T13, ADR 0006). Binary resmi GitHub release v0.19.1 (2026-07-05):

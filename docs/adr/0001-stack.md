@@ -153,3 +153,13 @@ sistem sampai FASE 2.
   sebelum H5b: `GET /web/database/selector` dari host via :443 = 200 dari Odoo). `list_db=False` tetap menolak di Odoo. Tenant
   `demo-demo`/`demo-staging` dirender ulang. Grafana `GF_SERVER_ROOT_URL` kini memuat `:8443`. Setelah H5b tidak ada router
   `websecure` yang bergantung pada `ipallowlist-admin`. Detail: `docs/03-operations/{odoo,traefik,observability}.md`.
+- 2026-09-23 (H6, **keputusan user 2026-09-23**, mengubah keputusan T05 "firewall bouncer menerapkan semua decision"):
+  **ban dari scenario AppSec tidak lagi diterapkan firewall bouncer host** — hanya di HTTP lewat bouncer Traefik. Pemicu:
+  tombol "Masuk" control plane (Server Action Next.js, `text/plain`) kena CRS 920420 → ban `crowdsecurity/appsec-native`
+  → IP user terblokir di semua port termasuk SSH 2221; ban kedua 20:55 WIB dari false positive lain (`POST
+  /admin/collections/users/create` drms-kas.staging). Implementasi: `scenarios_not_containing: [crowdsecurity/appsec-]`
+  (role `crowdsec_bouncer`). Blocklist CAPI, sshd, `http-*`, mail & decision manual **tetap host-wide**; tetap tanpa
+  whitelist IP admin. Sekaligus **pengecualian CRS sempit 920420** untuk Server Action cp/cp.staging (POST + `Next-Action`
+  hex + `text/plain`) ditambah rule lokal 19100/19101 (body diparse JSON agar XSS/SQLi tetap terdeteksi; body non-JSON 403).
+  Rollback: hapus kunci dari template/var → `ansible-playbook site.yml --tags crowdsec_bouncer`; WAF: lihat
+  `docs/03-operations/crowdsec.md` §Pengecualian CRS 920420.

@@ -14,5 +14,8 @@ appsec_configs:
   # H4: pre_eval — nonaktifkan HANYA rule CRS 911100 (method policy) untuk Admin REST Keycloak
   # (host auth.bimacreative.tech, path /admin/realms/*) — appsec-configs/keycloak-admin-exclusions.yaml.
   - local/keycloak-admin-exclusions
+  # H6: pre_eval — nonaktifkan HANYA rule CRS 920420 (content type text/plain) untuk Server Action Next.js
+  # control plane (host cp / cp.staging, POST + Next-Action) — appsec-configs/controlplane-crs-exclusions.yaml.
+  - local/controlplane-crs-exclusions
 labels:
   type: appsec

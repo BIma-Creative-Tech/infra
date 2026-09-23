@@ -1,8 +1,9 @@
 # Uji edge dari LUAR VPS (T17a — kontrol yang NOT TESTABLE dari host). Non-destruktif.
 # Jalankan di Windows PowerShell 5.1+/7 (butuh curl.exe bawaan Windows 10+):
 #   powershell -ExecutionPolicy Bypass -File .\edge-external.ps1
-# Catatan: 2 payload AppSec dapat memicu ban CrowdSec untuk IP Anda (termasuk SSH).
-# Setelah selesai, beri tahu Lead — ban (bila ada) dihapus dari sisi VPS.
+# Catatan: 2 payload AppSec dapat memicu ban CrowdSec untuk IP Anda — sejak H6 (2026-09-23) ban AppSec hanya
+# berlaku di HTTP (bouncer Traefik), TIDAK memblok SSH 2221. Setelah selesai, beri tahu Lead — ban (bila ada)
+# dihapus dari sisi VPS.
 $ErrorActionPreference = 'Continue'
 $P = 0; $F = 0
 function Check($name, $ok, $detail) {
@@ -56,5 +57,16 @@ Check 'Rate limit login -> 429' ($codes -contains '429') (($codes | Group-Object
 $c = Code "$stg/web/login?q=hello"; Check 'Request normal lolos WAF' ($c -eq '200') $c
 $c = Code "$stg/web/login?q=%3Cscript%3Ealert(1)%3C%2Fscript%3E"; Check 'XSS diblok WAF' ($c -eq '403') $c
 $c = Code "$stg/.env"; Check '/.env diblok' ($c -eq '403') $c
+
+# 7. Tombol "Masuk" control plane = Server Action Next.js (H6): 1 GET + 1 POST sah (text/plain + Next-Action).
+#    Request sah tidak menghasilkan alert AppSec; bila regresi → 1× 403 (di bawah ambang ban appsec-native).
+$cp = 'https://cp.bimacreative.tech'
+$html = (& curl.exe -s -m 15 "$cp/login") -join "`n"
+if ($html -match '\$ACTION_ID_([0-9a-f]{40,64})') {
+  $aid = $Matches[1]
+  $hdr = (& curl.exe -s -m 15 -o NUL -D - -X POST "$cp/login" -H "Next-Action: $aid" -H 'Content-Type: text/plain;charset=UTF-8' `
+          -H "Origin: $cp" -H 'Accept: text/x-component' --data '[]') -join "`n"
+  Check 'Tombol Masuk cp -> redirect Keycloak' ($hdr -match '(?im)^x-action-redirect:\s*https://auth\.bimacreative\.tech/realms/platform/') (($hdr -split "`n")[0])
+} else { Check 'Tombol Masuk cp -> redirect Keycloak' $false 'action id tidak ditemukan di /login' }
 
 Write-Host "`nRINGKASAN: PASS=$P FAIL=$F" -ForegroundColor Cyan

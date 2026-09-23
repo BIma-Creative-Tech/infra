@@ -6,3 +6,10 @@ mode: nftables
 # LAPI container crowdsec, di-publish HANYA di 127.0.0.1:8080 (security/crowdsec/docker-compose.yml).
 api_url: {{ crowdsec_fw_bouncer_api_url }}
 api_key: {{ crowdsec_fw_bouncer_api_key }}
+# H6 (keputusan user 2026-09-23, ADR 0001 riwayat revisi): abaikan decision dari scenario AppSec di firewall host —
+# false positive WAF tidak boleh memutus SSH 2221 / mail. Bouncer Traefik (plugin) tetap menerapkan SEMUA decision.
+# Kunci `scenarios_not_containing` = go-cs-bouncer v0.0.21 StreamBouncer (dipakai cs-firewall-bouncer v0.0.36).
+scenarios_not_containing:
+{% for s in crowdsec_fw_bouncer_scenarios_not_containing %}
+  - "{{ s }}"
+{% endfor %}

@@ -43,6 +43,10 @@ services:
       - ./appsec-configs/odoo-crs-exclusions.yaml:/etc/crowdsec/appsec-configs/odoo-crs-exclusions.yaml:ro
       # H4: pengecualian CRS 911100 untuk Admin REST Keycloak. Nama config: local/keycloak-admin-exclusions.
       - ./appsec-configs/keycloak-admin-exclusions.yaml:/etc/crowdsec/appsec-configs/keycloak-admin-exclusions.yaml:ro
+      # H6: pengecualian CRS 920420 untuk Server Action control plane. Nama config: local/controlplane-crs-exclusions.
+      - ./appsec-configs/controlplane-crs-exclusions.yaml:/etc/crowdsec/appsec-configs/controlplane-crs-exclusions.yaml:ro
+      # H6: rule lokal JSON body processor Server Action (dirujuk config di atas). Nama rule: local/controlplane-server-action-json.
+      - ./appsec-rules/controlplane-server-action.yaml:/etc/crowdsec/appsec-rules/controlplane-server-action.yaml:ro
       # T11: skenario lokal brute force SASL submission (infra/mail-postfix-sasl-bf). Log mail dibaca lewat
       # /var/log/host/mailserver/dms/ (mount /var/log di bawah) — acquis.d/mail.yaml.
       - ./scenarios/mail-postfix-sasl-bf.yaml:/etc/crowdsec/scenarios/mail-postfix-sasl-bf.yaml:ro

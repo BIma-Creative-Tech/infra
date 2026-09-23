@@ -53,6 +53,23 @@ Verifikasi (container uji `--network proxy --ip 10.100.0.250`, `--resolve cp.bim
 10× 302 lalu 5× 429; `GET /api/auth/callback/keycloak` berikutnya → 429 (bucket sama); 12× `POST /login` → 10× 200
 lalu 2× 429; 15× `GET /login` → 15× 200.
 
+## Server Action & WAF (H6, 2026-09-23)
+
+Tombol "Masuk" (`loginAction`) dan "Keluar" (`logoutAction` di `Nav`) adalah **Server Action** Next.js: browser mengirim
+`POST <URL halaman>` (`/login`, `/dashboard`, `/clients`, …) dengan header `Next-Action: <id hex>` dan
+`Content-Type: text/plain;charset=UTF-8` (body JSON, mis. `[]`). CRS 920420 menolak `text/plain` → sebelum H6 tombol login
+= 403 dan IP pengguna di-ban AppSec (insiden 2026-09-23 20:23 WIB, termasuk SSH saat itu).
+- Pengecualian sempit: `security/crowdsec/appsec-configs/controlplane-crs-exclusions.yaml` (hanya 920420, host cp/cp.staging,
+  POST, `Next-Action` hex 40–64, `text/plain`, bukan `/api/*`/`/_next/*`) + `appsec-rules/controlplane-server-action.yaml`
+  (body diparse sebagai JSON → XSS/SQLi di argumen Server Action tetap 403; body non-JSON → 403). Detail & uji:
+  `crowdsec.md` §Pengecualian CRS 920420.
+- Hasil: `POST /login` dengan id dari HTML → `200` + `x-action-redirect: https://auth.bimacreative.tech/realms/platform/…;push`.
+- **Untuk nextjs-developer:** Server Action baru tidak butuh perubahan WAF selama body text/plain = JSON (bawaan React) dan
+  dipanggil dari halaman di luar `/api/*`. Argumen berisi HTML/SQL-like string akan diperiksa CRS (bisa 403) — validasi di app
+  tetap wajib (Zod), false positive dilaporkan ke infra dengan `cscli alerts inspect -d`. Upgrade Next.js: pastikan format
+  id `$ACTION_ID_` masih hex 40–64 (uji `qa/edge-external.ps1` §7).
+- Ban dari AppSec sejak H6 hanya berlaku di HTTP (bouncer Traefik), tidak di firewall host.
+
 ## Deploy / upgrade
 
 ```bash
