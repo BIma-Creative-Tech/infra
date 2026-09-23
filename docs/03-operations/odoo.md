@@ -179,9 +179,9 @@ menulis `PG*`/`ODOO_ADMIN_PASSWD`).
 
 Client dibuat lewat Admin REST dengan client `automation` (service account, token dari
 `/realms/platform-staging/protocol/openid-connect/token`, Admin API via `--resolve auth.bimacreative.tech:443:127.0.0.1`).
-**Catatan WAF:** CrowdSec AppSec (CRS 911100 "Method is not allowed by policy") memblok **PUT/DELETE** ke Admin
-API lewat edge → ubah/hapus client/user lewat admin console (SSH tunnel, `keycloak.md`) — atau keputusan Lead
-untuk pengecualian sempit. `partial-export` butuh `manage-realm` (tidak dimiliki `automation`) → realm-export
+**Catatan WAF:** sejak H4 (2026-09-23) rule CRS 911100 dikecualikan HANYA untuk `auth.bimacreative.tech/admin/realms/*`
+dari IP allowlist → PUT/DELETE Admin REST via `automation` berfungsi (lihat `crowdsec.md` §Pengecualian CRS 911100).
+Body berisi `${…}` (rule 932130) tetap diblok — tulis nama klaim mapper secara literal. `partial-export` butuh `manage-realm` (tidak dimiliki `automation`) → realm-export
 git belum memuat client ini (konfigurasi tercatat di tabel di atas).
 
 ### Aktivasi tenant (urutan)
