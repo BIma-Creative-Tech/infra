@@ -17,6 +17,12 @@ RESTIC_HOST_TAG="${RESTIC_HOST_TAG:-$(hostname -s)}"
 # Pool/dedicated baru: tambahkan nama volumenya di sini.
 # shellcheck disable=SC2034  # dipakai backup.sh / restore-test.sh
 FILESTORE_VOLUMES=(odoo_pool_a_data odoo_staging_data)
+# Volume media aplikasi non-Odoo: di-backup SELURUH root volume (tanpa subdir `filestore/`).
+# ProyekKas client DRMS (ADR ProyekKas 0004 §6): upload Payload di /data/media (prod + staging).
+# BELUM dibaca backup.sh/restore-test.sh — butuh perubahan backup.sh (lihat
+# docs/runbooks/proyekkas-drms-onboarding.md §Backup); sampai itu diterapkan, media TIDAK di-backup.
+# shellcheck disable=SC2034  # dipakai backup.sh (setelah perubahan di atas)
+MEDIA_VOLUMES=(drms_pk_media_prod drms_pk_media_stg)
 # Nama DB Postgres yang valid untuk skrip ini (sama dengan konvensi header X-Sh-Odoo-Db).
 DB_RE='^[a-z0-9_]{1,63}$'
 # Path di dalam snapshot untuk dump DB: `--stdin-filename pg/<db>.dump` → /pg/<db>.dump

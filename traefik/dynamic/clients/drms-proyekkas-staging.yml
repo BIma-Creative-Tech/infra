@@ -1,0 +1,76 @@
+# ProyekKas STAGING (client DRMS) — drms-kas.staging.bimacreative.tech → container `drms-pk-stg:3000`.
+# BUKAN hasil render-client-route.sh (bukan tenant Odoo) — edit manual, lalu
+# `docker kill --signal=HUP traefik` (subdirektori dynamic/ tidak di-watch).
+# Desain: /opt/src/proyekkas/docs/proyekkas/architecture.md §3.2–§3.3, §6.1; runbook
+# docs/runbooks/proyekkas-drms-onboarding.md.
+#
+# DNS pre-check (ADR 0002 #5) 2026-09-23: A = 31.97.50.221 (wildcard *.staging; @1.1.1.1, @8.8.8.8,
+# authoritative apollo.dns-parking.com), tanpa AAAA. Prod (drms-kas.bimacreative.tech) BELUM punya
+# record A → router prod sengaja belum ada (file drms-proyekkas-prod.yml menyusul).
+#
+# Nama router = drms-pk-stg-{auth,api-v1,api-rest,web} (arsitektur: pk-auth/pk-api-v1/pk-web; api-rest
+# ditambah agar buffering-pk hanya di route upload; prefix env agar unik saat router prod ditambahkan).
+# Urutan middleware: crowdsec (paling depan) → security-headers → ratelimit-* → sisanya.
+# Middleware ratelimit-pk-api / buffering-pk / strip-authorization: clients/drms-proyekkas-middlewares.yml.
+# Sertifikat: le-http-staging dulu (CLAUDE.md §3.5.1); pindah ke le-http mengikuti
+# docs/03-operations/traefik.md §Pindah staging → production (keputusan Lead).
+# CSP TIDAK diset di sini: aplikasi mengirim CSP sendiri (nonce), seperti control-plane.
+http:
+  routers:
+    # OIDC web interaktif (/auth/login, /auth/callback, /auth/logout; Next.js route handlers, ADR
+    # ProyekKas 0003 §3) + /api/v1/auth/*: rate limit ketat per IP (ratelimit-login, 10/menit).
+    # /api/v1/auth/* TIDAK dipanggil rutin oleh APK: katalog v1 (arsitektur §6.3) hanya berisi
+    # /api/v1/auth/backchannel-logout, dan back-channel logout DINONAKTIFKAN (keputusan Lead: app
+    # memeriksa web-sessions/devices sendiri di setiap request). Registrasi perangkat
+    # (/api/v1/devices/register), /api/v1/me dll. ada di luar /api/v1/auth/ → router api-v1.
+    # Token/refresh APK langsung ke Keycloak (router auth-drms-token, bukan host ini).
+    drms-pk-stg-auth:
+      entryPoints: [websecure]
+      rule: "Host(`drms-kas.staging.bimacreative.tech`) && (PathPrefix(`/auth/`) || PathPrefix(`/api/v1/auth/`))"
+      priority: 100
+      middlewares: [crowdsec, security-headers, ratelimit-login]
+      service: drms-pk-stg
+      tls:
+        certResolver: le-http-staging
+    # Kontrak API v1 (APK, Bearer + X-Device-Id). Authorization DITERUSKAN (hanya di sini).
+    drms-pk-stg-api-v1:
+      entryPoints: [websecure]
+      rule: "Host(`drms-kas.staging.bimacreative.tech`) && PathPrefix(`/api/v1/`)"
+      priority: 90
+      middlewares: [crowdsec, security-headers, ratelimit-pk-api, buffering-pk]
+      service: drms-pk-stg
+      tls:
+        certResolver: le-http-staging
+    # REST generik Payload /api/<slug> (admin UI saja, arsitektur §6.1): upload admin lewat sini
+    # (collection upload media-*, ADR ProyekKas 0004 §2/§4) → buffering-pk (batas 10 MiB).
+    # Authorization DIHAPUS: token Bearer APK tidak boleh dipakai ke REST generik (arsitektur §14).
+    # `!PathPrefix(/api/v1/)` eksplisit (NOT, docs v3.7 rules-and-priority.md) walau prioritas api-v1 lebih tinggi.
+    drms-pk-stg-api-rest:
+      entryPoints: [websecure]
+      rule: "Host(`drms-kas.staging.bimacreative.tech`) && PathPrefix(`/api/`) && !PathPrefix(`/api/v1/`)"
+      priority: 50
+      middlewares: [crowdsec, security-headers, ratelimit-default, strip-authorization, buffering-pk]
+      service: drms-pk-stg
+      tls:
+        certResolver: le-http-staging
+    # Sisanya (catch-all): Payload admin (/admin), aset Next.js, /.well-known/assetlinks.json (App Links,
+    # ADR ProyekKas 0010). Authorization dihapus. TANPA buffering-pk: response aset/admin tidak dibuffer
+    # di tmpfs Traefik (mem_limit 256m); batas body non-upload = batas aplikasi (Next.js/Payload).
+    drms-pk-stg-web:
+      entryPoints: [websecure]
+      rule: "Host(`drms-kas.staging.bimacreative.tech`)"
+      priority: 1
+      middlewares: [crowdsec, security-headers, ratelimit-default, strip-authorization]
+      service: drms-pk-stg
+      tls:
+        certResolver: le-http-staging
+
+  services:
+    # Container dibuat kelak oleh compose app (ADR ProyekKas 0002 §3: /opt/infra/staging/drms-proyekkas/),
+    # container_name `drms-pk-stg`, port 3000, network `drms-kas-edge` (bersama traefik; dibuat infra Lead) + `db`.
+    # App menghubungi Keycloak lewat issuer publik https://auth.bimacreative.tech (hairpin), bukan keycloak:8080.
+    # Sampai container ada, request ke host ini → 502 (DNS Docker tidak menemukan nama) — bukan error config.
+    drms-pk-stg:
+      loadBalancer:
+        servers:
+          - url: "http://drms-pk-stg:3000"

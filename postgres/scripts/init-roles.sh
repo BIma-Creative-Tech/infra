@@ -68,6 +68,61 @@ SQL
 done
 unset pw
 
+# ProyekKas client DRMS (Payload CMS; ProyekKas ADR 0006 §1, /opt/src/proyekkas/docs/proyekkas/adr/).
+# Nama DB sengaja TIDAK berakhiran _prod/_demo/_staging (di luar regex pg_hba pool Odoo di atas).
+# Per DB tiga role: <db>_owner (pemilik DB + schema public via pg_database_owner; DDL, hanya container
+# migrate), <db>_app (web/worker; CONNECT saja di level DB), <db>_ro (read-only; opsional).
+# Hanya hak level DB/schema yang diatur di sini. GRANT per tabel, ALTER DEFAULT PRIVILEGES, REVOKE
+# UPDATE/DELETE/TRUNCATE dan trigger append-only dijalankan MIGRASI aplikasi sebagai <db>_owner.
+# Password: PG_<DB>_{OWNER,APP,RO}_PASSWORD di .env (dibangkitkan scripts/bootstrap.sh).
+# db:limit_owner:limit_app:limit_ro — limit = ESTIMASI (prod: ADR 0006; staging lebih kecil).
+PK_DBS=(
+  "pk_drms:2:25:3"
+  "pk_drms_stg:2:10:2"
+)
+for entry in "${PK_DBS[@]}"; do
+  IFS=: read -r db lim_owner lim_app lim_ro <<<"$entry"
+  up="${db^^}"
+  pw_owner="$(get_var "PG_${up}_OWNER_PASSWORD")"
+  pw_app="$(get_var "PG_${up}_APP_PASSWORD")"
+  pw_ro="$(get_var "PG_${up}_RO_PASSWORD")"
+  [[ ${#pw_owner} -ge 32 && ${#pw_app} -ge 32 && ${#pw_ro} -ge 32 ]] \
+    || { echo "PG_${up}_{OWNER,APP,RO}_PASSWORD kosong/terlalu pendek di .env" >&2; exit 1; }
+  # Nama db/role dari daftar statis di atas (bukan input user).
+  docker exec -i "$CONTAINER" psql -X -q -v ON_ERROR_STOP=1 -U postgres -d postgres <<SQL
+\\set pw_owner '${pw_owner}'
+\\set pw_app '${pw_app}'
+\\set pw_ro '${pw_ro}'
+SELECT 'CREATE ROLE ${db}_owner' WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '${db}_owner')
+\\gexec
+SELECT 'CREATE ROLE ${db}_app' WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '${db}_app')
+\\gexec
+SELECT 'CREATE ROLE ${db}_ro' WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '${db}_ro')
+\\gexec
+ALTER ROLE ${db}_owner WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS
+  CONNECTION LIMIT ${lim_owner} PASSWORD :'pw_owner';
+ALTER ROLE ${db}_app WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS
+  CONNECTION LIMIT ${lim_app} PASSWORD :'pw_app';
+ALTER ROLE ${db}_ro WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS
+  CONNECTION LIMIT ${lim_ro} PASSWORD :'pw_ro';
+SELECT 'CREATE DATABASE ${db} OWNER ${db}_owner ENCODING ''UTF8'' TEMPLATE template0'
+  WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '${db}')
+\\gexec
+ALTER DATABASE ${db} OWNER TO ${db}_owner;
+REVOKE ALL ON DATABASE ${db} FROM PUBLIC;
+GRANT CONNECT, TEMPORARY ON DATABASE ${db} TO ${db}_owner;
+GRANT CONNECT ON DATABASE ${db} TO ${db}_app, ${db}_ro;
+SQL
+  # Schema public (PG16: dimiliki pg_database_owner → ${db}_owner, docs predefined-roles).
+  # PUBLIC dicabut seluruhnya; app/ro hanya USAGE (tanpa CREATE). Idempoten.
+  docker exec -i "$CONTAINER" psql -X -q -v ON_ERROR_STOP=1 -U postgres -d "$db" <<SQL
+REVOKE ALL ON SCHEMA public FROM PUBLIC;
+GRANT USAGE ON SCHEMA public TO ${db}_app, ${db}_ro;
+SQL
+  echo "ok: db=${db} owner=${db}_owner app=${db}_app ro=${db}_ro (limit ${lim_owner}/${lim_app}/${lim_ro}; CONNECT PUBLIC dicabut)"
+done
+unset pw_owner pw_app pw_ro
+
 # Default PUBLIC di DB `postgres`/template1 juga ditutup agar role aplikasi hanya bisa ke DB-nya.
 docker exec -i "$CONTAINER" psql -X -q -v ON_ERROR_STOP=1 -U postgres -d postgres <<'SQL'
 REVOKE ALL ON DATABASE postgres FROM PUBLIC;

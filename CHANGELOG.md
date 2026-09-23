@@ -8,6 +8,20 @@ file `VERSION`.
 
 ## [Unreleased]
 
+### ProyekKas client DRMS — infra F1 (2026-09-23, branch `feat/proyekkas-f1-infra`, belum diterapkan)
+
+#### Added
+- Realm Keycloak `drms` & `drms-staging` (`identity/keycloak/realm-export/drms*.json`, tanpa secret):
+  role `pk-*`, client `proyekkas-web` / `proyekkas-mobile` / `proyekkas-admin-api` (ADR ProyekKas 0003); back-channel logout nonaktif.
+- Postgres: DB `pk_drms`, `pk_drms_stg` + role `*_owner/_app/_ro` (`init-roles.sh`, var password di
+  `bootstrap.sh`/`.env.example`), baris `pg_hba` per DB (ADR ProyekKas 0006).
+- Traefik: route staging `drms-kas.staging.bimacreative.tech` (`le-http-staging`; router auth/api-v1/
+  api-rest/web, buffering hanya di route upload), middleware `ratelimit-pk-api`, `buffering-pk`
+  (request 10 MiB, response 16 MiB), `strip-authorization`, router token realm drms dengan
+  `ratelimit-drms-kc-token` (`traefik/dynamic/clients/drms-proyekkas-*.yml`).
+- `MEDIA_VOLUMES` di `scripts/lib/restic-common.sh` (butuh perubahan `backup.sh`, lihat runbook).
+- Runbook `docs/runbooks/proyekkas-drms-onboarding.md`.
+
 ### FASE 1 — Planning & GATE 1 (2026-09-23)
 
 #### Added
