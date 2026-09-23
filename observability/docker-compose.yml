@@ -2,7 +2,7 @@
 # Jalankan scripts/bootstrap.sh sekali sebelum `docker compose up -d` (network, data/, secret Grafana).
 # Tidak ada port di-publish ke host. Publik hanya lewat Traefik:
 #   status.bimacreative.tech → uptime-kuma:3001 (traefik/dynamic/platform/status.yml)
-#   grafana.bimacreative.tech → grafana:3000, SELURUHNYA ipallowlist-admin (dynamic/platform/grafana.yml)
+#   grafana.bimacreative.tech:8443 → grafana:3000, HANYA entrypoint `admin` + ipallowlist-admin (dynamic/platform/grafana.yml, H5)
 # cAdvisor TIDAK dipasang (keputusan T14a, docs/03-operations/observability.md).
 name: observability
 
@@ -143,7 +143,8 @@ services:
     user: "472:472"
     environment:
       GF_SERVER_DOMAIN: grafana.bimacreative.tech
-      GF_SERVER_ROOT_URL: https://grafana.bimacreative.tech/
+      # H5b: panel hanya di entrypoint Traefik `admin` (:8443, tunnel) → URL absolut (appUrl, redirect, tautan) memuat port.
+      GF_SERVER_ROOT_URL: https://grafana.bimacreative.tech:8443/
       GF_SECURITY_ADMIN_USER: admin
       GF_SECURITY_ADMIN_PASSWORD__FILE: /run/secrets/grafana-admin-password
       GF_SECURITY_COOKIE_SECURE: "true"

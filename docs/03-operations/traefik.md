@@ -62,6 +62,11 @@
   (**403**) → service `deny-sink` (tidak pernah tercapai). Path auth lain di luar `/realms/`, `/resources/`,
   `/.well-known/`, serta seluruh `grafana.*` dan dashboard Kuma (`/dashboard`, `/socket.io/`, `/metrics`, …) tidak punya
   router di :443 → **404**. Halaman status publik (`status-public`) tetap di :443.
+- **H5b (2026-09-23): DB manager Odoo per tenant.** Di `websecure` `<r>-dbmanager-deny` (`Host(<tenant>) &&
+  PathPrefix(/web/database)`, prioritas 300) → `deny-all` 403 → `deny-sink`; router operator `<r>-dbmanager` pindah ke
+  entrypoint `admin` (`ipallowlist-admin` + `<r>-db`), dirender dari `templates/traefik-client.yml` (`odoo.md` §Router).
+  Setelah H5b **tidak ada** router di `websecure` yang mengandalkan `ipallowlist-admin` (diperiksa: semua pemakainya ber-
+  `entryPoints: [admin]` — `auth-admin`, `auth-other`, `grafana`, `status-admin`, `odoo-*-dbmanager`).
 - `deny-all` = `ipAllowList` dengan `sourceRange: [255.255.255.255/32]` (tak mungkin jadi IP klien TCP), `rejectStatusCode:
   403` — Traefik v3.7 OSS tidak punya middleware deny/ipDenyList. Service **bukan** `noop@internal`: router ber-service
   `@internal` tidak masuk access log (source v3.7 `pkg/server/router/router.go` + `pkg/server/middleware/observability.go`
@@ -83,6 +88,7 @@ echo '127.0.0.1 auth.bimacreative.tech grafana.bimacreative.tech status.bimacrea
 # 2) tunnel: port lokal 8443 → 127.0.0.1:8443 di VPS (entrypoint admin)
 ssh -p 2221 -N -L 8443:127.0.0.1:8443 admin@31.97.50.221
 # 3) https://auth.bimacreative.tech:8443/admin/ · https://grafana.bimacreative.tech:8443/ · https://status.bimacreative.tech:8443/dashboard
+#    DB manager Odoo (H5b): https://<host tenant>:8443/web/database/selector (host tenant juga dipetakan ke 127.0.0.1)
 # 4) selesai: hapus baris /etc/hosts tadi (kalau tidak, halaman status publik ikut mengarah ke laptop)
 ```
 Tunnel lama `-L 8443:127.0.0.1:443` **tidak berfungsi lagi** untuk panel admin (:443 → 403/404).

@@ -127,7 +127,8 @@ Tenant uji:
 
 | Router | Rule | Prioritas | Middleware | Service |
 |---|---|---|---|---|
-| `<r>-dbmanager` | `PathPrefix(/web/database)` | 300 | crowdsec, **ipallowlist-admin**, odoo-security-headers, ratelimit-default, strip-odoo-db-headers, `<r>-db` | `<pool>-http` |
+| `<r>-dbmanager-deny` (`websecure` :443) | `PathPrefix(/web/database)` | 300 | crowdsec, **deny-all** (403) | `deny-sink` (tidak pernah tercapai) |
+| `<r>-dbmanager` (**entrypoint `admin`** :8443, H5b) | `PathPrefix(/web/database)` | 300 | crowdsec, **ipallowlist-admin**, odoo-security-headers, ratelimit-default, strip-odoo-db-headers, `<r>-db` | `<pool>-http` |
 | `<r>-websocket` | `PathPrefix(/websocket)` | 200 | crowdsec, odoo-security-headers, ratelimit-default, strip, `<r>-db` | `<pool>-ws` (:8072) |
 | `<r>-login` | `/web/login`, `/web/session/authenticate`, `/web/reset_password*`, `/web/signup*` | 200 | crowdsec, odoo-security-headers, ratelimit-default, **ratelimit-login**, strip, `<r>-db` | `<pool>-http` |
 | `<r>` | `Host(<fqdn>)` | 100 | crowdsec, odoo-security-headers, ratelimit-default, strip, `<r>-db` | `<pool>-http` (:8069) |
@@ -138,6 +139,15 @@ Tenant uji:
 webclient `DENY`, login/portal `SAMEORIGIN`; editor/website builder memakai iframe same-origin) dan
 `Permissions-Policy` `camera/microphone/geolocation=(self)` (Discuss RTC, scan barcode, hr_attendance).
 Sertifikat: resolver `le-http` (production) per hostname.
+
+**Database manager (H5b, 2026-09-23):** `/web/database*` **tidak pernah** lewat :443 — `<r>-dbmanager-deny` → `deny-all`
+403 untuk **semua** IP (dulu `ipallowlist-admin` di `websecure`; hairpin dari container mana pun ke IP publik :443 tiba sebagai
+`10.100.0.1` dan lolos — terbukti sebelum H5b: dari host `GET /web/database/selector` = 200 dari Odoo). Operator: tunnel
+`ssh -p 2221 -N -L 8443:127.0.0.1:8443 admin@31.97.50.221` (`traefik.md` §Entrypoint `admin`) → `https://<host>:8443/web/database/...`
+(header `X-Sh-Odoo-Db` tenant tetap dipasang). Hanya `/web/database*` yang di-route di :8443 — path lain host tenant (termasuk
+`/web/static/*` & `/web/login`) → 404 di :8443. Ini lapisan tambahan: `list_db = False` tetap membuat Odoo menampilkan
+"The database manager has been disabled by the administrator" (HTTP 200 dari Odoo, diuji 2026-09-23). Dari host:
+`curl --resolve <host>:8443:127.0.0.1 https://<host>:8443/web/database/selector`.
 
 ## AppSec (CrowdSec CRS) — pengecualian Odoo
 

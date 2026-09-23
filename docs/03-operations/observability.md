@@ -121,9 +121,12 @@ ssh -p 2221 -N -L 8443:127.0.0.1:8443 admin@31.97.50.221     # H5: entrypoint Tr
 Status uji H5 (2026-09-23, dari host `--resolve <host>:8443:127.0.0.1`, access log `entryPointName=admin`, ClientHost
 10.100.0.1): Kuma `/dashboard` 200, `/socket.io/?EIO=4&transport=polling` 200; Grafana `/` → 302 `:8443/login`, `/login` 200.
 Lewat :443 publik: Grafana `/`, `/login`, Kuma `/dashboard`, `/socket.io/`, `/metrics` → 404. Tunnel dari laptop **belum** diuji
-(tidak ada private key di VPS); alur login Grafana penuh dengan port :8443 (`GF_SERVER_ROOT_URL` tanpa port) **UNVERIFIED** —
-redirect `/` → `/login` sudah mempertahankan :8443. Bila bermasalah: `sudo ssh … -L 443:127.0.0.1:8443` (port lokal 443,
-URL tanpa port).
+(tidak ada private key di VPS).
+H5b (2026-09-23): `GF_SERVER_ROOT_URL=https://grafana.bimacreative.tech:8443/` (env `GF_<SECTION>_<KEY>` untuk
+`[server] root_url`, `conf/defaults.ini` image 13.2.2) → `appUrl` di halaman = `:8443`. Diuji dari host (`--resolve …:8443:127.0.0.1`):
+`/` → 302 `/login` (relatif; `curl -L` berakhir di `https://grafana.bimacreative.tech:8443/login` 200), `POST /login` 200
+`Logged in`, `/api/user` dengan sesi 200, `/logout` → 302 `/login`. Bila tunnel laptop tetap bermasalah: `sudo ssh … -L
+443:127.0.0.1:8443` (port lokal 443) — **catatan:** dengan ROOT_URL ber-port, URL absolut Grafana tetap menyebut `:8443`.
 Setelah login pertama: ganti password Grafana di UI, aktifkan 2FA Uptime Kuma (Settings → Security), lalu hapus file
 `secrets/*-password` (`shred -u`) bila password sudah disimpan di password manager — **ingat**: Grafana membaca
 `GF_SECURITY_ADMIN_PASSWORD__FILE` saat start → setelah file dihapus, hapus juga baris env + mount itu dari compose.

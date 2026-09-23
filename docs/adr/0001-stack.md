@@ -146,3 +146,10 @@ sistem sampai FASE 2.
   alias `auth.bimacreative.tech`; app ProyekKas hanya boleh Admin REST realm `drms` / `drms-staging` (router `ClientIP` ×
   `PathPrefix`), dan pengecualian CRS 911100 (H4) diperluas **sempit** ke pasangan subnet × prefix realm yang sama
   (`IpInRange`, CrowdSec v1.8.1). Detail: `docs/03-operations/{traefik,keycloak,crowdsec}.md`.
+- 2026-09-23 (H5b, cakupan H5 yang disetujui user): **DB manager Odoo per tenant ikut entrypoint `admin`.**
+  `templates/traefik-client.yml`: `/web/database*` di `websecure` → `<r>-dbmanager-deny` (`deny-all` 403, service `deny-sink`,
+  prioritas 300); router operator `<r>-dbmanager` hanya di entrypoint `admin` (`ipallowlist-admin` + header `X-Sh-Odoo-Db`
+  tenant). Alasan sama dengan H5: hairpin container ke :443 tiba sebagai `10.100.0.1` dan lolos `ipallowlist-admin` (bukti
+  sebelum H5b: `GET /web/database/selector` dari host via :443 = 200 dari Odoo). `list_db=False` tetap menolak di Odoo. Tenant
+  `demo-demo`/`demo-staging` dirender ulang. Grafana `GF_SERVER_ROOT_URL` kini memuat `:8443`. Setelah H5b tidak ada router
+  `websecure` yang bergantung pada `ipallowlist-admin`. Detail: `docs/03-operations/{odoo,traefik,observability}.md`.
