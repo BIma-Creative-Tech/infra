@@ -13,37 +13,57 @@ bootstrap; item **[CLAUDE]** dikerjakan agent setelah discovery.
 
 - OS: **Ubuntu Server 24.04 LTS** (fresh install).
 - Virtualisasi KVM (bukan OpenVZ/LXC) agar Docker, cgroups v2, dan nested limit berjalan.
-- IPv4 publik statis; IPv6 opsional tapi dianjurkan.
+- IPv4 publik statis.
+  > UPDATED 2026-09-23: lihat `docs/adr/0002-tls-dns-manual.md` #4 dan
+  > `docs/adr/0005-mail-ipv4.md` — platform ini **IPv4-only di edge** (tanpa AAAA, tanpa
+  > jalur IPv6 di container mail/Traefik) untuk fase 1. IPv6 boleh diaktifkan kembali lewat
+  > ADR baru bila PTR IPv6 dan jalur mail IPv6 sudah aman.
 - **[USER] Pastikan provider tidak memblokir port 25 outbound** (tanya support; banyak
   provider blok default). Tanpa ini mail server tidak bisa kirim.
 - **[USER] rDNS/PTR** IP → `mail.<platform-domain>` diset dari panel provider.
 - **[USER] Snapshot/backup level provider** aktif sebagai lapisan tambahan.
 
 ## 2. Domain & DNS **[USER]**
-- Domain platform (mis. `platform.id`) dikelola di provider DNS dengan API (Cloudflare
-  dianjurkan; proxy Cloudflare **OFF** untuk `mail.*`, boleh ON untuk web). Token API
-  scope DNS-edit disiapkan untuk Traefik DNS challenge (wildcard) dan verifikasi domain.
-- Record awal:
-  - `A  edge.platform.id → <IP VPS>` (target CNAME untuk domain client)
-  - `A  *.erp.platform.id`, `*.staging.platform.id`, `cp.platform.id`, `auth.platform.id`,
-    `grafana.platform.id`, `status.platform.id` → IP VPS (atau wildcard `*.platform.id`)
-  - `A  mail.platform.id`, `MX platform.id → mail.platform.id`, SPF/DKIM/DMARC (diisi
-    setelah docker-mailserver menghasilkan key DKIM)
-- Domain client: client mengarahkan `A` ke IP VPS atau `CNAME → edge.platform.id`, plus
-  TXT verifikasi yang diberikan control plane.
+> UPDATED 2026-09-23: lihat `docs/adr/0002-tls-dns-manual.md`. Keputusan user: DNS domain
+> platform dikelola **manual** di DNS manager Hostinger, **tanpa API**. Domain platform yang
+> dipakai = **`bimacreative.tech`**. Karena tidak ada API DNS, TLS diterbitkan via **HTTP-01
+> per hostname** (resolver `le-http`), **bukan** DNS-01/wildcard — lihat CLAUDE.md §3.5.1.
+> Daftar record DNS lengkap (status nyata vs target, termasuk perbaikan MX/SPF/DMARC/CAA
+> yang diperlukan) ada di ADR 0002 §"Daftar record DNS".
+
+- Domain platform (`bimacreative.tech`) dikelola manual (tanpa API) di Hostinger DNS manager.
+- Record awal (lihat ADR 0002 untuk nilai & status persis):
+  - `A  edge.bimacreative.tech → 31.97.50.221` (target CNAME untuk domain client)
+  - `A  *.erp.bimacreative.tech`, `*.staging.bimacreative.tech`, `cp.bimacreative.tech`,
+    `auth.bimacreative.tech`, `grafana.bimacreative.tech`, `status.bimacreative.tech` →
+    IP VPS (via wildcard atau record eksplisit)
+  - `A  mail.bimacreative.tech`, `MX bimacreative.tech → mail.bimacreative.tech` (satu-satunya
+    MX), SPF/DKIM/DMARC (DKIM diisi setelah docker-mailserver menghasilkan key)
+  - **Tidak ada AAAA** untuk hostname mana pun (IPv4-only, ADR 0002/0005); CAA
+    `0 issue "letsencrypt.org"` + `0 issuewild ";"`.
+- Domain client: client mengarahkan `A` ke IP VPS atau `CNAME → edge.bimacreative.tech`, plus
+  TXT verifikasi yang diberikan control plane, **tanpa AAAA**. Router untuk domain client
+  hanya dibuat setelah pre-check `dig` lulus (ADR 0002 Decision #5).
 
 ## 3. Akun & kredensial **[USER]** (simpan di password manager, jangan kirim via chat)
+> UPDATED 2026-09-23: `DNS_API_TOKEN` **dihapus** dari kebutuhan — DNS dikelola manual tanpa
+> API (`docs/adr/0002-tls-dns-manual.md`). Tidak ada token DNS yang perlu disimpan sebagai
+> GitHub Secret atau di host (nilai plus keamanan: tidak ada secret DNS yang bisa dicuri).
 - GitHub organization/akun: repo `infra`, `control-plane`, `odoo-addons-shared`,
   `odoo-addons-<slug>`; GHCR aktif; GitHub Secrets: `VPS_HOST`, `VPS_SSH_KEY` (deploy key),
-  `GHCR_TOKEN` (atau `GITHUB_TOKEN` default), `DNS_API_TOKEN`.
+  `GHCR_TOKEN` (atau `GITHUB_TOKEN` default).
 - Storage S3-compatible offsite untuk restic (Backblaze B2 / Wasabi / MinIO di lokasi lain):
   bucket + access key.
 - Email/Telegram untuk alert (bot token & chat id jika Telegram).
 - SSH keypair admin (ed25519) dan keypair terpisah untuk user `deploy`.
 
 ## 4. Bootstrap host **[ANSIBLE]** (`/opt/infra/ansible/site.yml`, idempotent)
-1. User `admin` (sudo, key-only) dan `deploy` (sudo terbatas ke `docker compose` di `/opt/infra`).
-2. `sshd`: `Port <non-default>`, `PermitRootLogin no`, `PasswordAuthentication no`,
+> UPDATED 2026-09-23: lihat `docs/plans/01-host-bootstrap.md` untuk prosedur anti-lockout
+> S0–S8 (wajib diikuti persis, tidak boleh lompat langkah) dan detail role Ansible dua
+> inventory (`local` + `remote`).
+1. User `admin` (sudo, key-only) dan `deploy` (**tanpa** grup `sudo`/`docker`; sudo hanya ke
+   skrip wrapper root-owned `/usr/local/sbin/infra-deploy <stack>` — lihat catatan §4.8).
+2. `sshd`: `Port 2221`, `PermitRootLogin no`, `PasswordAuthentication no`,
    `AllowUsers admin deploy`, `MaxAuthTries 3`.
 3. Paket: `docker-ce`, `docker-compose-plugin`, `ufw`, `fail2ban`, `unattended-upgrades`,
    `restic`, `git`, `auditd`, `chrony`, `crowdsec` (agent host) .
@@ -51,37 +71,51 @@ bootstrap; item **[CLAUDE]** dikerjakan agent setelah discovery.
    Catatan: Docker mem-bypass ufw untuk port yang di-publish — karena itu **tidak ada** service
    selain Traefik dan mail yang publish port, dan verifikasi dengan `ss -tlnp`.
 5. `sysctl`: `net.ipv4.ip_forward=1` (docker), `vm.swappiness=10`, `fs.inotify.max_user_watches`
-   dinaikkan, `net.core.somaxconn=1024`.
+   dinaikkan, `net.core.somaxconn=4096` (nilai host saat ini; **jangan diturunkan** —
+   `docs/plans/01-host-bootstrap.md` §2).
 6. Swap file 4 GB, timezone `Asia/Jakarta`, locale `en_US.UTF-8`.
 7. Docker daemon.json: `log-driver json-file`, `max-size 10m`, `max-file 3`,
    `live-restore true`, `userland-proxy false`, `no-new-privileges true`, `icc false`
    (isolasi antar network default).
-8. Struktur `/opt/infra` (owner `deploy:docker`, 750), `/opt/infra/*/data` 700.
-9. Cron: `backup.sh` 02:00, `restic forget --prune` mingguan, `pg_dump` semua DB 01:30,
-   restore test bulanan (laporan ke alert).
+8. Struktur `/opt/infra` (owner `root:admin`, 750; `*/data` 700 owner service).
+   > UPDATED 2026-09-23: owner **`deploy:docker`** yang diusulkan sebelumnya **ditolak** —
+   > anggota grup `docker` setara root di host, dan `deploy` yang bisa menulis skrip yang
+   > dieksekusi via sudo/cron root membuka eskalasi hak. Lihat
+   > `docs/plans/01-host-bootstrap.md` (catatan §4 & threat model E).
+9. Backup (systemd timer, boleh cron — lihat `docs/adr/0006-backup.md`): dump DB 01:30,
+   backup file 02:00, `restic copy` ke remote 02:30 (jika remote dikonfigurasi),
+   `restic forget --prune` mingguan, `restic check` mingguan/bulanan, restore test bulanan
+   (laporan ke alert). Repo restic **lokal dulu** (bukan backup sejati terhadap kehilangan
+   host) sampai S3 offsite tersedia.
 10. Verifikasi akhir playbook: cetak `ufw status`, `sshd -T` ringkas, `docker info`, `free -h`.
 
 ## 5. Platform services **[CLAUDE]** — urutan bring-up
-1. `traefik` (network `proxy`, ACME DNS-challenge wildcard, dashboard hanya via IP allowlist
+> UPDATED 2026-09-23: lihat `docs/plans/02-platform-bringup.md` untuk dependency graph
+> lengkap (task, agent, depends_on) dan urutan gelombang paralel.
+1. `traefik` (network `proxy`, resolver `le-http` **HTTP-01 per hostname** — tanpa
+   DNS-challenge/wildcard (`docs/adr/0002-tls-dns-manual.md`), dashboard hanya via IP allowlist
    + basic auth, middleware: `security-headers`, `ratelimit-default`, `ratelimit-login`,
-   `crowdsec-bouncer`, `coraza-waf`).
+   `crowdsec-bouncer` (termasuk CrowdSec AppSec — **bukan** Coraza, `docs/adr/0001-stack.md`)).
 2. `security/crowdsec` (agent + bouncer Traefik; collection `crowdsecurity/traefik`,
    `crowdsecurity/http-cve`, `crowdsecurity/sshd`, `crowdsecurity/postfix`).
 3. `postgres` shared cluster (`postgres:16.x`, `pg_hba` hanya network internal, `shared_buffers`
    25% RAM alokasi, `max_connections` sesuai workers Odoo + pool). Pertimbangkan PgBouncer.
 4. `identity/keycloak` (`quay.io/keycloak/keycloak:<pin>`, DB `keycloak`, realm `platform`,
    admin console hanya allowlist).
-5. `odoo/pool-a` (Odoo CE 19.0, workers, addons path, `list_db=False`).
-6. `mail` (docker-mailserver, rspamd, fail2ban internal, DKIM generate → isi DNS).
+5. `odoo/pool-a` (Odoo CE 19.0, workers, addons path — **tanpa** `oca/`, modul sendiri
+   `sh_dbfilter_header`/`sh_auth_oidc`, `docs/adr/0003-odoo-no-oca.md`, `list_db=False`).
+6. `mail` (docker-mailserver, IPv4-only, rspamd, fail2ban internal, DKIM per domain generate
+   → isi DNS, `docs/adr/0005-mail-ipv4.md`).
 7. `web/control-plane` (Next.js + worker pg-boss + docker-socket-proxy).
 8. `datamart` (DB `datamart`, dbt container, cron).
-9. `observability` (Prometheus, node-exporter, cAdvisor, Loki, Promtail, Grafana, Uptime Kuma).
+9. `observability` (Prometheus, node-exporter, cAdvisor, Loki, **Grafana Alloy** — bukan
+   Promtail (EOL, `docs/adr/0001-stack.md`), Grafana, Uptime Kuma).
 10. `staging/*` mirror untuk control-plane, odoo pool staging DB, web client.
 
 ## 6. Checklist sebelum menyerahkan ke Claude Code
 - [ ] VPS Ubuntu 24.04 baru, akses SSH root/sudo awal (hanya untuk bootstrap; akan dinonaktifkan)
 - [ ] Port 25 outbound dikonfirmasi terbuka; PTR diset
-- [ ] Domain platform + token API DNS tersedia
+- [ ] Domain platform tersedia (DNS boleh dikelola manual tanpa API — `docs/adr/0002-tls-dns-manual.md`)
 - [ ] Repo GitHub dibuat (boleh kosong) + GitHub Secrets diisi
 - [ ] Bucket offsite + kredensial restic tersedia
 - [ ] Kanal alert (email/Telegram) ditentukan
