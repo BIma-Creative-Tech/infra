@@ -1,0 +1,98 @@
+# T16b — Control plane STAGING (cp.staging.bimacreative.tech), realm Keycloak `platform-staging`,
+# DB `control_plane_staging`. Pola = stack prod web/control-plane (image yang SAMA, tag short SHA).
+# Deploy/upgrade/rollback: docs/03-operations/control-plane.md §Staging.
+# Tidak ada port di-publish ke host; Traefik → http://control-plane-staging:3000 (network proxy,
+# router traefik/dynamic/platform/cp-staging.yml). Secret di .env (600, di-ignore git).
+name: staging-control-plane
+
+x-hardening: &hardening
+  # Tag pin (short SHA commit main repo control-plane). Override sementara:
+  #   CONTROL_PLANE_TAG=<tag> docker compose up -d
+  image: control-plane:${CONTROL_PLANE_TAG:-4fc3828}
+  env_file:
+    - .env
+  user: "1001:1001"
+  read_only: true
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+services:
+  # One-shot migrasi drizzle ke DB control_plane_staging (idempoten); web & worker menunggu sukses.
+  migrate:
+    <<: *hardening
+    restart: "no"
+    command: ["node", "dist/db/migrate.mjs"]
+    environment:
+      SERVICE_NAME: control-plane-staging-migrate
+    tmpfs:
+      - /tmp:uid=1001,gid=1001,mode=0700
+    networks:
+      - db
+    healthcheck:
+      disable: true
+    mem_limit: 192m   # one-shot (transien), di luar anggaran ADR 0004
+    cpus: 0.25
+
+  # ADR 0004: "control-plane staging (web+worker digabung) 320 MiB / 0.25 CPU" → dibagi 192m/0.15 + 128m/0.10.
+  web:
+    <<: *hardening
+    container_name: control-plane-staging
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      SERVICE_NAME: control-plane-staging-web
+    tmpfs:
+      - /tmp:uid=1001,gid=1001,mode=0700
+      - /app/.next/cache:uid=1001,gid=1001,mode=0700
+    networks:
+      - db      # → postgres:5432 (hanya DB control_plane_staging, pg_hba)
+      - proxy   # Traefik → control-plane-staging:3000 + egress ke https://auth.bimacreative.tech (issuer)
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    mem_limit: 192m   # ADR 0004 (staging)
+    cpus: 0.15
+
+  worker:
+    <<: *hardening
+    container_name: control-plane-staging-worker
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    command: ["node", "dist/worker/index.mjs"]
+    environment:
+      SERVICE_NAME: control-plane-staging-worker
+      WORKER_HEARTBEAT_FILE: /tmp/worker-heartbeat
+    tmpfs:
+      - /tmp:uid=1001,gid=1001,mode=0700
+    networks:
+      - db      # hanya DB; tidak butuh egress
+    healthcheck:
+      test: ["CMD", "node", "-e", "const t=+require('fs').readFileSync('/tmp/worker-heartbeat','utf8');process.exit(Date.now()-t<60000?0:1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    mem_limit: 128m   # ADR 0004 (staging)
+    cpus: 0.10
+
+networks:
+  db:
+    external: true
+    name: db
+  proxy:
+    external: true
+    name: proxy

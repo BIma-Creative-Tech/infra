@@ -9,10 +9,10 @@
 |---|---|---|
 | `docker-compose.yml` | service `postgres`, volume `postgres_pgdata`, network external `db` | ya |
 | `conf/pg_hba.conf` | aturan autentikasi (dimount ro, `-c hba_file=`) | ya |
-| `.env` | `POSTGRES_PASSWORD`, `PG_KEYCLOAK_PASSWORD`, `PG_CONTROL_PLANE_PASSWORD`, `PG_DATAMART_PASSWORD`, `PG_ODOO_POOL_A_PASSWORD`, `PG_ODOO_STAGING_PASSWORD` (T10), `PG_PK_DRMS{,_STG}_{OWNER,APP,RO}_PASSWORD` (ProyekKas DRMS) — mode 600 root | **tidak** |
+| `.env` | `POSTGRES_PASSWORD`, `PG_KEYCLOAK_PASSWORD`, `PG_CONTROL_PLANE_PASSWORD`, `PG_CONTROL_PLANE_STAGING_PASSWORD` (T16b), `PG_DATAMART_PASSWORD`, `PG_ODOO_POOL_A_PASSWORD`, `PG_ODOO_STAGING_PASSWORD` (T10), `PG_PK_DRMS{,_STG}_{OWNER,APP,RO}_PASSWORD` (ProyekKas DRMS) — mode 600 root | **tidak** |
 | `.env.example` | placeholder | ya |
 | `scripts/bootstrap.sh` | idempoten: network `db` + `.env` dengan password acak (`openssl rand`, 48 char alnum); tidak mencetak password, tidak menimpa nilai yang ada | ya |
-| `scripts/init-roles.sh` | idempoten: role + DB `keycloak`, `control_plane`, `datamart`; set password dari `.env` (via stdin psql); `REVOKE ALL ON DATABASE … FROM PUBLIC` | ya |
+| `scripts/init-roles.sh` | idempoten: role + DB `keycloak`, `control_plane`, `control_plane_staging`, `datamart`; set password dari `.env` (via stdin psql); `REVOKE ALL ON DATABASE … FROM PUBLIC` | ya |
 
 ## Konfigurasi
 
@@ -24,8 +24,13 @@
   `password_encryption=scram-sha-256`. `mem_limit 2048m`, `cpus 1.5`. Revisi di T07.
 - `pg_hba.conf`: socket lokal hanya `postgres` via `peer`; superuser **ditolak** lewat TCP;
   satu baris `host <db> <role> 10.100.1.0/24 scram-sha-256` per aplikasi; sisanya `reject`.
-- Connection limit role: keycloak 30, control_plane 20, datamart 10, odoo_pool_a 48, odoo_staging 24,
-  `pk_drms_{owner,app,ro}` 2/25/3, `pk_drms_stg_{owner,app,ro}` 2/10/2 (ESTIMASI) — total 176 ≤ `max_connections` 200.
+- Connection limit role: keycloak 30, control_plane 20, control_plane_staging 10 (T16b), datamart 10, odoo_pool_a 48,
+  odoo_staging 24, `pk_drms_{owner,app,ro}` 2/25/3, `pk_drms_stg_{owner,app,ro}` 2/10/2 (ESTIMASI) — total **186** ≤
+  `max_connections` 200 (`SELECT sum(rolconnlimit) FROM pg_roles WHERE rolconnlimit > 0`; sisa 14 − 3 slot superuser reserved).
+- **Control plane staging (T16b, 2026-09-23):** DB/role `control_plane_staging` (pola `control_plane`, limit 10), baris hba
+  eksplisit. Diterapkan tanpa recreate: `bootstrap.sh` → `init-roles.sh` → `cat pg_hba.new > conf/pg_hba.conf` (inode tetap) →
+  `pg_reload_conf()` → `pg_hba_file_rules` baris 19. Isolasi diuji (container `--network db`): `control_plane_staging` →
+  `control_plane_staging` OK; → `control_plane`/`postgres` dan `control_plane` → `control_plane_staging` = `pg_hba.conf rejects connection`.
 - **ProyekKas DRMS (2026-09-23):** DB `pk_drms`, `pk_drms_stg` (owner `*_owner`, CONNECT hanya role DB itu, PUBLIC
   dicabut); baris hba eksplisit per DB. Runbook `docs/runbooks/proyekkas-drms-onboarding.md` §Langkah 1.
 - **Role pool Odoo (T10)**: `odoo_pool_a`, `odoo_staging` — `LOGIN CREATEDB NOSUPERUSER NOCREATEROLE`, tanpa DB

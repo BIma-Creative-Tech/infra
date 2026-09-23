@@ -10,7 +10,7 @@
 | `traefik.yml` | static config: entrypoints `web` :80 (redirect → https) & `websecure` :443, `traefik` 127.0.0.1:8080 di dalam container (hanya `/ping`), file provider, resolver `le-http-staging` & `le-http`, access log JSON | ya |
 | `dynamic/middlewares/*.yml` | `security-headers`, `ratelimit-default`, `ratelimit-login`, `ipallowlist-admin`, `strip-odoo-db-headers` | ya |
 | `dynamic/tls.yml` | TLS option `default` (min TLS 1.2) | ya |
-| `dynamic/platform/<svc>.yml` | router layanan platform (T06 `auth.yml`, T16a `cp.yml`, T14a `status.yml`/`grafana.yml`, …) — satu file per task | ya |
+| `dynamic/platform/<svc>.yml` | router layanan platform (T06 `auth.yml`, T16a `cp.yml`, T16b `cp-staging.yml`, T14a `status.yml`/`grafana.yml`, …) — satu file per task | ya |
 | `dynamic/platform/odoo-pools.yml` | service `odoo-pool-a-{http,ws}`, `odoo-staging-{http,ws}` + middleware `odoo-security-headers` (T10) | ya |
 | `dynamic/clients/<slug>-<env>.yml` | router tenant Odoo, dirender `scripts/render-client-route.sh` dari `templates/traefik-client.yml` (T10) — lihat `odoo.md` | ya |
 | ~~`dynamic/test/whoami-status.yml`~~ | **dihapus 2026-09-23 (H2, QA-T17A-05/06/08)** bersama service `whoami`. `status.bimacreative.tech` kini tanpa router (404) sampai T14 menambah `dynamic/platform/status.yml` (Uptime Kuma) — **sudah ditambahkan T14a** (`observability.md`) | — |
@@ -129,7 +129,7 @@ docker logs traefik 2>&1 | grep -i -E 'acme|lego|certificate' | tail
 Jangan me-restart berulang bila ACME gagal: baca log, perbaiki (DNS/port 80), baru ulang —
 limit LE: 5 authorization failure / identifier / jam (ADR 0002).
 
-## Pindah staging → production (DILAKUKAN 2026-09-23 untuk `status` & `auth` T05/T06, `cp` T16a, `grafana` T14a)
+## Pindah staging → production (DILAKUKAN 2026-09-23 untuk `status` & `auth` T05/T06, `cp` T16a, `grafana` T14a, `cp.staging` T16b)
 
 1. Backup: `cp -a acme/acme-staging.json acme/acme-staging.json.bak-$(date +%F)`.
 2. Per router: `certResolver: le-http-staging` → `le-http`.

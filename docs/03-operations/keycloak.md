@@ -117,5 +117,9 @@ docker compose down                 # stop; data di Postgres
   server-to-server dari container platform tiba dengan satu IP sumber (gateway/host) → bisa kena 429 saat
   beban tinggi. Opsi (keputusan Lead): router token terpisah dengan limit lain, atau backchannel internal
   `http://keycloak:8080` + `KC_HOSTNAME_BACKCHANNEL_DYNAMIC=true` (docs hostname.adoc) — belum diterapkan.
+- **Admin REST lewat Traefik + CrowdSec AppSec (T16b):** body JSON yang memuat `${…}` (mis. mapper
+  `claim.name: resource_access.${client_id}.roles`) diblokir AppSec (`anomaly score block: rce`, 403 kosong dari router
+  `auth-admin`, alert `waf` untuk 10.100.0.1). Tulis nilai literal (`resource_access.<clientId>.roles`) — klaim identik.
+  Client `control-plane` realm `platform-staging`: lihat `control-plane.md` §Staging.
 - Network: Keycloak di `proxy` (dan `db`, serta `metrics` internal sejak T14a — Prometheus scrape `keycloak:9000/metrics`).
   Jangan menambah router/path admin publik.

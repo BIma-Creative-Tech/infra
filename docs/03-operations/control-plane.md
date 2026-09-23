@@ -1,4 +1,4 @@
-# Operasional — Control plane PROD (T16a)
+# Operasional — Control plane PROD (T16a) & STAGING (T16b)
 
 - **Publik:** `https://cp.bimacreative.tech` (router `traefik/dynamic/platform/cp.yml`, sertifikat LE production `le-http`).
 - **Stack:** `/opt/infra/web/control-plane/` (CLAUDE.md §3.1) · project compose `web-control-plane`.
@@ -113,8 +113,71 @@ Tag sebelumnya di host: `control-plane:0.1.0-scaffold` (build T12 dari `/opt/src
 - **NOT TESTABLE:** login end-to-end (callback → sesi → `/dashboard`) — belum ada user di realm `platform`
   (pembuatan user/role = keputusan user/Lead, di luar T16a).
 
+## Staging — `cp.staging.bimacreative.tech` (T16b, 2026-09-23)
+
+- **Publik:** `https://cp.staging.bimacreative.tech` (router `traefik/dynamic/platform/cp-staging.yml`, LE production `le-http`;
+  dicakup DNS wildcard `*.staging` — pre-check A = `31.97.50.221` @apollo/@athena.dns-parking.com, @1.1.1.1, @8.8.8.8, tanpa AAAA).
+- **Stack:** `/opt/infra/staging/control-plane/` · project compose `staging-control-plane` · image **sama** dengan prod
+  (`control-plane:4fc3828`, default `${CONTROL_PLANE_TAG:-…}`) — upgrade staging dulu, baru prod (ganti tag di kedua compose).
+- **Auth:** realm `platform-staging`, client `control-plane` (issuer `https://auth.bimacreative.tech/realms/platform-staging`).
+- **DB:** `control_plane_staging` (role sama, `CONNECTION LIMIT 10`) — lihat `postgres.md`.
+
+| Service | Container | Network | Limit (ADR 0004: staging web+worker 320 MiB / 0.25) | Healthcheck |
+|---|---|---|---|---|
+| `migrate` | `staging-control-plane-migrate-1` (one-shot) | `db` | 192m / 0.25 (transien) | — |
+| `web` | `control-plane-staging:3000` | `db`, `proxy` | 192m / 0.15 | `GET /api/health` |
+| `worker` | `control-plane-staging-worker` | `db` | 128m / 0.10 | heartbeat `/tmp/worker-heartbeat` |
+
+Hardening identik prod (uid 1001, `read_only` + tmpfs, `cap_drop: [ALL]`, `no-new-privileges`, log 10m×3, tanpa port publish).
+Terukur setelah start: web ±55 MiB, worker ±24 MiB.
+
+`.env` (600 root, di-ignore git): `NODE_ENV`, `LOG_LEVEL`, `DATABASE_URL=postgresql://control_plane_staging:<PG_CONTROL_PLANE_STAGING_PASSWORD>@postgres:5432/control_plane_staging`,
+`AUTH_SECRET` (acak baru, `openssl rand -base64 48`, berbeda dari prod), `AUTH_URL=https://cp.staging.bimacreative.tech`,
+`AUTH_KEYCLOAK_ID=control-plane`, `AUTH_KEYCLOAK_ISSUER=…/realms/platform-staging`, `AUTH_KEYCLOAK_SECRET` (= isi
+`identity/keycloak/secrets/platform-staging-control-plane.secret`, 600, tanpa newline).
+
+### Client Keycloak `control-plane` (realm `platform-staging`)
+
+Dibuat lewat Admin REST dengan service account `automation` (realm `platform-staging`, role `manage-clients`), tanpa
+kredensial admin baru. Konfigurasi = client prod (realm `platform`) dengan host staging: confidential (`client-secret`),
+standard flow saja (implicit/direct grants/service account/device/CIBA off), `pkce.code.challenge.method=S256`,
+redirect `https://cp.staging.bimacreative.tech/api/auth/callback/keycloak`, `post.logout.redirect.uris=…/login`, web origin
+`https://cp.staging.bimacreative.tech`, `fullScopeAllowed=false`, client role `superadmin|ops|client_admin|client_user`,
+mapper `oidc-usermodel-client-role-mapper` (ID/access/userinfo/introspection, multivalued).
+
+- **Beda satu-satunya dengan prod:** `claim.name` mapper ditulis literal **`resource_access.control-plane.roles`**, bukan
+  `resource_access.${client_id}.roles`. Body JSON berisi `${…}` diblokir CrowdSec AppSec (`anomaly score block: rce`, 403 di
+  router `auth-admin`). Hasil klaim identik (`${client_id}` = `control-plane`).
+- Ambil ulang secret (tanpa menampilkan): `GET /admin/realms/platform-staging/clients/<id>/client-secret` → tulis `value`
+  dengan `printf '%s'`/`sys.stdout.write` ke file 600. Rotasi: `POST …/client-secret` → perbarui file + `.env` → `docker compose up -d`.
+- **Realm export belum diperbarui:** `partial-export` butuh `manage-realm` (akun `automation` → 403) dan file
+  `realm-export/platform-staging.json` sedang dipakai T15. Export ulang (tanpa secret) oleh admin setelah T15 merge.
+
+### Deploy / upgrade staging
+
+```bash
+cd /opt/infra/staging/control-plane
+docker compose config -q
+docker compose run --rm --no-deps migrate     # migrasi ke control_plane_staging (up -d juga menjalankannya)
+docker compose up -d && docker compose ps     # control-plane-staging & -worker (healthy)
+curl -sI https://cp.staging.bimacreative.tech/ | grep -i -E '^HTTP|^location'   # 307 → /login
+```
+Rollback sama dengan prod (`CONTROL_PLANE_TAG=<tag-lama> docker compose up -d`). Monitor Uptime Kuma:
+`Control plane staging (cp.staging)` (`observability/scripts/uptime-kuma-provision.js`, idempoten).
+
+### Verifikasi (2026-09-23)
+
+- Sertifikat: `le-http-staging` dulu (issuer `(STAGING) Baloney Bulgur YE2`, `GET /` 307) → entri `cp.staging` dihapus dari
+  `acme-staging.json` (backup `acme-staging.json.bak-t16b-*`, entri `drms-kas.staging` tetap) → `le-http` → restart Traefik →
+  issuer `Let's Encrypt YE1`, `Verify return code: 0`.
+- `GET /` → `307 location: /login`; `GET /login` → 200; `/api/auth/providers` → callbackUrl `https://cp.staging…/api/auth/callback/keycloak`.
+- `POST /api/auth/signin/keycloak` (csrf) → 302 `https://auth.bimacreative.tech/realms/platform-staging/protocol/openid-connect/auth?response_type=code&client_id=control-plane&redirect_uri=https%3A%2F%2Fcp.staging…&code_challenge=…&code_challenge_method=S256&nonce=…`;
+  router `cp-staging-auth`. Halaman login Keycloak → 200 `<title>Sign in to platform-staging`. `POST /login` → router `cp-staging-login-action`.
+- Prod tidak berubah: `cp.bimacreative.tech` → 307, signin → `realms/platform`.
+- **NOT TESTABLE:** login end-to-end (callback → sesi → klaim role) — belum ada user di realm `platform-staging`.
+
 ## Belum / berikutnya
 
-- Staging `cp.staging.bimacreative.tech` (T16 penuh): menunggu client Keycloak di realm `platform-staging`, DB/role
-  `control_plane_staging` + `pg_hba`, `.env` staging.
+- ~~Staging `cp.staging.bimacreative.tech`~~ — selesai T16b (§Staging).
+- Realm export `platform-staging` (dan `platform`) memuat client `control-plane` — butuh admin (`manage-realm`).
 - Image di registry (GHCR) + `infra-deploy` wrapper untuk user `deploy` (CLAUDE.md §3.7).

@@ -17,6 +17,8 @@ APPS=(
   "keycloak:keycloak:PG_KEYCLOAK_PASSWORD:30"
   "control_plane:control_plane:PG_CONTROL_PLANE_PASSWORD:20"
   "datamart:datamart:PG_DATAMART_PASSWORD:10"
+  # T16b — control plane STAGING (cp.staging, realm platform-staging). Limit kecil (ESTIMASI).
+  "control_plane_staging:control_plane_staging:PG_CONTROL_PLANE_STAGING_PASSWORD:10"
 )
 
 get_var() { grep -E "^$1=" "$ENV_FILE" | head -n1 | cut -d= -f2-; }

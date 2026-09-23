@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Provisioning awal Uptime Kuma (T14a) — idempoten: admin `platform-admin` (sekali, password acak di
-# secrets/uptime-kuma-admin-password 600 root), 4 monitor HTTP publik, status page `platform` yang
+# secrets/uptime-kuma-admin-password 600 root), monitor HTTP publik (daftar MONITORS di .js), status page `platform` yang
 # dipetakan ke status.bimacreative.tech. Jalankan sebagai root setelah `docker compose up -d`.
 # Koneksi langsung ke http://uptime-kuma:3001 lewat network `proxy` (tidak lewat Traefik/Internet).
 set -euo pipefail

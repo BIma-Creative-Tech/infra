@@ -19,6 +19,7 @@ const STATUS_HOST = "status.bimacreative.tech";
 
 const MONITORS = [
   { name: "Control plane (cp)", url: "https://cp.bimacreative.tech/" },
+  { name: "Control plane staging (cp.staging)", url: "https://cp.staging.bimacreative.tech/" },  // T16b
   { name: "Keycloak OIDC discovery (platform)", url: "https://auth.bimacreative.tech/realms/platform/.well-known/openid-configuration" },
   { name: "Odoo demo (prod pool)", url: "https://demo.erp.bimacreative.tech/web/health" },
   { name: "Odoo demo (staging pool)", url: "https://demo.staging.bimacreative.tech/web/health" },
