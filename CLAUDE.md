@@ -35,6 +35,9 @@ dan memastikan dokumentasi + versioning selesai sebelum menyatakan pekerjaan sel
     (MIT/Apache-2/BSD/LGPL/AGPL diterima), maintenance aktif (< 6 bulan sejak commit
     terakhir), digunakan luas. Tulis alasan pemilihan di ADR. Tool yang sudah diputuskan
     ada di §3 — jangan diganti tanpa ADR baru + persetujuan user.
+    GPL-2/GPL-3 diterima untuk tool host yang tidak di-link/didistribusikan (dijalankan
+    apa adanya di host/container, bukan dimodifikasi lalu didistribusikan) — mis. fail2ban
+    (GPL-2), Ansible (GPL-3), auditd/chrony (GPL). Lihat `docs/adr/0001-stack.md`.
 11. **Akhir setiap sesi:** ringkasan Diubah / Diverifikasi / BELUM diverifikasi / Risiko.
 12. **Tidak ada `latest`.** Semua image dan dependency di-pin versi eksplisit.
 
@@ -47,6 +50,7 @@ Subagent didefinisikan di `.claude/agents/`:
 | Agent | File | Fokus |
 |---|---|---|
 | Business & System Analyst | `analyst.md` | Discovery env, requirement, desain solusi, ADR, acceptance criteria |
+| Infra/DevOps Engineer | `infra-engineer.md` | Ansible, Docker Compose per stack, Traefik, Postgres, Keycloak, mail, CrowdSec, backup, observability |
 | Odoo Developer | `odoo-developer.md` | Odoo CE 19.0, addons (shared/client-specific), multi-DB, SSO, data mart source |
 | Next.js Developer | `nextjs-developer.md` | Control plane, portal login/SSO, dashboard data mart, API |
 | QA & Security Engineer | `qa-security.md` | Test, DevSecOps pipeline, pentest ringan, review keamanan |
@@ -77,7 +81,7 @@ GATE 2  HANDOVER      Lead lapor ke user: apa selesai, bukti verifikasi, yang be
 - Lead **tidak** boleh langsung menulis kode fitur; delegasikan.
 - Prompt ke subagent harus **self-contained**: subagent tidak melihat percakapan user.
 - Task paralel hanya jika **tidak menyentuh file yang sama** dan tidak saling bergantung.
-  Contoh paralel aman: Odoo addon `auth_oidc` config + Next.js login page + Ansible
+  Contoh paralel aman: Odoo addon `sh_auth_oidc` config + Next.js login page + Ansible
   hardening. Contoh yang harus serial: schema data mart (Odoo) → dashboard (Next.js).
 - Setiap subagent WAJIB mematuhi §0 dan mengembalikan laporan format §1.3.
 - Lead mem-verifikasi ulang klaim subagent secara acak (spot-check) sebelum lapor ke user.
@@ -126,7 +130,11 @@ Laporan format §1.3 + path semua file yang diubah
   (rancang model data agar gateway bisa ditambah nanti).
 - Client membawa **domain sendiri**; control plane memberi instruksi DNS (A/CNAME ke VPS),
   memverifikasi, lalu Traefik menerbitkan TLS otomatis via HTTP-01 (lihat §3.5.1).
-- Mail server tetap di VPS yang sama untuk saat ini, dengan proteksi anomali ketat.
+  DNS domain platform (`bimacreative.tech`) dikelola **manual** di DNS manager Hostinger,
+  tanpa API DNS — lihat `docs/adr/0002-tls-dns-manual.md`.
+- Mail server tetap di VPS yang sama untuk saat ini, IPv4-only, melayani beberapa domain
+  (platform + domain client) dari satu hostname `mail.bimacreative.tech`, dengan proteksi
+  anomali ketat — lihat `docs/adr/0005-mail-ipv4.md`.
 - Staging berada di VPS yang sama (subdomain `staging.*`).
 
 ---
@@ -137,18 +145,18 @@ Laporan format §1.3 + path semua file yang diubah
 |---|---|---|
 | OS host | Ubuntu 24.04 LTS | Hanya: docker, compose plugin, ufw, fail2ban, crowdsec, restic, git, ansible target |
 | Reverse proxy | Traefik v3 | Satu-satunya yang expose 80/443; TLS Let's Encrypt (2 certresolver, lihat §3.5.1); dashboard tidak publik |
-| WAF/IPS | CrowdSec + bouncer Traefik; Coraza (OWASP CRS) sebagai plugin Traefik | Ban IP anomali; blok SQLi/XSS/scanner di edge |
+| WAF/IPS | CrowdSec + bouncer Traefik; CrowdSec AppSec (virtual patching + generic rules) via bouncer Traefik yang sama | Ban IP anomali; blok SQLi/XSS/scanner di edge |
 | Host IDS | fail2ban (sshd) + unattended-upgrades | |
 | ERP | Odoo CE **19.0** (image resmi, pin tag tanggal) | Shared pool multi-DB + opsi dedicated |
 | Database | PostgreSQL 16 | Satu cluster Postgres shared untuk pool Odoo; DB per client per env; DB `control_plane`; DB `datamart` |
-| Web/Control plane | Next.js 15 (App Router, TypeScript), Drizzle ORM, Auth.js | Node 22 LTS, `output: standalone` |
-| SSO/Identity | Keycloak (OIDC) | Odoo via modul OCA `auth_oidc`; Next.js via Auth.js provider OIDC |
+| Web/Control plane | Next.js 16 (App Router, TypeScript), Drizzle ORM, Auth.js | Node 24 LTS, `output: standalone` |
+| SSO/Identity | Keycloak (OIDC) | Odoo via modul sendiri `sh_auth_oidc` (authorization code + PKCE) di atas core `auth_oauth`; Next.js via Auth.js provider OIDC |
 | Data mart | Postgres DB `datamart` + dbt-core (dbt-postgres) + cron container | Next.js hanya baca role read-only |
-| Mail | docker-mailserver | SPF/DKIM/DMARC/rDNS wajib; rspamd; rate-limit; fail2ban terintegrasi |
+| Mail | docker-mailserver | IPv4-only (tanpa AAAA); satu hostname `mail.<platform-domain>` melayani beberapa domain (DKIM per domain); SPF/DKIM/DMARC/rDNS wajib; rspamd; rate-limit; fail2ban terintegrasi |
 | CI/CD | GitHub Actions + GHCR; deploy via SSH ke VPS | Semgrep, gitleaks, Trivy, Hadolint, ZAP baseline |
 | IaC | Ansible (playbook bootstrap host) | Idempotent; dijalankan dari laptop/CI |
-| Backup | restic → S3-compatible offsite | pg_dump per DB sebelum snapshot |
-| Observability | Uptime Kuma; Grafana + Loki + Promtail + Prometheus + node-exporter + cAdvisor | Alert via email/Telegram |
+| Backup | restic → repo lokal (sementara) → S3-compatible offsite (placeholder) | pg_dump per DB sebelum snapshot; lihat `docs/adr/0006-backup.md` |
+| Observability | Uptime Kuma; Grafana + Loki + Grafana Alloy + Prometheus + node-exporter + cAdvisor | Alert via email/Telegram |
 | Docker API akses | tecnativa/docker-socket-proxy | Hanya control-plane; permission minimal |
 | Secrets | `.env` mode 600 (host) + GitHub Secrets (CI) + SOPS/age untuk yang di-commit | |
 
@@ -171,7 +179,8 @@ Lisensi semua di atas: Apache-2/MIT/AGPL/LGPL — tercatat di `docs/adr/0001-sta
       addons/
         shared/            # modul lintas client (git submodule → repo odoo-addons-shared)
         clients/<slug>/    # modul spesifik client (repo odoo-addons-<slug>)
-        oca/               # modul OCA yang dipakai (pin commit)
+        # tidak ada addons/oca/ — OCA hanya referensi desain, tidak di-install/vendor
+        # (docs/adr/0003-odoo-no-oca.md, keputusan user #9)
     dedicated/<slug>/      # instance khusus client besar (opsional)
   web/
     control-plane/         # Next.js control plane + portal + dashboard
@@ -189,18 +198,21 @@ Lisensi semua di atas: Apache-2/MIT/AGPL/LGPL — tercatat di `docs/adr/0001-sta
   Hostname: `<slug>.erp.<platform-domain>` atau domain client (`erp.clientdomain.com`).
 - **Pemilihan DB per hostname — JANGAN pakai `dbfilter = ^%d$`.** `%d` = label pertama
   hostname (`acme.erp.platform.id` → `acme`, `erp.client.com` → `erp`), sehingga tidak
-  pernah cocok dengan `<slug>_prod` dan bentrok antar domain client. Desain yang dipakai:
-  - Modul OCA `dbfilter_from_header` (repo `OCA/server-tools`): setiap router Traefik
-    per hostname menambahkan middleware `headers.customRequestHeaders` yang men-set header
-    filter DB ke regex eksak (mis. `^acme_prod$`); `dbfilter` global di `odoo.conf` dibuat
-    ketat (tidak cocok DB mana pun tanpa header).
-  - Traefik WAJIB menimpa/menghapus header tersebut dari request client (tidak boleh
-    diteruskan dari luar) — kalau tidak, user bisa memilih DB client lain (QA uji ini).
-  - Sebelum implementasi, **verifikasi**: modul tersedia di branch `19.0` OCA/server-tools,
-    nama header persis & cara load (`server_wide_modules`) dari README modul tersebut.
-    Jika belum ada untuk 19.0 → laporkan ke Lead dengan opsi (port dari 18.0, modul custom
-    minimal `sh_dbfilter_header`, atau `%h`-based dbfilter dengan penamaan DB = hostname
-    ter-normalisasi). Keputusan dicatat di ADR.
+  pernah cocok dengan `<slug>_prod` dan bentrok antar domain client. **Tidak memakai modul
+  OCA** (keputusan user #9, OCA hanya referensi desain). Desain yang dipakai — modul sendiri
+  **`sh_dbfilter_header`** (repo `odoo-addons-shared`, LGPL-3, lihat
+  `docs/adr/0003-odoo-no-oca.md` D1):
+  - Load **server-wide** (`server_wide_modules` di `odoo.conf`), patch `odoo.http.db_filter`
+    saat import (bukan module yang di-install per DB).
+  - Baca header **`X-Sh-Odoo-Db`** (nama DB **eksak**, bukan regex; format
+    `^[a-z0-9_]{1,63}$`) — bukan regex dari header (menghindari regex injection/ReDoS).
+    Header tidak ada/invalid → **`[]` (fail-closed)**. Aktif hanya jika `proxy_mode = True`.
+  - Traefik (middleware `headers.customRequestHeaders` per router) **menimpa** header
+    `X-Sh-Odoo-Db` ke nilai eksak (mis. `acme_prod`) dan **menghapus** header bawaan Odoo 19
+    `X-Odoo-Database` (`X-Odoo-Database: ""`) dari request client — kalau tidak, user bisa
+    memilih DB client lain lewat header bawaan Odoo (QA wajib uji ini, lihat plan 02 §4).
+    Middleware yang sama dipasang di router utama (8069) dan `/websocket` (8072).
+  - `dbfilter` global tetap ketat per pool (mis. `^[a-z0-9]+_(prod|demo)$`), `list_db=False`.
   - Mapping hostname → DB disimpan di control plane (`environment`) dan di-render ke
     dynamic config Traefik per client (`/opt/infra/traefik/dynamic/clients/<slug>.yml`).
 - **`list_db = False`** di prod pool; database manager hanya bisa diakses control plane
@@ -215,11 +227,17 @@ Lisensi semua di atas: Apache-2/MIT/AGPL/LGPL — tercatat di `docs/adr/0001-sta
   Setiap modul: `__manifest__.py` lengkap (version `19.0.x.y.z`, license, depends),
   README, test unit (`tests/`), tidak ada hardcode DB name/URL.
 - Upgrade modul otomatis via CI: `-u <modul>` per DB terdampak, staging dulu, prod setelah QA.
-- **Login**: Odoo pakai modul OCA `auth_oidc` (server-auth) → Keycloak realm per platform;
-  Next.js portal pakai Auth.js OIDC → Keycloak yang sama → single sign-on.
-  Mapping user Keycloak ↔ `res.users` via `oauth_uid`. Password lokal Odoo dinonaktifkan
-  untuk user client (kecuali admin teknis). Verifikasi nama modul OCA & branch 19.0 tersedia
-  sebelum pakai; jika belum tersedia untuk 19.0, laporkan ke Lead — jangan mengarang fork.
+- **Login**: Odoo pakai modul sendiri **`sh_auth_oidc`** (repo `odoo-addons-shared`, LGPL-3,
+  `depends: ['auth_oauth']` core) → Keycloak realm per platform, dengan **authorization code
+  + PKCE (S256)**, bukan implicit flow core `auth_oauth` apa adanya (yang melanggar RFC 9700
+  §2.1.2 dan tidak memvalidasi `aud`/`iss`) — lihat `docs/adr/0003-odoo-no-oca.md` D2.
+  Validasi ID token: `iss`, `aud`=client_id, `azp`, `exp`, `nonce`; `state`+`nonce` disimpan
+  di session (anti-CSRF login). Next.js portal pakai Auth.js OIDC → Keycloak yang sama →
+  single sign-on. Mapping user Keycloak ↔ `res.users` via `oauth_uid` (claim `sub`).
+  Password lokal Odoo dinonaktifkan untuk user client (kecuali admin teknis). "Referensi" ke
+  OCA `auth_oidc`/`dbfilter_from_header` (AGPL-3) berarti membaca README/spesifikasi lalu
+  implementasi ulang dari spesifikasi (OIDC Core, RFC 7636, RFC 9700) — bukan menyalin/adaptasi
+  kode (lisensi AGPL-3 tidak kompatibel dengan repo shared LGPL-3).
 
 ### 3.3 Data mart & dashboard
 - Odoo DB **tidak pernah** di-query langsung oleh Next.js.
@@ -251,36 +269,51 @@ Semua aksi dicatat audit (siapa, kapan, hasil). Role: `superadmin`, `ops`, `clie
   template harus backward compatible dengan client yang berjalan.
 
 ### 3.5.1 TLS / certresolver Traefik
-DNS-01 hanya bisa untuk zona yang API-nya kita pegang; domain client tidak. Maka dua resolver:
+DNS domain platform (Hostinger) dikelola **manual, tanpa API** → DNS-01 otomatis tidak
+mungkin. Keputusan (`docs/adr/0002-tls-dns-manual.md`): **satu resolver saja, `le-http`**
+(HTTP-01, entrypoint `web` :80), dipakai untuk **semua** hostname — platform maupun domain
+client. Resolver `le-dns` (DNS-01) **dihapus dari desain**, tidak dipakai.
 | Resolver | Challenge | Dipakai untuk |
 |---|---|---|
-| `le-dns` | DNS-01 (token API DNS platform) | Wildcard `*.platform-domain`, `*.erp.*`, `*.staging.*`, `cp`, `auth`, dll. |
-| `le-http` | HTTP-01 (entrypoint `web` :80) | Domain milik client (`erp.clientdomain.com`, `www.clientdomain.com`) |
-- Router domain client di dynamic config per client memakai `certResolver: le-http`, dan
-  **hanya dibuat setelah** verifikasi DNS (A/CNAME mengarah ke VPS + TXT token) lulus —
-  mencegah kegagalan berulang yang memicu rate limit Let's Encrypt.
+| `le-http` | HTTP-01 (entrypoint `web` :80) | SEMUA hostname: platform (`cp`, `auth`, `*.erp`, dll.) maupun domain client (`erp.clientdomain.com`, `www.clientdomain.com`) |
+| `le-http-staging` | HTTP-01, `caServer` = ACME staging LE | Uji awal sebelum pindah ke resolver production |
+- **Tidak ada sertifikat wildcard.** Setiap router memakai `Host(\`<fqdn>\`)` eksplisit
+  (bukan `HostRegexp`) agar sertifikat diminta per hostname. Record DNS wildcard tetap
+  dipakai untuk **routing** (`*.erp`, `*.staging`), bukan untuk sertifikat.
+- **Tidak ada AAAA** untuk hostname mana pun di fase ini (IPv4-only di edge) — lihat
+  `docs/adr/0002-tls-dns-manual.md` #4 dan `docs/adr/0005-mail-ipv4.md`.
+- Router **hanya dibuat setelah DNS lolos pre-check** (`dig +short A <fqdn>` = IP VPS, tanpa
+  AAAA lain, plus TXT verifikasi untuk domain client) — berlaku juga untuk hostname platform
+  di luar wildcard, tidak hanya domain client — mencegah kegagalan berulang yang memicu rate
+  limit Let's Encrypt.
 - Port 80 harus tetap terbuka untuk ACME HTTP-01; redirect HTTP→HTTPS tidak boleh
   memblokir path `/.well-known/acme-challenge/` (verifikasi perilaku Traefik v3 di docs resmi).
 - Uji dulu dengan server ACME **staging** Let's Encrypt sebelum production.
+- CAA `0 issue "letsencrypt.org"` + `0 issuewild ";"` (larang wildcard) di DNS platform.
 - Nama option/konfigurasi resolver diverifikasi dari docs Traefik v3 sesuai versi yang di-pin.
 
 ### 3.6 Keamanan (DevSecOps) — baseline wajib
-**Host**: SSH key-only, port non-default, no root login, ufw default deny (allow SSH, 80,
-443, 25, 465, 587, 993), fail2ban, CrowdSec agent + bouncer, unattended-upgrades, auditd,
-swap terenkripsi tidak perlu tapi `/opt/infra/*/data` permission ketat.
+**Host**: SSH key-only, port **2221** (bukan 22; lihat `docs/plans/01-host-bootstrap.md`
+prosedur anti-lockout S0–S8), no root login, ufw default deny (allow 2221, 80, 443, 25, 465,
+587, 993), fail2ban, CrowdSec agent + bouncer, unattended-upgrades, auditd, swap terenkripsi
+tidak perlu tapi `/opt/infra/*/data` permission ketat.
 **Edge (Traefik)**: HSTS, security headers middleware, rate-limit middleware per host
-(login path lebih ketat), Coraza CRS paranoia level 1 (naikkan setelah tuning), IP allowlist
-untuk `/web/database/*`, Traefik dashboard, Grafana, Keycloak admin.
+(login path lebih ketat), CrowdSec AppSec collections (virtual patching + generic rules) +
+tuning false positive di staging, IP allowlist untuk `/web/database/*`, Traefik dashboard,
+Grafana, Keycloak admin.
 **Odoo**: `list_db=False`, `admin_passwd` ≥ 32 char, `proxy_mode`, `limit_*` sesuai RAM,
-nonaktifkan `web/database/manager` publik, audit modul pihak ketiga sebelum install,
-validasi input di controller custom (`request.params` tidak langsung ke ORM search domain
-tanpa sanitasi), jangan `sudo()` sembarangan, ACL + record rules di setiap modul.
+nonaktifkan `web/database/manager` publik, audit modul pihak ketiga sebelum install (OCA
+hanya referensi, tidak di-install/vendor — §3.1, §3.2), validasi input di controller custom
+(`request.params` tidak langsung ke ORM search domain tanpa sanitasi), jangan `sudo()`
+sembarangan, ACL + record rules di setiap modul.
 **Next.js**: validasi semua input dengan Zod (server side), Drizzle parameterized (tanpa
 `sql.raw` dengan input user), CSP strict + nonce, `SameSite=Lax` cookies, CSRF untuk
 form non-idempotent, rate-limit login/upload, upload bukti transfer: validasi MIME + ukuran,
 simpan di luar webroot, scan ClamAV (opsional fase 2), tidak ada secret di `NEXT_PUBLIC_*`.
-**Mail**: SPF/DKIM/DMARC (p=quarantine → reject), rDNS, rspamd, batasi outbound per user/jam,
-fail2ban untuk postfix/dovecot, TLS wajib, tidak ada open relay (uji dengan swaks).
+**Mail**: IPv4-only (`POSTFIX_INET_PROTOCOLS=ipv4`, `DOVECOT_INET_PROTOCOLS=ipv4`, tanpa
+AAAA — `docs/adr/0005-mail-ipv4.md`), SPF/DKIM/DMARC (p=quarantine → reject, DKIM per domain
+untuk multi-domain), rDNS, rspamd, batasi outbound per user/jam & per domain, fail2ban untuk
+postfix/dovecot, TLS wajib, tidak ada open relay (uji dengan swaks), `PERMIT_DOCKER=none`.
 **Pipeline**: gitleaks (pre-commit + CI), Semgrep (ruleset OWASP + python + typescript),
 Hadolint, Trivy (image + fs, gagal jika CRITICAL), `npm audit`/`pip-audit`, Dependabot,
 ZAP baseline scan ke staging, branch protection (PR + 1 review + CI hijau), signed commits
@@ -295,8 +328,11 @@ dianjurkan, deploy hanya dari workflow `main`.
 - Conventional Commits; semver; tag `vX.Y.Z`; CHANGELOG otomatis (git-cliff).
 - Pipeline: lint → test → security scan → build → push GHCR → deploy staging (auto dari
   develop) → deploy prod (dari main, dengan environment approval GitHub).
-- Deploy = SSH ke VPS sebagai user `deploy` (sudo terbatas), `docker compose pull && up -d
-  --remove-orphans`, lalu healthcheck + smoke test; gagal → rollback ke tag image sebelumnya.
+- Deploy = SSH (port 2221) ke VPS sebagai user `deploy` — **bukan** anggota grup `docker`
+  (setara root di host; `docs/plans/01-host-bootstrap.md` §4 threat model E) dan tanpa grup
+  `sudo`; sudo terbatas ke skrip wrapper root-owned `/usr/local/sbin/infra-deploy <stack>`
+  yang memvalidasi argumen dan menjalankan `docker compose pull && up -d --remove-orphans`,
+  lalu healthcheck + smoke test; gagal → rollback ke tag image sebelumnya.
 
 ---
 
