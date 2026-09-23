@@ -32,7 +32,7 @@
 |---|---|---|---|
 | `traefik.yaml` | `/var/log/traefik/access.log` (= `traefik/logs/`, ro) | `type: traefik` | `crowdsecurity/traefik-logs` |
 | `sshd.yaml` | `/var/log/host/auth.log` (= `/var/log` host, ro) | `type: syslog` | `syslog-logs` → `sshd-logs` |
-| `appsec.yaml` | listener AppSec `0.0.0.0:7422` | `type: appsec` | configs `appsec-default` + `crs-inband` + `local/odoo-crs-exclusions` (T10) |
+| `appsec.yaml` | listener AppSec `0.0.0.0:7422` | `type: appsec` | configs `appsec-default` + `crs-inband` + `local/odoo-crs-exclusions` (T10) + `local/keycloak-admin-exclusions` (H4) |
 
 - sshd → **`/var/log/auth.log`** (rsyslog aktif di host; journald tidak dipakai karena image alpine tanpa `journalctl`).
 - Permission: container jalan sebagai root **tanpa capability** (tidak bisa bypass DAC). Membaca log lewat
@@ -58,6 +58,40 @@
 `local/odoo-crs-exclusions`): hook `pre_eval` → `RemoveInBandRuleByTag("attack-xss")` hanya untuk POST ke
 endpoint JSON-RPC Odoo yang membawa HTML (`/web/dataset/call_kw/`, `/mail/message/`, …). Alasan & uji: `odoo.md`
 §AppSec. Verifikasi dimuat: `docker exec crowdsec cscli appsec-configs list` → `local/odoo-crs-exclusions  enabled,local`.
+
+### Pengecualian CRS 911100 untuk Admin REST Keycloak (H4, disetujui user 2026-09-23)
+
+`appsec-configs/keycloak-admin-exclusions.yaml` (mount ro, nama `local/keycloak-admin-exclusions`): hook `pre_eval` →
+`RemoveInBandRuleByID(911100)` **hanya** bila semua syarat terpenuhi: in-band, `req.Host` ∈ {`auth.bimacreative.tech`,
+`auth.bimacreative.tech:8443`} (bentuk ber-port = admin via SSH tunnel; plugin bouncer meneruskan `Host` apa adanya),
+`req.URL.Path` diawali `/admin/realms/`, dan `req.RemoteAddr` ∈ {`127.0.0.1`, `10.100.0.1`} (= isi `ipallowlist-admin`).
+- Alasan: CRS 911100 "Method is not allowed by policy" (default `GET HEAD POST OPTIONS`) memblok setiap PUT/DELETE Admin REST
+  API (ubah/hapus user, client, role) — termasuk admin console via tunnel.
+- `req.RemoteAddr` = IP **tanpa port**: plugin v1.7.1 `pkg/ip.GetRemoteIP` (`net.SplitHostPort` pada RemoteAddr koneksi,
+  tanpa `forwardedHeadersTrustedIPs`) → header `X-Crowdsec-Appsec-Ip` → crowdsec v1.8.1 `pkg/appsec/request.go`
+  `originalHTTPRequest.RemoteAddr = clientIP`. Helper diverifikasi di `pkg/appsec/waf_helpers.go` (`GetPreEvalEnv`).
+- Rule CRS lain tetap aktif di path admin (XSS/SQLi/RCE/…); 911100 tetap aktif di host/path lain (mis. `/realms/<r>/`).
+- Rollback: hapus file + barisnya di `acquis.d/appsec.yaml` + mount di `docker-compose.yml` → `docker compose up -d`
+  (recreate = fail-closed; terukur H4: 403 di semua router ber-`crowdsec` 17:00:43–17:01:22 WIB, ±40 s).
+
+Uji H4 (2026-09-23, dari host = 10.100.0.1, `--resolve …:443:127.0.0.1`, token service account `automation` realm
+`platform-staging`):
+
+| Request | Harapan | Hasil |
+|---|---|---|
+| `PUT /admin/realms/platform-staging/users/<id>` `{"enabled":false}` | 204 (sebelumnya 403, alert 911100) | 204, user `enabled=false` |
+| `DELETE /admin/realms/platform-staging/users/<id>` → `GET` | 204 → 404 | 204 → 404 |
+| `GET /admin/realms/…/users?search=<script>alert(1)</script>` | 403 AppSec | 403, alert `xss: 40` (Origin 0) |
+| `GET /admin/realms/…/users?search=' OR 1=1--` | 403 AppSec | 403, alert `sql_injection: 10` |
+| `PUT /admin/realms/…/users/<id>` body `<script>` | 403 AppSec | 403, rule 941100/941110/941160/941390 — **tanpa** 911100 |
+| `TRACE`/`PROPFIND https://status.bimacreative.tech/` | 403 (911100) | 403, alert `native_rule:911100` |
+| `TRACE`/`PROPFIND https://auth.bimacreative.tech/realms/platform/` | 403 (911100) | 403, alert `native_rule:911100` |
+| `PUT https://auth.bimacreative.tech/realms/platform-staging/` | 403 (911100) | 403, alert `native_rule:911100` |
+| Odoo: POST HTML ke `/web/dataset/call_kw/…` vs `/web/session/get_session_info` | 200 vs 403 | 200 vs 403 (T10 utuh) |
+| cp / cp.staging / auth discovery / demo.erp / demo.staging / status | 307/307/200/200/200/200 | sesuai |
+
+Alert uji (`waf`, 10.100.0.1) tidak menghasilkan decision (parser whitelist IP privat) — `cscli decisions list -i 10.100.0.1`
+→ `No active decisions`.
 
 ## Start / stop
 

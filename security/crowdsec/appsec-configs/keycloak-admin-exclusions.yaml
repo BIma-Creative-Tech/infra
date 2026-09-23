@@ -1,0 +1,34 @@
+# H4 — pengecualian SEMPIT OWASP CRS (crowdsecurity/crs-inband) untuk Admin REST API Keycloak.
+# Dimuat lewat acquis.d/appsec.yaml (appsec_configs) — di-mount read-only dari git.
+# Sintaks diverifikasi 2026-09-23: crowdsec-docs docs/appsec/hooks.md (`pre_eval`, `RemoveInBandRuleByID`
+# `func(id int)`, `req.Host`, `req.URL.Path`, `IsInBand`) + source crowdsec v1.8.1
+# pkg/appsec/waf_helpers.go (GetPreEvalEnv: "req" = request.HTTPRequest, "RemoveInBandRuleByID") dan
+# pkg/appsec/request.go (req.Host = header X-Crowdsec-Appsec-Host = Host asli dari bouncer Traefik).
+#
+# Masalah (2026-09-23): PUT/DELETE ke https://auth.bimacreative.tech/admin/realms/... → 403 AppSec,
+# rule CRS 911100 "Method is not allowed by policy" (CRS default hanya GET/HEAD/POST/OPTIONS).
+# Admin REST Keycloak memakai PUT/DELETE secara sah (ubah/hapus user, client, role).
+#
+# Keputusan user infra 2026-09-23 (ADR 0001 §Riwayat revisi, H4). Cakupan:
+#   - HANYA rule 911100 — semua rule CRS lain (XSS/SQLi/RCE/LFI/protocol, termasuk anomaly scoring),
+#     virtual patching & generic rules TETAP aktif pada path ini;
+#   - HANYA in-band, host auth.bimacreative.tech (juga bentuk ber-port :8443 = akses admin via SSH tunnel,
+#     KC_HOSTNAME_ADMIN — plugin bouncer meneruskan Host apa adanya, termasuk port), path diawali
+#     /admin/realms/. Path itu di Traefik juga dibatasi ipallowlist-admin (router auth-admin).
+#   - HANYA IP klien 127.0.0.1 / 10.100.0.1 (= isi ipallowlist-admin) — kunci ganda bila routing berubah.
+#   - HANYA IP klien 127.0.0.1 / 10.100.0.1 (= isi ipallowlist-admin) — kunci ganda bila routing berubah.
+#     req.RemoteAddr = IP TANPA port: plugin bouncer v1.7.1 pkg/ip.GetRemoteIP (net.SplitHostPort) →
+#     header X-Crowdsec-Appsec-Ip → crowdsec v1.8.1 request.go `originalHTTPRequest.RemoteAddr = clientIP`.
+#   - Host/path lain (mis. /realms/platform/, status, Odoo) tetap kena 911100.
+# Rollback: hapus file ini + barisnya di acquis.d/appsec.yaml + mount di docker-compose.yml →
+# `docker compose up -d` (recreate, fail-closed ±50 s).
+name: local/keycloak-admin-exclusions
+default_remediation: ban
+pre_eval:
+  - filter: >-
+      IsInBand &&
+      req.Host in ["auth.bimacreative.tech", "auth.bimacreative.tech:8443"] &&
+      req.URL.Path startsWith "/admin/realms/" &&
+      req.RemoteAddr in ["127.0.0.1", "10.100.0.1"]
+    apply:
+      - RemoveInBandRuleByID(911100)

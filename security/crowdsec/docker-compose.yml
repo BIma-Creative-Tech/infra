@@ -39,6 +39,8 @@ services:
       - ./acquis.d:/etc/crowdsec/acquis.d:ro
       # T10: pengecualian CRS sempit untuk Odoo (lihat file). Nama config: local/odoo-crs-exclusions.
       - ./appsec-configs/odoo-crs-exclusions.yaml:/etc/crowdsec/appsec-configs/odoo-crs-exclusions.yaml:ro
+      # H4: pengecualian CRS 911100 untuk Admin REST Keycloak. Nama config: local/keycloak-admin-exclusions.
+      - ./appsec-configs/keycloak-admin-exclusions.yaml:/etc/crowdsec/appsec-configs/keycloak-admin-exclusions.yaml:ro
       - ../../traefik/logs:/var/log/traefik:ro
       - /var/log:/var/log/host:ro
     read_only: true

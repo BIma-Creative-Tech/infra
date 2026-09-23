@@ -121,5 +121,19 @@ docker compose down                 # stop; data di Postgres
   `claim.name: resource_access.${client_id}.roles`) diblokir AppSec (`anomaly score block: rce`, 403 kosong dari router
   `auth-admin`, alert `waf` untuk 10.100.0.1). Tulis nilai literal (`resource_access.<clientId>.roles`) — klaim identik.
   Client `control-plane` realm `platform-staging`: lihat `control-plane.md` §Staging.
+- **PUT/DELETE Admin REST lewat edge (H4, 2026-09-23):** CRS 911100 ("Method is not allowed by policy") dulu memblok
+  semua PUT/DELETE ke `/admin/realms/…` (403 dari router `auth-admin`). Kini dikecualikan **hanya** rule 911100, hanya untuk
+  host `auth.bimacreative.tech` (juga `:8443` tunnel), path `/admin/realms/*`, IP 127.0.0.1/10.100.0.1 — config
+  `local/keycloak-admin-exclusions` (`crowdsec.md` §Pengecualian CRS 911100). Rule CRS lain tetap berlaku: body berisi
+  `${…}`/`<script>`/SQLi tetap 403. Contoh (token `automation`, tanpa menampilkan secret):
+  ```bash
+  S=/opt/infra/identity/keycloak/secrets/automation-platform-staging.secret
+  T=$(curl -s --resolve auth.bimacreative.tech:443:127.0.0.1 -d grant_type=client_credentials -d client_id=automation \
+      --data-urlencode "client_secret@$S" https://auth.bimacreative.tech/realms/platform-staging/protocol/openid-connect/token \
+      | python3 -c 'import sys,json;sys.stdout.write(json.load(sys.stdin)["access_token"])')
+  curl -s -o /dev/null -w '%{http_code}\n' --resolve auth.bimacreative.tech:443:127.0.0.1 -X DELETE \
+       -H "Authorization: Bearer $T" https://auth.bimacreative.tech/admin/realms/platform-staging/users/<id>   # 204
+  ```
+  User uji T15 `t15-sso-test` (realm `platform-staging`) **dihapus** 2026-09-23 dengan cara ini (204, GET → 404).
 - Network: Keycloak di `proxy` (dan `db`, serta `metrics` internal sejak T14a — Prometheus scrape `keycloak:9000/metrics`).
   Jangan menambah router/path admin publik.

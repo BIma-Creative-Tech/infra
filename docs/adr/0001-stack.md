@@ -129,3 +129,11 @@ sistem sampai FASE 2.
   `attrs.tag` (daemon.json `log-opts.tag={{.Name}}` + `labels=com.docker.compose.project,com.docker.compose.service`,
   role Ansible `docker`). Pin `tecnativa/docker-socket-proxy:v0.5.0` tetap berlaku untuk **control plane** saja
   (CLAUDE.md §3 "Hanya control-plane"). Detail & trade-off: `docs/03-operations/observability.md` §Log.
+- 2026-09-23 (H4, disetujui user): **pengecualian CRS sempit untuk Admin REST Keycloak** — hanya rule **911100**
+  ("Method is not allowed by policy") dinonaktifkan (`pre_eval` → `RemoveInBandRuleByID(911100)`), hanya bila in-band
+  **dan** host `auth.bimacreative.tech` (atau `:8443` tunnel admin) **dan** path diawali `/admin/realms/` **dan** IP klien
+  127.0.0.1/10.100.0.1 (= `ipallowlist-admin`). Alasan: Admin REST memakai PUT/DELETE secara sah; tanpa ini ubah/hapus
+  user/client lewat edge (termasuk admin console via tunnel) = 403. Semua rule CRS lain, virtual patching & generic rules
+  tetap aktif pada path itu; 911100 tetap berlaku di host/path lain (diuji, `docs/03-operations/crowdsec.md` §Pengecualian
+  CRS 911100). Rollback: hapus `security/crowdsec/appsec-configs/keycloak-admin-exclusions.yaml` + barisnya di
+  `acquis.d/appsec.yaml` + mount di `docker-compose.yml` → `docker compose up -d` (recreate, fail-closed ±40–50 s).

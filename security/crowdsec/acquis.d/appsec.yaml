@@ -11,5 +11,8 @@ appsec_configs:
   # T10: pre_eval — nonaktifkan rule CRS `attack-xss` hanya untuk endpoint JSON-RPC Odoo yang
   # membawa HTML (security/crowdsec/appsec-configs/odoo-crs-exclusions.yaml).
   - local/odoo-crs-exclusions
+  # H4: pre_eval — nonaktifkan HANYA rule CRS 911100 (method policy) untuk Admin REST Keycloak
+  # (host auth.bimacreative.tech, path /admin/realms/*) — appsec-configs/keycloak-admin-exclusions.yaml.
+  - local/keycloak-admin-exclusions
 labels:
   type: appsec
