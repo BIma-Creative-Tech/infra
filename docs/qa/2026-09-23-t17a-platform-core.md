@@ -33,8 +33,8 @@ parser `crowdsecurity/whitelists` mengabaikan IP privat. Karena itu, "ban otomat
 bisa** dibuktikan dari `10.100.0.x`. Ban hanya bisa dibuktikan dari IP publik di luar VPS.
 
 ### Catatan dari Lead selama sesi
-- Keycloak dimatikan terencana dua kali (±90 s dan ±60 s; maintenance yang disetujui user). Tidak ada uji `auth.*` yang berjalan di jendela itu.
-- Service account `automation` di realm `platform` & `platform-staging` = **disengaja** (info Lead). Tidak diverifikasi di sesi ini.
+- Keycloak dimatikan terencana satu kali ±90 s (maintenance yang disetujui user). Downtime kedua (±60 s) diumumkan lalu **dibatalkan** oleh Lead. Tidak ada uji `auth.*` yang berjalan selama sesi.
+- Service account `automation` di realm `platform` & `platform-staging` = **disengaja** (info Lead). Token-nya saat ini tanpa role (`fullScopeAllowed=false`) — sudah diketahui Lead, bukan temuan T17a. Tidak diverifikasi di sesi ini.
 
 ## Tabel kontrol
 
