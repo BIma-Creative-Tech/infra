@@ -1,0 +1,48 @@
+---
+# S2 — firewall DULU (plan 01 §5). Aturan allow ditulis sebelum `ufw enable`.
+# Port 22 tetap diizinkan selama fase SSH a/b; dihapus hanya di fase c (S8).
+- name: Allow port SSH baru
+  community.general.ufw:
+    rule: allow
+    port: "{{ ssh_port_new | string }}"
+    proto: tcp
+    comment: sshd
+
+- name: Allow port SSH lama selama transisi (fase a/b)
+  community.general.ufw:
+    rule: allow
+    port: "{{ ssh_port_legacy | string }}"
+    proto: tcp
+    comment: sshd-legacy-transisi
+  when: ssh_effective_phase in ['a', 'b']
+
+- name: Allow HTTP/HTTPS (Traefik)
+  community.general.ufw:
+    rule: allow
+    port: "{{ item | string }}"
+    proto: tcp
+    comment: traefik
+  loop: "{{ ufw_allow_tcp_ports_static }}"
+
+- name: Default deny incoming
+  community.general.ufw:
+    default: deny
+    direction: incoming
+
+- name: Default allow outgoing
+  community.general.ufw:
+    default: allow
+    direction: outgoing
+
+- name: Enable ufw (setelah semua allow terpasang)
+  community.general.ufw:
+    state: enabled
+
+- name: Hapus allow port 22 (HANYA fase c / S8)
+  community.general.ufw:
+    rule: allow
+    port: "{{ ssh_port_legacy | string }}"
+    proto: tcp
+    delete: true
+  when: ssh_effective_phase == 'c'
+  tags: [ssh_phase_c]

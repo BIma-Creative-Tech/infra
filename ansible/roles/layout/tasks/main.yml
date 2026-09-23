@@ -1,0 +1,10 @@
+---
+# /opt/infra = repo git. Hanya direktori puncak yang diubah (root:admin 0750);
+# isi repo & .git TIDAK disentuh (tanpa recurse) -> root tetap rw, admin read-only, deploy tanpa akses.
+- name: /opt/infra root:admin 0750
+  ansible.builtin.file:
+    path: "{{ infra_root }}"
+    state: directory
+    owner: root
+    group: "{{ admin_user }}"
+    mode: "0750"

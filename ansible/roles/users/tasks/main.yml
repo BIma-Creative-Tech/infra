@@ -1,0 +1,85 @@
+---
+# S1 — plan 01 §4 "Users". Password TIDAK di-set di sini (admin mengeset sendiri untuk sudo & konsol).
+# Catatan: grup sistem "admin" (gid 110) sudah ada di image Ubuntu dan /etc/sudoers memuat
+# "%admin ALL=(ALL) ALL" -> jangan tambahkan user lain ke grup ini. Dipakai sebagai primary
+# group user admin agar /opt/infra (root:admin 0750, role layout) terbaca oleh admin.
+- name: Buat user admin (grup sudo)
+  ansible.builtin.user:
+    name: "{{ admin_user }}"
+    group: "{{ admin_user }}"
+    shell: /bin/bash
+    groups: [sudo]
+    append: true
+    create_home: true
+    state: present
+
+- name: Buat user deploy (tanpa grup sudo/docker)
+  ansible.builtin.user:
+    name: "{{ deploy_user }}"
+    shell: /bin/bash
+    groups: ""
+    append: false
+    create_home: true
+    state: present
+
+- name: Pastikan deploy bukan anggota grup sudo/docker (plan 01 §6 E)
+  ansible.builtin.command: id -nG {{ deploy_user }}
+  register: users_deploy_groups
+  changed_when: false
+  check_mode: false
+
+- name: Assert grup deploy
+  ansible.builtin.assert:
+    that:
+      - "'sudo' not in users_deploy_groups.stdout.split()"
+      - "'docker' not in users_deploy_groups.stdout.split()"
+    quiet: true
+
+- name: authorized_keys admin
+  ansible.posix.authorized_key:
+    user: "{{ admin_user }}"
+    key: "{{ infra_ssh_pubkey }}"
+    exclusive: true
+    manage_dir: true
+    state: present
+
+- name: authorized_keys deploy (restrict — tanpa PTY/forwarding, man sshd AUTHORIZED_KEYS)
+  ansible.posix.authorized_key:
+    user: "{{ deploy_user }}"
+    key: "{{ infra_ssh_pubkey }}"
+    key_options: restrict
+    exclusive: true
+    manage_dir: true
+    state: present
+
+- name: Mode authorized_keys 600
+  ansible.builtin.file:
+    path: "/home/{{ item }}/.ssh/authorized_keys"
+    owner: "{{ item }}"
+    group: "{{ item }}"
+    mode: "0600"
+  loop: ["{{ admin_user }}", "{{ deploy_user }}"]
+
+- name: Wrapper deploy root-owned 755
+  ansible.builtin.template:
+    src: infra-deploy.sh.j2
+    dest: "{{ deploy_wrapper_path }}"
+    owner: root
+    group: root
+    mode: "0755"
+    validate: /usr/bin/bash -n %s
+
+- name: Sudoers deploy -> hanya wrapper (tanpa wildcard)
+  community.general.sudoers:
+    name: 50-deploy-infra
+    user: "{{ deploy_user }}"
+    runas: root
+    commands: ["{{ deploy_wrapper_path }}"]
+    nopassword: true
+    validation: required
+    state: present
+
+- name: Validasi seluruh sudoers
+  ansible.builtin.command: visudo -c
+  changed_when: false
+  check_mode: false

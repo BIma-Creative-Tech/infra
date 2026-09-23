@@ -8,3 +8,6 @@ backups/
 *.key
 *.pem
 .claude/settings.local.json
+
+# Ansible collections diunduh via requirements.yml (tidak di-commit)
+ansible/collections/

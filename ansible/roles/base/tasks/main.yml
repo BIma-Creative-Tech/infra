@@ -1,0 +1,33 @@
+---
+- name: Timezone
+  community.general.timezone:
+    name: "{{ base_timezone }}"
+
+- name: Generate locale
+  community.general.locale_gen:
+    name: "{{ base_locale }}"
+    state: present
+
+- name: Baca locale sistem
+  ansible.builtin.command: localectl status
+  register: base_localectl
+  changed_when: false
+  check_mode: false
+
+- name: Set LANG sistem
+  ansible.builtin.command: localectl set-locale LANG={{ base_locale }}
+  when: ("LANG=" ~ base_locale) not in base_localectl.stdout
+  changed_when: true
+
+- name: Pasang chrony (Conflicts time-daemon -> menggantikan systemd-timesyncd)
+  ansible.builtin.apt:
+    name: chrony
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: chrony aktif
+  ansible.builtin.systemd_service:
+    name: chrony
+    enabled: true
+    state: started

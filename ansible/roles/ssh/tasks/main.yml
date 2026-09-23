@@ -1,0 +1,15 @@
+---
+# sshd — prosedur anti-lockout plan 01 §5.
+# Setiap fase punya tag sendiri; site.yml pre_tasks menentukan ssh_effective_phase dan
+# menolak fase yang mundur/melompat. Tag role-level sengaja TIDAK dipakai.
+- name: Fase A (S3) — port ganda 22 + 2221 saja
+  ansible.builtin.import_tasks: phase_a.yml
+  tags: [ssh_phase_a]
+
+- name: Fase B (S6) — hardening penuh, port ganda
+  ansible.builtin.import_tasks: phase_b.yml
+  tags: [ssh_phase_b]
+
+- name: Fase C (S8) — tutup port 22
+  ansible.builtin.import_tasks: phase_c.yml
+  tags: [ssh_phase_c]

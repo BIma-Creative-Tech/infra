@@ -1,0 +1,52 @@
+---
+# Bootstrap & hardening host — plan 01 (T01 + T02, plan 02).
+# Urutan penerapan WAJIB mengikuti plan 01 §5 (S0–S9), satu tag per langkah:
+#   S1 --tags users | S2 --tags firewall | S3 --tags ssh_phase_a
+#   S6 --tags ssh_phase_b | S8 --tags ssh_phase_c
+#   S9 --tags base,fail2ban,auditd,sysctl_swap,docker,unattended,layout,crowdsec_repo
+# Tag ssh_phase_b / ssh_phase_c hanya boleh dijalankan Lead bersama user (S4–S7).
+- name: Bootstrap host VPS
+  hosts: vps
+  become: true
+  gather_facts: true
+
+  pre_tasks:
+    - name: Tentukan fase SSH efektif untuk run ini
+      ansible.builtin.set_fact:
+        ssh_requested_phases: >-
+          {{ ['a', 'b', 'c'] | select('in', ansible_run_tags | map('regex_replace', '^ssh_phase_', '') | list) | list }}
+      tags: [always]
+
+    - name: Guard fase SSH (maks satu fase; hanya fase saat ini atau tepat berikutnya)
+      ansible.builtin.assert:
+        that:
+          - ssh_phase in ['a', 'b', 'c']
+          - ssh_requested_phases | length <= 1
+          - >-
+            ssh_requested_phases | length == 0 or
+            ssh_requested_phases[0] == ssh_phase or
+            (ssh_phase == 'a' and ssh_requested_phases[0] == 'b') or
+            (ssh_phase == 'b' and ssh_requested_phases[0] == 'c')
+        fail_msg: >-
+          Fase SSH ditolak: ssh_phase (state host) = {{ ssh_phase }}, diminta = {{ ssh_requested_phases }}.
+          Naikkan ssh_phase di group_vars hanya setelah fase sebelumnya lolos verifikasi plan 01 §5.
+        quiet: true
+      tags: [always]
+
+    - name: Tetapkan fase SSH efektif
+      ansible.builtin.set_fact:
+        ssh_effective_phase: "{{ ssh_requested_phases[0] if ssh_requested_phases | length == 1 else ssh_phase }}"
+      tags: [always]
+
+  roles:
+    - { role: users, tags: [users] }
+    - { role: firewall, tags: [firewall] }
+    - role: ssh # tanpa tag level-role: tiap task diberi tag fase sendiri
+    - { role: base, tags: [base] }
+    - { role: fail2ban, tags: [fail2ban] }
+    - { role: sysctl_swap, tags: [sysctl_swap] }
+    - { role: docker, tags: [docker] }
+    - { role: auditd, tags: [auditd] }
+    - { role: unattended, tags: [unattended] }
+    - { role: layout, tags: [layout] }
+    - { role: crowdsec_repo, tags: [crowdsec_repo] }

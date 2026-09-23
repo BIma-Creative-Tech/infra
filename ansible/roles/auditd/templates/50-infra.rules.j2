@@ -1,0 +1,11 @@
+## {{ ansible_managed }}
+## plan 01 §4 auditd. Watch path yang belum ada diperbolehkan selama direktori induk ada.
+-w /etc/ssh/ -p wa -k sshd_config
+-w /etc/sudoers -p wa -k sudoers
+-w /etc/sudoers.d/ -p wa -k sudoers
+-w /etc/docker/ -p wa -k docker_config
+-w /etc/restic/ -p wa -k restic_config
+-w {{ deploy_wrapper_path }} -p wa -k infra_deploy
+-w /usr/bin/docker -p x -k docker_exec
+-w /usr/bin/sudo -p x -k sudo_exec
+## TODO(T03+): watch /opt/infra/<stack>/.env ditambahkan per stack (audit tidak mendukung glob **).

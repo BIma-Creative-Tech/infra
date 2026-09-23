@@ -1,0 +1,93 @@
+---
+# Docker CE dari repo resmi (ADR 0001), versi di-pin + apt-mark hold.
+- name: Prasyarat APT
+  ansible.builtin.apt:
+    name: [ca-certificates, curl, gnupg]
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Direktori keyrings
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Unduh GPG key Docker
+  ansible.builtin.get_url:
+    url: "{{ docker_apt_key_url }}"
+    dest: /etc/apt/keyrings/docker.asc
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Baca fingerprint GPG key Docker
+  ansible.builtin.command: gpg --show-keys --with-colons /etc/apt/keyrings/docker.asc
+  register: docker_key_info
+  changed_when: false
+  check_mode: false
+
+- name: Verifikasi fingerprint GPG key Docker
+  ansible.builtin.assert:
+    that:
+      - ("fpr:::::::::" ~ docker_apt_key_fingerprint ~ ":") in docker_key_info.stdout
+    fail_msg: "Fingerprint GPG Docker tidak cocok dengan {{ docker_apt_key_fingerprint }}"
+    quiet: true
+
+- name: Repo APT Docker (deb822)
+  ansible.builtin.deb822_repository:
+    name: docker
+    types: [deb]
+    uris: ["{{ docker_apt_uri }}"]
+    suites: ["{{ ansible_facts['distribution_release'] }}"]
+    components: [stable]
+    architectures: [amd64]
+    signed_by: /etc/apt/keyrings/docker.asc
+    state: present
+  register: docker_repo
+
+- name: apt update setelah repo berubah
+  ansible.builtin.apt:
+    update_cache: true
+  when: docker_repo is changed
+
+- name: Pasang paket Docker versi pin
+  ansible.builtin.apt:
+    name: "{{ docker_packages | dict2items | map(attribute='key') | zip(docker_packages | dict2items | map(attribute='value')) | map('join', '=') | list }}"
+    state: present
+    install_recommends: false
+    allow_change_held_packages: false
+  register: docker_install
+
+- name: Hold paket Docker
+  ansible.builtin.dpkg_selections:
+    name: "{{ item }}"
+    selection: hold
+  loop: "{{ docker_packages.keys() | list }}"
+
+- name: Direktori /etc/docker
+  ansible.builtin.file:
+    path: /etc/docker
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: daemon.json (kunci diverifikasi docker/cli v29.8.1 docs/reference/dockerd.md; tanpa ipv6)
+  ansible.builtin.copy:
+    dest: /etc/docker/daemon.json
+    owner: root
+    group: root
+    mode: "0644"
+    content: "{{ docker_daemon_json | to_nice_json(indent=2) }}\n"
+    validate: /usr/bin/python3 -m json.tool %s
+  notify: Restart docker
+
+- name: docker & containerd aktif
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    enabled: true
+    state: started
+  loop: [containerd, docker]

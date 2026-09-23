@@ -1,0 +1,6 @@
+---
+- name: Render fase a
+  ansible.builtin.import_tasks: render.yml
+  vars:
+    ssh_render_phase: a
+  when: ssh_effective_phase == 'a'

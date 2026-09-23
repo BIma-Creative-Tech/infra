@@ -1,0 +1,8 @@
+---
+# PRASYARAT: S7 (uji negatif & positif sesi baru) lolos dan dead-man switch dibatalkan.
+# ufw delete 22 ada di role firewall, port jail fail2ban di role fail2ban (keduanya bertag ssh_phase_c).
+- name: Render fase c
+  ansible.builtin.import_tasks: render.yml
+  vars:
+    ssh_render_phase: c
+  when: ssh_effective_phase == 'c'

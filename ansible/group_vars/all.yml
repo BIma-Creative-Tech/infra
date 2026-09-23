@@ -1,0 +1,85 @@
+---
+# Variabel global bootstrap host — plan 01 §4, ADR 0001, ADR 0004.
+# HANYA public key / nilai non-rahasia. Tidak ada password/secret di file ini.
+
+# ---------------------------------------------------------------------------
+# SSH — fase prosedur anti-lockout (plan 01 §5)
+#   a = S3 port ganda 22+2221, belum ada pembatasan
+#   b = S6 hardening penuh, port 22+2221 masih terbuka
+#   c = S8 port 22 ditutup (sshd, ufw, fail2ban)
+# Nilai ini = STATE HOST SAAT INI. Lead menaikkan nilainya di git setelah fase
+# berikutnya lolos verifikasi. Run tanpa --tags memakai nilai ini; run dengan
+# --tags ssh_phase_X hanya diizinkan untuk fase = nilai ini atau fase tepat
+# berikutnya (guard di site.yml pre_tasks) — mencegah regresi dan lompat fase.
+# ---------------------------------------------------------------------------
+ssh_phase: a
+ssh_port_new: 2221
+ssh_port_legacy: 22
+ssh_allow_users: [admin, deploy]
+ssh_max_auth_tries: 3
+ssh_login_grace_time: 30
+
+# Kunci publik ed25519 user (sama dengan /root/.ssh/authorized_keys, keputusan Lead).
+infra_ssh_pubkey: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFu/pU34AbYW3D5e9VBKh8Xz0wiqyvI/+2kwCticP+sa"
+
+# ---------------------------------------------------------------------------
+# Users
+# ---------------------------------------------------------------------------
+admin_user: admin
+deploy_user: deploy
+deploy_wrapper_path: /usr/local/sbin/infra-deploy
+infra_root: /opt/infra
+
+# ---------------------------------------------------------------------------
+# Firewall (ufw) — mail 25/465/587/993 BELUM (T11)
+# ---------------------------------------------------------------------------
+ufw_allow_tcp_ports_static: [80, 443]
+
+# ---------------------------------------------------------------------------
+# fail2ban — ignoreip hanya loopback (tanpa whitelist IP user; lihat laporan T01)
+# ---------------------------------------------------------------------------
+fail2ban_ignoreip: "127.0.0.1/8 ::1"
+fail2ban_bantime: 1h
+fail2ban_findtime: 10m
+fail2ban_maxretry: 5
+fail2ban_bantime_maxtime: 1w
+
+# ---------------------------------------------------------------------------
+# base
+# ---------------------------------------------------------------------------
+base_timezone: Asia/Jakarta
+base_locale: en_US.UTF-8
+
+# ---------------------------------------------------------------------------
+# sysctl & swap (ADR 0004 §1)
+# ---------------------------------------------------------------------------
+sysctl_file: /etc/sysctl.d/99-infra.conf
+sysctl_settings:
+  net.ipv4.ip_forward: 1
+  vm.swappiness: 10
+  fs.inotify.max_user_watches: 524288
+  net.core.somaxconn: 4096 # jangan diturunkan (discovery: default host 4096)
+swap_file: /swapfile
+swap_size_mib: 4096
+
+# ---------------------------------------------------------------------------
+# Docker — repo resmi download.docker.com (ADR 0001; versi dicek di
+# dists/noble/stable/binary-amd64/Packages.gz pada 2026-09-23)
+# ---------------------------------------------------------------------------
+docker_apt_key_url: https://download.docker.com/linux/ubuntu/gpg
+docker_apt_key_fingerprint: 9DC858229FC7DD38854AE2D88D81803C0EBFCD88
+docker_apt_uri: https://download.docker.com/linux/ubuntu
+docker_packages:
+  docker-ce: "5:29.8.1-1~ubuntu.24.04~noble"
+  docker-ce-cli: "5:29.8.1-1~ubuntu.24.04~noble"
+  containerd.io: "2.3.5-1~ubuntu.24.04~noble"
+  docker-buildx-plugin: "0.37.1-1~ubuntu.24.04~noble"
+  docker-compose-plugin: "5.5.1-1~ubuntu.24.04~noble"
+
+# ---------------------------------------------------------------------------
+# CrowdSec — repo APT saja (bouncer dipasang di plan 02)
+# Sumber: skrip resmi https://install.crowdsec.net (packagecloud)
+# ---------------------------------------------------------------------------
+crowdsec_apt_key_url: https://packagecloud.io/crowdsec/crowdsec/gpgkey
+crowdsec_apt_key_fingerprint: 6A89E3C2303A901A889971D3376ED5326E93CD0C
+crowdsec_apt_uri: https://packagecloud.io/crowdsec/crowdsec/any/

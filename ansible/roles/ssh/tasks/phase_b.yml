@@ -1,0 +1,16 @@
+---
+# PRASYARAT: S4 lolos (login admin port 2221 + sudo) DAN dead-man switch S5 terpasang.
+- name: cloud-init ssh_pwauth false
+  ansible.builtin.template:
+    src: 99-hardening.cfg.j2
+    dest: /etc/cloud/cloud.cfg.d/99-hardening.cfg
+    owner: root
+    group: root
+    mode: "0644"
+  when: ssh_effective_phase in ['b', 'c']
+
+- name: Render fase b
+  ansible.builtin.import_tasks: render.yml
+  vars:
+    ssh_render_phase: b
+  when: ssh_effective_phase == 'b'

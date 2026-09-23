@@ -1,0 +1,17 @@
+# {{ ansible_managed }}
+# Opsi diverifikasi dari config/jail.conf fail2ban 1.0.2 (tag GitHub) + defaults-debian.conf Ubuntu.
+[DEFAULT]
+# Hanya loopback. IP admin TIDAK di-whitelist (keputusan terbuka untuk Lead/user).
+ignoreip = {{ fail2ban_ignoreip }}
+bantime = {{ fail2ban_bantime }}
+findtime = {{ fail2ban_findtime }}
+maxretry = {{ fail2ban_maxretry }}
+bantime.increment = true
+bantime.maxtime = {{ fail2ban_bantime_maxtime }}
+
+[sshd]
+enabled = true
+backend = systemd
+# journalmatch bawaan filter.d/sshd.conf "_SYSTEMD_UNIT=sshd.service + _COMM=sshd" ('+' = OR)
+# tetap cocok di Ubuntu (unit = ssh.service) lewat _COMM=sshd — diuji fail2ban-regex 2026-09-23.
+port = {{ (ssh_port_legacy ~ ',' ~ ssh_port_new) if ssh_effective_phase in ['a', 'b'] else ssh_port_new }}

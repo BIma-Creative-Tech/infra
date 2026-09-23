@@ -1,0 +1,26 @@
+---
+- name: Pasang unattended-upgrades
+  ansible.builtin.apt:
+    name: unattended-upgrades
+    state: present
+
+- name: Override unattended-upgrades infra (dibaca setelah 50unattended-upgrades)
+  ansible.builtin.copy:
+    dest: /etc/apt/apt.conf.d/52infra-unattended-upgrades
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      // Managed by Ansible (roles/unattended) — plan 01 §4
+      // Reboot TIDAK otomatis: reboot dilakukan terjadwal oleh operator.
+      Unattended-Upgrade::Automatic-Reboot "false";
+
+- name: Periodic update & unattended-upgrade aktif
+  ansible.builtin.copy:
+    dest: /etc/apt/apt.conf.d/20auto-upgrades
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      APT::Periodic::Update-Package-Lists "1";
+      APT::Periodic::Unattended-Upgrade "1";

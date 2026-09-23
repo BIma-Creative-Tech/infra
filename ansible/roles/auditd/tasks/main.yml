@@ -1,0 +1,22 @@
+---
+- name: Pasang auditd
+  ansible.builtin.apt:
+    name: auditd
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Rules audit infra
+  ansible.builtin.template:
+    src: 50-infra.rules.j2
+    dest: /etc/audit/rules.d/50-infra.rules
+    owner: root
+    group: root
+    mode: "0640"
+  notify: Load audit rules
+
+- name: auditd aktif
+  ansible.builtin.systemd_service:
+    name: auditd
+    enabled: true
+    state: started

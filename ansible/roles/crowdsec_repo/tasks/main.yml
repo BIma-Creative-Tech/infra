@@ -1,0 +1,39 @@
+---
+# Repo APT CrowdSec saja (tanpa paket/bouncer). Sumber: skrip resmi install.crowdsec.net
+# (URI packagecloud .../any/ suite "any" component "main", keyring /etc/apt/keyrings).
+- name: Unduh GPG key CrowdSec (packagecloud)
+  ansible.builtin.get_url:
+    url: "{{ crowdsec_apt_key_url }}"
+    dest: /etc/apt/keyrings/crowdsec.asc
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Baca fingerprint GPG key CrowdSec
+  ansible.builtin.command: gpg --show-keys --with-colons /etc/apt/keyrings/crowdsec.asc
+  register: crowdsec_key_info
+  changed_when: false
+  check_mode: false
+
+- name: Verifikasi fingerprint GPG key CrowdSec
+  ansible.builtin.assert:
+    that:
+      - ("fpr:::::::::" ~ crowdsec_apt_key_fingerprint ~ ":") in crowdsec_key_info.stdout
+    fail_msg: "Fingerprint GPG CrowdSec tidak cocok dengan {{ crowdsec_apt_key_fingerprint }}"
+    quiet: true
+
+- name: Repo APT CrowdSec (deb822)
+  ansible.builtin.deb822_repository:
+    name: crowdsec
+    types: [deb]
+    uris: ["{{ crowdsec_apt_uri }}"]
+    suites: [any]
+    components: [main]
+    signed_by: /etc/apt/keyrings/crowdsec.asc
+    state: present
+  register: crowdsec_repo
+
+- name: apt update setelah repo berubah
+  ansible.builtin.apt:
+    update_cache: true
+  when: crowdsec_repo is changed

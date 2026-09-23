@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# {{ ansible_managed }}
+# infra-deploy <stack> — satu-satunya perintah sudo milik user "{{ deploy_user }}" (plan 01 §4, CLAUDE.md §3.7).
+# Root-owned 755; memvalidasi argumen dengan whitelist regex lalu menjalankan
+# `docker compose pull && docker compose up -d --remove-orphans` di {{ infra_root }}/<stack>.
+# Versi minimal (T01). Healthcheck + smoke test + rollback tag image ditambahkan di task CI/CD.
+set -euo pipefail
+umask 077
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+readonly BASE="{{ infra_root }}"
+# 1-3 segmen huruf kecil/angka/'-', segmen diawali alfanumerik -> tidak ada '..', '/' di awal, spasi, dll.
+readonly STACK_RE='^[a-z0-9][a-z0-9-]{0,62}(/[a-z0-9][a-z0-9-]{0,62}){0,2}$'
+
+die() { echo "infra-deploy: $*" >&2; exit 64; }
+
+[[ $# -eq 1 ]] || die "usage: infra-deploy <stack>   (contoh: traefik, odoo/pool-a)"
+stack="$1"
+[[ "$stack" =~ $STACK_RE ]] || die "nama stack tidak valid: '$stack'"
+
+dir="$(realpath -e -- "$BASE/$stack" 2>/dev/null)" || die "stack tidak ada: $stack"
+[[ "$dir" == "$BASE/$stack" ]] || die "path stack melewati symlink, ditolak"
+
+compose=""
+for f in compose.yaml compose.yml docker-compose.yaml docker-compose.yml; do
+  if [[ -f "$dir/$f" ]]; then compose="$dir/$f"; break; fi
+done
+[[ -n "$compose" ]] || die "tidak ada file compose di $dir"
+
+# File compose harus milik root dan tidak writable group/other.
+[[ "$(stat -c '%u' -- "$compose")" == "0" ]] || die "$compose bukan milik root"
+perm="$(stat -c '%a' -- "$compose")"
+(( (8#$perm & 8#022) == 0 )) || die "$compose writable oleh group/other ($perm)"
+
+logger -t infra-deploy "stack=$stack user=${SUDO_USER:-unknown} start"
+docker compose --project-directory "$dir" -f "$compose" pull
+docker compose --project-directory "$dir" -f "$compose" up -d --remove-orphans
+logger -t infra-deploy "stack=$stack user=${SUDO_USER:-unknown} done"
