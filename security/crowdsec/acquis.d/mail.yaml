@@ -1,0 +1,12 @@
+# T11 — log docker-mailserver (Postfix + Dovecot via rsyslog container, format RFC3339):
+# host /var/log/mailserver/dms/mail.log (mail/docker-compose.yml) — terlihat di sini lewat mount /var/log:/var/log/host:ro.
+# Izin: /var/log/mailserver root:adm 750, dms/ 755, mail.log root:root 640 → dibaca crowdsec (uid 0, tanpa capability)
+# sebagai owner. Rotasi dilakukan logrotate DMS di dalam container (mount dir → rotasi terikuti).
+# type=syslog → crowdsecurity/syslog-logs → crowdsecurity/postfix-logs / postscreen-logs / dovecot-logs
+# (collections crowdsecurity/postfix + crowdsecurity/dovecot). Diuji `cscli explain` 2026-09-23 (mail.md §CrowdSec).
+# rspamd.log TIDAK dibaca (tidak ada parser hub; ratelimit dipantau di rspamd.log/Loki).
+source: file
+filenames:
+  - /var/log/host/mailserver/dms/mail.log
+labels:
+  type: syslog

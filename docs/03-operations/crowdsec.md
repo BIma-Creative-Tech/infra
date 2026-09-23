@@ -32,6 +32,7 @@
 |---|---|---|---|
 | `traefik.yaml` | `/var/log/traefik/access.log` (= `traefik/logs/`, ro) | `type: traefik` | `crowdsecurity/traefik-logs` |
 | `sshd.yaml` | `/var/log/host/auth.log` (= `/var/log` host, ro) | `type: syslog` | `syslog-logs` → `sshd-logs` |
+| `mail.yaml` (T11) | `/var/log/host/mailserver/dms/mail.log` (log docker-mailserver) | `type: syslog` | `syslog-logs` → `postfix-logs`/`postscreen-logs`/`dovecot-logs` — lihat `mail.md` §CrowdSec |
 | `appsec.yaml` | listener AppSec `0.0.0.0:7422` | `type: appsec` | configs `appsec-default` + `crs-inband` + `local/odoo-crs-exclusions` (T10) + `local/keycloak-admin-exclusions` (H4) |
 
 - sshd → **`/var/log/auth.log`** (rsyslog aktif di host; journald tidak dipakai karena image alpine tanpa `journalctl`).
@@ -43,7 +44,12 @@
 
 `crowdsecurity/linux`, `crowdsecurity/sshd`, `crowdsecurity/traefik`, `crowdsecurity/http-cve`,
 `crowdsecurity/appsec-virtual-patching`, `crowdsecurity/appsec-generic-rules`,
-**`crowdsecurity/appsec-crs-inband`** (OWASP CRS blocking).
+**`crowdsecurity/appsec-crs-inband`** (OWASP CRS blocking), **`crowdsecurity/postfix`**, **`crowdsecurity/dovecot`** (T11).
+
+Skenario lokal (T11): `scenarios/mail-postfix-sasl-bf.yaml` (mount ro, nama `infra/mail-postfix-sasl-bf`) — brute force SASL
+submission (`mail.md` §CrowdSec). T11 memasang collection + acquisition + skenario **live** (`cscli collections install` +
+`docker kill --signal=HUP crowdsec`: 403 fail-closed 18:03:48–18:03:55 WIB, ±8 s); compose sudah memuat perubahan yang sama →
+recreate berikutnya tidak mengubah perilaku.
 
 > `appsec-virtual-patching` + `appsec-generic-rules` (daftar ADR 0001) **tidak** memblok SQLi/XSS generik —
 > hanya CVE spesifik + beberapa rule generik (diuji: `?q=<script>` → 200). `appsec-crs-inband` ditambahkan

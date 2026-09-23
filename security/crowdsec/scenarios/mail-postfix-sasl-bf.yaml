@@ -1,0 +1,26 @@
+# T11 — brute force SASL di submission Postfix (587/465) docker-mailserver.
+# Alasan: hub `crowdsecurity/postfix-spam` (leaky, capacity 5, leakspeed 10s) praktis tidak pernah overflow untuk
+# brute force AUTH karena Dovecot (backend SASL) menahan ±10–17 s per percobaan gagal (diukur 2026-09-23) —
+# kebocoran 1 token/10 s ≥ laju serangan. Skenario ini setara jail postfix-sasl fail2ban yang TIDAK dipakai
+# (ENABLE_FAIL2BAN=0, keputusan docs/03-operations/mail.md §Keputusan).
+# Event: parser hub crowdsecurity/postfix-logs, node grok
+#   'warning: <host>[<ip>]: SASL (LOGIN|PLAIN|CRAM-MD5|DIGEST-MD5) authentication failed:…' → Meta.log_type_enh=spam-attempt
+# ("lost connection after …" juga spam-attempt → disaring dengan Line.Raw). Uji: `cscli explain` (mail.md §CrowdSec).
+# Format label mengikuti skenario hub crowdsecurity/dovecot-spam (v1.8.1).
+type: leaky
+name: infra/mail-postfix-sasl-bf
+description: "Postfix SASL (submission) authentication brute force"
+filter: "evt.Meta.log_type == 'postfix' && evt.Meta.log_type_enh == 'spam-attempt' && evt.Line.Raw contains 'authentication failed'"
+groupby: evt.Meta.source_ip
+capacity: 5          # overflow pada kegagalan ke-6
+leakspeed: "300s"    # 1 token bocor / 5 menit
+blackhole: 5m
+labels:
+  confidence: 3
+  spoofable: 0
+  classification:
+    - attack.T1110
+  behavior: "smtp:bruteforce"
+  label: "Postfix SASL Bruteforce"
+  service: postfix
+  remediation: true

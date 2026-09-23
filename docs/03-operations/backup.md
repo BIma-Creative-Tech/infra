@@ -59,8 +59,9 @@
   file ada di snapshot `files` (`restic dump`), volume dummy dihapus. `restore-test.sh` belum menguji file media.
   Catatan retensi: `forget` mengelompokkan per host+paths → setiap perubahan daftar path (volume media muncul/hilang)
   membuat grup snapshot baru; grup lama tetap menyimpan snapshot terakhirnya sesuai kebijakan keep.
-- **Belum** di-backup (stack belum ada): data mail DMS (T11) — tambahkan volumenya
-  saat stack itu hadir. Tidak di-backup: TSDB Prometheus/Loki, image Docker, sesi Odoo.
+- Data mail DMS (T11): bind mount `/opt/infra/mail/data/{mail,state,config}` + `mail/secrets/` → ikut snapshot `files` tanpa
+  perubahan skrip (diverifikasi `restic backup --dry-run` 2026-09-23; `mail.md` §Backup). Log `/var/log/mailserver` tidak.
+  Tidak di-backup: TSDB Prometheus/Loki, image Docker, sesi Odoo.
 - `/opt/src/control-plane/.env` (di luar `/opt/infra`) **tidak** ikut — sejak T16a deployment memakai `web/control-plane/.env` (ikut backup).
 
 ## Jadwal (systemd, Asia/Jakarta eksplisit di `OnCalendar`, `Persistent=true`)

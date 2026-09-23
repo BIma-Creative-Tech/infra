@@ -23,6 +23,11 @@ const MONITORS = [
   { name: "Keycloak OIDC discovery (platform)", url: "https://auth.bimacreative.tech/realms/platform/.well-known/openid-configuration" },
   { name: "Odoo demo (prod pool)", url: "https://demo.erp.bimacreative.tech/web/health" },
   { name: "Odoo demo (staging pool)", url: "https://demo.staging.bimacreative.tech/web/health" },
+  // T11 — docker-mailserver. Tipe "port" = server/monitor-types/tcp.js (TCPMonitorType, uptime-kuma-server.js
+  // monitorTypeList["port"]). 993: smtpSecurity "secure" → handshake TLS + cek sertifikat (expiryNotification) —
+  // mendeteksi perpanjangan acme.json yang gagal diekstrak DMS. 25: TCP connect saja (postscreen).
+  { name: "Mail SMTP (25)", type: "port", hostname: "mail.bimacreative.tech", port: 25 },
+  { name: "Mail IMAPS (993)", type: "port", hostname: "mail.bimacreative.tech", port: 993, smtpSecurity: "secure" },
 ];
 
 const monitorDefaults = {

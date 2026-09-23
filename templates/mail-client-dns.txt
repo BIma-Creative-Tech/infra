@@ -1,0 +1,22 @@
+Instruksi DNS — email untuk domain <CLIENT_DOMAIN> (dilayani mail.bimacreative.tech)
+Sumber: docs/adr/0005-mail-ipv4.md §Template; prosedur: docs/03-operations/mail.md §Menambah domain client.
+Ganti <CLIENT_DOMAIN> dan <DKIM_PUBLIC> (isi file data/config/rspamd/dkim/rsa-2048-mail-<CLIENT_DOMAIN>.public.dns.txt).
+
+Tambahkan di DNS <CLIENT_DOMAIN>:
+
+1. MX   @                 10 mail.bimacreative.tech
+        -> satu-satunya MX. Bila memindahkan mail dari penyedia lain, koordinasikan waktunya agar mail tidak hilang.
+2. TXT  @                 v=spf1 include:_spf.bimacreative.tech -all
+        -> hanya boleh SATU record SPF. Bila juga mengirim lewat layanan lain, tambahkan include:<layanan> sebelum -all.
+3. TXT  mail._domainkey   <DKIM_PUBLIC>
+        -> (v=DKIM1; k=rsa; p=...) diberikan oleh tim platform setelah kunci dibuat.
+4. TXT  _dmarc            v=DMARC1; p=none; adkim=s; aspf=s; rua=mailto:dmarc@<CLIENT_DOMAIN>
+        -> mulai p=none 2-4 minggu; naik ke quarantine lalu reject setelah laporan bersih.
+
+JANGAN membuat record AAAA untuk mail; JANGAN memakai mail.<CLIENT_DOMAIN> sebagai server.
+
+Pengaturan aplikasi email (Outlook/Thunderbird/ponsel):
+  Username   : alamat email lengkap (mis. nama@<CLIENT_DOMAIN>)
+  IMAP masuk : mail.bimacreative.tech  port 993  SSL/TLS
+  SMTP keluar: mail.bimacreative.tech  port 465  SSL/TLS   (atau port 587 STARTTLS)
+  Autentikasi SMTP: wajib (username & password yang sama)

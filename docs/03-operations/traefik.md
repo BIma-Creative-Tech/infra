@@ -10,7 +10,7 @@
 | `traefik.yml` | static config: entrypoints `web` :80 (redirect → https) & `websecure` :443, **`admin` :8443 (H5, publish `127.0.0.1:8443` host saja)**, `traefik` 127.0.0.1:8080 di dalam container (hanya `/ping`), `metrics` :8082, file provider, resolver `le-http-staging` & `le-http`, access log JSON | ya |
 | `dynamic/middlewares/*.yml` | `security-headers`, `ratelimit-default`, `ratelimit-login`, `ipallowlist-admin`, `strip-odoo-db-headers`, `deny-all` + service `deny-sink` (H5) | ya |
 | `dynamic/tls.yml` | TLS option `default` (min TLS 1.2) | ya |
-| `dynamic/platform/<svc>.yml` | router layanan platform (T06 `auth.yml`, T16a `cp.yml`, T16b `cp-staging.yml`, T14a `status.yml`/`grafana.yml`, …) — satu file per task | ya |
+| `dynamic/platform/<svc>.yml` | router layanan platform (T06 `auth.yml`, T16a `cp.yml`, T16b `cp-staging.yml`, T14a `status.yml`/`grafana.yml`, T11 `mail.yml` = router dummy sertifikat `mail.bimacreative.tech` untuk docker-mailserver, `mail.md`, …) — satu file per task | ya |
 | `dynamic/platform/odoo-pools.yml` | service `odoo-pool-a-{http,ws}`, `odoo-staging-{http,ws}` + middleware `odoo-security-headers` (T10) | ya |
 | `dynamic/clients/<slug>-<env>.yml` | router tenant Odoo, dirender `scripts/render-client-route.sh` dari `templates/traefik-client.yml` (T10) — lihat `odoo.md` | ya |
 | ~~`dynamic/test/whoami-status.yml`~~ | **dihapus 2026-09-23 (H2, QA-T17A-05/06/08)** bersama service `whoami`. `status.bimacreative.tech` kini tanpa router (404) sampai T14 menambah `dynamic/platform/status.yml` (Uptime Kuma) — **sudah ditambahkan T14a** (`observability.md`) | — |

@@ -8,6 +8,20 @@ file `VERSION`.
 
 ## [Unreleased]
 
+### T11 — Mail docker-mailserver 16.0.1 (2026-09-23, branch `feat/infra-t11-mail`, diterapkan live)
+
+#### Added
+- Stack `mail/`: DMS 16.0.1 IPv4-only (`POSTFIX/DOVECOT_INET_PROTOCOLS=ipv4`), `PERMIT_DOCKER=none`, `SPOOF_PROTECTION=1`,
+  Rspamd (DKIM multi-domain `allow_username_mismatch=false`, ratelimit outbound per mailbox 30/jam & per domain 200/jam),
+  ClamAV/Amavis/SpamAssassin OFF, kuota 2 GiB, TLS dari `acme.json` Traefik; skrip `bootstrap.sh`, `mailbox-add.sh`.
+  Mailbox `postmaster@`, `dmarc@`, alias `abuse@`; DKIM `mail._domainkey.bimacreative.tech`. Pengiriman keluar DITAHAN
+  (`defer_transports`, TEMPORARY) sampai PTR diset.
+- Traefik router dummy `dynamic/platform/mail.yml` (sertifikat LE `mail.bimacreative.tech`, redirect ke cp).
+- CrowdSec: collections `crowdsecurity/postfix` + `crowdsecurity/dovecot`, acquisition `acquis.d/mail.yaml`, skenario lokal
+  `infra/mail-postfix-sasl-bf`.
+- ufw 25/465/587/993 (IPv4) via role `firewall`; monitor Uptime Kuma TCP 25 & 993; `templates/mail-client-dns.txt`;
+  `docs/03-operations/mail.md`; riwayat revisi ADR 0005 (brute force via CrowdSec, bukan fail2ban DMS).
+
 ### ProyekKas client DRMS — infra F1 (2026-09-23, branch `feat/proyekkas-f1-infra`, belum diterapkan)
 
 #### Added

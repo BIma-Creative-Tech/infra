@@ -144,6 +144,8 @@ monitor HTTP (interval 60 s, retry 2, notifikasi kedaluwarsa sertifikat ON):
 | Keycloak OIDC discovery (platform) | `https://auth.bimacreative.tech/realms/platform/.well-known/openid-configuration` |
 | Odoo demo (prod pool) | `https://demo.erp.bimacreative.tech/web/health` |
 | Odoo demo (staging pool) | `https://demo.staging.bimacreative.tech/web/health` |
+| Mail SMTP (25) — T11 | TCP `mail.bimacreative.tech:25` (tipe `port`) |
+| Mail IMAPS (993) — T11 | TCP+TLS `mail.bimacreative.tech:993` (tipe `port`, `smtpSecurity: secure`, cek sertifikat) |
 
 `/web/health` Odoo 19: `auth='none', save_session=False` (tidak membuat file sesi tiap probe). Status page `platform`
 (grup "Layanan", 4 monitor) dengan domain `status.bimacreative.tech`. Probe keluar lewat IP publik → tiba di Traefik

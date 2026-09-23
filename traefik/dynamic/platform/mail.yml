@@ -1,0 +1,27 @@
+# T11 — router "dummy" untuk mail.bimacreative.tech (ADR 0005 #8, docs DMS v16.0.1 config/security/ssl.md
+# §Traefik: "Traefik will not issue a certificate without a service / router demanding it").
+# Satu-satunya fungsi: membuat Traefik menerbitkan & memperpanjang sertifikat LE (HTTP-01, resolver le-http)
+# untuk hostname mail. docker-mailserver membaca sertifikat dari traefik/acme/acme.json (mount ro).
+# Semua request HTTPS ke host ini → redirect 307 ke control plane (tidak ada web mail).
+#
+# DNS pre-check (ADR 0002 #5) lulus 2026-09-23: A mail = 31.97.50.221 (@apollo.dns-parking.com, @1.1.1.1,
+# @8.8.8.8), AAAA kosong (NOERROR, ANSWER 0).
+http:
+  routers:
+    mail-cert:
+      entryPoints: [websecure]
+      rule: "Host(`mail.bimacreative.tech`)"
+      middlewares: [crowdsec, security-headers, ratelimit-default, mail-redirect-cp]
+      # Service tidak pernah tercapai (redirect selalu menjawab). deny-sink (bukan noop@internal) agar
+      # request tetap masuk access log → CrowdSec (lihat middlewares/deny-all.yml).
+      service: deny-sink
+      tls:
+        certResolver: le-http
+
+  middlewares:
+    mail-redirect-cp:
+      # Opsi: docs Traefik v3.7 reference/routing-configuration/http/middlewares/redirectregex.md
+      redirectRegex:
+        regex: "^.*$"
+        replacement: "https://cp.bimacreative.tech/"
+        permanent: false

@@ -1,0 +1,121 @@
+# T11 — docker-mailserver 16.0.1, IPv4-only, multi-domain (ADR 0005; plan 02 T11; CLAUDE.md §3.6 Mail).
+# Jalankan scripts/bootstrap.sh (root) sebelum `docker compose up -d`. Operasional: docs/03-operations/mail.md.
+# Env & perilaku diverifikasi dari docs/source DMS v16.0.1 (raw.githubusercontent.com/docker-mailserver/
+# docker-mailserver/v16.0.1/...): docs/content/config/environment.md, security/ssl.md, security/rspamd.md,
+# best-practices/dkim_dmarc_spf.md, target/postfix/{main,master}.cf, target/bin/dms-healthcheck.
+name: mail
+
+services:
+  mailserver:
+    # ADR 0001: mailserver/docker-mailserver:16.0.1 — digest index multi-arch (docker buildx imagetools
+    # inspect, 2026-09-23). CHANGELOG v16.0.0/v16.0.1 dibaca: breaking = SA_SPAM_SUBJECT dihapus, Dovecot
+    # 2.3→2.4 (config dovecot.cf kustom 2.3 tidak dimuat — kita tidak memakai), dhparams.pem diabaikan.
+    image: mailserver/docker-mailserver:16.0.1@sha256:d0fe7668defe157aad57ea31b1707ad1e2fb57d7a91bdf17cbdf876549946c86
+    container_name: mailserver
+    # FQDN = HELO = PTR = CN sertifikat, untuk SEMUA domain (ADR 0005 #5, #9). DMS memakai `hostname --fqdn`.
+    hostname: mail.bimacreative.tech
+    restart: unless-stopped
+    stop_grace_period: 1m
+    environment:
+      TZ: Asia/Jakarta
+      LOG_LEVEL: info
+      ACCOUNT_PROVISIONER: FILE           # ADR 0005 #10 (setup email add / setup quota set)
+      POSTMASTER_ADDRESS: postmaster@bimacreative.tech
+      # --- IPv4-only (ADR 0005 #2): inet_protocols=ipv4 membatasi koneksi MASUK dan KELUAR Postfix.
+      POSTFIX_INET_PROTOCOLS: ipv4
+      DOVECOT_INET_PROTOCOLS: ipv4
+      # --- Anti open relay (ADR 0005 #4): mynetworks hanya loopback → relay hanya untuk SASL-auth.
+      PERMIT_DOCKER: none
+      SPOOF_PROTECTION: "1"               # envelope sender harus alamat/alias milik login (reject_sender_login_mismatch)
+      # --- Layanan: IMAP (993) + submission (465/587) + SMTP 25. POP3 OFF (ADR 0005 #7).
+      ENABLE_IMAP: "1"
+      ENABLE_POP3: "0"
+      ENABLE_MANAGESIEVE: "0"
+      # --- Rspamd menangani spam/DKIM/DMARC/SPF (ADR 0005 #6; docs env: POLICYD_SPF "likely want 0 … Rspamd").
+      ENABLE_RSPAMD: "1"
+      ENABLE_RSPAMD_REDIS: "1"            # Redis internal 127.0.0.1:6379 — dipakai modul ratelimit (ADR 0005 #13)
+      RSPAMD_CHECK_AUTHENTICATED: "1"     # pindai & ratelimit mail keluar user terautentikasi (ADR 0005 #13–14)
+      RSPAMD_GREYLISTING: "0"
+      RSPAMD_LEARN: "0"                   # bayes global — tidak aman multi-tenant (docs env RSPAMD_LEARN)
+      ENABLE_OPENDKIM: "0"
+      ENABLE_OPENDMARC: "0"
+      ENABLE_POLICYD_SPF: "0"
+      # --- RAM (ADR 0004: 1 GiB, ClamAV/Amavis/SpamAssassin OFF). ENABLE_AMAVIS default = 1 → matikan eksplisit.
+      ENABLE_CLAMAV: "0"
+      ENABLE_AMAVIS: "0"
+      ENABLE_SPAMASSASSIN: "0"
+      ENABLE_POSTGREY: "0"
+      # --- Brute force: CrowdSec (collections postfix+dovecot, firewall bouncer host) — BUKAN fail2ban DMS
+      #     (fail2ban DMS butuh cap NET_ADMIN; keputusan di docs/03-operations/mail.md §Keputusan).
+      ENABLE_FAIL2BAN: "0"
+      # DNSBL postscreen OFF (default): host memakai resolver publik (153.92.2.6/1.1.1.1/8.8.4.4) → hasil
+      # DNSBL tidak andal (docs rspamd.md §RBLs "must use a private and recursive DNS resolver") — backlog.
+      ENABLE_DNSBL: "0"
+      ENABLE_UPDATE_CHECK: "0"            # versi di-pin; tanpa egress ke GitHub & tanpa mail otomatis
+      ENABLE_SRS: "0"
+      ENABLE_MTA_STS: "0"
+      # --- Kuota Dovecot (default 1; hanya ACCOUNT_PROVISIONER=FILE). 2 GiB per mailbox via setup quota set.
+      ENABLE_QUOTAS: "1"
+      # --- TLS (ADR 0005 #8): sertifikat Traefik dari acme.json (router dummy traefik/dynamic/platform/mail.yml).
+      #     Diekstrak saat start + saat acme.json berubah (change detection, check-for-changes.sh `_ssl_changes`).
+      SSL_TYPE: letsencrypt
+      SSL_DOMAIN: mail.bimacreative.tech
+      TLS_LEVEL: modern                   # TLS ≥ 1.2, cipher ECDHE-AEAD saja
+    ports:
+      # Bind eksplisit 0.0.0.0 = IPv4 saja (ADR 0005 #3). 143/110/995/4190 tidak di-publish.
+      - "0.0.0.0:25:25/tcp"     # SMTP MX (postscreen, tanpa AUTH, STARTTLS opsional)
+      - "0.0.0.0:465:465/tcp"   # submissions (TLS implisit) + AUTH
+      - "0.0.0.0:587:587/tcp"   # submission (STARTTLS wajib, smtpd_tls_security_level=encrypt) + AUTH
+      - "0.0.0.0:993:993/tcp"   # IMAPS
+    volumes:
+      # Bind mount di /opt/infra → ikut snapshot restic `files` harian (ADR 0006 #4), lihat backup.md.
+      - ./data/mail:/var/mail                      # maildir (vmail uid/gid 5000)
+      - ./data/state:/var/mail-state               # antrean Postfix, Redis (ratelimit/history), state Dovecot
+      - ./data/config:/tmp/docker-mailserver       # akun (hash), alias, kuota, kunci DKIM, override (disinkron bootstrap)
+      # Log di host /var/log/mailserver/dms → dibaca CrowdSec lewat mount /var/log:/var/log/host:ro.
+      # DMS meng-chown dir mount (syslog:root 755) & file log root:root 644 → parent /var/log/mailserver
+      # root:adm 750 (bootstrap) mencegah user host lain membaca (log berisi alamat email & IP).
+      - /var/log/mailserver/dms:/var/log/mail
+      - ../traefik/acme/acme.json:/etc/letsencrypt/acme.json:ro
+    networks:
+      - mail
+    healthcheck:
+      # dms-healthcheck (v16.0.0): semua layanan supervisord yang diaktifkan env harus RUNNING.
+      test: ["CMD", "dms-healthcheck"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+    mem_limit: 1024m     # ADR 0004
+    cpus: 0.75
+    # Tidak bisa read_only / non-root: entrypoint DMS menulis ulang config di /etc saat start dan supervisord
+    # (root) menjalankan Postfix/Dovecot/Rspamd/Redis yang men-drop hak ke user masing-masing.
+    # cap_drop ALL + cap_add minimal (diuji saat bring-up T11, lihat mail.md §Capability).
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN          # entrypoint chown maildir/state/dkim ke vmail/_rspamd/postfix
+      - DAC_OVERRIDE   # root membaca acme.json (600 uid 65532) & file milik user layanan
+      - FOWNER         # chmod/utime file milik user lain (setup state)
+      - SETUID         # Postfix/Dovecot/Rspamd/Redis drop ke user layanan
+      - SETGID
+      - KILL           # supervisord / postfix master mengirim sinyal ke proses user lain
+      - SYS_CHROOT     # Dovecot login processes chroot (login_chroot)
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  mail:
+    # Network privat stack (bukan `proxy` — tidak ada service HTTP). IPv4 saja (ADR 0005 #3).
+    name: mail
+    driver: bridge
+    enable_ipv6: false
+    ipam:
+      config:
+        - subnet: 10.100.10.0/24
+          gateway: 10.100.10.1

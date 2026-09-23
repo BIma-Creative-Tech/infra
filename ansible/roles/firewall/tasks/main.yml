@@ -24,6 +24,18 @@
     comment: traefik
   loop: "{{ ufw_allow_tcp_ports_static }}"
 
+# T11: port mail, IPv4-only (from 0.0.0.0/0 → ufw hanya membuat rule v4). Catatan: port yang di-publish Docker
+# di-DNAT sebelum chain INPUT ufw; rule ini tetap dipasang sebagai kebijakan tertulis (CLAUDE.md §3.6) dan bila
+# layanan pernah dipindah ke host.
+- name: Allow port mail (docker-mailserver, IPv4)
+  community.general.ufw:
+    rule: allow
+    from_ip: 0.0.0.0/0
+    port: "{{ item | string }}"
+    proto: tcp
+    comment: mail
+  loop: "{{ ufw_allow_tcp_ports_mail }}"
+
 - name: Default deny incoming
   community.general.ufw:
     default: deny

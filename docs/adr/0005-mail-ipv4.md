@@ -143,3 +143,26 @@ record SPF root `bimacreative.tech` boleh menjadi `v=spf1 include:_spf.bimacreat
 Hapus env `*_INET_PROTOCOLS` (kembali `all`) → recreate container. Mail stack dapat dihentikan
 (`docker compose down` di `mail/`) tanpa memengaruhi layanan lain; MX tetap ada → pengirim akan
 retry (antrian pengirim) selama beberapa hari.
+
+## Riwayat revisi
+
+- 2026-09-23 (T11, implementasi — detail & bukti di `docs/03-operations/mail.md`):
+  - Image `mailserver/docker-mailserver:16.0.1@sha256:d0fe7668…` (index). CHANGELOG v16.0.0/16.0.1 dibaca: tidak ada breaking
+    change yang mengenai konfigurasi ini (SA_SPAM_SUBJECT dihapus, Dovecot 2.4, dhparams diabaikan).
+  - **#6 diubah: brute force ditangani CrowdSec, bukan fail2ban DMS** (`ENABLE_FAIL2BAN=0`, tanpa `cap_add: NET_ADMIN`):
+    collections `crowdsecurity/postfix` + `crowdsecurity/dovecot` + skenario lokal `infra/mail-postfix-sasl-bf` (hub
+    `postfix-spam` leak 10 s tidak overflow karena Dovecot menahan ±10–17 s per AUTH gagal), ban via firewall bouncer host
+    (hook `forward` → port publish Docker). Alasan: capability minimal, satu titik ban/unban, sinyal komunitas.
+  - Kombinasi Rspamd #6 terverifikasi: `ENABLE_RSPAMD=1`, `ENABLE_OPENDKIM=0`, `ENABLE_OPENDMARC=0`, `ENABLE_POLICYD_SPF=0`,
+    `ENABLE_AMAVIS=0` (default 1), ClamAV/SpamAssassin OFF; **`RSPAMD_CHECK_AUTHENTICATED=1`** (default DMS mematikan semua
+    simbol selain DKIM untuk user login — ratelimit & pemindaian outbound #13–14 tidak akan jalan).
+  - **#13 UNVERIFIED → terverifikasi:** Rspamd ratelimit memakai Redis global DMS (`local.d/redis.conf servers =
+    "127.0.0.1:6379"`, log `use default Redis settings for ratelimit`); per mailbox selector `user.lower` (burst 10, 30/jam),
+    per domain `user.lower.regexp('@([^@]+)$').last` (burst 50, 200/jam); diuji → `451 4.7.1 Ratelimit "mailbox_outbound" exceeded`.
+  - **Security implications UNVERIFIED → terverifikasi:** `SPOOF_PROTECTION=1` → `reject_authenticated_sender_login_mismatch`
+    dengan `smtpd_sender_login_maps` (diuji `553 … not owned by user`). Tambahan: `dkim_signing.conf allow_username_mismatch =
+    false` (default DMS true) agar user domain A tidak mendapat tanda tangan DKIM domain B lewat header `From`.
+  - #11: `check_pubkey = true` + `allow_pubkey_mismatch = true` (default plugin) — tetap menandatangani sebelum TXT dipublikasikan.
+  - TEMPORARY: `defer_transports = smtp` (`mail/config/postfix-main.cf`) menahan semua pengiriman keluar sampai PTR = FQDN (#5).
+  - `ENABLE_DNSBL=0` (resolver publik, docs DMS rspamd.md §RBLs) — backlog resolver rekursif privat.
+  - Rspamd controller `0.0.0.0:11334` hanya di network `mail` (tanpa anggota lain, tidak di-publish).

@@ -29,6 +29,8 @@ services:
         crowdsecurity/appsec-virtual-patching
         crowdsecurity/appsec-generic-rules
         crowdsecurity/appsec-crs-inband
+        crowdsecurity/postfix
+        crowdsecurity/dovecot
     ports:
       # LAPI hanya untuk crowdsec-firewall-bouncer di host — terikat loopback (plan 02 §3/§5).
       # AppSec 7422 & metrics 6060 TIDAK di-publish.
@@ -41,6 +43,9 @@ services:
       - ./appsec-configs/odoo-crs-exclusions.yaml:/etc/crowdsec/appsec-configs/odoo-crs-exclusions.yaml:ro
       # H4: pengecualian CRS 911100 untuk Admin REST Keycloak. Nama config: local/keycloak-admin-exclusions.
       - ./appsec-configs/keycloak-admin-exclusions.yaml:/etc/crowdsec/appsec-configs/keycloak-admin-exclusions.yaml:ro
+      # T11: skenario lokal brute force SASL submission (infra/mail-postfix-sasl-bf). Log mail dibaca lewat
+      # /var/log/host/mailserver/dms/ (mount /var/log di bawah) — acquis.d/mail.yaml.
+      - ./scenarios/mail-postfix-sasl-bf.yaml:/etc/crowdsec/scenarios/mail-postfix-sasl-bf.yaml:ro
       - ../../traefik/logs:/var/log/traefik:ro
       - /var/log:/var/log/host:ro
     read_only: true
