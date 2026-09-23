@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Bootstrap idempoten stack Traefik (T03). Jalankan sebagai root.
 #  1. network docker `proxy` (bridge, subnet tetap) — dipakai bersama semua service HTTP
+#     + network `odoo-edge` (H1): HANYA traefik + pool Odoo, agar container lain di `proxy`
+#     tidak bisa menghubungi Odoo :8069/:8072 langsung (melewati CrowdSec/ratelimit/header DB)
 #  2. direktori acme/ (700) + acme-staging.json & acme.json (600) milik uid Traefik
 #  3. direktori logs/ (750, grup adm) milik uid Traefik + secrets/ (700)
 #  4. pasang konfigurasi logrotate host untuk access log (salin, bukan symlink: logrotate
@@ -8,24 +10,31 @@
 set -euo pipefail
 
 STACK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-NET_NAME="proxy"
-NET_SUBNET="10.100.0.0/24"
-NET_GATEWAY="10.100.0.1"
 TRAEFIK_UID=65532
 TRAEFIK_GID=65532
 
 [[ $EUID -eq 0 ]] || { echo "harus root" >&2; exit 1; }
 
-if docker network inspect "$NET_NAME" >/dev/null 2>&1; then
-  subnet="$(docker network inspect -f '{{range .IPAM.Config}}{{.Subnet}}{{end}}' "$NET_NAME")"
-  [[ "$subnet" == "$NET_SUBNET" ]] || { echo "network $NET_NAME subnet=$subnet (harus $NET_SUBNET) — periksa manual" >&2; exit 1; }
-  echo "network $NET_NAME: ok (sudah ada)"
-else
-  docker network create --driver bridge \
-    --subnet "$NET_SUBNET" --gateway "$NET_GATEWAY" \
-    --label infra.stack=traefik "$NET_NAME" >/dev/null
-  echo "network $NET_NAME: dibuat"
-fi
+# ensure_network <nama> <subnet> <gateway> — buat bila belum ada; bila ada, subnet wajib sama.
+ensure_network() {
+  local name="$1" net_subnet="$2" net_gateway="$3" subnet
+  if docker network inspect "$name" >/dev/null 2>&1; then
+    subnet="$(docker network inspect -f '{{range .IPAM.Config}}{{.Subnet}}{{end}}' "$name")"
+    [[ "$subnet" == "$net_subnet" ]] || { echo "network $name subnet=$subnet (harus $net_subnet) — periksa manual" >&2; exit 1; }
+    echo "network $name: ok (sudah ada)"
+  else
+    docker network create --driver bridge \
+      --subnet "$net_subnet" --gateway "$net_gateway" \
+      --label infra.stack=traefik "$name" >/dev/null
+    echo "network $name: dibuat"
+  fi
+}
+
+# proxy: semua service HTTP. Gateway 10.100.0.1 = IP sumber koneksi dari host (ipallowlist-admin).
+ensure_network proxy 10.100.0.0/24 10.100.0.1
+# odoo-edge: traefik + odoo-pool-a + odoo-staging saja. Bukan --internal: Odoo tetap butuh egress
+# (sebelumnya lewat `proxy`, mis. OIDC ke auth.bimacreative.tech / SMTP keluar).
+ensure_network odoo-edge 10.100.3.0/24 10.100.3.1
 
 install -d -o "$TRAEFIK_UID" -g "$TRAEFIK_GID" -m 0700 "$STACK_DIR/acme"
 for f in acme-staging.json acme.json; do

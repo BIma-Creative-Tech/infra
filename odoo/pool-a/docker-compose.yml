@@ -1,7 +1,8 @@
 # T10 — Odoo CE 19.0 pool shared PROD `pool-a` (plan 02; ADR 0001 pin, ADR 0003 D1, ADR 0004 §2).
 # Jalankan dulu: /opt/infra/scripts/odoo-pool-bootstrap.sh pool-a  (membuat .env 600 + secrets/).
 # DB tenant: /opt/infra/scripts/provision-odoo-db.sh <slug> <prod|demo>. Router: render-client-route.sh.
-# Tidak ada port di-publish: Traefik menjangkau odoo-pool-a:8069 (HTTP) & :8072 (/websocket) via `proxy`.
+# Tidak ada port di-publish: Traefik menjangkau odoo-pool-a:8069 (HTTP) & :8072 (/websocket) via `odoo-edge`
+# (H1: network khusus traefik + pool Odoo; pool TIDAK di `proxy` → service lain tidak bisa langsung ke Odoo).
 name: odoo-pool-a
 
 services:
@@ -32,7 +33,7 @@ services:
       - /tmp:uid=100,gid=101,mode=1777,size=512m
     networks:
       - db
-      - proxy
+      - odoo-edge
     healthcheck:
       # /web/health tidak butuh DB/header (README sh_dbfilter_header). curl ada di image.
       test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://127.0.0.1:8069/web/health"]
@@ -61,6 +62,7 @@ networks:
   db:
     external: true
     name: db
-  proxy:
+  odoo-edge:
+    # traefik/scripts/bootstrap.sh: 10.100.3.0/24, anggota hanya traefik + pool Odoo (H1).
     external: true
-    name: proxy
+    name: odoo-edge

@@ -76,6 +76,15 @@
 - **Sebelum menulis router hostname baru**: `dig +short A <fqdn> @1.1.1.1` dan `@8.8.8.8` harus
   `31.97.50.221`, `dig +short AAAA <fqdn>` kosong (ADR 0002 #5).
 
+## Network `odoo-edge` (H1)
+
+- Bridge **`10.100.3.0/24`, gateway `10.100.3.1`**, dibuat `scripts/bootstrap.sh` (fungsi `ensure_network`),
+  bukan `--internal` (Odoo butuh egress). Anggota **hanya** `traefik` + pool Odoo (`odoo-pool-a`, `odoo-staging`);
+  service `odoo-*-{http,ws}` di `dynamic/platform/odoo-pools.yml` di-resolve lewat DNS Docker network ini.
+- Traefik join `odoo-edge` **tanpa** `gw_priority` (default 0) — `proxy` tetap `gw_priority: 1` sehingga koneksi
+  dari host tetap tiba sebagai `10.100.0.1` (diverifikasi di access log setelah perubahan, 2026-09-23).
+- Jangan menambahkan service lain ke `odoo-edge`; jangan menambahkan pool Odoo ke `proxy`.
+
 ## Start / stop / reload
 
 ```bash

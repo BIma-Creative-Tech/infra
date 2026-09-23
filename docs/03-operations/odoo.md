@@ -24,7 +24,7 @@ Isi tiap direktori pool:
 
 | Path | Isi | Git |
 |---|---|---|
-| `docker-compose.yml` | service `odoo`, network `db` + `proxy`, tanpa port publish | ya |
+| `docker-compose.yml` | service `odoo`, network `db` + `odoo-edge` (H1), tanpa port publish | ya |
 | `odoo.conf` | opsi server — **tanpa secret** (lihat §Secret) | ya |
 | `addons/shared` | **git submodule** `odoo-addons-shared` ter-pin (saat ini `18f6bcf`) | gitlink |
 | `addons/clients/<slug>` | repo addons client (`odoo-addons-<slug>`) — kosong saat ini | ya (per client) |
@@ -195,12 +195,18 @@ Tambah path hanya bila FP nyata terbukti; catat di sini. Diketahui masih mungkin
 
 ## Keamanan — catatan
 
-- Odoo di network `db` (internal) + `proxy`; **tidak ada port di-publish** (`ss -tlnp` tanpa 8069/8072).
+- Odoo di network `db` (internal) + **`odoo-edge`** (H1, 2026-09-23); **tidak ada port di-publish**
+  (`ss -tlnp` tanpa 8069/8072).
 - `user 100:101`, `read_only: true` + tmpfs `/tmp` (512m; wkhtmltopdf/report diuji OK), `cap_drop: [ALL]`,
   `no-new-privileges`, tanpa `cap_add`. Writable hanya volume data `/var/lib/odoo`.
-- **Container lain di network `proxy` dapat menghubungi `odoo-pool-a:8069` langsung** dan memasang
-  `X-Sh-Odoo-Db` sendiri (melewati CrowdSec/ratelimit; tetap butuh kredensial tenant). Diuji dari container
-  uji. Mitigasi yang diusulkan ke Lead: network khusus `odoo-edge` (hanya traefik + pool Odoo).
+- **Network `odoo-edge`** (`10.100.3.0/24`, dibuat `traefik/scripts/bootstrap.sh`, bukan `--internal`):
+  anggota **hanya** `traefik`, `odoo-pool-a`, `odoo-staging`. Pool Odoo **tidak** lagi di `proxy`, jadi
+  container lain di `proxy` (keycloak, control-plane, whoami, …) tidak bisa me-resolve/menghubungi
+  `odoo-pool-a:8069`/`:8072` langsung dan memasang `X-Sh-Odoo-Db` sendiri (melewati CrowdSec/ratelimit).
+  Diuji: container uji di `proxy` (`10.100.0.250`) → `nslookup odoo-pool-a` SERVFAIL, `curl http://odoo-pool-a:8069`
+  dan `http://10.100.3.4:8069` → timeout. Egress Odoo tetap ada (OIDC ke `auth.bimacreative.tech` via hairpin
+  IP publik → 200). **Pool/dedicated Odoo baru wajib join `odoo-edge`, bukan `proxy`.** Cek anggota:
+  `docker network inspect odoo-edge --format '{{range .Containers}}{{.Name}} {{end}}'`.
 - Cookie `session_id` dari core Odoo 19 tanpa `Secure`/`SameSite` (`odoo/http.py` `set_cookie(... httponly=True)`).
   HSTS (`max-age` masih 300) + redirect HTTP→HTTPS mengurangi risiko; perbaikan permanen butuh keputusan Lead.
 - Semua modul di `addons/clients/*` terlihat oleh semua DB di pool (tenant admin bisa meng-install modul
