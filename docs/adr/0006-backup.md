@@ -1,6 +1,6 @@
 # ADR 0006 — Backup: restic repo lokal sementara + placeholder S3 + backup provider
 
-- **Status:** proposed (menunggu GATE 1)
+- **Status:** accepted (2026-09-23, GATE 1)
 - **Tanggal:** 2026-09-23
 - **Terkait:** CLAUDE.md §3 (Backup), §3.6 (Data); ADR 0001 (restic 0.19.1), 0004 (disk); keputusan user #7
 

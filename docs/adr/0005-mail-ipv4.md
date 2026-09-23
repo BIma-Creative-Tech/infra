@@ -1,6 +1,6 @@
 # ADR 0005 — Mail (docker-mailserver): IPv4-only & multi-domain
 
-- **Status:** proposed (menunggu GATE 1)
+- **Status:** accepted (2026-09-23, GATE 1)
 - **Tanggal:** 2026-09-23
 - **Terkait:** CLAUDE.md §2, §3.6 (Mail); ADR 0001 (DMS 16.0.1), 0002 (DNS), 0004; keputusan user #3;
   requirement tambahan user (via Lead, 2026-09-23): satu DMS melayani beberapa domain (`bimacreative.tech` + domain client, pertama `expomedia.id`)

@@ -1,6 +1,6 @@
 # ADR 0002 — TLS via HTTP-01 per hostname & DNS manual (Hostinger)
 
-- **Status:** proposed (menunggu GATE 1)
+- **Status:** accepted (2026-09-23, GATE 1)
 - **Tanggal:** 2026-09-23
 - **Terkait:** CLAUDE.md §2, §3.5.1; ADR 0001, 0005; keputusan user #1
 

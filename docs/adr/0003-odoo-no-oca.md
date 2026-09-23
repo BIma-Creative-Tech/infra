@@ -1,6 +1,6 @@
 # ADR 0003 — Odoo tanpa OCA: pemilihan DB per hostname & SSO Keycloak
 
-- **Status:** proposed (menunggu GATE 1)
+- **Status:** accepted (2026-09-23, GATE 1)
 - **Tanggal:** 2026-09-23
 - **Terkait:** CLAUDE.md §3.1, §3.2; ADR 0001; keputusan user #9
 

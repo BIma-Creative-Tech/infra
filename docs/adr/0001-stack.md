@@ -1,6 +1,6 @@
 # ADR 0001 — Stack & pin versi
 
-- **Status:** proposed (menunggu GATE 1)
+- **Status:** accepted (2026-09-23, GATE 1)
 - **Tanggal:** 2026-09-23
 - **Penulis:** Analyst (FASE 1)
 - **Terkait:** CLAUDE.md §0.2, §0.10, §0.12, §3; `docs/discovery/2026-09-23.md`; ADR 0002–0006

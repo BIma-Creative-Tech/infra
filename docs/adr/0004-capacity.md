@@ -1,6 +1,6 @@
 # ADR 0004 — Kapasitas: alokasi RAM/CPU, swap, threshold shared → dedicated
 
-- **Status:** proposed (menunggu GATE 1)
+- **Status:** accepted (2026-09-23, GATE 1)
 - **Tanggal:** 2026-09-23
 - **Terkait:** CLAUDE.md §3.5, §4; `docs/discovery/2026-09-23.md` §2; keputusan user #4, #8
 
