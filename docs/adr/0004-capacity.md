@@ -11,6 +11,18 @@
   keycloak). Angka Odoo pool/mail/control-plane/observability/datamart **TIDAK berubah** (masih
   ESTIMASI § Decision asli) — service tersebut belum di-deploy saat pengukuran ini. Status tetap
   `accepted`; revisi penuh menyusul di T19 setelah semua service naik.
+- 2026-09-23 (onboarding ProyekKas DRMS, infra Lead): Postgres **`max_connections` 150 → 200**. Alasan:
+  jumlah `CONNECTION LIMIT` role setelah DRMS = 132 (keycloak 30, control_plane 20, datamart 10,
+  odoo_pool_a 48, odoo_staging 24) + 30 (`pk_drms_*` 2/25/3) + 14 (`pk_drms_stg_*` 2/10/2) = **176** > 150;
+  200 menyisakan ±24 untuk superuser/`superuser_reserved_connections` (default 3), backup
+  (`pg_dump` via peer) dan admin. Limit = plafon, bukan reservasi (NYATA saat perubahan: 18 koneksi di
+  `pg_stat_activity`, RSS container 118 MiB). **ESTIMASI RAM tambahan:** shared memory per slot
+  (PGPROC, lock table `max_locks_per_transaction` 64 × slot) ≈ beberapa ratus KiB–±1 MiB untuk 50 slot,
+  dialokasikan saat start; memori backend hanya terpakai bila koneksi benar-benar dibuka — ±5–10 MiB
+  per backend idle, lebih bila query memakai `work_mem` (6 MB per operasi sort/hash). Skenario terburuk
+  +50 koneksi aktif ≈ +250–500 MiB, masih di dalam `mem_limit 2048m` (target app DRMS prod ≤ 15 + staging
+  ≤ 10 koneksi aktual → ±+125–250 MiB). Ukur `docker stats postgres` + `pg_stat_activity` setelah app
+  DRMS naik (F1). `mem_limit` tidak diubah.
 
 > **SEMUA ANGKA DI § "Decision" DI BAWAH INI = ESTIMASI** kecuali yang diberi sumber resmi.
 > Angka **NYATA** dari pengukuran T03–T06 ada di § "Pengukuran T07 (2026-09-23)" di bawah —
@@ -45,7 +57,7 @@ Sebagai bantalan lonjakan, bukan kapasitas. Alert bila swap terpakai > 1 GiB sel
 | traefik | 256 MiB | 1.0 | + plugin bouncer |
 | crowdsec (agent + LAPI + AppSec) | 384 MiB | 0.5 | |
 | docker-socket-proxy | 64 MiB | 0.1 | |
-| postgres (shared, prod+staging+keycloak+control_plane+datamart) | 2 048 MiB | 1.5 | `shared_buffers` 512MB, `work_mem` kecil (4–8MB), `max_connections` ≈ 150; Odoo `db_maxconn` diturunkan (mis. 16) — nilai final setelah ukur |
+| postgres (shared, prod+staging+keycloak+control_plane+datamart) | 2 048 MiB | 1.5 | `shared_buffers` 512MB, `work_mem` kecil (4–8MB), `max_connections` ≈ 150 (→ 200 sejak 2026-09-23, lihat riwayat revisi); Odoo `db_maxconn` diturunkan (mis. 16) — nilai final setelah ukur |
 | odoo pool-a **prod** (`workers=3`, `max_cron_threads=1`, gevent) | 2 560 MiB | 2.0 | 3 × 324 ≈ 1 GB rumus docs + master/gevent/cron; `limit_memory_soft` 640 MiB, `limit_memory_hard` 896 MiB per worker. Kapasitas ≈ 18 user konkuren (3×6, rumus docs) |
 | odoo pool **staging** (`workers=2`, `max_cron_threads=1`) | 1 280 MiB | 1.0 | always-on; hard limit per worker 768 MiB |
 | keycloak (1 instance: realm `platform` + realm `platform-staging`) | 1 360 MiB | 1.0 | angka resmi; heap 70% |
