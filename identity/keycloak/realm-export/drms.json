@@ -923,8 +923,7 @@
         "realm_client" : "false",
         "pkce.code.challenge.method" : "S256",
         "post.logout.redirect.uris" : "https://drms-kas.bimacreative.tech/admin/login",
-        "backchannel.logout.url" : "http://drms-pk-web:3000/api/v1/auth/backchannel-logout",
-        "backchannel.logout.session.required" : "true",
+        "backchannel.logout.session.required" : "false",
         "backchannel.logout.revoke.offline.tokens" : "false"
       },
       "authenticationFlowBindingOverrides" : {},
