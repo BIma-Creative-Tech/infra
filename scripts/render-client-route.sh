@@ -69,7 +69,7 @@ owner="$(docker exec -i "$PG_CONTAINER" psql -X -q -tA -U postgres -d postgres \
 ok=0
 for r in 1.1.1.1 8.8.8.8; do
   a="$(dig +short +time=3 +tries=2 A "$HOST" "@$r" 2>/dev/null | grep -E '^[0-9.]+$' | sort -u | tr '\n' ' ' || true)"
-  aaaa="$(dig +short +time=3 +tries=2 AAAA "$HOST" "@$r" 2>/dev/null | grep ':' || true)"
+  aaaa="$(dig +short +time=3 +tries=2 AAAA "$HOST" "@$r" 2>/dev/null | grep -E '^[0-9a-fA-F:]+$' || true)"   # hanya baris IPv6; abaikan ';; communications error ...' dari dig
   [[ -z "$aaaa" ]] || die "DNS: ${HOST} punya AAAA di @$r (${aaaa}) — IPv4-only (ADR 0002 #4)"
   if [[ -z "$a" ]]; then echo "DNS: @$r tidak menjawab/kosong untuk ${HOST}" >&2; continue; fi
   [[ "$a" == "${VPS_IP} " ]] || die "DNS: A ${HOST} @$r = '${a% }' ≠ ${VPS_IP}"
