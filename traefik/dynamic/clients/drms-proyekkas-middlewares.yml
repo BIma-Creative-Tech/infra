@@ -17,11 +17,17 @@ http:
 
     # Batas ukuran body request 10 MiB = crowdsecAppsecBodyLimit (middlewares/crowdsec.yml) dan
     # upload.limits.requestSizeLimit Payload (ADR ProyekKas 0004). Lebih besar → 413 dari Traefik.
-    # CATATAN: buffering juga membuffer RESPONSE (memResponseBodyBytes default 1 MiB, lalu ke disk =
-    # tmpfs /tmp container traefik, dihitung ke mem_limit 256m). Lihat runbook §Catatan.
+    # HANYA di router yang menerima upload (drms-pk-*-api-v1, drms-pk-*-api-rest), TIDAK di router
+    # catch-all web: buffering juga membuffer RESPONSE (memResponseBodyBytes default 1 MiB, sisanya ke
+    # disk = tmpfs /tmp container traefik, dihitung ke mem_limit 256m).
+    # maxResponseBodyBytes (docs v3.7 buffering.md: default 0 = tanpa batas; lebih besar → 500 ke klien)
+    # di-set eksplisit 16 MiB = plafon per response yang dibuffer. Response terbesar yang diharapkan:
+    # lampiran PDF ≤ 5 MB, foto ≤ ~0.5 MB (ADR ProyekKas 0004 §2/§5); PDF/Excel laporan via /api/v1 =
+    # ESTIMASI belum diukur — ekspor > 16 MiB akan 500 (ukur di F1/F6, naikkan bila perlu).
     buffering-pk:
       buffering:
         maxRequestBodyBytes: 10485760
+        maxResponseBodyBytes: 16777216
 
     # Hapus header Authorization di luar /api/v1 (arsitektur §6.1): token Bearer APK tidak boleh
     # dipakai ke REST generik Payload /api/<slug>. Nilai "" = "Removes" (docs headers.md
