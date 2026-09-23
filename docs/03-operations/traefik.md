@@ -165,6 +165,8 @@ Dari host (skrip/automation): `curl --resolve auth.bimacreative.tech:8443:127.0.
 - Traefik join **tanpa** `gw_priority` → koneksi host tetap `10.100.0.1` (diverifikasi access log 2026-09-23).
 - Router: `dynamic/clients/drms-proyekkas-{staging,middlewares,kc-token}.yml` (manual, bukan
   `render-client-route.sh`); runbook `docs/runbooks/proyekkas-drms-onboarding.md`.
+- Staging app **berjalan** sejak 2026-09-23 (`/opt/infra/staging/drms-proyekkas/`); router `drms-pk-stg-*` memakai
+  `le-http` (production; backup `acme/acme-staging.json.bak-drms-stg-1840`, restart Traefik ±3,6 s tanpa respons).
 
 ## Start / stop / reload
 
@@ -197,7 +199,7 @@ docker logs traefik 2>&1 | grep -i -E 'acme|lego|certificate' | tail
 Jangan me-restart berulang bila ACME gagal: baca log, perbaiki (DNS/port 80), baru ulang —
 limit LE: 5 authorization failure / identifier / jam (ADR 0002).
 
-## Pindah staging → production (DILAKUKAN 2026-09-23 untuk `status` & `auth` T05/T06, `cp` T16a, `grafana` T14a, `cp.staging` T16b)
+## Pindah staging → production (DILAKUKAN 2026-09-23 untuk `status` & `auth` T05/T06, `cp` T16a, `grafana` T14a, `cp.staging` T16b, `drms-kas.staging` ProyekKas)
 
 1. Backup: `cp -a acme/acme-staging.json acme/acme-staging.json.bak-$(date +%F)`.
 2. Per router: `certResolver: le-http-staging` → `le-http`.

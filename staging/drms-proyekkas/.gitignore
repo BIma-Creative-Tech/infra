@@ -1,0 +1,3 @@
+# State & secret ProyekKas staging — jangan di-commit (CLAUDE.md §0.9)
+.env
+secrets/

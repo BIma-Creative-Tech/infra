@@ -28,6 +28,9 @@ const MONITORS = [
   // mendeteksi perpanjangan acme.json yang gagal diekstrak DMS. 25: TCP connect saja (postscreen).
   { name: "Mail SMTP (25)", type: "port", hostname: "mail.bimacreative.tech", port: 25 },
   { name: "Mail IMAPS (993)", type: "port", hostname: "mail.bimacreative.tech", port: 993, smtpSecurity: "secure" },
+  // ProyekKas DRMS staging (2026-09-23). GET saja: endpoint health app tidak menjawab HEAD (404).
+  // public:false → tidak ditampilkan di status page publik `platform` (nama client), hanya di dashboard admin.
+  { name: "ProyekKas DRMS staging (drms-kas.staging)", url: "https://drms-kas.staging.bimacreative.tech/api/v1/health", public: false },
 ];
 
 const monitorDefaults = {
@@ -76,14 +79,18 @@ socket.on("connect", async () => {
     await waitFor(() => monitorList !== null);
 
     const existing = Object.values(monitorList);
-    const ids = [];
-    for (const m of MONITORS) {
+    const ids = [];   // monitor yang tampil di status page publik
+    for (const { public: isPublic = true, ...m } of MONITORS) {   // `public` bukan field Kuma → tidak dikirim
       const found = existing.find((e) => e.name === m.name);
-      if (found) { console.log("monitor ada:", m.name, "id", found.id); ids.push(found.id); continue; }
-      const r = await emit("add", { ...monitorDefaults, ...m });
-      if (!r.ok) fail("add " + m.name + ": " + r.msg);
-      console.log("monitor dibuat:", m.name, "id", r.monitorID);
-      ids.push(r.monitorID);
+      let id;
+      if (found) { console.log("monitor ada:", m.name, "id", found.id); id = found.id; }
+      else {
+        const r = await emit("add", { ...monitorDefaults, ...m });
+        if (!r.ok) fail("add " + m.name + ": " + r.msg);
+        console.log("monitor dibuat:", m.name, "id", r.monitorID);
+        id = r.monitorID;
+      }
+      if (isPublic) ids.push(id);
     }
 
     const add = await emit("addStatusPage", "Status Platform", SLUG);

@@ -146,6 +146,7 @@ monitor HTTP (interval 60 s, retry 2, notifikasi kedaluwarsa sertifikat ON):
 | Odoo demo (staging pool) | `https://demo.staging.bimacreative.tech/web/health` |
 | Mail SMTP (25) — T11 | TCP `mail.bimacreative.tech:25` (tipe `port`) |
 | Mail IMAPS (993) — T11 | TCP+TLS `mail.bimacreative.tech:993` (tipe `port`, `smtpSecurity: secure`, cek sertifikat) |
+| ProyekKas DRMS staging (drms-kas.staging) | `https://drms-kas.staging.bimacreative.tech/api/v1/health` (GET; HEAD → 404) — **`public: false`**: tidak ditampilkan di status page publik (nama client), hanya dashboard admin |
 
 `/web/health` Odoo 19: `auth='none', save_session=False` (tidak membuat file sesi tiap probe). Status page `platform`
 (grup "Layanan", 4 monitor) dengan domain `status.bimacreative.tech`. Probe keluar lewat IP publik → tiba di Traefik

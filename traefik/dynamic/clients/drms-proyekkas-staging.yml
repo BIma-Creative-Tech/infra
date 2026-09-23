@@ -12,8 +12,8 @@
 # ditambah agar buffering-pk hanya di route upload; prefix env agar unik saat router prod ditambahkan).
 # Urutan middleware: crowdsec (paling depan) → security-headers → ratelimit-* → sisanya.
 # Middleware ratelimit-pk-api / buffering-pk / strip-authorization: clients/drms-proyekkas-middlewares.yml.
-# Sertifikat: le-http-staging dulu (CLAUDE.md §3.5.1); pindah ke le-http mengikuti
-# docs/03-operations/traefik.md §Pindah staging → production (keputusan Lead).
+# Sertifikat: le-http (production) sejak 2026-09-23 (app staging deployed; sebelumnya le-http-staging,
+# CLAUDE.md §3.5.1) — prosedur docs/03-operations/traefik.md §Pindah staging → production.
 # CSP TIDAK diset di sini: aplikasi mengirim CSP sendiri (nonce), seperti control-plane.
 http:
   routers:
@@ -31,7 +31,7 @@ http:
       middlewares: [crowdsec, security-headers, ratelimit-login]
       service: drms-pk-stg
       tls:
-        certResolver: le-http-staging
+        certResolver: le-http
     # Kontrak API v1 (APK, Bearer + X-Device-Id). Authorization DITERUSKAN (hanya di sini).
     drms-pk-stg-api-v1:
       entryPoints: [websecure]
@@ -40,7 +40,7 @@ http:
       middlewares: [crowdsec, security-headers, ratelimit-pk-api, buffering-pk]
       service: drms-pk-stg
       tls:
-        certResolver: le-http-staging
+        certResolver: le-http
     # REST generik Payload /api/<slug> (admin UI saja, arsitektur §6.1): upload admin lewat sini
     # (collection upload media-*, ADR ProyekKas 0004 §2/§4) → buffering-pk (batas 10 MiB).
     # Authorization DIHAPUS: token Bearer APK tidak boleh dipakai ke REST generik (arsitektur §14).
@@ -52,7 +52,7 @@ http:
       middlewares: [crowdsec, security-headers, ratelimit-default, strip-authorization, buffering-pk]
       service: drms-pk-stg
       tls:
-        certResolver: le-http-staging
+        certResolver: le-http
     # Sisanya (catch-all): Payload admin (/admin), aset Next.js, /.well-known/assetlinks.json (App Links,
     # ADR ProyekKas 0010). Authorization dihapus. TANPA buffering-pk: response aset/admin tidak dibuffer
     # di tmpfs Traefik (mem_limit 256m); batas body non-upload = batas aplikasi (Next.js/Payload).
@@ -63,13 +63,13 @@ http:
       middlewares: [crowdsec, security-headers, ratelimit-default, strip-authorization]
       service: drms-pk-stg
       tls:
-        certResolver: le-http-staging
+        certResolver: le-http
 
   services:
     # Container dibuat kelak oleh compose app (ADR ProyekKas 0002 §3: /opt/infra/staging/drms-proyekkas/),
     # container_name `drms-pk-stg`, port 3000, network `drms-kas-edge` (bersama traefik; dibuat infra Lead) + `db`.
-    # App menghubungi Keycloak lewat issuer publik https://auth.bimacreative.tech (hairpin), bukan keycloak:8080.
-    # Sampai container ada, request ke host ini → 502 (DNS Docker tidak menemukan nama) — bukan error config.
+    # App menghubungi Keycloak lewat https://auth.bimacreative.tech (network drms-kc-admin-stg → Traefik, H5), bukan keycloak:8080.
+    # Container berjalan sejak 2026-09-23 (/opt/infra/staging/drms-proyekkas/); bila berhenti → 502.
     drms-pk-stg:
       loadBalancer:
         servers:

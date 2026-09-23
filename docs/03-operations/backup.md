@@ -56,7 +56,8 @@
   (`observability/scripts/uptime-kuma-provision.sh`) dan datasource Grafana di-provision dari git (`observability.md`).
 - `web/control-plane/.env` (T16a) kini di `/opt/infra` → ikut backup; `/opt/src/control-plane/.env` tidak lagi dipakai.
 - `MEDIA_VOLUMES` (2026-09-23): diuji via `restic-backup.service` dengan volume dummy `drms_pk_media_stg` berisi 1 file →
-  file ada di snapshot `files` (`restic dump`), volume dummy dihapus. `restore-test.sh` belum menguji file media.
+  file ada di snapshot `files` (`restic dump`), volume dummy dihapus. `restore-test.sh` belum menguji file media. Sejak 2026-09-23 volume `drms_pk_media_stg` nyata (app staging deployed) →
+  masuk path `files` (diverifikasi `restic backup --dry-run`, replika logika `backup.sh`); `drms_pk_media_prod` belum ada.
   Catatan retensi: `forget` mengelompokkan per host+paths → setiap perubahan daftar path (volume media muncul/hilang)
   membuat grup snapshot baru; grup lama tetap menyimpan snapshot terakhirnya sesuai kebijakan keep.
 - Data mail DMS (T11): bind mount `/opt/infra/mail/data/{mail,state,config}` + `mail/secrets/` → ikut snapshot `files` tanpa

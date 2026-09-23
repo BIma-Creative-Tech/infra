@@ -17,8 +17,9 @@
 | 0. Prasyarat infra Lead | **DONE** | 2026-09-23 | network `drms-kas-edge` 10.100.7.0/24 (traefik anggota, host tetap 10.100.0.1); `backup.sh` membaca `MEDIA_VOLUMES` (diuji volume dummy); `max_connections` 200 — branch `feat/infra-drms-apply` |
 | 1. Postgres | **DONE** | 2026-09-23 | 2 DB + 6 role; pg_hba 0 error; login `pk_drms_app`→`pk_drms` OK, →`control_plane`/`pk_drms_stg` ditolak; `pk_drms_stg_app`→`pk_drms` ditolak; Odoo/Keycloak/cp pulih |
 | 2. Traefik | **DONE** | 2026-09-23 | router `drms-pk-stg-{web,api-v1,api-rest}` & `auth-drms-token` termuat tanpa error; cert `(STAGING)`; host staging 502 (app belum ada); token realm `platform` tetap `auth-login` |
-| 3. Keycloak | belum | — | dikerjakan Lead (jendela downtime) |
-| 4. Backup | sebagian | 2026-09-23 | loop media aktif; dump `pk_drms*` & volume media nyata diverifikasi setelah app naik |
+| 3. Keycloak | **DONE** (Lead) | 2026-09-23 | secret `drms{,-staging}-proyekkas-{web,admin-api}.secret` ada; dari container app staging: discovery/JWKS `drms-staging` 200, token SA 200, `GET users?max=1` 200, realm `platform` 403 (realm `drms` prod tidak diuji di langkah 5) |
+| 4. Backup | **DONE** (staging) | 2026-09-23 | volume `drms_pk_media_stg` ada → masuk path `files` (`restic backup --dry-run`); `pg_dump pk_drms_stg` OK (rc 0); backup penuh terjadwal 01:30 |
+| 5. App staging | **DEPLOYED** | 2026-09-23 | `https://drms-kas.staging.bimacreative.tech` — sertifikat LE production; web+worker healthy; §Langkah 5 |
 
 Catatan penerapan: Postgres di-**recreate** (`docker compose up -d`, bukan `restart`) karena `command` berubah
 (`max_connections`); ini sekaligus memuat inode baru `pg_hba.conf`. Traefik di-recreate di langkah 0 (join network) →
@@ -166,7 +167,7 @@ tidak dibatasi Traefik di `web` (tanpa buffering). Response 20 MiB via `api-rest
 16 MiB), via `web` → 200. Hasil persis: laporan commit branch.
 `/api/v1/auth/*` tetap `ratelimit-login`: satu-satunya endpoint di katalog v1 = `/api/v1/auth/backchannel-logout`
 (kini tidak dipakai); APK tidak memanggil `/api/v1/auth/*` rutin (registrasi perangkat = `/api/v1/devices/register`).
-Pindah ke `le-http` nanti: `traefik.md` §Pindah staging → production (termasuk hapus entri cert staging).
+Pindah ke `le-http`: **DILAKUKAN 2026-09-23** (Langkah 5; `traefik.md` §Pindah staging → production, termasuk hapus entri cert staging).
 
 ## Langkah 3. Keycloak — import realm (jendela downtime ±5 menit)
 
@@ -219,6 +220,69 @@ Setelah loop `MEDIA_VOLUMES` di `backup.sh` (Langkah 0) diterapkan dan volume me
 `pg pk_drms_stg: ok` (daftar DB dinamis, `backup.sh` L44) dan path volume media di snapshot `files`
 (`restic ls latest --tag files | grep drms_pk_media`). Catat: repo lokal di disk yang sama (bukan backup sejati
 terhadap kehilangan host) sampai remote S3 diisi (ADR 0006).
+
+## Langkah 5. App staging — deploy, upgrade, rollback (STATUS: staging deployed 2026-09-23)
+
+Paket dari repo app `/opt/src/proyekkas` `deploy/staging/` (commit `develop` 3b05b83), direview & disetujui Lead infra.
+
+| Path (`/opt/infra/staging/drms-proyekkas/`, dir 750 root) | Isi | Git |
+|---|---|---|
+| `docker-compose.yml` | salinan **persis** `git show 3b05b83:deploy/staging/docker-compose.yml` (sha256 `fe46fd7a…`) — project `drms-proyekkas-stg`: `drms-pk-stg-migrate` (one-shot, role owner), `drms-pk-stg` (web :3000), `drms-pk-stg-worker`, `drms-pk-stg-seed` (profile `seed`, tidak dijalankan) | ya |
+| `.gitignore` | `.env`, `secrets/` | ya |
+| `.env` (600 root) | `PK_WEB_IMAGE`/`PK_MIGRATE_IMAGE` + APP_URL/OIDC/KC dari `.env.example`; **tanpa** `SEED_ADMIN_*`; tanpa secret | **tidak** |
+| `secrets/` (dir 750 root; file **1001:1001 0400**, tanpa newline) | `database_url_{owner,app}.secret` (`postgres://pk_drms_stg_{owner,app}:<pw URL-encoded>@postgres:5432/pk_drms_stg`, pw dari `postgres/.env`), `payload_secret.secret` (`openssl rand -hex 32`), `oidc_web_client_secret.secret`, `kc_admin_client_secret.secret` (salinan `identity/keycloak/secrets/drms-staging-proyekkas-{web,admin-api}.secret`) | **tidak** |
+
+- **Image TEMPORARY(2026-09-23): build lokal sampai GHCR** — `proyekkas-web:0.1.0-stg-3b05b83` (id `sha256:009c1113…`),
+  `proyekkas-migrate:0.1.0-stg-3b05b83` (id `sha256:05cb2750…`), user 1001:1001. Tanpa digest registry → ganti ke
+  `ghcr.io/<org>/proyekkas-{web,migrate}:<tag>@sha256:<digest>` setelah CI mem-publish.
+- **Kepemilikan secret (kompromi):** Compose non-swarm mengabaikan `uid/gid/mode` secret file → file harus dimiliki uid
+  container (1001). Host uid 1001 = user `deploy`, tetapi `deploy` tidak bisa melintasi `/opt/infra` (750 root:admin) maupun
+  dir stack (750 root:root) — diuji: `sudo -u deploy cat …` → `Permission denied`; `admin` juga ditolak. Diterima untuk staging.
+- Secret salah/berubah: tulis ulang file (`printf '%s' … >`, `chown 1001:1001`, `chmod 0400`) → `docker compose up -d
+  --force-recreate drms-pk-stg drms-pk-stg-worker`.
+
+**Deploy (sudah dijalankan 2026-09-23 18:37 WIB):**
+```
+cd /opt/infra/staging/drms-proyekkas && docker compose config -q && docker compose up -d   # migrate dulu (depends_on)
+docker compose ps -a        # migrate Exited (0); drms-pk-stg & worker (healthy) ±13 s setelah start
+docker logs drms-pk-stg-migrate | tail        # "Migrated: …" lalu "Done."
+```
+
+**Verifikasi (hasil 2026-09-23):**
+```
+H=https://drms-kas.staging.bimacreative.tech
+curl -s  -o /dev/null -w '%{http_code}\n' $H/api/v1/health       # 200 {"status":"ok"}  (HEAD → 404: endpoint app GET saja)
+curl -s  -o /dev/null -w '%{http_code}\n' $H/admin/login           # 200, CSP app (nonce) + header security-headers
+curl -s -D - -o /dev/null $H/auth/login | grep -i ^location     # 302 → auth.bimacreative.tech/realms/drms-staging/…/auth,
+                                                                #   client_id=proyekkas-web, code_challenge_method=S256
+echo | openssl s_client -connect 31.97.50.221:443 -servername drms-kas.staging.bimacreative.tech 2>/dev/null | openssl x509 -noout -issuer
+                                                                # Let's Encrypt YE2 (production), Verify return code 0
+docker exec postgres psql -U postgres -AtX -c "select usename,count(*) from pg_stat_activity where datname='pk_drms_stg' group by 1"
+                                                                # hanya pk_drms_stg_app
+```
+Strip `Authorization` diuji di kabel (tcpdump bridge `drms-kas-edge` → :3000): diteruskan hanya di `/api/v1/*` & `/auth/*`;
+dihapus di `/api/<slug>`, `/admin`, `/`. Admin REST dari container web (`node -e fetch`, token tidak ditampilkan): token SA 200,
+`GET /admin/realms/drms-staging/users?max=1` 200, realm `platform` 403. RAM awal (`docker stats`): web 82 MiB / 640, worker
+47 MiB / 320. Uptime Kuma: monitor `ProyekKas DRMS staging (drms-kas.staging)` (GET `/api/v1/health`, tidak tampil di status
+page publik).
+
+**Upgrade (image baru):**
+1. Build/pull image baru dengan tag baru (jangan menimpa tag lama — tag lama = jalur rollback), mis.
+   `proyekkas-web:0.1.1-stg-<sha>` + `proyekkas-migrate:0.1.1-stg-<sha>`; kelak `ghcr.io/…@sha256:<digest>`.
+2. Bila `deploy/staging/docker-compose.yml` di repo app berubah: review diff, salin persis
+   (`git -C /opt/src/proyekkas show <commit>:deploy/staging/docker-compose.yml > docker-compose.yml`), commit di `/opt/infra`.
+3. `sudo /opt/infra/scripts/backup.sh run` (dump `pk_drms_stg` sebelum migrasi — migrasi tidak otomatis reversibel).
+4. Edit `.env`: `PK_WEB_IMAGE` & `PK_MIGRATE_IMAGE` → tag baru.
+5. `docker compose up -d` → migrate one-shot jalan ulang, lalu web/worker di-recreate. Cek `docker compose ps -a`,
+   log migrate, `curl $H/api/v1/health`. Downtime ≈ durasi migrate + start web (±15–20 s).
+
+**Rollback:**
+- Image saja (migrasi kompatibel mundur): kembalikan `PK_WEB_IMAGE`/`PK_MIGRATE_IMAGE` di `.env` ke tag lama →
+  `docker compose up -d`. Migrate lama melihat semua migrasinya sudah tercatat → no-op.
+- Migrasi baru tidak kompatibel: restore dump `pk_drms_stg` ke DB baru (`restore.sh pk_drms_stg pk_drms_stg_rb --owner
+  pk_drms_stg_owner`) lalu tukar — **destruktif, konfirmasi Lead/user**; atau jalankan migrasi *down* versi app (tim app).
+- Matikan app: `docker compose down` (volume `drms_pk_media_stg` & DB tetap; router → 502). Jangan `down -v`.
+- Sertifikat kembali ke staging: tidak perlu untuk rollback app (cert production tetap valid).
 
 ## Rollback
 
