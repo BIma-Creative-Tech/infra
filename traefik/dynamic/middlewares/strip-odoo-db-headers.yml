@@ -1,0 +1,12 @@
+# Hapus header pemilih DB Odoo yang dikirim client (ADR 0003 D1, plan 02 §4 baris S).
+# Nilai "" = "Removes" (docs v3.7 .../middlewares/headers.md, customRequestHeaders).
+# Router client Odoo (T10) memakai middleware ini LALU middleware per-client yang MENIMPA
+# X-Sh-Odoo-Db ke nilai eksak (`<slug>_prod`). Header alias (X_Sh_Odoo_Db dst.) sudah
+# dibuang di entrypoint (aliasHeadersStrategy: delete, traefik.yml).
+http:
+  middlewares:
+    strip-odoo-db-headers:
+      headers:
+        customRequestHeaders:
+          X-Odoo-Database: ""
+          X-Sh-Odoo-Db: ""

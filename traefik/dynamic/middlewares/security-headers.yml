@@ -1,0 +1,18 @@
+# Middleware `security-headers` — dipasang di semua router publik.
+# Opsi: docs v3.7 reference/routing-configuration/http/middlewares/headers.md
+http:
+  middlewares:
+    security-headers:
+      headers:
+        # HSTS: max-age PENDEK selama fase staging ACME (plan 02 §4 baris T). Naikkan ke
+        # 31536000 (+ includeSubdomains setelah semua subdomain HTTPS) setelah pindah ke le-http.
+        stsSeconds: 300
+        stsIncludeSubdomains: false
+        stsPreload: false
+        contentTypeNosniff: true
+        frameDeny: true
+        referrerPolicy: "strict-origin-when-cross-origin"
+        permissionsPolicy: "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+        customResponseHeaders:
+          X-Powered-By: ""   # "" = hapus
+          Server: ""

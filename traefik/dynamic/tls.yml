@@ -1,0 +1,5 @@
+# TLS options default (docs v3.7 .../http/tls/tls-options.md). TLS >= 1.2 (plan 02 §4 baris T).
+tls:
+  options:
+    default:
+      minVersion: VersionTLS12

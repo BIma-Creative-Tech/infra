@@ -1,0 +1,83 @@
+# Traefik v3.7.13 — static (install) configuration. T03, plan 02; ADR 0002 (HTTP-01 per hostname).
+# Setiap opsi diverifikasi dari raw.githubusercontent.com/traefik/traefik/v3.7/docs/content/reference/...
+# Perubahan file ini butuh restart container (static config tidak di-reload).
+
+global:
+  checkNewVersion: false
+  sendAnonymousUsage: false
+
+log:
+  level: INFO
+  format: json          # ke stdout → docker json-file (10m x 3)
+
+accessLog:
+  # Dibaca CrowdSec (T05) & Alloy/Loki (T14). Rotasi: logrotate host + sinyal USR1
+  # (docs logs-and-accesslogs.md §Log Rotation) — lihat traefik/logrotate/traefik.
+  filePath: /var/log/traefik/access.log
+  format: json
+  bufferingSize: 100
+  fields:
+    defaultMode: keep
+    headers:
+      defaultMode: drop   # default docs; header request tidak di-log (hindari cookie/Authorization)
+      names:
+        User-Agent: keep  # dibutuhkan skenario CrowdSec (bad user-agent)
+
+entryPoints:
+  web:
+    address: ":80"
+    http:
+      # Redirect permanen ke https. Router ACME internal berprioritas MaxInt tetap melayani
+      # /.well-known/acme-challenge/ (docs entrypoints.md §allowACMEByPass) — JANGAN set allowACMEByPass.
+      redirections:
+        entryPoint:
+          to: websecure
+          scheme: https
+          permanent: true
+      # Header dengan nama "alias" (X_Sh_Odoo_Db, X.Odoo.Database, ...) dihapus agar tidak
+      # bisa menyamar sebagai header terpercaya di backend WSGI (Odoo) — docs entrypoints.md §aliasHeadersStrategy.
+      aliasHeadersStrategy: delete
+    # forwardedHeaders.trustedIPs/insecure TIDAK diset: tidak ada proxy di depan Traefik,
+    # X-Forwarded-* dari client tidak dipercaya (plan 02 §4 baris S).
+  websecure:
+    address: ":443"
+    http:
+      aliasHeadersStrategy: delete
+      tls: {}
+  # Hanya untuk /ping healthcheck; terikat loopback DI DALAM container, tidak di-publish.
+  traefik:
+    address: "127.0.0.1:8080"
+    http:
+      aliasHeadersStrategy: delete
+
+ping:
+  entryPoint: traefik
+
+# api/dashboard: TIDAK diaktifkan (default api=false). Debug lewat `docker logs traefik`
+# dan file dynamic/. Bila kelak dibutuhkan: aktifkan api tanpa `insecure`, router di entrypoint
+# terpisah yang hanya bind 127.0.0.1 di host (SSH tunnel) — butuh keputusan Lead.
+
+providers:
+  # File provider saja — TIDAK ada docker provider / docker.sock (plan 02 §4 baris E).
+  file:
+    directory: /etc/traefik/dynamic
+    watch: true
+
+certificatesResolvers:
+  # Uji awal — CA staging LE (URL dari https://letsencrypt.org/docs/staging-environment/).
+  le-http-staging:
+    acme:
+      # email: kosong — lihat docs/03-operations/traefik.md (pertanyaan terbuka ke Lead).
+      caServer: https://acme-staging-v02.api.letsencrypt.org/directory
+      storage: /etc/traefik/acme/acme-staging.json
+      keyType: EC256
+      httpChallenge:
+        entryPoint: web
+  # Production — DISIAPKAN, belum dipakai router mana pun (keputusan Lead setelah staging lolos).
+  le-http:
+    acme:
+      caServer: https://acme-v02.api.letsencrypt.org/directory
+      storage: /etc/traefik/acme/acme.json
+      keyType: EC256
+      httpChallenge:
+        entryPoint: web

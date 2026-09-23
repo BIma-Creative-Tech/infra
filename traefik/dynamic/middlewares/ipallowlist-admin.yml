@@ -1,0 +1,16 @@
+# Allowlist admin (Keycloak admin, Grafana, /web/database/*, dashboard bila kelak diaktifkan).
+# Berbasis IP sumber koneksi (tanpa ipStrategy → X-Forwarded-For client tidak dipercaya).
+# Opsi: docs v3.7 .../middlewares/ipallowlist.md
+#
+# Default HANYA loopback → admin via SSH tunnel. Tambahkan IP publik kantor/admin di bawah
+# (satu per baris, CIDR) setelah disetujui Lead. CATATAN: dengan userland-proxy=false, koneksi
+# SSH tunnel ke 127.0.0.1:443 di host tiba di Traefik dengan IP sumber gateway network `proxy`
+# (10.100.0.1), bukan 127.0.0.1 — lihat docs/03-operations/traefik.md §Admin via SSH tunnel.
+http:
+  middlewares:
+    ipallowlist-admin:
+      ipAllowList:
+        sourceRange:
+          - "127.0.0.1/32"
+          # - "<IP-admin>/32"
+        rejectStatusCode: 403

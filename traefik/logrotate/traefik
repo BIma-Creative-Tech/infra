@@ -1,0 +1,18 @@
+# Dipasang ke /etc/logrotate.d/traefik oleh traefik/scripts/bootstrap.sh.
+# Traefik membuka ulang file log saat menerima USR1 (docs v3.7 logs-and-accesslogs.md §Log Rotation).
+/opt/infra/traefik/logs/*.log {
+    daily
+    rotate 14
+    maxsize 100M
+    missingok
+    notifempty
+    compress
+    delaycompress
+    dateext
+    # tanpa `create`: setelah rename, Traefik (uid 65532) membuat file baru sendiri saat USR1.
+    su root root
+    sharedscripts
+    postrotate
+        /usr/bin/docker kill --signal=USR1 traefik >/dev/null 2>&1 || true
+    endscript
+}

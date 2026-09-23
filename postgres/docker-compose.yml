@@ -1,0 +1,72 @@
+# T04 — Postgres 16 shared cluster (plan 02, ADR 0001 pin, ADR 0004 sizing).
+# Jalankan scripts/bootstrap.sh sekali sebelum `docker compose up -d` (membuat network `db`
+# dan .env berisi password acak). Role/DB dibuat oleh scripts/init-roles.sh (idempoten).
+# Tidak ada port yang di-publish ke host — service lain terhubung lewat network external `db`.
+name: postgres
+
+services:
+  postgres:
+    # ADR 0001: postgres:16.15-bookworm (+ digest index multi-arch, diambil 2026-09-23)
+    image: postgres:16.15-bookworm@sha256:efedf3595f1d6f415c08568ba171029bf54052e754cc9f030e3f2412b21f3d67
+    container_name: postgres
+    hostname: postgres
+    restart: unless-stopped
+    # Non-root: uid/gid `postgres` di image (999). Entrypoint tidak perlu chown/gosu
+    # karena volume sudah dimiliki 999 → tidak butuh capability apa pun (diuji, lihat docs/03-operations/postgres.md).
+    user: "999:999"
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set di .env (scripts/bootstrap.sh)}
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256 --auth-local=peer --data-checksums"
+    command:
+      - postgres
+      - -c
+      - hba_file=/etc/postgresql/pg_hba.conf
+      - -c
+      - listen_addresses=*
+      - -c
+      - password_encryption=scram-sha-256
+      # Tuning ADR 0004 §2 (ESTIMASI — revisi setelah `docker stats` nyata, T07)
+      - -c
+      - shared_buffers=512MB
+      - -c
+      - work_mem=6MB
+      - -c
+      - max_connections=150
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./conf/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
+    read_only: true
+    tmpfs:
+      - /var/run/postgresql:uid=999,gid=999,mode=0775
+      - /tmp:uid=999,gid=999,mode=1777
+    shm_size: 256mb
+    networks:
+      - db
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres", "-h", "/var/run/postgresql"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    mem_limit: 2048m
+    cpus: 1.5
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  pgdata:
+    name: postgres_pgdata
+
+networks:
+  db:
+    # Dibuat oleh scripts/bootstrap.sh: internal (tanpa egress), subnet tetap 10.100.1.0/24.
+    # Service lain (Keycloak, control-plane, Odoo) join sebagai `external: true, name: db`.
+    external: true
+    name: db

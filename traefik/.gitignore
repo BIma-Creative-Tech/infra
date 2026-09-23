@@ -1,0 +1,4 @@
+# State & secret Traefik — jangan pernah di-commit (CLAUDE.md §0, ADR 0002)
+acme/
+acme*.json
+logs/

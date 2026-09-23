@@ -1,0 +1,18 @@
+# Rate limit per IP sumber (default sourceCriterion = remote address; X-Forwarded-For
+# dari client TIDAK dipakai). Opsi: docs v3.7 .../middlewares/ratelimit.md
+# Nilai = ESTIMASI awal; tuning setelah ada trafik nyata (access log).
+http:
+  middlewares:
+    # Umum: rata-rata 50 req/s per IP, burst 100 (halaman Odoo memuat banyak aset).
+    ratelimit-default:
+      rateLimit:
+        average: 50
+        period: 1s
+        burst: 100
+    # Path login (Odoo /web/login, Keycloak /realms/*/login-actions, control plane /api/auth):
+    # rata-rata 10 req/menit per IP, burst 10.
+    ratelimit-login:
+      rateLimit:
+        average: 10
+        period: 1m
+        burst: 10
