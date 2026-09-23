@@ -1,0 +1,32 @@
+# T16a — Control plane PROD cp.bimacreative.tech → container `control-plane:3000` (network proxy).
+# Stack: /opt/infra/web/control-plane (docs/03-operations/control-plane.md).
+# DNS pre-check (ADR 0002 #5) lulus 2026-09-23: A = 31.97.50.221 (@apollo.dns-parking.com,
+# @1.1.1.1, @8.8.8.8), tanpa AAAA.
+#
+# CSP TIDAK diset di Traefik: aplikasi (src/proxy.ts) mengirim CSP dengan nonce per request.
+# `security-headers` hanya menambah HSTS/nosniff/frame/referrer/permissions (tanpa contentSecurityPolicy).
+http:
+  routers:
+    # Endpoint Auth.js (signin, callback, csrf, session, signout, providers): rate limit ketat per IP.
+    cp-auth:
+      entryPoints: [websecure]
+      rule: "Host(`cp.bimacreative.tech`) && PathPrefix(`/api/auth`)"
+      priority: 100
+      middlewares: [crowdsec, security-headers, ratelimit-login]
+      service: control-plane
+      tls:
+        certResolver: le-http
+    cp:
+      entryPoints: [websecure]
+      rule: "Host(`cp.bimacreative.tech`)"
+      priority: 1
+      middlewares: [crowdsec, security-headers, ratelimit-default]
+      service: control-plane
+      tls:
+        certResolver: le-http
+
+  services:
+    control-plane:
+      loadBalancer:
+        servers:
+          - url: "http://control-plane:3000"
