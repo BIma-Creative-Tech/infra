@@ -6,9 +6,9 @@
   ProyekKas `0002` (hosting/kapasitas), `0003` (Keycloak), `0004` (media), `0006` (DB/role); platform
   `docs/03-operations/{postgres,traefik,keycloak,backup}.md`, `docs/adr/0002-tls-dns-manual.md`, `docs/adr/0006-backup.md`,
   CLAUDE.md §3.5, §3.5.1, §3.6.
-- **Prasyarat:** branch sudah di-review & di-merge ke `main` di `/opt/infra`; akses root di VPS; akses admin console
-  Keycloak via SSH tunnel (`keycloak.md` §Akses admin console); jendela downtime Keycloak ±5 menit (langkah 3) dan
-  restart singkat Postgres ±10–30 detik (langkah 1).
+- **Prasyarat:** branch sudah di-review & di-merge ke `main` di `/opt/infra`; akses root di VPS; akses admin Keycloak
+  untuk membaca secret client (`keycloak.md` §Akses admin console); jendela downtime Keycloak ±5 menit (langkah 3) dan
+  restart singkat Postgres ±10–30 detik (langkah 1); langkah 0 (commit infra Lead) sudah diterapkan.
 
 ## Nama yang ditetapkan (sumber: arsitektur §3.1–§3.4 + keputusan branch ini)
 
@@ -21,13 +21,15 @@
 | Role DB | `pk_drms_{owner,app,ro}` | `pk_drms_stg_{owner,app,ro}` | limit koneksi 2/25/3 · 2/10/2 (ESTIMASI) |
 | Var `.env` postgres | `PG_PK_DRMS_{OWNER,APP,RO}_PASSWORD` | `PG_PK_DRMS_STG_{OWNER,APP,RO}_PASSWORD` | dibangkitkan `postgres/scripts/bootstrap.sh` |
 | Realm Keycloak | `drms` | `drms-staging` | `identity/keycloak/realm-export/drms*.json` |
-| Router Traefik | (menyusul) | `drms-pk-stg-{auth,api-v1,web}` | arsitektur menyebut `pk-auth/pk-api-v1/pk-web`; diberi prefix env agar unik |
-| Network edge (usulan) | `drms-kas-edge` `10.100.7.0/24` gw `10.100.7.1` | sama | lihat Langkah 0 — **di luar path branch ini** |
+| Router Traefik | (menyusul) | `drms-pk-stg-{auth,api-v1,api-rest,web}` | arsitektur: `pk-auth/pk-api-v1/pk-web`; `api-rest` ditambah (buffering hanya di route upload); prefix env agar unik |
+| Network edge | `drms-kas-edge` `10.100.7.0/24` gw `10.100.7.1` | sama | dibuat infra Lead (Langkah 0) |
 
 Realm export dibuat dari `platform-staging.json` (Keycloak 26.7.4 partial export) — nama realm diganti, **semua UUID
 diganti** (uuid5 deterministik per realm; tidak ada tabrakan PK dengan realm lain, dicek) — lalu ditambah: role
 realm `pk-staff|pk-pm|pk-finance|pk-owner|pk-admin`; client `proyekkas-web` (confidential, code+PKCE S256,
-redirect/post-logout eksak, back-channel logout `http://<container>:3000/api/v1/auth/backchannel-logout`),
+redirect/post-logout eksak; **back-channel logout NONAKTIF** — tanpa `backchannel.logout.url`, keputusan Lead: app
+memeriksa `web-sessions`/`devices` sendiri di setiap request dan menjangkau Keycloak lewat issuer publik
+`https://auth.bimacreative.tech` (hairpin), bukan `keycloak:8080`),
 `proyekkas-mobile` (public, PKCE S256, redirect App Link eksak, optional scope `offline_access`),
 `proyekkas-admin-api` (confidential, service account saja); semua `fullScopeAllowed=false` + scope mapping eksplisit;
 mapper `realm roles` juga ke ID token; realm: `revokeRefreshToken=true` (setelan realm, bukan per client — docs
@@ -36,35 +38,15 @@ service account `service-account-proyekkas-admin-api` (tanpa kredensial) pembawa
 `view-users` + `manage-users`. **Tanpa secret**: Keycloak membangkitkan secret client confidential saat import
 (source 26.7.4 `RepresentationToModel.determineNewSecret`).
 
-## Langkah 0. Perubahan di luar path branch ini (Lead memutuskan/menerapkan)
+## Langkah 0. Prasyarat yang dikerjakan infra Lead (commit terpisah, di luar branch ini)
 
-**0a. Network `drms-kas-edge`** (pola `odoo-edge`, H1): hanya `traefik` + container web ProyekKas, bukan `proxy`.
-Subnet `10.100.7.0/24` belum dipakai (repo: 10.100.0–6; `docker network ls` 2026-09-23). Bukan `--internal`
-(app butuh egress: FCM, `auth.bimacreative.tech`). Tidak dibutuhkan sebelum container app ada (router → 502 saja).
-```
-# traefik/scripts/bootstrap.sh (setelah baris ensure_network odoo-edge):
-ensure_network drms-kas-edge 10.100.7.0/24 10.100.7.1
-# traefik/docker-compose.yml: services.traefik.networks  →  drms-kas-edge: {}   (TANPA gw_priority)
-#                             networks                   →  drms-kas-edge: {external: true, name: drms-kas-edge}
-cd /opt/infra/traefik && ./scripts/bootstrap.sh && docker compose config -q && docker compose up -d   # recreate traefik
-```
-Verifikasi: `docker network inspect drms-kas-edge -f '{{.Internal}} {{range .IPAM.Config}}{{.Subnet}}{{end}}'` →
-`false 10.100.7.0/24`; akses tunnel admin tetap tiba sebagai `10.100.0.1` (lihat `traefik.md` §odoo-edge).
-**Konsekuensi (pertanyaan terbuka):** app di `drms-kas-edge`+`db` tidak bisa menjangkau `keycloak:8080` dan Keycloak
-tidak bisa memanggil back-channel logout `http://drms-pk-stg:3000/...` kecuali `keycloak` juga join `drms-kas-edge`
-— atau app memakai URL publik `https://auth.bimacreative.tech` dan back-channel logout diubah ke URL publik.
-
-**0b. Backup media — `scripts/backup.sh`** (branch ini hanya menambah `MEDIA_VOLUMES` di `lib/restic-common.sh`;
-tanpa perubahan ini media **tidak** di-backup). Usulan, sisipkan setelah loop `FILESTORE_VOLUMES` (langkah 3):
-```bash
-  for v in "${MEDIA_VOLUMES[@]}"; do
-    mp="$(volume_mountpoint "$v")"
-    if [[ -n "$mp" && -d "$mp" ]]; then paths+=("$mp")
-    else warn "volume media $v tidak ditemukan — dilewati"; fi
-  done
-```
-Urutan tetap DB dulu, file kemudian (ADR 0006). `restore-test.sh` belum mencakup media (usulan arsitektur §15).
-Sampai volume dibuat compose app, baris `warn` muncul setiap run (status tetap ok) — diterima.
+- **Network `drms-kas-edge`** (pola `odoo-edge`, H1): `10.100.7.0/24`, gw `10.100.7.1`, bukan `--internal` (app butuh
+  egress: FCM, issuer publik Keycloak); anggota hanya `traefik` + container web ProyekKas (bukan `proxy`).
+  App tidak menjangkau `keycloak:8080` (sengaja) — server-side OIDC/JWKS/Admin REST lewat
+  `https://auth.bimacreative.tech` (hairpin); token call melewati router `auth-drms-token`.
+- **`scripts/backup.sh`**: loop `MEDIA_VOLUMES` (root volume, tanpa `filestore/`) setelah loop `FILESTORE_VOLUMES`,
+  urutan tetap DB dulu lalu file (ADR 0006). Branch ini hanya menyediakan daftar di `lib/restic-common.sh`.
+- **Postgres `max_connections` 150 → 200** (lihat Catatan §Limit koneksi).
 
 ## Langkah 1. Postgres — DB, role, pg_hba
 
@@ -111,11 +93,17 @@ curl -sk -o /dev/null -w '%{http_code}\n' --resolve drms-kas.staging.bimacreativ
 echo | openssl s_client -connect 31.97.50.221:443 -servername drms-kas.staging.bimacreative.tech 2>/dev/null | openssl x509 -noout -issuer   # → "(STAGING)"
 curl -s -o /dev/null -w '%{http_code}\n' -X POST https://auth.bimacreative.tech/realms/drms-staging/protocol/openid-connect/token   # 404 sebelum langkah 3, 400/401 sesudahnya
 tail -n 50 /opt/infra/traefik/logs/access.log | grep -o '"RouterName":"[^"]*drms[^"]*"' | sort | uniq -c    # auth-drms-token@file, drms-pk-stg-web@file
+curl -sk -o /dev/null -w '%{http_code}\n' --resolve drms-kas.staging.bimacreative.tech:443:127.0.0.1 https://drms-kas.staging.bimacreative.tech/api/users   # → 502, RouterName drms-pk-stg-api-rest@file
 ```
 Uji offline yang sudah dijalankan (Traefik v3.7.13 sementara, salinan config, `--network none`, backend stub whoami):
 token `drms`/`drms-staging` → `auth-drms-token` (31×200 lalu 429 pada 35 request), realm `platform` tetap
-`auth-login` (10×200), `/token/introspect` → `auth-public`; `Authorization` sampai backend hanya di `/api/v1/*` &
-`/auth/*`, dihapus di `/api/users`, `/admin`; body 9 MB → 200, 11 MB → 413.
+`auth-login` (10×200), `/token/introspect` → `auth-public`. Routing host staging: `/auth/*`, `/api/v1/auth/*` →
+`auth`; `/api/v1/*` → `api-v1`; `/api/<slug>` → `api-rest`; `/admin`, `/` → `web`. `Authorization` sampai backend
+hanya di `/api/v1/*` & `/auth/*`, dihapus di `/api/<slug>`, `/admin`. Body 11 MB → 413 di `api-v1` & `api-rest`,
+tidak dibatasi Traefik di `web` (tanpa buffering). Response 20 MiB via `api-rest` → 500 (`maxResponseBodyBytes`
+16 MiB), via `web` → 200. Hasil persis: laporan commit branch.
+`/api/v1/auth/*` tetap `ratelimit-login`: satu-satunya endpoint di katalog v1 = `/api/v1/auth/backchannel-logout`
+(kini tidak dipakai); APK tidak memanggil `/api/v1/auth/*` rutin (registrasi perangkat = `/api/v1/devices/register`).
 Pindah ke `le-http` nanti: `traefik.md` §Pindah staging → production (termasuk hapus entri cert staging).
 
 ## Langkah 3. Keycloak — import realm (jendela downtime ±5 menit)
@@ -135,22 +123,24 @@ wajib saat server berhenti). `bootstrap-admin` **tidak** diperlukan bila `platfo
 tunnel; hanya fallback bila akses admin hilang (`keycloak.md` §Pemulihan admin, BELUM diuji). Alternatif tanpa
 downtime: admin console → *Create realm* → unggah JSON (tidak diuji di sesi ini).
 
-Secret client (out-of-band, tidak pernah ke git): admin console (tunnel) → realm → Clients → `proyekkas-web` /
-`proyekkas-admin-api` → Credentials → **Regenerate** → salin ke `.env` (600) app (`staging/drms-proyekkas/.env`).
-Simpan secret admin-api staging juga sementara di `/root/pk-admin-api-stg.secret` (600) untuk uji di bawah, lalu `shred -u`.
+Secret client (out-of-band, tidak pernah ke git; dibangkitkan Keycloak saat import): dibaca infra Lead dalam
+jendela downtime (admin console → Clients → Credentials, atau Admin REST `GET …/clients/{id}/client-secret`) — **tanpa
+Regenerate** — dan disimpan tanpa newline (`printf '%s'`) di
+`/opt/infra/identity/keycloak/secrets/drms{,-staging}-{proyekkas-web,proyekkas-admin-api}.secret`
+(dir 700, file 600 root; `secrets/` di-ignore git, ikut backup restic `/opt/infra`). Compose app menyalinnya ke `.env` (600).
 
 **Verifikasi** (dari VPS; `/admin` hanya lewat allowlist → `--resolve …:127.0.0.1`):
 ```
 R=https://auth.bimacreative.tech; K=(--resolve auth.bimacreative.tech:443:127.0.0.1)
 curl -s $R/realms/drms-staging/.well-known/openid-configuration | python3 -c 'import json,sys;print(json.load(sys.stdin)["issuer"])'
 TOK=$(curl -s "${K[@]}" $R/realms/drms-staging/protocol/openid-connect/token -d grant_type=client_credentials \
-  -d client_id=proyekkas-admin-api --data-urlencode client_secret@/root/pk-admin-api-stg.secret | python3 -c 'import json,sys;print(json.load(sys.stdin)["access_token"])')
+  -d client_id=proyekkas-admin-api --data-urlencode client_secret@/opt/infra/identity/keycloak/secrets/drms-staging-proyekkas-admin-api.secret | python3 -c 'import json,sys;print(json.load(sys.stdin)["access_token"])')
 H="Authorization: Bearer $TOK"
 curl -s -o /dev/null -w 'GET users drms-staging  %{http_code} (200)\n' "${K[@]}" -H "$H" "$R/admin/realms/drms-staging/users?max=1"
 curl -s -o /dev/null -w 'PUT realm drms-staging  %{http_code} (403)\n' "${K[@]}" -H "$H" -X PUT -H 'Content-Type: application/json' -d '{}' $R/admin/realms/drms-staging
 curl -s -o /dev/null -w 'GET users drms          %{http_code} (403)\n' "${K[@]}" -H "$H" "$R/admin/realms/drms/users?max=1"
 curl -s -o /dev/null -w 'GET users platform      %{http_code} (403)\n' "${K[@]}" -H "$H" "$R/admin/realms/platform/users?max=1"
-unset TOK H; shred -u /root/pk-admin-api-stg.secret
+unset TOK H
 ```
 Ulangi untuk realm `drms` bila secret prod sudah disiapkan. Uji offline yang sudah dijalankan (Keycloak 26.7.4
 sementara, dev-file, `--network none`): kedua realm ter-import tanpa error; token SA `resource_access.realm-management`
@@ -162,7 +152,7 @@ access token memuat `sid`. `execute-actions-email` → **500** karena SMTP realm
 
 ## Langkah 4. Backup
 
-Setelah 0b diterapkan dan volume media ada: `/opt/infra/scripts/backup.sh run` → log `pg pk_drms: ok`,
+Setelah loop `MEDIA_VOLUMES` di `backup.sh` (Langkah 0) diterapkan dan volume media ada: `/opt/infra/scripts/backup.sh run` → log `pg pk_drms: ok`,
 `pg pk_drms_stg: ok` (daftar DB dinamis, `backup.sh` L44) dan path volume media di snapshot `files`
 (`restic ls latest --tag files | grep drms_pk_media`). Catat: repo lokal di disk yang sama (bukan backup sejati
 terhadap kehilangan host) sampai remote S3 diisi (ADR 0006).
@@ -178,7 +168,7 @@ terhadap kehilangan host) sampai remote S3 diisi (ADR 0006).
   (**destruktif**, konfirmasi). Realm lain tidak tersentuh (`--override false`, UUID baru). Kegagalan import di
   tengah jendela: `docker compose up -d` tetap bisa dijalankan; restore DB `keycloak` dari restic hanya bila realm
   lain rusak (`backup.md` §Restore).
-- **Backup:** hapus baris `MEDIA_VOLUMES` / blok 0b (aditif).
+- **Backup:** hapus baris `MEDIA_VOLUMES` (aditif; loop di `backup.sh` milik commit infra Lead).
 
 ## Catatan
 
@@ -192,12 +182,13 @@ terhadap kehilangan host) sampai remote S3 diisi (ADR 0006).
 - `proyekkas-mobile` `post.logout.redirect.uris` diisi Keycloak dengan `+` (= redirect URI yang sama, eksak) saat import.
 - Locale login Indonesia: ADR 0003 tidak menyebutnya → `internationalizationEnabled=false` (sama dengan platform).
 - **RAM (ADR ProyekKas 0002 §6, platform ADR 0004):** branch ini tidak menambah container. Keycloak: +2 realm di heap
-  1360m (dampak belum diukur — `docker stats` setelah import). Postgres: 2 DB kosong. **Traefik `buffering-pk`**:
-  body request > 1 MiB dan **response** > 1 MiB dibuffer ke `/tmp` (tmpfs) container traefik → dihitung ke
-  `mem_limit 256m`; ±20 upload 10 MiB paralel ≈ 200 MiB. Pantau `docker stats traefik`; opsi: naikkan limit atau
-  batasi `buffering-pk` ke route upload saja (keputusan Lead). App (menyusul): 1 472 MiB steady (57 % budget client).
-- **Limit koneksi:** jumlah `CONNECTION LIMIT` role (132 lama + 30 prod + 14 staging = 176) > `max_connections=150`.
-  Limit = plafon, bukan reservasi; pool app harus kecil (≤ 10 per proses) — ukur dengan `pg_stat_activity` di F1.
+  1360m (dampak belum diukur — `docker stats` setelah import). Postgres: 2 DB kosong. **Traefik `buffering-pk`**
+  hanya di `api-v1` & `api-rest` (bukan catch-all web): body/response > 1 MiB dibuffer ke `/tmp` (tmpfs, dihitung ke
+  `mem_limit 256m`); per response maks 16 MiB (`maxResponseBodyBytes`, lebih besar → 500); ±20 upload 10 MiB
+  paralel ≈ 200 MiB. Pantau `docker stats traefik`. App (menyusul): 1 472 MiB steady (57 % budget client).
+- **Limit koneksi:** jumlah `CONNECTION LIMIT` role = 132 lama + 30 prod + 14 staging = 176; infra Lead menaikkan
+  `max_connections` 150 → 200 (commit Lead). Limit = plafon, bukan reservasi. Target app **prod ≤ 15 koneksi aktual**
+  (web + worker + migrate; `pk_drms_app` limit 25 = plafon), staging ≤ 10 — ukur dengan `pg_stat_activity` di F1.
 - `ratelimit-login` (10/menit/IP) tetap berlaku untuk `/auth/*` web dan login APK (`/protocol/openid-connect/auth`,
   login-actions); login massal dari satu IP NAT bisa kena 429 — offline token membuat login jarang.
 - File `dynamic/clients/drms-proyekkas-*.yml` BUKAN hasil `render-client-route.sh`; jangan pakai slug Odoo `drms-proyekkas`.
