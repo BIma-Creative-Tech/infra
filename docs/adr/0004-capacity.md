@@ -4,8 +4,18 @@
 - **Tanggal:** 2026-09-23
 - **Terkait:** CLAUDE.md §3.5, §4; `docs/discovery/2026-09-23.md` §2; keputusan user #4, #8
 
-> **SEMUA ANGKA DI ADR INI = ESTIMASI** kecuali yang diberi sumber. Belum ada `docker stats` nyata
-> (Docker belum terpasang). Wajib direvisi setelah bring-up tiap service (plan 02, gate "ukur").
+**Riwayat revisi:**
+- 2026-09-23 (GATE 1, `accepted`): versi awal, seluruh angka ESTIMASI (Docker belum terpasang).
+- 2026-09-23 (T07, analyst): ditambahkan **§"Pengukuran T07"** dengan angka NYATA (`docker stats`,
+  `free`, `vmstat`, dll.) untuk service yang sudah bring-up (T03–T06: traefik, crowdsec, postgres,
+  keycloak). Angka Odoo pool/mail/control-plane/observability/datamart **TIDAK berubah** (masih
+  ESTIMASI § Decision asli) — service tersebut belum di-deploy saat pengukuran ini. Status tetap
+  `accepted`; revisi penuh menyusul di T19 setelah semua service naik.
+
+> **SEMUA ANGKA DI § "Decision" DI BAWAH INI = ESTIMASI** kecuali yang diberi sumber resmi.
+> Angka **NYATA** dari pengukuran T03–T06 ada di § "Pengukuran T07 (2026-09-23)" di bawah —
+> dua bagian ini sengaja dipisah agar tidak tercampur ESTIMASI vs NYATA. Wajib direvisi lagi
+> setelah bring-up tiap service berikutnya (plan 02 T19, gate "ukur ulang").
 
 ## Context
 
@@ -90,6 +100,100 @@ Karena spek tetap, **memicu threshold = memicu keputusan user** (upgrade/VPS-2),
 5. Keycloak limit 1 360 → 1 024 MiB (di bawah angka resmi → risiko GC/latensi; uji login beban kecil).
 6. Pool prod `workers=2` (−±324 MiB, kapasitas turun ke ≈12 user konkuren).
 7. Terakhir: pindah mail ke luar host (ADR baru).
+
+## Pengukuran T07 (2026-09-23)
+
+**Status angka di bagian ini: NYATA**, diambil langsung dari VPS (read-only, tanpa mengubah
+konfigurasi/container apa pun — Odoo pool sedang dibangun agent lain di branch terpisah dan
+tidak disentuh). Cakupan: hanya 5 container yang sudah bring-up sampai T06 — `traefik`,
+`crowdsec`, `postgres`, `keycloak`, plus `whoami` (container uji sementara T03, **akan dihapus**,
+bukan bagian arsitektur final). Odoo pool, mail, control-plane, observability, datamart **belum
+ada** saat pengukuran ini — dampaknya, § "Kapasitas client" dan § "Threshold" di ADR ini tetap
+ESTIMASI, direvisi ulang di T19 (plan 02) setelah semua service naik.
+
+**Metodologi:** `docker stats --no-stream` 3 sampel berjarak ±60 detik (11:36:06, 11:37:09,
+11:38:11 WIB, 2026-09-23), dirata-ratakan per service. Host: `free -h`/`free -m`, `swapon --show`,
+`uptime`, `vmstat 5 3`, `df -h /`, `du -sh /var/lib/docker`, `docker inspect` untuk `mem_limit`/
+`nanocpus` nyata yang terpasang di container.
+
+### Host (NYATA)
+
+| Metrik | Nyata | Sumber |
+|---|---:|---|
+| RAM total | 15 992 MiB (15,6 GiB) | `free -m` |
+| RAM used (proses, di luar buff/cache) | 1 696 MiB | `free -m` |
+| RAM buff/cache (reclaimable) | 14 390 MiB | `free -m` |
+| RAM available | **14 295 MiB (≈14,0 GiB)** | `free -m` |
+| Swap terpakai | 0 / 4 095 MiB | `swapon --show`, `free -m` |
+| Load average (4 vCPU) | 0,17 / 0,22 / 0,39 | `uptime` |
+| CPU idle (3× sampel 5 detik) | 91–97% `id`, 0% `wa`, 2–4% `us`, 0–2% `sy` | `vmstat 5 3` |
+| Disk `/` | 13 G terpakai / 193 G (7%), sisa 180 G | `df -h /` |
+| `/var/lib/docker` | 1,6 G (image + volume 5 container saat ini) | `du -sh` |
+
+Kesimpulan host: **jauh dari batas** — beban CPU nyaris nol dan RAM available masih 14 GiB karena
+Odoo/mail/control-plane/observability/datamart belum berjalan. Angka ini adalah **lantai (floor)**,
+bukan puncak beban — jangan dipakai untuk menyimpulkan headroom platform akhir.
+
+### Per service — ESTIMASI (ADR/CLAUDE §4) vs NYATA (rata-rata 3 sampel `docker stats`)
+
+| Service | mem_limit cgroup nyata (`docker inspect`) | Estimasi awal (CLAUDE §4 / ADR Context) | **NYATA** mem rata-rata | % dari mem_limit | **NYATA** CPU rata-rata | Catatan |
+|---|---:|---:|---:|---:|---:|---|
+| traefik | 256 MiB (`nanocpus`=1.0) | ~100 MB | **30,9 MiB** | 12,1% | 0,23% | idle; hanya healthcheck + 1 test route `whoami`, belum ada trafik client nyata |
+| crowdsec | 384 MiB (`nanocpus`=0.5) | ~200 MB | **68,9 MiB** | 17,9% | 0,20% | idle; belum ada beban serangan/parsing log volume tinggi |
+| postgres (shared) | 2 048 MiB (`nanocpus`=1.5) | 1–2 GB | **92,0 MiB** | 4,5% | 0,00% | baru DB `keycloak` terisi kecil; belum ada beban Odoo/datamart/control-plane |
+| keycloak | 1 360 MiB — `docker inspect` melaporkan 1 426 063 360 B ≈ 1,328 GiB (`nanocpus`=1.0) | 700 MB–1 GB (CLAUDE §4, **lebih rendah** dari resmi) / 1 250–1 360 MB (resmi, dipakai ADR) | **469,0 MiB** | 34,5% | 0,38% | realm `platform` + `platform-staging` sudah dibuat; admin idle; **belum** ada login SSO nyata dari Odoo/Next.js (baru T15) |
+| whoami (uji T03, bukan bagian ADR §2) | 32 MiB | — | 3,4 MiB | 10,6% | 0,03% | akan dihapus, bukan bagian arsitektur final |
+| **Total 5 container berjalan** | **4 080 MiB** | — | **≈664 MiB** | **16,3%** | ≈0,8% (dari 4 vCPU) | |
+
+Cek konsistensi: `free -m` used 1 696 MiB − total mem container ≈664 MiB ≈ **1 032 MiB** overhead
+host non-container nyata (kernel, systemd, dockerd RSS 128 MiB, containerd RSS 61 MiB, sshd,
+fail2ban RSS 37 MiB, crowdsec-firewall-bouncer, auditd, unattended-upgrades — via `ps aux`,
+`systemctl is-active` mengonfirmasi `crowdsec-firewall-bouncer`/`fail2ban`/`auditd` aktif di host).
+Ini **lebih rendah** dari estimasi "Cadangan host" 1 536 MiB di § Decision poin 2 — beri sedikit
+headroom tambahan, tapi **ditandai INFORMATIF saja**: overhead host akan naik lagi setelah semua
+daemon §3.6 CLAUDE.md aktif penuh dan trafik nyata (Odoo, mail) berjalan.
+
+### Penyesuaian `mem_limit` yang DISARANKAN (belum diterapkan)
+
+Baseline T03–T06 diukur **idle / tanpa beban produksi** (belum ada client, belum ada Odoo, belum
+ada trafik nyata lewat Traefik/CrowdSec). Pemakaian nyata jauh di bawah `mem_limit` yang memang
+sengaja dipasang tinggi untuk menyerap lonjakan (§ Decision poin 2: "batas atas, bukan pemakaian
+nyata"). **Tidak disarankan menurunkan `mem_limit` ke angka idle ini** — cap harus tetap menyerap
+lonjakan (GC Keycloak saat login massal, cache Postgres saat query berat, buffer CrowdSec saat
+serangan nyata).
+
+| Service | `mem_limit` sekarang | Disarankan (BELUM diterapkan) | Alasan |
+|---|---:|---|---|
+| traefik | 256 MiB | **tetap** | margin ≈8× nyata sudah wajar untuk lonjakan koneksi TLS saat client bertambah |
+| crowdsec | 384 MiB | **tetap** | margin ≈5,6× nyata; AppSec collections akan menambah RAM saat trafik nyata masuk |
+| postgres (shared) | 2 048 MiB | **tetap** | masih idle (Odoo/datamart belum ada); `shared_buffers=512MB` saja > pemakaian nyata — **jangan diturunkan sebelum Odoo pool (T10) diukur ulang di T19** |
+| keycloak | 1 360 MiB | **tetap** (angka resmi Keycloak) | nyata 34,5% dari limit tapi baru idle; heap Java butuh headroom GC saat login SSO nyata Odoo+Next.js bersamaan |
+| **Cadangan host** (§ Decision poin 2) | 1 536 MiB | **usul turun → 1 152 MiB** (satu-satunya perubahan yang disarankan) | overhead host nyata terukur 1 032 MiB; 1 152 MiB masih beri margin ~120 MiB di atas nyata |
+
+**Kesimpulan:** tidak ada perubahan `mem_limit` yang diusulkan untuk 4 service yang sudah berjalan
+pada tahap T07 — data idle belum cukup untuk menurunkan cap dengan aman (risiko OOM saat beban
+nyata datang). Satu-satunya angka yang disarankan berubah adalah baris "Cadangan host" di § Decision
+poin 2, dari 1 536 → 1 152 MiB (−384 MiB), berdasarkan overhead host nyata 1 032 MiB + margin.
+**Ini masih usulan — belum diterapkan ke compose mana pun** (sesuai SCOPE-OUT tugas ini).
+
+### Dampak ke jumlah client (masih ESTIMASI — Odoo pool belum diukur)
+
+- RAM tersisa nyata sekarang (host lengkap, 5 container ini saja) = **14 295 MiB (≈14 GiB)** — jauh
+  di atas proyeksi § Decision poin 2 karena komponen terbesar (Odoo pool prod+staging 3 840 MiB,
+  mail 1 024 MiB, control-plane 960 MiB, observability ≈1 568 MiB, datamart 384 MiB) **belum
+  di-deploy**. Angka 14 GiB ini **bukan** "sisa untuk client" — jangan dipakai untuk keputusan
+  onboarding client.
+- Bila seluruh `mem_limit` platform di § Decision poin 2 (total 11 888 MiB) dipasang persis seperti
+  rencana semula (rekomendasi T07: jangan ubah, kecuali baris "Cadangan host" di atas), proyeksi
+  sisa untuk client **tetap ≈2 568 MiB**, atau **≈2 952 MiB** bila usul cadangan host 1 152 MiB
+  diterima (+384 MiB) — **tidak ada bukti baru dari T07 untuk menaikkan jumlah client di § Kapasitas
+  client**, karena komponen terbesar (Odoo pool, mail, observability) belum diukur nyata.
+- Target § Decision poin 3 (**3–5 client kecil**) tetap dipertahankan — angka itu dibatasi oleh
+  worker CPU Odoo (≈18 user konkuren/3 worker), bukan oleh RAM, dan Odoo belum diukur nyata di T07.
+- **Rekomendasi Analyst:** jangan menaikkan target jumlah client berdasarkan pengukuran T07 ini.
+  Ukur ulang wajib di **T19** setelah T10 (Odoo pool), T11 (mail), T12 (control-plane), T14
+  (observability) selesai — baru boleh merevisi § Kapasitas client dan § Threshold dengan angka
+  nyata penuh.
 
 ## Alternatives
 

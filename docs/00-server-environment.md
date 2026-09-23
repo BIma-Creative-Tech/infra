@@ -11,6 +11,17 @@ bootstrap; item **[CLAUDE]** dikerjakan agent setelah discovery.
 | **Rekomendasi awal** (platform + 5–8 client di shared pool) | 8 | 32 GB | 240 GB | Ruang tumbuh, swap 4 GB |
 | Skala lanjut | Pindahkan mail/observability ke VPS-2, atau dedicated Odoo per client besar | | | |
 
+> UPDATED 2026-09-23 (T07, analyst — `docs/adr/0004-capacity.md` § "Pengukuran T07"): **spek VPS
+> aktual = 4 vCPU (AMD EPYC 9354P) / RAM 15,6 GiB (15 992 MiB, `free -m`) / disk `/` 193 GB**, setara
+> baris "Minimum uji" di atas — **diputuskan tetap, tanpa upgrade** (keputusan user #4). Pengukuran
+> `docker stats` T07 atas 5 service yang sudah bring-up (traefik, crowdsec, postgres, keycloak,
+> +whoami uji) menunjukkan pemakaian nyata jauh di bawah `mem_limit` (≈664 MiB terpakai dari
+> 4 080 MiB cap, RAM `available` host 14 295 MiB) — namun ini beban **idle**, belum termasuk Odoo
+> pool/mail/control-plane/observability/datamart yang belum di-deploy. Proyeksi kapasitas
+> "platform + 3–5 client kecil" pada baris "Minimum uji" **belum berubah** dari ADR 0004 (revisi
+> penuh menunggu T19). Baris "Rekomendasi awal" (8 vCPU/32 GB) tetap sebagai opsi upgrade bila
+> threshold § 6 di bawah terpicu, bukan kebutuhan saat ini.
+
 - OS: **Ubuntu Server 24.04 LTS** (fresh install).
 - Virtualisasi KVM (bukan OpenVZ/LXC) agar Docker, cgroups v2, dan nested limit berjalan.
 - IPv4 publik statis.
@@ -120,8 +131,16 @@ bootstrap; item **[CLAUDE]** dikerjakan agent setelah discovery.
 - [ ] Bucket offsite + kredensial restic tersedia
 - [ ] Kanal alert (email/Telegram) ditentukan
 - [ ] Daftar client awal: slug, domain, plan, env yang dibutuhkan (prod/demo/staging)
-- [ ] Keputusan: threshold shared pool → dedicated (default usulan: > 25 user aktif atau
-      > 2 GB RAM rata-rata per DB)
+- [ ] Keputusan: threshold shared pool → dedicated
+      > UPDATED 2026-09-23 (T07, analyst): default usulan lama (**"> 25 user aktif atau > 2 GB
+      > RAM rata-rata per DB"**) di baris ini **sudah usang** — diselaraskan dengan
+      > `docs/adr/0004-capacity.md` § "Threshold shared → dedicated" (accepted, GATE 1):
+      > client dipindah ke dedicated bila salah satu terpenuhi 7 hari berturut-turut —
+      > **> 10 user konkuren puncak** (≈55% kapasitas pool prod) **atau > 25 user aktif
+      > terdaftar**; DB **> 5 GB** atau filestore **> 20 GB**; CPU pool prod rata-rata **> 70%**
+      > dengan client tsb **> 40%** kontribusi request; atau butuh versi/addon Odoo berbeda/SLA
+      > terpisah. Angka Odoo pool ini masih ESTIMASI (belum diukur nyata — Odoo belum bring-up
+      > saat T07), direvisi di T19.
 - [ ] File `CLAUDE.md` dan `.claude/agents/*` disalin ke root repo `infra`
 
 ## 7. Cara memulai sesi Claude Code (Opus)
