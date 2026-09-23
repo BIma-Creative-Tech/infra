@@ -108,3 +108,8 @@ sistem sampai FASE 2.
 - 2026-09-23 (T05, disetujui user): firewall bouncer host menerapkan **semua** decision termasuk
   blocklist komunitas CAPI, **tanpa** whitelist IP admin. Risiko: IP admin ikut terblokir → pemulihan
   via konsol Hostinger (`docs/03-operations/crowdsec.md`, `docs/runbooks/emergency-console-access.md`).
+- 2026-09-23 (T12, disetujui user): base image Node untuk control plane → **`node:24-alpine`** (pin tag+digest
+  di Dockerfile) menggantikan `node:24.21.0-bookworm-slim`. Alasan: Trivy bookworm-slim 4 CRITICAL + 52 HIGH
+  unfixed vs alpine 0 CRITICAL / 4 HIGH; gate CI "gagal jika CRITICAL" (CLAUDE.md §3.6).
+- 2026-09-23 (T12): Auth.js v5 (`next-auth@5.0.0-beta.32`) dipakai meski berstatus beta — satu-satunya rilis
+  dengan peer `next ^16`. Risiko diterima; pantau rilis stabil.
