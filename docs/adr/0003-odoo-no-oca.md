@@ -162,3 +162,15 @@ image). Dependensi pihak ketiga baru hanya lewat ADR + audit (§3.6 "audit modul
   Traefik menghapus `X-Odoo-Database`); ganti "Login: … OCA `auth_oidc`" dengan D2.
 - §1.1 contoh paralel "Odoo addon `auth_oidc` config" → "`sh_auth_oidc`".
 - `.claude/agents/analyst.md` butir 8 (verifikasi OCA) → "OCA hanya referensi; jangan install".
+
+## Riwayat revisi
+
+- 2026-09-23 (T10, keputusan Lead): nama DB = slug dengan `-` → `_`, lalu `_<env>`; `dbfilter` pool prod
+  `^[a-z0-9_]+_(prod|demo)$`, staging `^[a-z0-9_]+_staging$` (menggantikan `[a-z0-9]+`). Pemetaan injektif,
+  tiap pool tidak cocok dengan DB pool lain (diuji T10).
+- 2026-09-23 (T09/T10, keputusan Lead): SSO **tanpa auto-create** — login hanya untuk `res.users` dengan
+  `oauth_uid` = `sub` dan `oauth_provider_id` terisi; tidak ada pencocokan email. Secret client OIDC dari env
+  `SH_OIDC_*` + `SH_OIDC_TRUSTED_ISSUERS` (bukan ICP di DB). Password lokal user client dinonaktifkan di T15.
+- 2026-09-23 (T10, keputusan Lead, CRS diratifikasi user): pengecualian AppSec sempit untuk Odoo —
+  `RemoveInBandRuleByTag("attack-xss")` hanya pada POST ke endpoint editor/chatter
+  (`security/crowdsec/appsec-configs/odoo-crs-exclusions.yaml`); Odoo men-sanitasi HTML di sisi server.

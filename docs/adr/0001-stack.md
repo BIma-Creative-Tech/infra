@@ -33,7 +33,7 @@ Semua tanggal cek = **2026-09-23**. "Rilis" = tanggal publish tag/rilis dari sum
 | CrowdSec (agent+LAPI+AppSec) | `crowdsecurity/crowdsec:v1.8.1` | 2026-09-03 | hub.docker.com crowdsecurity/crowdsec; GitHub releases | MIT (GitHub API) | v1.8.0 baru 2026-08-31 → uji di staging dulu; fallback `v1.7.8` (2026-05-11) |
 | CrowdSec bouncer Traefik (plugin) | `github.com/maxlerebourg/crowdsec-bouncer-traefik-plugin` `v1.7.1` | 2026-07-31 | api.github.com/repos/maxlerebourg/crowdsec-bouncer-traefik-plugin/releases; README v1.7.1 | Apache-2.0 | `v1.8.0-alpha` = prerelease, jangan dipakai. Plugin Traefik masih **experimental** (docs plugins.md) |
 | CrowdSec firewall bouncer (host) | paket `crowdsec-firewall-bouncer-iptables` atau `-nftables` | versi UNVERIFIED | raw.githubusercontent.com/crowdsecurity/crowdsec-docs/main/crowdsec-docs/unversioned/bouncers/firewall.mdx | MIT (repo cs-firewall-bouncer) | Pin versi paket saat implementasi (`apt-cache policy`) |
-| WAF | **Usulan ganti:** CrowdSec AppSec (collections `crowdsecurity/appsec-virtual-patching`, `crowdsecurity/appsec-generic-rules`) menggantikan Coraza plugin | — | crowdsec-docs …/docs/appsec/quickstart/traefik.mdx | MIT | Lihat "Perubahan CLAUDE.md" #2 |
+| WAF | CrowdSec AppSec (collections `crowdsecurity/appsec-virtual-patching`, `crowdsecurity/appsec-generic-rules`, **`crowdsecurity/appsec-crs-inband`** — OWASP CRS blocking, diratifikasi user 2026-09-23) menggantikan Coraza plugin | — | crowdsec-docs …/docs/appsec/quickstart/traefik.mdx | MIT | Tanpa CRS, XSS/SQLi generik lolos (uji T05). Tuning false positive Odoo di staging; rollback di `docs/03-operations/crowdsec.md` |
 | (ditolak) Coraza plugin Traefik | `jcchavezs/coraza-http-wasm-traefik` v0.3.0 | 2024-10-29 | api.github.com/repos/jcchavezs/coraza-http-wasm-traefik | Apache-2.0 | commit terakhir 2026-01-13 (> 6 bulan) → **gagal kriteria §0.10** |
 | PostgreSQL | `postgres:16.15-bookworm` | 2026-09-19 | hub.docker.com library/postgres | PostgreSQL License (COPYRIGHT di repo) | EOL PG16 = 2028-11-09 (postgresql.org/support/versioning). PG18 tersedia, tetap 16 sesuai §3 |
 | Keycloak | `quay.io/keycloak/keycloak:26.7.4` | 2026-09-16 | quay.io API; GitHub releases keycloak/keycloak | Apache-2.0 | Sizing resmi: request 1250 MB / limit 1360 MB per pod (keycloak.org/high-availability/multi-cluster/concepts-memory-and-cpu-sizing) |
@@ -100,3 +100,16 @@ sistem sampai FASE 2.
 3. §3 Observability: "Promtail" → "Grafana Alloy".
 4. §0.10: tambahkan "GPL-2/GPL-3 diterima untuk tool host yang tidak di-link/didistribusikan (fail2ban, auditd, ansible)" — saat ini daftar lisensi tidak mencantumkan GPL padahal §3 sudah memakai fail2ban (GPL-2) dan Ansible (GPL-3).
 5. §3 SSO / §3.1 / §3.2 / §3.5.1: lihat ADR 0002 & 0003.
+
+## Riwayat revisi
+
+- 2026-09-23 (T05, disetujui user): tambah `crowdsecurity/appsec-crs-inband` (OWASP CRS, mode blocking)
+  ke AppSec — dua collection awal terbukti tidak memblok XSS/SQLi generik.
+- 2026-09-23 (T05, disetujui user): firewall bouncer host menerapkan **semua** decision termasuk
+  blocklist komunitas CAPI, **tanpa** whitelist IP admin. Risiko: IP admin ikut terblokir → pemulihan
+  via konsol Hostinger (`docs/03-operations/crowdsec.md`, `docs/runbooks/emergency-console-access.md`).
+- 2026-09-23 (T12, disetujui user): base image Node untuk control plane → **`node:24-alpine`** (pin tag+digest
+  di Dockerfile) menggantikan `node:24.21.0-bookworm-slim`. Alasan: Trivy bookworm-slim 4 CRITICAL + 52 HIGH
+  unfixed vs alpine 0 CRITICAL / 4 HIGH; gate CI "gagal jika CRITICAL" (CLAUDE.md §3.6).
+- 2026-09-23 (T12): Auth.js v5 (`next-auth@5.0.0-beta.32`) dipakai meski berstatus beta — satu-satunya rilis
+  dengan peer `next ^16`. Risiko diterima; pantau rilis stabil.
