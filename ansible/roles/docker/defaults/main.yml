@@ -4,6 +4,14 @@ docker_daemon_json:
   log-opts:
     max-size: 10m
     max-file: "3"
+    # H3: nama container & label compose ditulis di setiap baris json-file (field `attrs`) →
+    # Alloy membaca file log langsung tanpa Docker API (docs/03-operations/observability.md).
+    # Opsi `tag`/`labels` json-file diverifikasi dari source moby docker-v29.8.1
+    # (daemon/logger/jsonfilelog/jsonfilelog.go ValidateLogOpt + New). Hanya berlaku untuk container
+    # yang DIBUAT setelah dockerd restart (daemon/create.go mergeAndVerifyLogConfig).
+    # `!unsafe`: cegah Jinja merender template Go `{{.Name}}`.
+    tag: !unsafe "{{.Name}}"
+    labels: com.docker.compose.project,com.docker.compose.service
   live-restore: true
   userland-proxy: false
   no-new-privileges: true

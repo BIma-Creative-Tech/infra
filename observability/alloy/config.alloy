@@ -1,48 +1,94 @@
-// Grafana Alloy v1.19.2 (T14a) — log shipper ke Loki (pengganti Promtail, ADR 0001).
-// Komponen & argumen diverifikasi dari docs tag v1.19.2:
-//   reference/components/discovery/discovery.docker.md, loki/loki.source.docker.md,
-//   loki/loki.source.file.md.
+// Grafana Alloy v1.19.2 (T14a, H3) — log shipper ke Loki (pengganti Promtail, ADR 0001).
+// Komponen & argumen diverifikasi dari docs/source tag v1.19.2:
+//   reference/components/local/local.file_match.md (+ internal/component/local/file_match/watch.go),
+//   discovery/discovery.relabel.md, loki/loki.source.file.md, loki/loki.process.md (stage.json/docker/labels).
 //
-// Docker API TIDAK lewat docker.sock langsung: host = obs-docker-socket-proxy (tecnativa v0.5.0,
-// CONTAINERS=1, POST=0 → hanya GET/HEAD /containers/*) di network internal `obs-dockerapi`.
+// H3: TANPA Docker API (tidak ada docker.sock / socket-proxy). Log container dibaca langsung dari file
+// json-file `/var/lib/docker/containers/<id>/<id>-json.log` (bind ro). Nama container & label compose
+// ditulis dockerd ke field `attrs` setiap baris (daemon.json log-opts `tag={{.Name}}` +
+// `labels=com.docker.compose.project,com.docker.compose.service`, role Ansible `docker`).
+//
+// Akses tanpa capability: dir container 0710 root:root, file log 0640 root:root → alloy (uid 473) dengan
+// grup tambahan 0 bisa MELINTASI dir & MEMBACA *-json.log, tetapi TIDAK bisa me-list dir dan TIDAK bisa
+// membaca config.v2.json/hostconfig.json (0600, berisi env/secret). Karena tidak bisa me-list, ID container
+// ditemukan dari cgroup `system.slice/docker-<id>.scope` (cgroup driver systemd, cgroup v2; bind ro),
+// lalu path log disusun lewat relabel. Detail: docs/03-operations/observability.md §Log.
 
 logging {
   level  = "warn"
   format = "logfmt"
 }
 
-// 1) Log stdout/stderr semua container (json-file) via Docker API /containers/{id}/logs.
-discovery.docker "containers" {
-  host             = "tcp://obs-docker-socket-proxy:2375"
-  refresh_interval = "30s"
+// 1) Log stdout/stderr semua container yang berjalan (json-file).
+local.file_match "docker_scopes" {
+  path_targets = [
+    {"__path__" = "/host/cgroup/system.slice/docker-*.scope/cgroup.type", "job" = "docker"},
+  ]
+  sync_period = "10s"
 }
 
-discovery.relabel "containers" {
-  targets = []
+discovery.relabel "docker_logs" {
+  targets = local.file_match.docker_scopes.targets
 
-  // "/traefik" → container="traefik"
+  // .../docker-<64 hex>.scope/cgroup.type → /var/lib/docker/containers/<id>/<id>-json.log
   rule {
-    source_labels = ["__meta_docker_container_name"]
-    regex         = "/(.*)"
-    target_label  = "container"
+    source_labels = ["__path__"]
+    regex         = "/host/cgroup/system.slice/docker-([0-9a-f]{64})\\.scope/cgroup.type"
+    target_label  = "__path__"
+    replacement   = "/var/lib/docker/containers/$1/$1-json.log"
+    action        = "replace"
   }
   rule {
-    source_labels = ["__meta_docker_container_label_com_docker_compose_project"]
-    target_label  = "compose_project"
-  }
-  rule {
-    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
-    target_label  = "compose_service"
+    source_labels = ["__path__"]
+    regex         = "/var/lib/docker/containers/[0-9a-f]{64}/[0-9a-f]{64}-json\\.log"
+    action        = "keep"
   }
 }
 
-loki.source.docker "containers" {
-  host             = "tcp://obs-docker-socket-proxy:2375"
-  targets          = discovery.docker.containers.targets
-  relabel_rules    = discovery.relabel.containers.rules
-  refresh_interval = "30s"
-  labels           = {"job" = "docker"}
-  forward_to       = [loki.write.local.receiver]
+loki.source.file "docker" {
+  targets = discovery.relabel.docker_logs.output
+  // false: container baru dibaca dari awal (log startup tidak hilang). Posisi disimpan di alloy_data.
+  tail_from_end = false
+  forward_to    = [loki.process.docker.receiver]
+}
+
+loki.process "docker" {
+  forward_to = [loki.write.local.receiver]
+
+  // attrs.tag = nama container; attrs."com.docker.compose.*" = label compose (tidak ada untuk non-compose).
+  stage.json {
+    expressions = {
+      container       = "attrs.tag",
+      compose_project = "attrs.\"com.docker.compose.project\"",
+      compose_service = "attrs.\"com.docker.compose.service\"",
+    }
+  }
+
+  // Fallback untuk container yang dibuat SEBELUM log-opts `tag` aktif (belum di-recreate): "id-<12 hex>".
+  stage.regex {
+    source     = "filename"
+    expression = "^/var/lib/docker/containers/(?P<container_id>[0-9a-f]{12})"
+  }
+  stage.template {
+    source   = "container"
+    template = "{{ if .container }}{{ .container }}{{ else }}id-{{ .container_id }}{{ end }}"
+  }
+
+  // log/stream/time → isi baris, label `stream`, timestamp asli.
+  stage.docker {}
+
+  stage.labels {
+    values = {
+      container       = "",
+      compose_project = "",
+      compose_service = "",
+    }
+  }
+
+  // `filename` (path per ID container) = kardinalitas tinggi & berganti tiap recreate.
+  stage.label_drop {
+    values = ["filename"]
+  }
 }
 
 // 2) Access log JSON Traefik (file, bind mount read-only; dibaca lewat grup adm gid 4).

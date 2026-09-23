@@ -5,7 +5,8 @@
 #     - metrics       10.100.5.0/24 : prometheus + target scrape di stack lain (traefik :8082,
 #                                      crowdsec :6060, keycloak :9000). Dibuat di sini (bukan oleh
 #                                      compose) karena dipakai bersama beberapa stack.
-#     - obs-dockerapi 10.100.6.0/24 : alloy + obs-docker-socket-proxy SAJA (akses Docker API read-only)
+#     (obs-dockerapi 10.100.6.0/24 DIHAPUS di H3 — Alloy tidak lagi memakai Docker API; subnet jangan dipakai ulang
+#      tanpa catatan di docs/03-operations/observability.md.)
 #  2. data/grafana (uid 472) & data/uptime-kuma (uid 10101) mode 700 — di bawah /opt/infra → ikut
 #     backup restic harian (ADR 0006 "Uptime Kuma data, Grafana data"). TSDB Prometheus/Loki = named
 #     volume (tidak di-backup, ADR 0006 #5).
@@ -37,7 +38,6 @@ ensure_internal_network() {
 
 ensure_internal_network observability 10.100.4.0/24 10.100.4.1
 ensure_internal_network metrics       10.100.5.0/24 10.100.5.1
-ensure_internal_network obs-dockerapi 10.100.6.0/24 10.100.6.1
 
 install -d -o root -g root -m 0755 "$STACK_DIR/data"
 install -d -o "$GRAFANA_UID" -g "$GRAFANA_UID" -m 0700 "$STACK_DIR/data/grafana"

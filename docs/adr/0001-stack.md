@@ -123,3 +123,9 @@ sistem sampai FASE 2.
 - 2026-09-23 (H2): hook pre-commit gitleaks memakai `zricethezav/gitleaks:v8.30.1@sha256:c00b6bd0…abbb7f`
   (Docker Hub, rilis 2026-03-21, MIT — GitHub API) di `.githooks/pre-commit` repo infra, odoo-addons-shared,
   control-plane. Service uji `traefik/whoami:v1.12.0` dihapus (bukan bagian arsitektur).
+- 2026-09-23 (H3): **docker-socket-proxy tidak lagi dipakai untuk observability.** Service `obs-docker-socket-proxy`
+  & network `obs-dockerapi` (T14a) dihapus; Alloy membaca file json-file `/var/lib/docker/containers/<id>/<id>-json.log`
+  langsung (bind ro, grup tambahan 0, tanpa capability, tidak bisa membaca `config.v2.json`) dengan nama container dari
+  `attrs.tag` (daemon.json `log-opts.tag={{.Name}}` + `labels=com.docker.compose.project,com.docker.compose.service`,
+  role Ansible `docker`). Pin `tecnativa/docker-socket-proxy:v0.5.0` tetap berlaku untuk **control plane** saja
+  (CLAUDE.md §3 "Hanya control-plane"). Detail & trade-off: `docs/03-operations/observability.md` §Log.

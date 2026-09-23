@@ -93,50 +93,19 @@ services:
     mem_limit: 384m
     cpus: 0.25
 
-  # Proxy Docker API read-only KHUSUS Alloy (bukan proxy control plane). Hanya GET/HEAD /containers/*,
-  # /networks* (discovery.docker selalu memanggil NetworkList untuk label __meta_docker_network_*;
-  # tanpa ini: 403 "error while computing network labels", diuji 2026-09-23) dan /_ping.
-  # EVENTS & VERSION dimatikan (tidak dipakai Alloy).
-  obs-docker-socket-proxy:
-    <<: *base
-    image: tecnativa/docker-socket-proxy:v0.5.0@sha256:1f5038b54f06c3e18422902cf00ba21803d1c97805aae032e5e6673d532d3459
-    container_name: obs-docker-socket-proxy
-    # Non-root: akses socket lewat grup `docker` host (gid 988). haproxy menulis /tmp/haproxy.cfg
-    # dan /run/haproxy.pid (tmpfs).
-    user: "65534:988"
-    environment:
-      CONTAINERS: "1"
-      NETWORKS: "1"
-      POST: "0"
-      EVENTS: "0"
-      VERSION: "0"
-      PING: "1"
-      DISABLE_IPV6: "1"
-      LOG_LEVEL: warning
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-    read_only: true
-    tmpfs:
-      - /tmp:uid=65534,gid=988,mode=0700
-      - /run:uid=65534,gid=988,mode=0700
-    networks:
-      - obs-dockerapi
-    healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:2375/_ping"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 10s
-    mem_limit: 64m
-    cpus: 0.1
-
   alloy:
     <<: *base
     image: grafana/alloy:v1.19.2@sha256:b8ec653c44235fbe910879145dac3597d66b0aaecf60bcbbe82580767771a839
     container_name: alloy
     user: "473:473"
+    # Tanpa Docker API & tanpa capability (H3). Grup tambahan:
+    #   4 (adm)  — baca traefik/logs (65532:adm 750).
+    #   0 (root) — melintasi /var/lib/docker/containers/<id>/ (0710) & membaca <id>-json.log (0640 root:root);
+    #              TIDAK bisa me-list dir atau membaca config.v2.json/hostconfig.json (0600 = env/secret).
+    #              Diuji 2026-09-23: `ls` & `cat config.v2.json` → Permission denied, CapEff=0.
     group_add:
-      - "4"   # adm — baca traefik/logs (65532:adm 750) tanpa capability
+      - "4"
+      - "0"
     command:
       - run
       - /etc/alloy/config.alloy
@@ -147,15 +116,17 @@ services:
       - ./alloy/config.alloy:/etc/alloy/config.alloy:ro
       - alloy_data:/var/lib/alloy/data
       - ../traefik/logs:/var/log/traefik:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro      # log json-file (lihat group_add 0)
+      # Penemuan ID container yang berjalan (docker-<id>.scope; cgroup v2, driver systemd) — pengganti
+      # listing dir containers/ yang tidak boleh dibaca. Read-only.
+      - /sys/fs/cgroup/system.slice:/host/cgroup/system.slice:ro
     read_only: true
     tmpfs:
       - /tmp:uid=473,gid=473,mode=0700
     depends_on:
       - loki
-      - obs-docker-socket-proxy
     networks:
       - observability
-      - obs-dockerapi
     healthcheck:
       test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/12345 && printf 'GET /-/ready HTTP/1.0\\r\\n\\r\\n' >&3 && grep -q '200 OK' <&3"]
       interval: 30s
@@ -253,9 +224,6 @@ networks:
   metrics:
     external: true
     name: metrics
-  obs-dockerapi:
-    external: true
-    name: obs-dockerapi
   proxy:
     external: true
     name: proxy

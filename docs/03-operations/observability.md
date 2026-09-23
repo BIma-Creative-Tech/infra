@@ -10,8 +10,7 @@
 | `prometheus` | `prom/prometheus:v3.13.3@sha256:6976aa8a…` | 65534 | 384m / 0.25 | observability, metrics | volume `observability_prometheus_data` (retensi 15d / 3GB) |
 | `node-exporter` | `prom/node-exporter:v1.12.1@sha256:1b4e4438…` | 65534 | 32m / 0.1 | observability | — (`/` host ro di `/host`) |
 | `loki` | `grafana/loki:3.7.8@sha256:1107dd52…` | 10001 | 384m / 0.25 | observability | volume `observability_loki_data` (retensi **7 hari**) |
-| `alloy` | `grafana/alloy:v1.19.2@sha256:b8ec653c…` | 473 (+gid 4 adm) | 192m / 0.2 | observability, obs-dockerapi | volume `observability_alloy_data` (positions) |
-| `obs-docker-socket-proxy` | `tecnativa/docker-socket-proxy:v0.5.0@sha256:1f5038b5…` | 65534 (+gid 988 docker) | 64m / 0.1 | obs-dockerapi | — |
+| `alloy` | `grafana/alloy:v1.19.2@sha256:b8ec653c…` | 473 (+gid 4 adm, +gid 0 — lihat §Log) | 192m / 0.2 | observability | volume `observability_alloy_data` (positions) |
 | `grafana` | `grafana/grafana:13.2.2@sha256:ac461fb3…` | 472 | 256m / 0.25 | observability, proxy | bind `data/grafana` |
 | `uptime-kuma` | `louislam/uptime-kuma:2.5.5-rootless@sha256:c4e17ce0…` | 10101 | 192m / 0.2 | proxy | bind `data/uptime-kuma` (SQLite) |
 
@@ -27,15 +26,8 @@ tanpa shell/wget, tanpa flag health) → dipantau lewat `up{job="loki"}` dan `GE
   dengan §3.5. Metrik container cukup dari `docker stats` + log di Loki. RAM tidak menjadi alasan (available ±12 GiB).
 - **postgres-exporter TIDAK dipasang** (opsional di brief). Butuh role `pg_monitor` via `postgres/init-roles.sh` —
   ditunda ke keputusan Lead; Postgres dipantau lewat log (Loki) + Uptime Kuma tidak langsung.
-- **Log container via Docker API, bukan file**: nama container (`{container="traefik"}`) hanya ada di Docker API. Membaca
-  `/var/lib/docker/containers/*` butuh root dan juga mengekspos `config.v2.json` (berisi env/secret). Dipilih
-  `obs-docker-socket-proxy` read-only: `CONTAINERS=1`, `NETWORKS=1` (wajib — `discovery.docker` selalu memanggil
-  NetworkList; tanpa ini 403 "error while computing network labels"), `POST=0`, `EVENTS=0`, `VERSION=0`, `PING=1`.
-  Network `obs-dockerapi` (`--internal`) berisi **hanya** alloy + proxy.
-  **Risiko tersisa:** `GET /containers/{id}/json` (inspect) mengembalikan `Config.Env` → siapa pun yang menguasai
-  container `alloy` dapat membaca env semua container (mis. `POSTGRES_PASSWORD`, secret yang lewat `env_file`).
-  Mitigasi: alloy non-root, read-only, tanpa capability, tanpa port publik, network internal. Diuji:
-  `GET /containers/json` 200, `GET /images/json` 403, `GET /info` 403, `POST /containers/traefik/restart` 403.
+- **Log container dari file json-file, TANPA Docker API (H3, 2026-09-23)** — menggantikan `obs-docker-socket-proxy`
+  (T14a) yang membuka `GET /containers/{id}/json` → `Config.Env` semua container ke Alloy. Detail di §Log.
 - **node-exporter di network bridge, bukan `network_mode: host`** (host network = port 9100 baru di host). Konsekuensi:
   metrik `node_network_*` = netns container, bukan NIC host. CPU/RAM/disk/load = host (`--path.rootfs=/host`).
 - **Grafana router aktif** (bukan `.disabled`): record A `grafana.bimacreative.tech` ternyata sudah ada saat T14a
@@ -49,7 +41,7 @@ tanpa shell/wget, tanpa flag health) → dipantau lewat `up{job="loki"}` dan `GE
 |---|---|---|---|
 | `observability` | 10.100.4.0/24 | `--internal` | prometheus, node-exporter, loki, alloy, grafana |
 | `metrics` | 10.100.5.0/24 | `--internal` | prometheus, **traefik**, **crowdsec**, **keycloak** (hanya scrape) |
-| `obs-dockerapi` | 10.100.6.0/24 | `--internal` | alloy, obs-docker-socket-proxy |
+| ~~`obs-dockerapi`~~ | ~~10.100.6.0/24~~ | — | **dihapus H3** (2026-09-23) bersama `obs-docker-socket-proxy` |
 | `proxy` (sudah ada) | 10.100.0.0/24 | bridge | + grafana, uptime-kuma (Traefik → service, egress probe Kuma) |
 
 Dibuat `scripts/bootstrap.sh` (idempoten; subnet & `internal` diverifikasi). Network internal tidak punya gateway →
@@ -68,7 +60,38 @@ tidak mengubah gateway traefik/crowdsec/keycloak (diverifikasi `ip route` di cro
 
 ## Log (Alloy → Loki)
 
-- `loki.source.docker` (via proxy): semua container, label `container`, `compose_project`, `compose_service`, `job="docker"`.
+- **Container (json-file, H3)** — `local.file_match` → `discovery.relabel` → `loki.source.file "docker"` → `loki.process "docker"`:
+  label `job="docker"`, `container` (= nama container), `compose_project`, `compose_service`, `stream`; label `filename`
+  dibuang. Timestamp = field `time` Docker (`stage.docker`). Container baru dibaca dari awal file (`tail_from_end=false`).
+  - **Sumber nama:** dockerd menulis `attrs` di setiap baris json-file: `daemon.json` `log-opts`
+    `"tag": "{{.Name}}"` + `"labels": "com.docker.compose.project,com.docker.compose.service"` (role Ansible `docker`,
+    `roles/docker/defaults/main.yml`). Opsi `tag`/`labels` json-file diverifikasi dari source moby `docker-v29.8.1`
+    (`daemon/logger/jsonfilelog/jsonfilelog.go`: `ValidateLogOpt` menerima `tag`, `New()` menulis `attrs.tag`) dan uji
+    `docker run --log-opt tag={{.Name}}`. Log-opts daemon di-merge ke container **saat create**
+    (`daemon/create.go` → `mergeAndVerifyLogConfig`, juga untuk compose yang menulis `logging.options` sendiri) →
+    container lama harus di-**recreate**; tidak perlu mengubah compose stack mana pun. Alternatif per-compose
+    `logging.options.tag` ditolak: harus menyentuh semua stack (termasuk `postgres/` milik task lain) dan tidak
+    mencakup container di luar `/opt/infra`.
+  - **Fallback:** baris tanpa `attrs.tag` (container dibuat sebelum 2026-09-23 13:25 WIB / dengan `--log-opt` sendiri)
+    → `container="id-<12 hex>"`. Container `--log-driver none` tidak punya file → Alloy mencatat
+    `failed to tail file, stat failed` (level error) setiap sinkronisasi — noise, bukan kegagalan.
+  - **Akses tanpa capability & tanpa secret:** `/var/lib/docker/containers` di-mount `:ro`. Dir container `0710
+    root:root`, `<id>-json.log` `0640 root:root`, `config.v2.json`/`hostconfig.json` `0600`. Alloy (uid 473) diberi
+    **grup tambahan 0** → bisa melintasi dir & membaca file log, **tidak** bisa `ls` dir mana pun dan **tidak** bisa
+    membaca `config.v2.json` (diuji: `Permission denied`, `CapEff=0000000000000000`). Karena listing tidak mungkin,
+    ID container yang **berjalan** ditemukan dari cgroup: `/sys/fs/cgroup/system.slice` di-mount `:ro` ke
+    `/host/cgroup/system.slice`, glob `docker-*.scope/cgroup.type` (cgroup v2, driver systemd — `docker info`), lalu
+    relabel ke `/var/lib/docker/containers/<id>/<id>-json.log`. Container berhenti → scope hilang → berhenti di-tail
+    (baris terakhir yang belum terbaca dalam < `sync_period` 10 s bisa tidak terkirim).
+  - **Trade-off vs alternatif:**
+    | Opsi | Akses Alloy | Ditolak karena |
+    |---|---|---|
+    | socket-proxy `CONTAINERS=1` (T14a) | Docker API read: inspect → `Config.Env` semua container; proxy memegang `docker.sock` (setara root bila proxy tertembus) | risiko env/secret + socket |
+    | `cap_add: DAC_READ_SEARCH` / root | bypass semua izin baca di mount → **`config.v2.json` terbaca** (env/secret sama seperti inspect) | tidak menurunkan risiko env |
+    | `chmod`/ACL `/var/lib/docker/containers` | perlu drop-in systemd: dockerd `MkdirAllAndChown(0o710)` meng-`chmod` ulang saat start (moby/sys/user v0.4.1 `setPermissions`); dir per container tetap 0710 | kompleks, rapuh |
+    | **gid 0 + cgroup discovery (dipilih)** | baca `*-json.log` saja + daftar ID container berjalan + statistik cgroup `system.slice` (read-only) | — |
+    Sisa risiko: siapa pun yang menguasai `alloy` bisa membaca **isi log** semua container (inheren untuk log shipper)
+    dan statistik cgroup service host. Log yang memuat secret tetap harus dicegah di sisi aplikasi.
 - `loki.source.file`: `traefik/logs/access.log` (ro, grup adm), label `job="traefik-access"`, `tail_from_end`.
 - Retensi 7 hari (`limits_config.retention_period: 168h`, compactor `retention_enabled`, `delete_request_store: filesystem`).
 - Access log berisi IP klien (data pribadi): dibutuhkan untuk keamanan, retensi 7 hari, akses hanya admin.
@@ -143,6 +166,7 @@ docker run --rm --network observability curlimages/curl:8.22.0 -sG http://loki:3
 ```
 Validasi config sebelum restart: `promtool check config` (entrypoint `promtool` image prometheus), `loki -verify-config`,
 `alloy fmt`. Perubahan `prometheus.yml`/`config.yaml`/`config.alloy` → `docker compose restart <svc>`.
+Cek label container di Loki: `…/loki/api/v1/series --data-urlencode 'match[]={job="docker"}'` (lihat laporan H3).
 
 ## Belum / berikutnya
 
@@ -156,5 +180,11 @@ Validasi config sebelum restart: `promtool check config` (entrypoint `promtool` 
 `docker compose down` di `observability/` (volume & `data/` tetap). Lepas integrasi: hapus
 `traefik/dynamic/platform/{status,grafana}.yml` + SIGHUP Traefik; kembalikan `traefik/traefik.yml` & compose
 traefik/crowdsec/keycloak dari git (`git checkout <rev> -- …`) lalu `docker compose up -d` per stack (recreate:
-crowdsec ±40 s fail-closed 403, keycloak ±25–60 s, traefik ±7 s). Network: `docker network rm metrics observability
-obs-dockerapi` setelah tidak ada anggota. Hapus volume/data = destruktif → konfirmasi.
+crowdsec ±40 s fail-closed 403, keycloak ±25–60 s, traefik ±7 s). Network: `docker network rm metrics observability`
+setelah tidak ada anggota. Hapus volume/data = destruktif → konfirmasi.
+
+Rollback H3 (kembali ke socket-proxy — **tidak disarankan**, lihat §Log): `git revert <commit H3>` untuk
+`observability/` → `./scripts/bootstrap.sh` (membuat ulang `obs-dockerapi`) → `docker compose up -d`. `log-opts`
+`tag`/`labels` di `daemon.json` boleh tetap (hanya menambah field `attrs`, ±100 byte/baris); bila dicabut: ubah
+`roles/docker/defaults/main.yml` → `ansible-playbook site.yml --tags docker` (restart dockerd, live-restore; gangguan
+±2 s — DNS embedded Docker & bouncer CrowdSec sempat gagal → 403/timeout, diukur 2026-09-23) lalu recreate container.
