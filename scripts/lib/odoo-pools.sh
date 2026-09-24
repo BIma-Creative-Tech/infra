@@ -1,4 +1,5 @@
 # shellcheck shell=bash
+# shellcheck disable=SC2034  # library: variabel di file ini dipakai oleh skrip pemanggil (source), bukan di sini
 # Pemetaan pool Odoo (T10) — di-source oleh scripts/odoo-pool-bootstrap.sh,
 # scripts/provision-odoo-db.sh, scripts/render-client-route.sh. Satu sumber kebenaran.
 #

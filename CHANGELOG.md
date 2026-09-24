@@ -8,6 +8,18 @@ file `VERSION`.
 
 ## [Unreleased]
 
+### CI security workflows (2026-09-24, branch `ci/security-workflows`)
+
+#### Added
+- `.github/workflows/security.yml` (push `main`, PR, mingguan, manual): `actionlint`, `gitleaks` (full history,
+  `.gitleaks.toml`), `semgrep` (gagal pada ERROR/HIGH/CRITICAL), `trivy-fs-config`, `hadolint`, `shellcheck`.
+  Semua action di-pin commit SHA, tool = container tag+digest, `permissions: contents: read`. Menutup QA-T17A-04 (CI).
+- `docs/04-development.md` — CI, cara membaca hasil, langkah branch protection untuk user.
+
+#### Changed
+- `identity/keycloak/Containerfile`: `USER 1000` eksplisit (sama dengan default base; Trivy DS-0002). Image live tidak di-rebuild.
+- `scripts/lib/odoo-pools.sh`: `# shellcheck disable=SC2034` per-file (variabel dipakai skrip pemanggil via `source`).
+
 ### T11 — Mail docker-mailserver 16.0.1 (2026-09-23, branch `feat/infra-t11-mail`, diterapkan live)
 
 #### Added
