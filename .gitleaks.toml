@@ -1,0 +1,10 @@
+# gitleaks config — default rules + allowlist SEMPIT untuk false positive yang sudah diverifikasi Lead (2026-09-24).
+[extend]
+useDefault = true
+
+[allowlist]
+description = "False positive terverifikasi: tag image lokal Keycloak & fingerprint kunci GPG publik"
+regexes = [
+  '''keycloak:[0-9]+\.[0-9]+\.[0-9]+-optimized''',
+  '''crowdsec_apt_key_fingerprint: [0-9A-F]{40}''',
+]
