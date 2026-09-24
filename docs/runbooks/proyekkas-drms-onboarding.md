@@ -340,3 +340,6 @@ page publik).
 - Compose dari commit 2b5a83f (env ANDROID_APP_PACKAGE/ANDROID_APP_CERT_SHA256/EXPORT_XLSX_ENABLED); `.env` fingerprint APK staging (publik).
 - Verifikasi: health/ready/admin/app-config 200; `/.well-known/assetlinks.json` 200 application/json (package + fingerprint cocok).
 - Rollback: tag e9c07ab + compose commit sebelumnya (+ restore dump bila skema perlu mundur — destruktif, konfirmasi user).
+
+### Update 2026-09-24 20:13 WIB → `0.1.0-stg-6fa741a` (bugfix laporan anggaran-project)
+- Tanpa migrasi/deploy change; dump `pk_drms_stg-20260924-201312-pre-6fa741a.dump`; rollback `2b5a83f`.
