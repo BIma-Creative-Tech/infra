@@ -13,8 +13,8 @@
     rule: allow
     port: "{{ ssh_port_legacy | string }}"
     proto: tcp
-    comment: sshd-legacy-transisi
-  when: ssh_effective_phase in ['a', 'b']
+    comment: "{{ 'sshd fallback' if ssh_keep_legacy_port | default(false) else 'sshd-legacy-transisi' }}"
+  when: ssh_effective_phase in ['a', 'b'] or ssh_keep_legacy_port | default(false)
 
 - name: Allow HTTP/HTTPS (Traefik)
   community.general.ufw:
@@ -56,5 +56,5 @@
     port: "{{ ssh_port_legacy | string }}"
     proto: tcp
     delete: true
-  when: ssh_effective_phase == 'c'
+  when: ssh_effective_phase == 'c' and not (ssh_keep_legacy_port | default(false))
   tags: [ssh_phase_c]

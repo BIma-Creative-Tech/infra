@@ -14,4 +14,4 @@ enabled = true
 backend = systemd
 # journalmatch bawaan filter.d/sshd.conf "_SYSTEMD_UNIT=sshd.service + _COMM=sshd" ('+' = OR)
 # tetap cocok di Ubuntu (unit = ssh.service) lewat _COMM=sshd — diuji fail2ban-regex 2026-09-23.
-port = {{ (ssh_port_legacy ~ ',' ~ ssh_port_new) if ssh_effective_phase in ['a', 'b'] else ssh_port_new }}
+port = {{ (ssh_port_legacy ~ ',' ~ ssh_port_new) if ssh_effective_phase in ['a', 'b'] else ((ssh_port_new ~ ',' ~ ssh_port_legacy) if ssh_keep_legacy_port | default(false) else ssh_port_new) }}

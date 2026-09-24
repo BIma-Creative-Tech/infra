@@ -183,3 +183,10 @@ sistem sampai FASE 2.
   (host `drms-kas.staging.bimacreative.tech` / `drms-kas.bimacreative.tech`, POST, path `/admin/*`, `Next-Action` hex 40–64,
   `text/plain`) + rule lokal 19102/19103 (body diparse JSON; body non-JSON 403) — pola H6. Rollback: `crowdsec.md`
   §Pengecualian CRS 920420 admin Payload.
+- 2026-09-24 (keputusan user): **SSH port 22 dibuka permanen sebagai cadangan** di samping 2221 — jaringan
+  tertentu milik user memblokir port non-standar 2221 (dibuka dulu ad-hoc 13:28 WIB oleh sesi troubleshooting, lalu
+  dikodifikasi: `ssh_keep_legacy_port: true` di `ansible/group_vars/all.yml`; sshd drop-in, ufw `sshd fallback`,
+  fail2ban `port = 2221,22`). Kontrol tetap: key-only, `PermitRootLogin no`, `AllowUsers admin deploy`,
+  `MaxAuthTries 3`, fail2ban + CrowdSec firewall bouncer. Konsekuensi: lebih banyak noise bot di log port 22.
+  Rollback: set `ssh_keep_legacy_port: false` → `ansible-playbook site.yml --tags ssh,firewall,fail2ban`.
+

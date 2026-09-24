@@ -15,6 +15,9 @@
 ssh_phase: c
 ssh_port_new: 2221
 ssh_port_legacy: 22
+# Keputusan user 2026-09-24: port 22 TETAP dibuka permanen sebagai cadangan (jaringan tertentu memblokir 2221).
+# Tetap key-only, PermitRootLogin no, AllowUsers, fail2ban + CrowdSec. Lihat docs/adr/0001-stack.md §Riwayat revisi.
+ssh_keep_legacy_port: true
 ssh_allow_users: [admin, deploy]
 ssh_max_auth_tries: 3
 ssh_login_grace_time: 30

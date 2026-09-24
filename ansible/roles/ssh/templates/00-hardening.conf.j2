@@ -5,6 +5,9 @@
 Port {{ ssh_port_legacy }}
 {% endif %}
 Port {{ ssh_port_new }}
+{% if ssh_render_phase == 'c' and ssh_keep_legacy_port | default(false) %}
+Port {{ ssh_port_legacy }}
+{% endif %}
 {% if ssh_render_phase in ['b', 'c'] %}
 PermitRootLogin no
 PasswordAuthentication no

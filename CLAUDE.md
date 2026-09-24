@@ -329,7 +329,7 @@ dianjurkan, deploy hanya dari workflow `main`.
 - Conventional Commits; semver; tag `vX.Y.Z`; CHANGELOG otomatis (git-cliff).
 - Pipeline: lint → test → security scan → build → push GHCR → deploy staging (auto dari
   develop) → deploy prod (dari main, dengan environment approval GitHub).
-- Deploy = SSH (port 2221) ke VPS sebagai user `deploy` — **bukan** anggota grup `docker`
+- Deploy = SSH (port 2221 (+ port 22 cadangan, keputusan user 2026-09-24)) ke VPS sebagai user `deploy` — **bukan** anggota grup `docker`
   (setara root di host; `docs/plans/01-host-bootstrap.md` §4 threat model E) dan tanpa grup
   `sudo`; sudo terbatas ke skrip wrapper root-owned `/usr/local/sbin/infra-deploy <stack>`
   yang memvalidasi argumen dan menjalankan `docker compose pull && up -d --remove-orphans`,
