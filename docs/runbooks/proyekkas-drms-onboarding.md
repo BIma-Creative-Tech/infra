@@ -334,3 +334,9 @@ page publik).
 ### Update 2026-09-24 06:29 WIB → `0.1.0-stg-3e6d427` + UAT seed
 - Tanpa migrasi; dump `/opt/infra/backups/proyekkas/pk_drms_stg-20260924-062917-pre-3e6d427-uat.dump`.
 - UAT seed (data fiktif, 4 user uji *.uji@proyekkas.test) sekali: employees 4, users 4, project 1, team-assignments 3, bank account 1, cost-center manager linked 1.
+
+### Update 2026-09-24 19:20 WIB → `0.1.0-stg-2b5a83f` (F3 laporan + F4 backend mobile)
+- Dump `/opt/infra/backups/proyekkas/pk_drms_stg-20260924-192028-pre-2b5a83f.dump`; migrasi f4_mobile_sync, f4_security, f3_reports OK.
+- Compose dari commit 2b5a83f (env ANDROID_APP_PACKAGE/ANDROID_APP_CERT_SHA256/EXPORT_XLSX_ENABLED); `.env` fingerprint APK staging (publik).
+- Verifikasi: health/ready/admin/app-config 200; `/.well-known/assetlinks.json` 200 application/json (package + fingerprint cocok).
+- Rollback: tag e9c07ab + compose commit sebelumnya (+ restore dump bila skema perlu mundur — destruktif, konfirmasi user).

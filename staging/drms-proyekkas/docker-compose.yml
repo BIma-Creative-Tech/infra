@@ -13,6 +13,8 @@
 #
 # Order: `docker compose run --rm drms-pk-stg-migrate` runs automatically via depends_on;
 # seed (idempotent): `docker compose --profile seed run --rm drms-pk-stg-seed`.
+# UAT seed (one-off, same service, no Keycloak access needed; see .env.example "UAT seed"):
+#   docker compose --profile seed run --rm -e UAT_USERS drms-pk-stg-seed node /app/node_modules/payload/bin.js run src/seed/uat.ts
 name: drms-proyekkas-stg
 
 x-hardening: &hardening
@@ -39,6 +41,12 @@ x-app-env: &app-env
   KC_ADMIN_CLIENT_ID: ${KC_ADMIN_CLIENT_ID:-proyekkas-admin-api}
   MEDIA_DIR: /data/media
   LOG_LEVEL: ${LOG_LEVEL:-info}
+  # F4 Android App Links (/.well-known/assetlinks.json, ADR 0010): APK application id and the SHA-256
+  # fingerprint(s) of its signing certificate, comma separated `AA:BB:…`. Empty → `[]` (no App Link).
+  ANDROID_APP_PACKAGE: ${ANDROID_APP_PACKAGE:-id.co.drms.proyekkas}
+  ANDROID_APP_CERT_SHA256: ${ANDROID_APP_CERT_SHA256:-}
+  # F3 rollback switch for Excel exports (write-excel-file): false → Excel buttons hidden, .xlsx → 404.
+  EXPORT_XLSX_ENABLED: ${EXPORT_XLSX_ENABLED:-true}
   DATABASE_URL_FILE: /run/secrets/database_url_app
   PAYLOAD_SECRET_FILE: /run/secrets/payload_secret
   OIDC_WEB_CLIENT_SECRET_FILE: /run/secrets/oidc_web_client_secret
