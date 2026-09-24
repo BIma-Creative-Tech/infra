@@ -866,9 +866,12 @@
       "alwaysDisplayInConsole": false,
       "clientAuthenticatorType": "client-secret",
       "redirectUris": [
-        "https://drms-kas.staging.bimacreative.tech/app/callback"
+        "https://drms-kas.staging.bimacreative.tech/app/callback",
+        "id.co.drms.proyekkas:/oauth2redirect"
       ],
-      "webOrigins": [],
+      "webOrigins": [
+        "https://drms-kas.staging.bimacreative.tech"
+      ],
       "notBefore": 0,
       "bearerOnly": false,
       "consentRequired": false,
