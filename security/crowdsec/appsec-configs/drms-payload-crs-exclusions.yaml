@@ -15,6 +15,10 @@
 #   - header `Next-Action` tepat satu nilai hex kecil 40–64 char; `Content-Type` tepat satu nilai diawali `text/plain`.
 #   Upload File admin = multipart/form-data → sudah diizinkan CRS, tidak disentuh.
 # Pelengkap wajib: appsec-rules/drms-payload-server-action.yaml (19102 JSON body processor, 19103 tolak body non-JSON).
+# 2026-09-24 (keputusan user, UAT ProyekKas alert 107): Payload 3 admin menyimpan dokumen lewat REST
+#   PATCH /api/<collection>/<id> (dan DELETE, ditolak access control app) → CRS 911100 (allowed_methods
+#   GET HEAD POST OPTIONS). Blok pre_eval KEDUA: HANYA 911100, host drms-kas(.staging), method PATCH/DELETE,
+#   path diawali /api/. Body tetap diinspeksi CRS (XSS/SQLi pada JSON tetap 403).
 # Rollback: hapus file ini + appsec-rules/drms-payload-server-action.yaml + barisnya di acquis.d/appsec.yaml + kedua
 # mount di docker-compose.yml → `docker compose up -d` (recreate, fail-closed ±40 s).
 name: local/drms-payload-crs-exclusions
@@ -35,3 +39,10 @@ pre_eval:
       req.Header["Content-Type"][0] startsWith "text/plain"
     apply:
       - RemoveInBandRuleByID(920420)
+  - filter: >-
+      IsInBand &&
+      req.Method in ["PATCH", "DELETE"] &&
+      req.Host in ["drms-kas.staging.bimacreative.tech", "drms-kas.bimacreative.tech"] &&
+      req.URL.Path startsWith "/api/"
+    apply:
+      - RemoveInBandRuleByID(911100)
