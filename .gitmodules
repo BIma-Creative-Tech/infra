@@ -1,6 +1,6 @@
 [submodule "odoo/pool-a/addons/shared"]
 	path = odoo/pool-a/addons/shared
-	url = /opt/src/odoo-addons-shared
+	url = https://github.com/bctech-adm/odoo-addons-shared.git
 [submodule "staging/odoo/addons/shared"]
 	path = staging/odoo/addons/shared
-	url = /opt/src/odoo-addons-shared
+	url = https://github.com/bctech-adm/odoo-addons-shared.git
