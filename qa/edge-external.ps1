@@ -5,10 +5,10 @@
 # berlaku di HTTP (bouncer Traefik), TIDAK memblok SSH 2221. Setelah selesai, beri tahu Lead — ban (bila ada)
 # dihapus dari sisi VPS.
 $ErrorActionPreference = 'Continue'
-$P = 0; $F = 0
+$PassCount = 0; $FailCount = 0   # PowerShell: nama variabel tidak peka huruf besar/kecil — jangan pakai $P/$p
 function Check($name, $ok, $detail) {
-  if ($ok) { $script:P++; Write-Host "PASS  $name ($detail)" -ForegroundColor Green }
-  else     { $script:F++; Write-Host "FAIL  $name ($detail)" -ForegroundColor Red }
+  if ($ok) { $script:PassCount++; Write-Host "PASS  $name ($detail)" -ForegroundColor Green }
+  else     { $script:FailCount++; Write-Host "FAIL  $name ($detail)" -ForegroundColor Red }
 }
 function Code($url, [string[]]$extra = @()) {
   $c = & curl.exe -s -o NUL -m 15 -w "%{http_code}" @extra $url
@@ -28,11 +28,11 @@ $c = Code "$erp/web/login" @('--tlsv1.1','--tls-max','1.1'); Check 'TLS 1.1 dito
 $c = Code "$erp/web/login" @('--tlsv1.2','--tls-max','1.2'); Check 'TLS 1.2 diterima' ($c -eq '200') $c
 
 # 2. Panel admin tidak publik
-foreach ($p in '/admin/', '/realms/master/', '/') { $c = Code "$kc$p"; Check "Keycloak $p ditutup" ($c -eq '403') $c }
+foreach ($path in '/admin/', '/realms/master/', '/') { $c = Code "$kc$path"; Check "Keycloak $path ditutup" ($c -in '403','404') $c }   # H5: / tidak dirutekan di 443 (404)
 $c = Code "$kc/realms/platform/.well-known/openid-configuration"; Check 'Keycloak OIDC discovery' ($c -eq '200') $c
 $c = Code 'https://31.97.50.221/dashboard/' @('-k'); Check 'Traefik dashboard tidak ada' ($c -eq '404') $c
-foreach ($p in '/web/database/manager', '/web/database/selector') { $c = Code "$erp$p"; Check "Odoo $p ditutup" ($c -eq '403') $c }
-$c = Code 'https://tidakada.erp.bimacreative.tech/'; Check 'Host tak dikenal -> 404' ($c -eq '404') $c
+foreach ($path in '/web/database/manager', '/web/database/selector') { $c = Code "$erp$path"; Check "Odoo $path ditutup" ($c -eq '403') $c }
+$c = Code 'https://tidakada.erp.bimacreative.tech/' @('-k'); Check 'Host tak dikenal -> 404' ($c -eq '404') $c   # -k: host tak dikenal tidak punya sertifikat LE
 
 # 3. Isolasi tenant (DB staging tidak bisa dipilih dari host prod)
 $body = '{"jsonrpc":"2.0","method":"call","params":{"db":"demo_staging","login":"x","password":"y"}}'
@@ -54,7 +54,7 @@ $codes = 1..12 | ForEach-Object { Code "$stg/web/login" }
 Check 'Rate limit login -> 429' ($codes -contains '429') (($codes | Group-Object | ForEach-Object { "$($_.Name)x$($_.Count)" }) -join ' ')
 
 # 6. WAF AppSec (2 payload saja) + kontrol false positive
-$c = Code "$stg/web/login?q=hello"; Check 'Request normal lolos WAF' ($c -eq '200') $c
+$c = Code "$stg/web/health?q=hello"; Check 'Request normal lolos WAF' ($c -eq '200') $c   # bukan /web/login: bucket ratelimit-login baru saja dihabiskan uji sebelumnya
 $c = Code "$stg/web/login?q=%3Cscript%3Ealert(1)%3C%2Fscript%3E"; Check 'XSS diblok WAF' ($c -eq '403') $c
 $c = Code "$stg/.env"; Check '/.env diblok' ($c -eq '403') $c
 
@@ -69,4 +69,4 @@ if ($html -match '\$ACTION_ID_([0-9a-f]{40,64})') {
   Check 'Tombol Masuk cp -> redirect Keycloak' ($hdr -match '(?im)^x-action-redirect:\s*https://auth\.bimacreative\.tech/realms/platform/') (($hdr -split "`n")[0])
 } else { Check 'Tombol Masuk cp -> redirect Keycloak' $false 'action id tidak ditemukan di /login' }
 
-Write-Host "`nRINGKASAN: PASS=$P FAIL=$F" -ForegroundColor Cyan
+Write-Host "`nRINGKASAN: PASS=$PassCount FAIL=$FailCount" -ForegroundColor Cyan
