@@ -4,6 +4,7 @@ useDefault = true
 
 [allowlist]
 description = "False positive terverifikasi: tag image lokal Keycloak & fingerprint kunci GPG publik"
+regexTarget = "match"
 regexes = [
   '''keycloak:[0-9]+\.[0-9]+\.[0-9]+-optimized''',
   '''crowdsec_apt_key_fingerprint: [0-9A-F]{40}''',
