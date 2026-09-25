@@ -9,6 +9,10 @@ file `VERSION`.
 ## [Unreleased]
 
 ### Added
+- Client Expomedia Indo Karya (plan 07, discovery `docs/discovery/2026-09-25-expomedia.md`): website staging
+  `https://expomedia.staging.bimacreative.tech` (`web-expomedia:dev-0e87369`, image lokal TEMPORARY, form kontak via
+  `info@expomedia.id`), route `traefik/dynamic/clients/web-expomedia-staging.yml`; domain mail `expomedia.id` (DKIM `mail`,
+  5 mailbox 2G + alias abuse, `0997824`). Prod menunggu DNS client (zona Dewaweb belum dilayani — REFUSED).
 - infra-job (plan 05, ADR 0009, `8340a4d`): dispatcher root `/usr/local/sbin/infra-job <prod|staging>` 1.0.0 (Python stdlib) —
   jembatan job control plane → skrip root lewat spool file: validasi ketat (uid/nlink/mode/ukuran, JSON ketat, allowlist 5 tipe
   job, regex, binding instance→env, host SSO harus ada di file route tenant), kuota, dry-run pendahulu, argv tetap tanpa shell,

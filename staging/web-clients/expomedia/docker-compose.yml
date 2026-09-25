@@ -1,0 +1,59 @@
+# Template stack website Next.js client (plan 03 W2). JANGAN edit hasil render secara manual — render ulang:
+#   /opt/infra/scripts/provision-web-client.sh <slug> <prod|staging> --host <fqdn> --image <ref> [--www] [--contact]
+# Hasil render: /opt/infra/web/clients/<slug>/ (prod) · /opt/infra/staging/web-clients/<slug>/ (staging).
+# Nilai per client ada di `.env` (dibuat skrip, 600 root, TIDAK di git): COMPOSE_PROJECT_NAME, WEB_CONTAINER,
+# WEB_IMAGE, SITE_URL, CONTACT_ENABLED (+ SMTP_* bila --contact). Runbook: docs/runbooks/web-client-onboarding.md.
+#
+# Kontrak image (repo web-starter / web-<slug>): port 3000, GET /api/health → 200, uid 1001:1001, rootfs
+# read-only (tulis hanya /tmp dan /app/.next/cache), env SITE_URL wajib, CONTACT_ENABLED (default false).
+# Hardening CLAUDE.md §3.5: read_only + tmpfs, cap_drop ALL, no-new-privileges, non-root, mem/cpu/pids limit,
+# healthcheck, json-file 10m×3, hanya network `web-edge` (W2b: anggota traefik + website client saja — BUKAN `proxy`
+# tempat control-plane/Grafana/Uptime Kuma), TANPA port publik (Traefik → http://<WEB_CONTAINER>:3000, router
+# traefik/dynamic/clients/web-<slug>-<env>.yml). Sisa risiko diterima: website di web-edge saling bisa menjangkau :3000
+# (docs/03-operations/traefik.md §Network web-edge).
+# Form kontak (opsional): docker-compose.contact.yml (secret smtp_password) — dipilih lewat COMPOSE_FILE di .env,
+# sehingga render default TIDAK butuh file secret.
+
+x-hardening: &hardening
+  restart: unless-stopped
+  user: "1001:1001"
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  logging:
+    driver: json-file
+    options: { max-size: "10m", max-file: "3" }
+
+services:
+  web:
+    <<: *hardening
+    # Tag/digest di-pin (skrip menolak `latest` dan referensi tanpa tag/digest — CLAUDE.md §0.12).
+    image: ${WEB_IMAGE:?WEB_IMAGE wajib (tag pin atau digest)}
+    # Nama container = host backend di service Traefik (http://web-<slug>-<env>:3000).
+    container_name: ${WEB_CONTAINER:?WEB_CONTAINER wajib (web-<slug>-<env>)}
+    environment:
+      SITE_URL: ${SITE_URL:?SITE_URL wajib (https://<host kanonik>)}
+      CONTACT_ENABLED: ${CONTACT_ENABLED:-false}
+    tmpfs:
+      # tmpfs dihitung ke mem_limit (cgroup shmem) → ukuran dibatasi. Cache Next penuh → tulis cache gagal
+      # (halaman tetap dilayani, cache tidak bertambah).
+      - /tmp:uid=1001,gid=1001,mode=0700,size=16m
+      - /app/.next/cache:uid=1001,gid=1001,mode=0700,size=64m
+    # web-edge: dibuat traefik/scripts/bootstrap.sh (10.100.11.0/24, bukan --internal → egress SMTP/API tetap ada).
+    networks: [web-edge]
+    healthcheck:
+      # Sama dengan kontrak image (HEALTHCHECK Dockerfile web-starter).
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+      start_interval: 2s
+    mem_limit: 256m   # plan 03 §6 (±128–256 MiB per website; ADR 0004)
+    cpus: 0.5
+    pids_limit: 128
+
+networks:
+  web-edge:
+    external: true
+    name: web-edge
