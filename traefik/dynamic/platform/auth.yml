@@ -96,7 +96,7 @@ http:
     # memakai iframe same-origin (login-status-iframe). Header lain sama dengan `security-headers`.
     auth-security-headers:
       headers:
-        stsSeconds: 300              # tetap pendek; dinaikkan Lead setelah QA (sama dgn security-headers)
+        stsSeconds: 604800           # QA-T17B-06 staged: 1 minggu; 31536000 mulai 2026-10-09 (sama dgn security-headers)
         stsIncludeSubdomains: false
         stsPreload: false
         contentTypeNosniff: true

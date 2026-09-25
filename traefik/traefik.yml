@@ -62,9 +62,12 @@ entryPoints:
     http:
       aliasHeadersStrategy: delete
 
-  # T14a: metrics Prometheus. Listen :8082 DI DALAM container; TIDAK di-publish (compose hanya 80/443)
-  # dan hanya bisa dicapai lewat network internal `metrics` (Prometheus). Semua router di dynamic/
-  # menyebut entryPoints eksplisit → tidak ada router aplikasi yang menempel ke entrypoint ini.
+  # T14a: metrics Prometheus. Listen :8082 DI DALAM container, TIDAK di-publish ke host (compose hanya 80/443
+  # + 127.0.0.1:8443). Tanpa alamat bind, socket ini terjangkau dari SEMUA network Traefik (proxy, odoo-edge,
+  # web-edge, drms-kas-edge, crowdsec, metrics, …) — bukan hanya `metrics` (QA-T17B-03). Pembatasan ada di
+  # router `metrics-prometheus` (dynamic/platform/metrics.yml): ipAllowList = subnet network `metrics`
+  # (10.100.5.0/24, --internal); selain itu 403. Semua router di dynamic/ menyebut entryPoints eksplisit →
+  # tidak ada router aplikasi yang menempel ke entrypoint ini.
   metrics:
     address: ":8082"
     http:
@@ -75,11 +78,16 @@ ping:
 
 # T14a — docs v3.7 reference/install-configuration/observability/metrics.md §Prometheus:
 # `entryPoint` (default "traefik"), addEntryPointsLabels (default true), addRoutersLabels (default
-# false), addServicesLabels (default true). Router internal prometheus@internal dibuat otomatis di
-# entrypoint `metrics` (manualRouting=false).
+# false), addServicesLabels (default true).
+# QA-T17B-03: `manualRouting: true` (default false) mematikan router internal otomatis (source v3.7.13
+# pkg/provider/traefik/internal.go: PathPrefix(`/metrics`), priority MaxInt, TANPA middleware) sehingga
+# service `prometheus@internal` hanya dicapai lewat router file `metrics-prometheus`
+# (dynamic/platform/metrics.yml, + ipAllowList). `entryPoint` di bawah hanya dipakai router otomatis;
+# dibiarkan agar rollback = hapus `manualRouting` saja. Perubahan ini static → restart Traefik.
 metrics:
   prometheus:
     entryPoint: metrics
+    manualRouting: true
     addEntryPointsLabels: true
     addRoutersLabels: true
     addServicesLabels: true

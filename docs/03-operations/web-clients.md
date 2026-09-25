@@ -62,5 +62,5 @@ sudo /opt/infra/scripts/provision-web-client.sh <slug> <env> --host <fqdn> \
 ## Catatan keamanan
 
 - CSP dikirim aplikasi (nonce + `strict-dynamic`; `style-src 'unsafe-inline'` disetujui user) — ADR 0007 §5.
-- HSTS mengikuti `security-headers` platform (saat ini `max-age=300`).
+- HSTS mengikuti `security-headers` platform (saat ini `max-age=604800`; 31536000 mulai 2026-10-09 — `traefik.md` §HSTS bertahap).
 - Sisa risiko: website di `web-edge` saling bisa menjangkau `:3000` (`traefik.md` §Network web-edge).

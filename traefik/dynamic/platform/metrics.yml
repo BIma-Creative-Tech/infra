@@ -1,0 +1,28 @@
+# QA-T17B-03 — router metrics Prometheus (static traefik.yml: metrics.prometheus.manualRouting=true).
+# Opsi: docs v3.7 reference/install-configuration/observability/metrics.md (manualRouting → router sendiri untuk
+# service `prometheus@internal`) + reference/routing-configuration/http/middlewares/ipallowlist.md.
+#
+# Entrypoint `metrics` (:8082) listen di semua network Traefik; tanpa router ini (dan tanpa router otomatis)
+# request apa pun → 404. Router ini hanya menerima IP sumber dari subnet network `metrics` (10.100.5.0/24,
+# --internal, dibuat observability/scripts/bootstrap.sh; anggota: prometheus + target scrape traefik, crowdsec,
+# keycloak). Container di proxy / odoo-edge / web-edge / drms-kas-edge / crowdsec tiba dengan IP network-nya
+# sendiri (bridge, tanpa NAT antar container) → 403. Tanpa ipStrategy → IP koneksi (X-Forwarded-For diabaikan;
+# entrypoint `metrics` tidak punya forwardedHeaders.trustedIPs).
+# Sisa risiko (terdokumentasi): crowdsec & keycloak (anggota `metrics`) tetap bisa membaca metrics; /32 untuk
+# Prometheus butuh IP tetap (ipv4_address) di observability — keputusan Lead.
+# Router ber-service `@internal` tidak masuk access log (lihat middlewares/deny-all.yml).
+http:
+  routers:
+    metrics-prometheus:
+      entryPoints: [metrics]
+      # Sama dengan rule router otomatis (source v3.7.13 pkg/provider/traefik/internal.go).
+      rule: "PathPrefix(`/metrics`)"
+      middlewares: [ipallowlist-metrics]
+      service: prometheus@internal
+
+  middlewares:
+    ipallowlist-metrics:
+      ipAllowList:
+        sourceRange:
+          - "10.100.5.0/24"
+        rejectStatusCode: 403

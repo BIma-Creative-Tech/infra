@@ -121,7 +121,7 @@ Pulihkan DB dari backup hanya bila data rusak (migrasi tidak perlu dibalik).
 | `cp` (prio 1) | `Host(cp…)` — termasuk `/api/auth/{session,csrf,providers,signout}` | `crowdsec`, `security-headers`, `ratelimit-default` |
 
 CSP **tidak** diset Traefik — aplikasi (`src/proxy.ts`) mengirim CSP dengan nonce per request. `security-headers`
-hanya menambah HSTS (`max-age=300`, naik setelah QA), nosniff, `X-Frame-Options: DENY`, referrer & permissions policy.
+hanya menambah HSTS (`max-age=604800`, 31536000 mulai 2026-10-09 — `traefik.md` §HSTS bertahap), nosniff, `X-Frame-Options: DENY`, referrer & permissions policy.
 
 **Ratelimit login dipersempit (H3, 2026-09-23).** Sebelumnya `ratelimit-login` berlaku untuk seluruh `/api/auth/*`,
 termasuk `/api/auth/session` yang dipanggil klien saat navigasi/refresh sesi. Sekarang hanya:
