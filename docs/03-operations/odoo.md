@@ -131,6 +131,7 @@ Tenant uji:
 | `<r>-dbmanager` (**entrypoint `admin`** :8443, H5b) | `PathPrefix(/web/database)` | 300 | crowdsec, **ipallowlist-admin**, odoo-security-headers, ratelimit-default, strip-odoo-db-headers, `<r>-db` | `<pool>-http` |
 | `<r>-websocket` | `PathPrefix(/websocket)` | 200 | crowdsec, odoo-security-headers, ratelimit-default, strip, `<r>-db` | `<pool>-ws` (:8072) |
 | `<r>-login` | `/web/login`, `/web/session/authenticate`, `/web/reset_password*`, `/web/signup*` | 200 | crowdsec, odoo-security-headers, ratelimit-default, **ratelimit-login**, strip, `<r>-db` | `<pool>-http` |
+| `<r>-oidc` (plan 04 S3) | `PathPrefix(/sh_auth_oidc/)` (authorize + callback) | 200 | crowdsec, odoo-security-headers, ratelimit-default, **ratelimit-oidc** (20/menit, burst 20 per IP), strip, `<r>-db` | `<pool>-http` |
 | `<r>` | `Host(<fqdn>)` | 100 | crowdsec, odoo-security-headers, ratelimit-default, strip, `<r>-db` | `<pool>-http` (:8069) |
 
 `<r>-db` = `customRequestHeaders: X-Sh-Odoo-Db: "<db>"`, `X-Odoo-Database: ""`. Service `odoo-pool-a-{http,ws}`,

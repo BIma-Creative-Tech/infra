@@ -8,6 +8,14 @@ file `VERSION`.
 
 ## [Unreleased]
 
+### Added
+- traefik (plan 04 S3, F10/AC-S6): router `auth-oidc-backchannel` (prio 96, websecure) — `ClientIP(10.100.0.1/32)` + token/
+  certs/userinfo realm `platform`/`platform-staging` → middleware baru `ratelimit-oidc-backchannel` (300/menit, burst 100);
+  back-channel pool Odoo tidak lagi berbagi `ratelimit-login` dengan login manusia.
+- traefik (plan 04 S3, F9/AC-S7): router tenant `<r>-oidc` (`PathPrefix(/sh_auth_oidc/)`, prio 200) di
+  `templates/traefik-client.yml` + middleware `ratelimit-oidc` (20/menit, burst 20 per IP). Router tenant yang sudah ada
+  mendapatkannya setelah render ulang (`render-client-route.sh`).
+
 ### Fixed
 - observability: `mem_limit` grafana 256m → 384m (GOMEMLIMIT 320MiB), uptime-kuma 192m → 320m (pemakaian 72–81%); ADR 0004 diperbarui.
 
