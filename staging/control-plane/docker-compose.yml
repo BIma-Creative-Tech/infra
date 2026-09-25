@@ -8,7 +8,7 @@ name: staging-control-plane
 x-hardening: &hardening
   # Tag pin (short SHA commit main repo control-plane). Override sementara:
   #   CONTROL_PLANE_TAG=<tag> docker compose up -d
-  image: control-plane:${CONTROL_PLANE_TAG:-4fc3828}
+  image: control-plane:${CONTROL_PLANE_TAG:-7b85a78}   # plan 05 J4 (2026-09-25; rollback 4fc3828 — migrasi 0001/0002 additive)
   env_file:
     - .env
   user: "1001:1001"
@@ -50,6 +50,7 @@ services:
         condition: service_completed_successfully
     environment:
       SERVICE_NAME: control-plane-staging-web
+      INFRA_JOBS_INSTANCE: staging   # plan 05 / ADR 0009
     tmpfs:
       - /tmp:uid=1001,gid=1001,mode=0700
       - /app/.next/cache:uid=1001,gid=1001,mode=0700
@@ -68,6 +69,9 @@ services:
   worker:
     <<: *hardening
     container_name: control-plane-staging-worker
+    # Plan 05 J3 (ADR 0009): uid khusus cpjob-staging 951 (BUKAN 1001 = user host `deploy`) — hanya uid ini
+    # yang bisa menulis spool infra-job staging (spool/new root:cpjob-staging 0730, tmp cpjob-staging 0700).
+    user: "951:951"
     restart: unless-stopped
     depends_on:
       migrate:
@@ -76,8 +80,22 @@ services:
     environment:
       SERVICE_NAME: control-plane-staging-worker
       WORKER_HEARTBEAT_FILE: /tmp/worker-heartbeat
+      INFRA_JOBS_INSTANCE: staging
+      INFRA_JOBS_SPOOL_DIR: /jobs/spool
+      INFRA_JOBS_RESULTS_DIR: /jobs/results
     tmpfs:
-      - /tmp:uid=1001,gid=1001,mode=0700
+      - /tmp:uid=951,gid=951,mode=0700
+    volumes:
+      # Spool rw (worker menulis tmp/ lalu rename ke new/) + hasil ro — dikelola role Ansible infra_jobs.
+      - type: bind
+        source: /var/lib/infra-jobs/staging/spool
+        target: /jobs/spool
+        bind: { create_host_path: false }
+      - type: bind
+        source: /var/lib/infra-jobs/staging/results
+        target: /jobs/results
+        read_only: true
+        bind: { create_host_path: false }
     networks:
       - db      # hanya DB; tidak butuh egress
     healthcheck:
