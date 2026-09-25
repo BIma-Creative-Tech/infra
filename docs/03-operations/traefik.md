@@ -272,6 +272,16 @@ docker logs traefik 2>&1 | grep -i -E 'acme|lego|certificate' | tail
 Jangan me-restart berulang bila ACME gagal: baca log, perbaiki (DNS/port 80), baru ulang —
 limit LE: 5 authorization failure / identifier / jam (ADR 0002).
 
+## CAA terkunci ke akun ACME (2026-09-25)
+Zona `bimacreative.tech`: `0 issue "letsencrypt.org; accounturi=https://acme-v02.api.letsencrypt.org/acme/acct/3788309616"` (ADR 0002 #15b).
+- `acme.json` = satu-satunya akun yang boleh menerbitkan sertifikat hostname platform → **wajib ikut backup** dan jangan dihapus.
+- Restore/ganti akun: ambil URI baru (`python3 -c 'import json;print(json.load(open("acme/acme.json"))["le-http"]["Account"]["Registration"]["uri"])'`
+  sebagai root), perbarui CAA di DNS Hostinger SEBELUM Traefik meminta sertifikat baru.
+- Uji ACME staging (`le-http-staging`) untuk hostname platform akan gagal CAA (akun staging berbeda) — uji staging di domain client/uji saja,
+  atau tambahkan sementara baris CAA kedua dengan accounturi akun staging.
+- Error log "Cannot retrieve the ACME challenge for (www.)bimacreative.tech" tiap ±100 menit = ACME pihak lain (tidak dikenal, bukan Traefik);
+  CAA mencegah penerbitannya. Log mungkin tetap muncul (validasi HTTP bisa berjalan sebelum/bersamaan pengecekan CAA).
+
 ## Pindah staging → production (DILAKUKAN 2026-09-23 untuk `status` & `auth` T05/T06, `cp` T16a, `grafana` T14a, `cp.staging` T16b, `drms-kas.staging` ProyekKas)
 
 1. Backup: `cp -a acme/acme-staging.json acme/acme-staging.json.bak-$(date +%F)`.

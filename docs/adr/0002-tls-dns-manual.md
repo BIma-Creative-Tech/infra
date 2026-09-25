@@ -104,7 +104,8 @@ TTL: **300** selama setup/migrasi, **3600** setelah stabil (TTL minimum Hostinge
 | 13 | TXT | `_dmarc` | `v=DMARC1; p=quarantine; adkim=s; aspf=s; rua=mailto:dmarc@bimacreative.tech` | 300 | ADA `v=DMARC1; p=quarantine; rua=mailto:dmarc@expomedia.id` | UBAH rua ke `dmarc@bimacreative.tech` (lihat catatan RFC 7489) |
 | 14 | TXT | `mail._domainkey` | **diisi setelah mail stack jalan** (output `setup config dkim`; selector default `mail` per docs DMS `best-practices/dkim_dmarc_spf.md` — konfirmasi dari output nyata) | 300 | BELUM (memang belum waktunya) | setelah mail up |
 | 15 | CAA | `@` | `0 issue "letsencrypt.org"` | 3600 | ADA | — |
-| 16 | CAA | `@` | `0 issuewild ";"` | 3600 | BELUM | TAMBAH (larang wildcard) |
+| 16 | CAA | `@` | `0 issuewild ";"` | 3600 | **TIDAK BISA** — DNS Hostinger menolak nilai `;` ("CAA record content is not valid", 2026-09-25) | Digantikan #15b: tanpa `issuewild`, `issue` berlaku juga untuk wildcard (RFC 8659 §4.3) → wildcard hanya untuk akun kita |
+| 15b | CAA | `@` | `0 issue "letsencrypt.org; accounturi=https://acme-v02.api.letsencrypt.org/acme/acct/3788309616"` | 14400 | **ADA** (2026-09-25, menggantikan #15) | RFC 8657: hanya akun ACME `le-http` Traefik yang boleh menerbitkan. Latar: ACME pihak tak dikenal mencoba HTTP-01 `bimacreative.tech`/`www` tiap ±100 menit sejak 2026-09-23 (log Traefik "Cannot retrieve the ACME challenge") |
 | — | AAAA | semua nama lain | **jangan dibuat** | — | tidak ada AAAA di `mail`, `x1.erp` (benar) | — |
 | — | PTR | `31.97.50.221` | `mail.bimacreative.tech` | — | **BELUM** (`srv2001692.hstgr.cloud.`) | SET di panel VPS Hostinger sebelum mail kirim keluar |
 
@@ -185,3 +186,11 @@ Konfigurasi resolver ada di static config Traefik; rollback = kembalikan file + 
   sehingga pembaruan sertifikat hostname itu tetap berjalan. Tidak ada hostname/sertifikat baru; sertifikat yang ada di
   `acme.json` dipakai di :8443 (diverifikasi `openssl s_client -connect 127.0.0.1:8443 -servername grafana.bimacreative.tech`
   → issuer Let's Encrypt). Detail: `docs/03-operations/traefik.md` §Entrypoint `admin`.
+
+## Riwayat revisi — 2026-09-25 (CAA accounturi)
+- CAA apex diganti menjadi `0 issue "letsencrypt.org; accounturi=https://acme-v02.api.letsencrypt.org/acme/acct/3788309616"` (akun
+  `le-http` dari `traefik/acme/acme.json`), keputusan user. `issuewild ";"` tidak dapat disimpan di DNS Hostinger — tidak diperlukan
+  karena `issue` berlaku untuk wildcard bila `issuewild` absen (RFC 8659 §4.3).
+- **Konsekuensi:** bila akun ACME Traefik berganti (acme.json hilang/dibuat ulang, atau pindah ke resolver/akun lain termasuk
+  `le-http-staging` untuk hostname `*.bimacreative.tech`), penerbitan/perpanjangan semua hostname platform DITOLAK Let's Encrypt
+  (error CAA) sampai record CAA diperbarui dengan account URI baru. Domain client tidak terpengaruh (CAA di zona mereka).
