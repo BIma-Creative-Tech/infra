@@ -4,6 +4,10 @@
 - **Disiapkan:** N1 infra-engineer, branch `feat/infra-network-segmentation` (2026-09-25). Langkah live dijalankan Lead (N3/N5/N6).
 - **Alat (read-only, di branch ini):**
   - `scripts/net-matrix.sh [--check]` — matriks jangkauan TCP (§8.1), `--check` = bandingkan dengan target §8.2.
+    Sejak BUG-N4-01: DNS di-resolve dulu (paralel, 3 s/nama), TCP 2 s ke IP. Sel `O` OPEN, `-` ter-resolve tapi TCP
+    tertutup, `n` nama tidak ter-resolve, `?` probe gagal (selalu selisih). Sebelum S10 `--check` wajar mencetak SELISIH
+    untuk jalur yang belum dipindah (prod via `db`/`proxy`, `control-plane-staging`→`keycloak` sampai S8).
+    Mode per-IP: `NET_MATRIX_TARGETS="10.100.3.3:8069 …" scripts/net-matrix.sh` (tanpa DNS, tidak dengan `--check`).
   - `scripts/pg-hba-validate.sh <file> transition|final` — Postgres sementara `--network none` + matriks pg_hba.
 - Semua perintah sebagai root di VPS. `WIB` = jendela waktu dari plan §6 (prod 22:00–23:00 WIB, staging siang).
 - Satu langkah → satu verifikasi (CLAUDE.md §0.6). Gagal → rollback langkah itu, STOP, laporkan.
