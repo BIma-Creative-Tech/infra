@@ -1,0 +1,60 @@
+# DIRENDER OTOMATIS oleh scripts/provision-web-client.sh dari templates/traefik-web-client.yml — jangan edit manual.
+# Website: slug=expomedia env=prod host=expomedia.id (dirender oleh provision-web-client.sh)
+#
+# Urutan middleware = konvensi router client lain: crowdsec (paling depan) → security-headers → ratelimit-*.
+# HSTS/nosniff/frame/referrer/permissions dari `security-headers` (middlewares/security-headers.yml; stsSeconds
+# mengikuti nilai platform di file itu). CSP TIDAK diset di Traefik: aplikasi mengirim CSP dengan nonce
+# (plan 03 §3), seperti control-plane (dynamic/platform/cp.yml).
+http:
+  routers:
+    # Form kontak (plan 03 §3): POST ke /contact atau /api/contact → limit per IP lebih ketat. GET halaman
+    # /contact tetap lewat router utama. Aktif walau form kontak off (endpoint 404; limit tidak merugikan).
+    web-expomedia-prod-contact:
+      entryPoints: [websecure]
+      rule: "Host(`expomedia.id`) && Method(`POST`) && (Path(`/contact`) || Path(`/api/contact`))"
+      priority: 100
+      middlewares: [crowdsec, security-headers, web-expomedia-prod-ratelimit-contact]
+      service: web-expomedia-prod
+      tls:
+        certResolver: le-http
+    web-expomedia-prod:
+      entryPoints: [websecure]
+      rule: "Host(`expomedia.id`)"
+      priority: 1
+      middlewares: [crowdsec, security-headers, ratelimit-default]
+      service: web-expomedia-prod
+      tls:
+        certResolver: le-http
+    # www.expomedia.id → 301 permanen ke host kanonik (path & query dipertahankan). Sertifikat terpisah untuk
+    # www (Host() eksplisit, tanpa wildcard — CLAUDE.md §3.5.1). Service tidak pernah tercapai (redirect dulu).
+    web-expomedia-prod-www:
+      entryPoints: [websecure]
+      rule: "Host(`www.expomedia.id`)"
+      priority: 1
+      middlewares: [crowdsec, security-headers, web-expomedia-prod-www-redirect]
+      service: web-expomedia-prod
+      tls:
+        certResolver: le-http
+
+  middlewares:
+    # POST form kontak: 5 req/menit per IP sumber, burst 5 (ESTIMASI; tuning dari access log). Opsi: docs v3.7
+    # reference/routing-configuration/http/middlewares/ratelimit.md (average/period/burst; sourceCriterion
+    # default = remote address, X-Forwarded-For klien tidak dipakai).
+    web-expomedia-prod-ratelimit-contact:
+      rateLimit:
+        average: 5
+        period: 1m
+        burst: 5
+    # Opsi: docs v3.7 .../middlewares/redirectregex.md (regex, replacement `${1}`, permanent). Single-quoted
+    # YAML → backslash literal (regex `\.`).
+    web-expomedia-prod-www-redirect:
+      redirectRegex:
+        regex: '^https?://www\.expomedia\.id/(.*)'
+        replacement: 'https://expomedia.id/${1}'
+        permanent: true
+
+  services:
+    web-expomedia-prod:
+      loadBalancer:
+        servers:
+          - url: "http://web-expomedia-prod:3000"

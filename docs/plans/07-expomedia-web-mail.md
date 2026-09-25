@@ -1,6 +1,6 @@
 # Plan 07 — Client Expomedia Indo Karya: website `web-expomedia` (staging) + domain mail `expomedia.id`
 
-- Status: **STAGING DONE 2026-09-25** (web `0e87369`, mail commit `0997824`); prod menunggu DNS client.
+- Status: **PROD LIVE 2026-09-25** — `https://expomedia.id` mode coming soon (keputusan user: konten placeholder tidak dipublikasikan), staging website lengkap, image `web-expomedia:dev-148b002`; mail aktif (`0997824`). Hostname mail per client (SNI `mail.expomedia.id`) → ADR 0011.
 - Riwayat: **GATE 1 APPROVED** (user, 2026-09-25): staging sekarang, prod menunggu DNS client; mailbox wajib + info@/admin@/sales@;
   desain bold-showroom **tema terang** (dark mode tetap via toggle); form kontak aktif via info@expomedia.id.
 - Discovery: `docs/discovery/2026-09-25-expomedia.md`. Terkait: plan 03, ADR 0002/0005/0007, runbook `web-client-onboarding.md`,
