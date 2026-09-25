@@ -7,7 +7,7 @@
   `docs/runbooks/odoo-sso-tenant.md`.
 - **Hasil ringkas:** AC-J1..J12 PASS (J13 tidak diuji di J5). 52 kasus negatif/keamanan live (30 dispatcher, 5 izin host/container, 17 control plane) → semua ditolak sesuai desain.
   **2 bug terbuka: BUG-J5-01 (High) resend_invite memulihkan akses user yang sudah dicabut; BUG-J5-02 (Medium) aktor CP
-  = UUID acak per login (audit tidak bisa ditelusuri).** Sign-off J5: **BELUM** (ada High terbuka).
+  = UUID acak per login (audit tidak bisa ditelusuri).** Sign-off J5 run pertama: **BELUM** (ada High terbuka) → **regresi 2026-09-25 (§Regresi J5R): kedua bug FIXED, sign-off J6 = YA.**
 
 ## Metode
 
@@ -218,3 +218,54 @@ tanpa audit); hanya kebisingan log/monitor. Informasi.
 
 Sisa yang sengaja dibiarkan: `results/*.json` uji (dipangkas 7 hari), `rejected/*` (forensik, 30 hari), `/var/log/infra-jobs/staging/*.log`
 (30 hari, memuat alamat uji `postmaster+qaj5-*`), 2 email undangan di mailbox `postmaster` lokal, `work/ledger` (kuota).
+
+## Regresi J5R — perbaikan BUG-J5-01/02 + OBS (2026-09-25, ±06:45–07:00 UTC)
+
+- **Versi diuji:** infra `main` 6845ea1 (termasuk 3ca5501 `--resend-invite` aksi tersendiri, 8226b7b `RESULT invite=`; `cmp
+  scripts/infra-job/infra_job.py /usr/local/sbin/infra-job` → sama) · CP staging `control-plane:6d94d2b` (migrasi 0003).
+- **Metode sama** dengan run pertama: container `qa-j5r-client` (`python:3.12.11-slim-bookworm`, network `proxy`, IP `10.100.0.253`),
+  login Auth.js OIDC nyata, Server Action tanpa JS. Identitas uji `qa05r-ops` (ops), `qa05r-super` (superadmin) via Admin REST
+  `automation` :8443. Tenant = **`ssotest_staging`** (tanpa DB baru; kuota `odoo_db_provision` staging masih habis). Client CP
+  `ssotest` + environment `staging` (id 60ffff1e…) dibuat lewat form superadmin (belum ada backfill). `res.users` uji `qaj5r-user`
+  (id 5) dibuat via `odoo shell`.
+
+| # | Uji | Hasil | Status |
+|---|---|---|---|
+| R1 | BUG-J5-02: login `qa05r-ops` dua kali (dua cookie jar baru) | `session.user.id` login1 = login2 = `41843424-4b7a-…` = id user Keycloak; `users` 1 baris `keycloak_sub=41843424…` | PASS |
+| R2 | BUG-J5-02: aktor job/audit baru | semua `provision_jobs` baru (4/4) dan audit aksi user (7/7) `actor=user:<sub KC>` + `actor_user_id` terisi (ops `1970e9d1…`, superadmin `45f0ceac…`); journal host `actor=user:41843424-4b7a-4141-bc15-474c33263c8c` (= `actor` file job) | PASS |
+| R3 | grant (create_kc) 602f8d79 | succeeded, `result action=grant invite=sent changed=4 kc_user=3f9e65ea… odoo_user=5`; row `active`; SSO E2E ssotest → `callback 303 /odoo`, `uid=5` | PASS |
+| R4 | resend pada row `active`, tanpa required action (3b27406c) | succeeded `action=resend_invite changed=0 invite=none`; log "role … (tidak diubah)", "res.users 5: tertaut (tidak diubah)"; role KC tetap `['odoo_access']`; row tetap `active` | PASS |
+| R5 | resend pada row `active`, `UPDATE_PASSWORD` tertunda (a6d447de) | succeeded `invite=sent changed=1`; role tetap; row `active` | PASS |
+| R6 | revoke (f1137abe) | succeeded `action=revoke`; role KC `[]`; row `revoked`; halaman environment **tidak lagi** menampilkan form revoke/resend untuk user itu | PASS |
+| R7 | POST resend palsu (action id form ssoUser, user revoked) | 303 `?r=precondition`; `provision_jobs` 23 → 23; audit `job.enqueue.odoo_sso_user rejected reason=precondition detail=user_not_active` (dengan `actor_user_id`) | PASS |
+| R8 | file job `resend_invite` untuk user revoked langsung ke spool (uid 951) | `failed blocked_dry_run`, phase `dry_run`, `blockers=1`: "tidak punya role odoo_access … resend_invite ditolak; pulihkan akses hanya lewat --grant"; hanya fase dry-run dijalankan; role tetap `[]`; login SSO → `callback 303 /web/login?oauth_error=2` | PASS |
+| R9 | defense-in-depth root: `odoo-sso-user.sh ssotest staging … --resend-invite` (apply) untuk user revoked | exit 1, pesan blocker yang sama, role tetap `[]`; `--resend-invite --grant` → "saling eksklusif", exit 1 | PASS |
+| R10 | OBS-J5-02: Origin `https://evil.example`, `https://cp.bimacreative.tech`, `null` | 403 `Forbidden` (proxy) ×3; tanpa Origin → 303 `?r=origin`; `Sec-Fetch-Site: cross-site` → 303 `?r=origin`; `provision_jobs`/`audit_logs` 23/55 → 23/55 | PASS |
+| R11 | OBS-J5-01: halaman job | `/jobs/602f8d79` menampilkan `invite … sent`, `/jobs/3b27406c` `invite … none` | PASS |
+| R12 | smoke AC-J9: file `env=prod` di spool staging | `rejected_validation` "env di luar instance ini (lintas instance)", 0 `START` | PASS |
+| R13 | smoke AC-J10: 6 nilai secret (oidc demo/ssotest, admin-password demo/ssotest, automation, CP) vs `provision_jobs`+`audit_logs`+`tenant_user_access`+52 `results/*.json` | 0 hit literal, 0 hit pola `secret=/password=/"token":` | PASS |
+
+**Tidak diuji live:** jalur `result_inconsistent` / row `inconsistent` (butuh RESULT yang tidak cocok; hanya tercakup unit test
+`tests/unit/j5-fixes.test.ts`).
+
+**OBS-J5R-01 · Low (baru):** membuat client dengan nama `ssotest (staging tenant; env dibuat …)` → 403 CrowdSec AppSec
+(`rce` anomaly 5, alert tanpa ban untuk 10.100.0.253). Nama tanpa `;`/kurung lolos. False positive CRS pada form nama client —
+catat untuk tuning `controlplane-crs-exclusions` bila nama client dengan tanda baca dibutuhkan (Lead/infra-engineer).
+
+**Catatan data CP staging:** client `ssotest` + environment staging (60ffff1e…) **dibiarkan** (tidak ditandai terminated) karena
+merupakan backfill sah plan 05 §1.5; kolom status masih default `absent/absent/none` (tidak ada job provision/route yang dijalankan
+lewat CP) — backfill status oleh Lead. Baris `tenant_user_access` `postmaster+qaj5r@…` (revoked) dan 7 job uji tetap sebagai jejak.
+
+### Cleanup regresi
+
+User KC `qa05r-ops`, `qa05r-super`, `postmaster+qaj5r@…` dihapus (`users/count` realm = 0); `res.users` `qaj5r-user` di
+`ssotest_staging` di-unlink (sisa 0; `res_users` tertaut oauth = 0); baris `users` CP `qa05r-*` dihapus (2); container
+`qa-j5r-client` dihapus; spool `new/`/`tmp/` kosong. `demo_staging`/`ssotest_staging`: provider 1–4 identik baseline, secret
+`440 root:messagebus` mtime sama, route sha256 sama, dry-run keduanya `changed=0 blockers=0`. Prod: StartedAt
+`odoo-pool-a`/`traefik`/`keycloak`/`control-plane` tidak berubah; `infra-job-prod.path` disabled.
+
+### Sign-off
+
+BUG-J5-01 (High) dan BUG-J5-02 (Medium) **FIXED & terverifikasi**; OBS-J5-01/02 **FIXED**. 0 Critical/High terbuka; terbuka hanya
+Low (OBS-J5R-01) dan catatan informasi. **Sign-off J5 untuk J6 (prod): YA.** Syarat J6: jalankan AC-P1/P2; image prod = `6d94d2b`
+(berisi perbaikan BUG-J5-02 + resend guard) dan dispatcher/skrip dari `main` ≥ 8226b7b.
