@@ -24,13 +24,12 @@
 | AC-Q6 | Provider DB B → client A, lalu REVERT + bukti | **PASS** |
 | AC-Q7 | `sub` tak tertaut (email_verified=true) → tidak ada `res.users` baru | **PASS** |
 | AC-Q8 | `/auth_oauth/signin` tolak + 1 provider enabled + password lokal user tertaut ditolak (web+RPC) + admin lokal OK | **PASS** |
-| AC-Q9 | ≥ 20 login SSO: 0 AppSec 403 …; `redirect=//evil` dibuang | **FAIL** (BUG-S5-01) |
+| AC-Q9 | ≥ 20 login SSO: 0 AppSec 403 …; `redirect=//evil` dibuang | ~~FAIL~~ → **PASS** setelah fix `1c2a528` (regresi 42/42, lihat §Regresi) |
 | AC-Q10 | User tertaut TANPA role `odoo_access` → ditolak | **PASS** |
 
-**Sign-off DITAHAN.** 1 temuan **High** terbuka (**BUG-S5-01**): AppSec (CRS inband) memblok 403 secara
-intermiten pada back-channel token OIDC (hairpin `10.100.0.1`) → login SSO gagal non-deterministik untuk
-semua tenant pool. 10 dari 11 kriteria PASS. Satu catatan non-blocking (kode `oauth_error` AC-Q1) di bawah.
-Perbaikan kode/config **tidak** dikerjakan QA (constraint) — diarahkan ke infra-engineer.
+**Update regresi (2026-09-25 ±04:05 UTC):** BUG-S5-01 **CLOSED** (fix infra `1c2a528`, `local/oidc-backchannel-exclusions`).
+AC-Q9 regresi PASS → **11/11 PASS, 0 Critical/High/Medium/Low terbuka → SIGN-OFF S5 diberikan; S6 (prod) boleh lanjut.**
+Riwayat: run pertama menemukan BUG-S5-01 (High) — lihat di bawah. Satu catatan non-blocking (kode `oauth_error` AC-Q1).
 
 ## Pra-uji: baseline (dipulihkan saat cleanup)
 
@@ -203,3 +202,43 @@ Tidak ada auto-create walau `email_verified=true`.
 Skrip uji (di luar repo, session scratchpad): driver login curl-in-container (authorize→form KC→POST
 kredensial→callback→`get_session_info`), helper Admin REST. Semua request dari `10.100.0.251` di network
 `proxy`, host di-resolve ke Traefik `10.100.0.7`. Tidak ada secret/password/token yang dicetak/di-commit.
+
+## Regresi AC-Q9 setelah fix BUG-S5-01 (2026-09-25, 03:52–04:04 UTC)
+
+**Fix yang diuji:** infra `main` `1c2a528`, `security/crowdsec/appsec-configs/oidc-backchannel-exclusions.yaml`
+(`RemoveInBandRuleByTag("attack-sqli")` hanya untuk `IsInBand && POST && Host auth.bimacreative.tech &&
+path ∈ {/realms/platform{,-staging}/protocol/openid-connect/token} && RemoteAddr == 10.100.0.1`).
+Diverifikasi sebelum uji: `cscli appsec-configs list` → `local/oidc-backchannel-exclusions enabled,local`;
+`acquis.d/appsec.yaml` memuatnya; `crowdsec` healthy (StartedAt 03:50:09Z).
+Baseline: alert max id 213, decision hanya `114.10.64.34` (dovecot-spam, tidak terkait), access.log baris 7112.
+
+**Setup:** `u_a` dibuat ulang (Admin REST, emailVerified, password non-interaktif, tanpa required actions),
+role `odoo_access` client A (klaim example id-token `{'odoo-demo-staging': {'roles': ['odoo_access']}}`),
+`res.users` id 8 di `demo_staging` saja (internal, tertaut provider 4). Container `s5test` @ `proxy` 10.100.0.251,
+host di-resolve ke Traefik 10.100.0.7 (metode sama dengan run pertama).
+
+| Pemeriksaan | Diharapkan | Hasil |
+|---|---|---|
+| Login SSO penuh (kredensial fresh, paced 15 s) | ≥ 40 sukses | **42/42** sukses (callback 303 → `/odoo`) |
+| `odoo-staging` log `token endpoint: HTTP 403` sejak 03:52Z | 0 | **0** (juga 0 `OIDC login refused`) |
+| access log router `auth-oidc-backchannel` 403 (baris > 7112) | 0 | **0** dari 47 request back-channel |
+| Status front-channel IP uji | tanpa 403/429 | `{303: 84, 200: 42, 302: 42}` |
+| Alert CrowdSec baru (id > 213) selama loop, untuk 10.100.0.1 / IP uji | tidak ada | **tidak ada** |
+
+**Negatif (WAF tetap aktif di path itu):** dari IP uji (bukan 10.100.0.1):
+```
+POST /realms/platform-staging/protocol/openid-connect/token  code=1' OR '1'='1 --   -> HTTP 403 (router auth-login, body 0)
+POST ... code=abc (kontrol benign)                                                   -> HTTP 401 (Keycloak, bukan WAF)
+cscli alert 214: src=10.100.0.251 "anomaly score block: sql_injection: 5, anomaly: 5"   (diharapkan)
+cscli decisions: hanya 114.10.64.34 → IP uji TIDAK di-ban, tidak ada decision untuk dihapus
+```
+→ Pengecualian terbatas pada RemoteAddr 10.100.0.1; SQLi dari klien lain ke token endpoint tetap diblok.
+
+**Hasil: AC-Q9 PASS. BUG-S5-01 CLOSED.**
+
+**Cleanup regresi:** KC `u_a` DELETE 204 → GET 404, `users/count=0`; `res.users` `u_a` (id 8) dihapus;
+container `s5test` dihapus; file password di-`shred`. Provider kedua DB = pra-uji
+(`client_id tenant sendiri|enabled|oidc|src=file|role=odoo_access|signup=false`, `enabled_count=1`,
+`linked=0`, `res_users=4`). Alert 214 (uji negatif) dibiarkan sebagai rekaman.
+
+**Sign-off S5:** 11/11 kriteria PASS, 0 temuan terbuka → **S6 (prod) boleh lanjut** (dengan AC-P1/P2 + subset Q di S7).
