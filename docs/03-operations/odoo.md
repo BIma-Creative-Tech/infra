@@ -338,7 +338,16 @@ sekali (`oauth_error=2`, ulangi). Rotasi tanpa restart diuji di test modul (19.0
   dan `http://10.100.3.4:8069` → timeout. Egress Odoo tetap ada (OIDC ke `auth.bimacreative.tech` via hairpin
   IP publik → 200). **Pool/dedicated Odoo baru wajib join `odoo-edge`, bukan `proxy`.** Cek anggota:
   `docker network inspect odoo-edge --format '{{range .Containers}}{{.Name}} {{end}}'`.
-- Cookie `session_id` dari core Odoo 19 tanpa `Secure`/`SameSite` (`odoo/http.py` `set_cookie(... httponly=True)`).
-  HSTS (`max-age` masih 300) + redirect HTTP→HTTPS mengurangi risiko; perbaikan permanen butuh keputusan Lead.
+- Cookie `session_id` dari core Odoo 19 tanpa `Secure`/`SameSite` (QA-T17B-06). **Akar masalah** (source image
+  `odoo:19.0-20260908`, `odoo/http.py`): `Request._save_session` (`future_response.set_cookie('session_id', sid,
+  max_age=…, httponly=True)`) dan handler `SessionExpiredException` (`response.set_cookie('session_id', …, httponly=True)`)
+  memanggil `set_cookie` dengan default `secure=False, samesite=None` **tanpa syarat** — tidak bergantung `proxy_mode`,
+  skema request, maupun `X-Forwarded-Proto`; tidak ada opsi `odoo.conf` untuk flag cookie (`odoo/tools/config.py`
+  tanpa `samesite`/`secure`). Traefik v3.7 OSS juga tidak punya middleware penulis ulang atribut `Set-Cookie`
+  (`customResponseHeaders` hanya set/hapus header utuh). Perbaikan = modul server-wide kecil di `odoo-addons-shared`
+  (tugas odoo-developer, spesifikasi di laporan fix B 2026-09-25): bungkus `odoo.http._Response.set_cookie` dan
+  `odoo.http.FutureResponse.set_cookie` → untuk key `session_id` bila `request.httprequest.scheme == 'https'`
+  paksa `secure=True`, `samesite='Lax'`. Mitigasi sementara: HSTS `max-age=604800` (`traefik.md` §HSTS bertahap) +
+  redirect HTTP→HTTPS.
 - Semua modul di `addons/clients/*` terlihat oleh semua DB di pool (tenant admin bisa meng-install modul
   client lain). Prefix `cl_<slug>_` + review; pertimbangkan pool terpisah bila modul client sensitif.
