@@ -33,7 +33,7 @@ TAG=infra-healthcheck
 if [[ -r "$ENV_FILE" ]]; then
   while IFS= read -r line || [[ -n "$line" ]]; do
     [[ "$line" =~ ^[[:space:]]*(#|$) ]] && continue
-    [[ "$line" =~ ^(ALERT_TO|ALERT_FROM|ALERT_SMTP_HOST|ALERT_SMTP_PORT|ALERT_PASSWORD_FILE|HC_STACKS|HC_UNITS|HC_REPEAT_MINUTES|HC_STATE_DIR|HC_EXTRA_CONTAINERS)=(.*)$ ]] || continue
+    [[ "$line" =~ ^(ALERT_TO|ALERT_FROM|ALERT_SMTP_HOST|ALERT_SMTP_PORT|ALERT_PASSWORD_FILE|HC_STACKS|HC_UNITS|HC_REPEAT_MINUTES|HC_STATE_DIR|HC_EXTRA_CONTAINERS|HC_DISK_PCT|HC_SWAP_MIB)=(.*)$ ]] || continue
     k="${BASH_REMATCH[1]}"; v="${BASH_REMATCH[2]}"; v="${v#\"}"; v="${v%\"}"
     [[ -n "${!k+x}" ]] || export "$k=$v"   # env proses (mis. dari unit/pemanggil) menang atas file
   done < "$ENV_FILE"
@@ -183,6 +183,16 @@ for u in $(printf '%s\n' $units | sort -u); do
     problem "unit-$u" "unit ${u} berstatus failed (journalctl -u ${u})"
   fi
 done
+
+# 5. disk & swap (T19 2026-09-25, ADR 0004): disk root > HC_DISK_PCT % (default 70), swap terpakai > HC_SWAP_MIB (default 1024)
+disk_pct="$(df --output=pcent / | tail -n1 | tr -dc '0-9')"
+if [[ -n "$disk_pct" ]] && (( disk_pct > ${HC_DISK_PCT:-70} )); then
+  problem "disk-root" "disk / terpakai ${disk_pct}% (> ${HC_DISK_PCT:-70}%) — cek build cache/image (docker system df), backups, /opt/src"
+fi
+swap_mib="$(awk '/^SwapTotal:/{t=$2} /^SwapFree:/{f=$2} END{print int((t-f)/1024)}' /proc/meminfo)"
+if [[ -n "$swap_mib" ]] && (( swap_mib > ${HC_SWAP_MIB:-1024} )); then
+  problem "swap-used" "swap terpakai ${swap_mib} MiB (> ${HC_SWAP_MIB:-1024} MiB) — cek build lokal / container mendekati limit"
+fi
 
 # --- laporan ke journal ---------------------------------------------------------------------------------------------
 n_prob="$(wc -l < "$PROBLEMS")"
