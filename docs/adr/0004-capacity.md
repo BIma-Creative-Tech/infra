@@ -23,6 +23,12 @@
   +50 koneksi aktif ≈ +250–500 MiB, masih di dalam `mem_limit 2048m` (target app DRMS prod ≤ 15 + staging
   ≤ 10 koneksi aktual → ±+125–250 MiB). Ukur `docker stats postgres` + `pg_stat_activity` setelah app
   DRMS naik (F1). `mem_limit` tidak diubah.
+- 2026-09-25 (T19, analyst): ditambahkan **§"Pengukuran ulang T19 (2026-09-25)"** — semua service berjalan
+  (20 container, jumlah `mem_limit` NYATA 12 400 MiB); riwayat host 48 j dari Prometheus. Sisa perencanaan turun
+  **≈ 2 312 → ≈ 1 672 MiB** (≈ 1 096 setelah DRMS prod) karena drms-pk-stg + web-starter-staging belum tercatat di
+  § Decision; usul T07 cadangan host 1 152 MiB **dibatalkan**; runway disk ≈ 1,3–2 hari akibat build lokal (risiko
+  utama); target 3–5 tenant Odoo kecil dipertahankan (+3–4), website Next.js ≤ 3–4. Angka lama tidak diubah.
+- 2026-09-25 (grafana/kuma, sebelum T19): grafana 256 → 384 MiB, uptime-kuma 192 → 320 MiB (tabel § Decision).
 
 > **SEMUA ANGKA DI § "Decision" DI BAWAH INI = ESTIMASI** kecuali yang diberi sumber resmi.
 > Angka **NYATA** dari pengukuran T03–T06 ada di § "Pengukuran T07 (2026-09-23)" di bawah —
@@ -76,6 +82,8 @@ Sebagai bantalan lonjakan, bukan kapasitas. Alert bila swap terpakai > 1 GiB sel
 | **Jumlah mem_limit platform** | **12 144 MiB** | | +256 MiB (2026-09-25) |
 | **+ cadangan host** | **13 680 MiB** | | |
 | **Sisa untuk client (web Next.js per client, growth)** | **≈ 2 312 MiB** | | 15 992 − 13 680 |
+
+> **T19 (2026-09-25):** sisa nyata perencanaan = **≈ 1 672 MiB** (≈ 1 096 setelah DRMS prod) — tabel di atas belum memuat drms-pk-stg/web-starter-staging; lihat § "Pengukuran ulang T19" §3.
 
 Catatan: jumlah `mem_limit` = batas atas, bukan pemakaian nyata; pemakaian tipikal diperkirakan
 lebih rendah. Namun perencanaan memakai batas atas agar tidak ada OOM berantai.
@@ -206,6 +214,164 @@ poin 2, dari 1 536 → 1 152 MiB (−384 MiB), berdasarkan overhead host nyata 1
   Ukur ulang wajib di **T19** setelah T10 (Odoo pool), T11 (mail), T12 (control-plane), T14
   (observability) selesai — baru boleh merevisi § Kapasitas client dan § Threshold dengan angka
   nyata penuh.
+
+## Pengukuran ulang T19 (2026-09-25)
+
+**Status angka:** setiap angka diberi label **[NYATA]** (diukur di VPS pada sesi ini, read-only) atau
+**[ESTIMASI]** (turunan/perkiraan, dengan dasar yang disebut). Tidak ada restart, perubahan limit, atau uji
+beban. § Decision dan § "Pengukuran T07" di atas **tidak diubah** (riwayat) — bagian ini yang berlaku untuk
+keputusan kapasitas mulai 2026-09-25.
+
+**Metodologi (2026-09-25 ±16:54–17:01 WIB):** `docker stats --no-stream` 3 sampel berjarak ±45 s (16:59:32,
+17:00:20, 17:01:07) dirata-ratakan; `docker inspect` (`HostConfig.Memory`/`NanoCpus`) untuk limit yang benar-benar
+terpasang; `free -m`, `swapon --show`, `uptime`, `vmstat 5 3`, `df -h /`, `du -xsh`, `docker system df [-v]`,
+`docker buildx du`; `pg_database_size()` + `pg_stat_activity` via `docker exec postgres psql`; `ps` di container
+Odoo; riwayat host dari Prometheus (`docker exec prometheus wget -qO- …/api/v1/query[_range]`), jendela **48 jam**
+(data TSDB tersedia ±51,9 jam, sejak 2026-09-23 ±13:00). **Tidak ada riwayat per container** (cAdvisor sengaja
+tidak dipasang, `observability.md` §Keputusan) → angka per container hanya snapshot, bukan p95.
+
+### 1. Host [NYATA]
+
+| Metrik | Snapshot 16:54 | Riwayat 48 j (Prometheus, node-exporter) |
+|---|---:|---|
+| RAM used (total − available) | 4 638–4 724 MiB | **p95 5 029 MiB**, **maks 10 767 MiB** (2026-09-25 12:57) |
+| RAM available | 11 268–11 353 MiB | p05 10 977 MiB, **min 5 225 MiB** |
+| Swap terpakai | 416 MiB / 4 095 | **maks 1 187 MiB**; > 600 MiB 07:57–10:57 tgl 25 (puncak 1 008 MiB 09:27) |
+| Load 1/5/15 (4 vCPU) | 0,50 / 0,57 / 0,62 | load1 maks 9,99; load5 p95 2,69; load15 maks 4,7 |
+| CPU busy (1 − idle) | `vmstat`: 12–29% | **rata-rata 16,1%**, **p95 48,2%**, maks 92,9% |
+| CPU steal | `vmstat` st 4–18% | rata-rata 4,1%, p95 9,1% (hypervisor; di luar kendali kita) |
+| iowait | 0% | p95 1,6% |
+| Disk `/` (ext4, 193 G) | **95 G terpakai (49%)**, sisa 99 G | 36,9 GB (23-09 16:58) → **101,0 GB (25-09 16:58)** — lihat §4 |
+
+Puncak RAM/CPU berkorelasi dengan **build image lokal**, bukan dengan service platform: 08:57 (build `web-starter:dev-*`
+08:33–09:10), 10:37 (build `proyekkas-{web,migrate}:0.1.0-stg-e7e997a` 10:40), 12:57 (build `control-plane:*` 12:43 &
+12:59) — waktu dari `docker images` `CreatedAt`. Build berjalan di dockerd/BuildKit (`driver-type
+io.containerd.snapshotter.v1`) **di luar cgroup container mana pun → tidak dibatasi `mem_limit`**. Saat pengukuran
+tidak ada container build/throwaway ProyekKas (`pk-*`) yang berjalan (`docker ps -a`: hanya 3 container
+`*-migrate` Exited(0)); riwayat `docker events` tidak cukup panjang untuk menghitung frekuensinya.
+
+**Overhead host non-container [NYATA]:** used 4 724 − jumlah container 3 033 ≈ **1 691 MiB**, termasuk `dockerd`
+RSS 470 MiB (BuildKit ada di dalam dockerd), `containerd` 58 MiB, **3 proses Claude Code 918 MiB** (sesi agent
+berjalan di host), sisanya kernel/systemd/sshd/fail2ban/bouncer. Slab 4,1 GiB (3,7 GiB reclaimable). → Usul T07
+menurunkan "Cadangan host" ke 1 152 MiB **dibatalkan**; lihat §5.
+
+### 2. Per container — limit terpasang vs pemakaian [NYATA, snapshot rata-rata 3 sampel]
+
+| Container | mem_limit | cpus | Mem nyata | % limit | CPU rata2 | Catatan |
+|---|---:|---:|---:|---:|---:|---|
+| traefik | 256 | 1.00 | 66 | 26% | 3,7% | |
+| crowdsec | 384 | 0.50 | 198 (maks 215) | 52% | 7,4% | naik dari 69 MiB (T07) — AppSec + log nyata |
+| postgres | 2 048 | 1.50 | 261 | 13% | 0,4% | 18 koneksi (1 active); `shared_buffers` 512MB belum hangat |
+| keycloak | 1 360 | 1.00 | 548 | 40% | 0,3% | 469 MiB saat T07 |
+| odoo-pool-a (prod, workers=3) | 2 560 | 2.00 | 335 | 13% | 0,0% | proses 86–110 MiB RSS; 1 DB tenant (`demo_demo`) |
+| odoo-staging (workers=2) | 1 280 | 1.00 | 411 | **32%** | 0,1% | worker 136–160 MiB RSS; 2 DB (`demo_staging`, `ssotest_staging`) |
+| mailserver | 1 024 | 0.75 | 142 (maks 154) | 14% | 8,2% | ClamAV off |
+| control-plane / -worker | 384 / 256 | 0.50 / 0.25 | 77 / 32 | 20% / 12% | ~0% | |
+| control-plane-staging / -worker | 192 / 128 | 0.15 / 0.10 | 61 / 27 | 32% / 21% | ~0% | total 320 = ADR |
+| drms-pk-stg / -worker (ProyekKas staging) | 384 / 192 | 0.75 / 0.25 | 87 / 66 | 23% / 34% | ~0% | **tidak ada di tabel § Decision** |
+| web-starter-staging (Next.js client, plan 03) | 256 | 0.50 | 70 (maks 77) | 27% | 2,9% | **tidak ada di tabel § Decision** |
+| prometheus | 384 | 0.25 | 87 | 23% | 1,0% | |
+| node-exporter | 32 | 0.10 | 16 | 50% | 1,3% | |
+| loki | 384 | 0.25 | 85 | 22% | 1,1% | |
+| alloy | 192 | 0.20 | 63 | 33% | 1,7% | |
+| grafana | 384 | 0.25 | 258 | **67%** | 1,6% | tertinggi relatif; limit baru 384 (2026-09-25) |
+| uptime-kuma | 320 | 0.20 | 143 | 45% | 1,5% | |
+| **Total 20 container** | **12 400 MiB** | **11,50** | **3 033 MiB** | **24%** | | cpus = kuota, overcommit 2,9× dari 4 vCPU (disengaja) |
+
+Rekonsiliasi dengan tabel § Decision (12 144 MiB): − docker-socket-proxy 64 (dihapus H3) − cAdvisor 128 (tidak
+dipasang) − datamart dbt 384 (**belum di-deploy**: `/opt/infra/datamart` tidak ada, tidak ada timer) + drms-pk-stg 384
++ drms-pk-stg-worker 192 + web-starter-staging 256 = **12 400 MiB = jumlah `docker inspect`** ✔.
+
+### 3. Headroom RAM
+
+| Basis | Perhitungan | Hasil |
+|---|---|---:|
+| **mem_limit (dasar perencanaan, dipertahankan)** [NYATA limit] | 15 992 − 12 400 (berjalan) − 384 (dbt, dicadangkan) − 1 536 (cadangan host) | **≈ 1 672 MiB** (turun dari ≈ 2 312) |
+| … setelah DRMS **prod** (web 384 + worker 192, [ESTIMASI] = limit staging; migrate one-shot 384 hanya saat deploy) | 1 672 − 576 | **≈ 1 096 MiB** |
+| Pemakaian nyata p95 host [NYATA] | 15 992 − p95 used 5 029 | ≈ 10 960 MiB |
+| Pemakaian nyata puncak (saat build) [NYATA] | 15 992 − maks 10 767 | ≈ 5 225 MiB (+ swap 1,2 GiB terpakai) |
+
+Pemakaian nyata container hanya 24% dari limit, sehingga RAM **tidak** menjadi hambatan nyata hari ini; hambatannya
+adalah (a) aturan perencanaan "jumlah limit ≤ RAM − cadangan" (ADR ini, anti OOM berantai) dan (b) **build lokal +
+sesi Claude Code yang tidak terbatasi** — itulah yang mendorong swap ke 1,19 GiB, bukan client.
+
+### 4. Disk & runway [NYATA kecuali ditandai]
+
+| Komponen | Ukuran | Tumbuh karena |
+|---|---:|---|
+| `/var/lib/containerd` (image + build cache, snapshotter containerd) | **59 G** | `docker system df`: image 35,6 GB (71 image, 19,5 GB reclaimable), **build cache 30,0 GB (23,2 GB reclaimable)**; ±10 pasang tag `proyekkas-{web ±0,35, migrate ±1,9} GB` dalam 48 j, `lh-local:13.5.0` 1,66 GB |
+| `/opt/src` (checkout repo aplikasi) | **22 G** | `/opt/src/proyekkas-wt` 19 G (worktree `f4b` 15 G, `native-login` 2,7 G) |
+| `/tmp`, `/root` | 2,7 G + 2,7 G | artefak sesi/tool |
+| `/var/lib/docker` (volume) | 2,3 G | `trivy-cache` 1,43 GB (tidak terpakai container), 8 volume anonim 0,46 GB, `postgres_pgdata` 254 MB, `prometheus` 119 MB |
+| Data platform: DB Postgres total | ≈ 186 MB | DB tenant Odoo baru ±29–30 MB (`demo_demo`, `demo_staging`, `ssotest_staging`), keycloak 15 MB, `pk_drms_stg` 18 MB |
+| Filestore Odoo | 9,2 MB (pool-a) + 4,7 MB (staging) | volume `odoo_pool_a_data`, `odoo_staging_data` |
+| Backup lokal restic (`/opt/infra/backups/restic`) | 74 MB | harian 01:30; dedup |
+| Log (`/var/log`) / Loki / swapfile | 216 MB / 9,6 MB / 4,1 G | |
+
+- Laju tumbuh `/` [NYATA, `deriv()` Prometheus]: **29,5 GB/hari (48 j)**, **49,9 GB/hari (24 j)**; 64 GB dalam 48 j,
+  bertahap mengikuti waktu build. Batas alert 80% `df` ≈ 155 G terpakai → sisa **≈ 60 GiB**.
+- **Runway sampai 80% pada laju sekarang: ≈ 1,3–2 hari** [ESTIMASI linear dari laju NYATA]. **Ini risiko
+  tertinggi T19** dan hampir seluruhnya berasal dari build/dev (image, build cache, worktree), bukan data client.
+- Laju data platform saja [ESTIMASI]: Postgres+filestore+restic+Prometheus+Loki < 0,2 GB/hari saat ini (Prometheus
+  ±55 MB/hari, dibatasi 3 GB/15 hari; Loki 7 hari) → runway **> 1 tahun** bila build dibersihkan & dibatasi. Per client
+  kecil tetap pakai angka § Decision poin 3 (DB 1–3 G/tahun, filestore 1–5 G) [ESTIMASI, belum ada data tumbuh nyata];
+  restic lokal ≈ 1–1,5× data dan **berada di disk yang sama** (ADR 0006).
+
+### 5. Kapasitas client (revisi)
+
+**Tenant Odoo di pool-a** (per tenant: DB `<slug>_prod` [+ `_demo`] di pool-a, `<slug>_staging` di odoo-staging):
+- Disk per tenant: ±30 MB DB awal + filestore MB — **tidak membatasi** [NYATA awal].
+- RAM: worker Odoo memuat registry per DB yang dilayaninya. Indikasi [NYATA, lemah]: worker staging yang melayani
+  2 DB 136–160 MiB vs pool-a 1 DB 99–110 MiB → **±40–50 MiB per DB per proses** [ESTIMASI]. Pool-a: 3 worker + cron +
+  gevent = 5 proses → ±250 MiB per DB aktif; sisa limit 2 560 − 335 ≈ 2 225 MiB → **±8 DB aktif lagi**; per worker
+  `limit_memory_soft` 640 MiB ≈ 10 DB sebelum daur ulang worker berulang [ESTIMASI].
+  **odoo-staging** (2 worker + cron + gevent = 4 proses, ±200 MiB/DB): sisa 1 280 − 411 ≈ 869 MiB → **±4 DB staging
+  lagi** → **staging adalah pembatas pertama**.
+- CPU/konkurensi: tetap ≈ 18 user konkuren total di prod (3 worker × 6, rumus docs Odoo); CPU prod sekarang ~0%.
+- **Keputusan kapasitas: +3–4 tenant Odoo kecil lagi** (≤ 5 user konkuren masing-masing; dengan DB staging; DB
+  `_demo` hanya bila perlu). Target total "3–5 client kecil" § Decision poin 3 **dipertahankan** (sekarang: 1 tenant
+  prod `demo` + tenant uji `ssotest` di staging). Lebih dari itu → naikkan limit odoo-staging (butuh RAM dari §3) atau
+  ukur ulang dengan tenant nyata.
+
+**Website Next.js client (256m, `web-edge`)** — pemakaian nyata 70–77 MiB (web-starter-staging, 27% limit):
+- Berdasarkan mem_limit: 1 672 / 256 = **6** tanpa DRMS prod; **4** setelah DRMS prod (1 096 / 256) —
+  **rencanakan ≤ 3–4** (sisakan satu slot untuk lonjakan/deploy migrate one-shot). Staging tiap website ikut dihitung
+  (256m per env yang hidup).
+- Berdasarkan pemakaian nyata (±80 MiB/site) jauh lebih banyak (> 20) — **tidak dipakai** sebagai dasar tanpa kebijakan
+  overcommit yang disetujui user (lihat usulan R3).
+
+### 6. Pemicu pindah ke dedicated instance / VPS-2 (menambah § Decision poin 4, bukan mengganti)
+
+Per client (tetap): > 10 user konkuren puncak atau > 25 user aktif; DB > 5 GB atau filestore > 20 GB; CPU pool > 70% dan
+client > 40% request; versi/addon/SLA berbeda. **Tambahan level platform (7 hari berturut-turut, di luar jendela build):**
+- RAM available **p05 < 3 GiB**, atau swap terpakai > 1 GiB > 15 menit berulang;
+- CPU busy **p95 > 70%** atau steal p95 > 15%;
+- jumlah `mem_limit` + cadangan host melebihi 15 992 MiB (tidak bisa menambah client tanpa overcommit);
+- odoo-staging atau odoo-pool-a > 80% `mem_limit` dengan tenant nyata, atau `/web/health` lambat saat jam kerja;
+- disk `/` > 70% **setelah** build cache/image dibersihkan (artinya data nyata yang tumbuh).
+Urutan pemindahan yang disarankan tetap: build/CI keluar host → mail/observability ke VPS-2 → dedicated Odoo client
+besar (§ Decision poin 5 dan `00-server-environment.md` §1 "Skala lanjut").
+
+### 7. Rekomendasi (USULAN — belum diterapkan; perubahan limit/konfigurasi butuh persetujuan user)
+
+- **R1 (mendesak, disk):** bebaskan disk build — `docker builder prune` (≈ 23 GB reclaimable), hapus tag
+  `proyekkas-*`/`web-starter:dev-*`/`control-plane:dev-*` lama (sisakan tag berjalan + 1 rollback), hapus volume
+  `trivy-cache` & volume anonim tak terpakai, tinjau `/opt/src/proyekkas-wt/f4b` (15 G) bersama pemilik ProyekKas.
+  **Destruktif → konfirmasi user (CLAUDE.md §0.5).** Lalu cegah berulang: batas GC BuildKit di `daemon.json`
+  (`builder.gc`, nilai & sintaks diverifikasi dulu dari docs Docker), pindahkan build ke CI/GHCR (image lokal masih
+  `TEMPORARY(2026-09-23)`), dan pasang **alert disk `/` > 70%** + swap > 1 GiB (masih "belum" di `observability.md`).
+- **R2 (RAM host):** naikkan "Cadangan host" di perencanaan 1 536 → **2 048 MiB** (bukan turun ke 1 152 seperti usul
+  T07) selama sesi Claude Code + build berjalan di host; batasi build (mis. jadwal di luar jam kerja, atau builder
+  terpisah ber-limit) agar puncak 10,7 GiB/swap 1,2 GiB tidak berulang. Efek: sisa perencanaan ≈ 1 160 MiB (584
+  setelah DRMS prod) → **maks 2 website Next.js baru** sampai R3 diputuskan.
+- **R3 (alokasi):** pilih salah satu, perlu keputusan user: (a) turunkan limit yang terbukti longgar setelah ada data
+  per container ≥ 7 hari — kandidat [ESTIMASI]: mailserver 1 024 → 640 MiB (nyata 142–154), odoo-pool-a 2 560 → 2 048
+  (nyata 335, 1 tenant) — **jangan** turunkan keycloak/postgres; atau (b) kebijakan overcommit terkendali: jumlah
+  limit boleh sampai RAM − cadangan + 1 GiB selama p95 nyata < 50% RAM. Untuk keduanya perlu **riwayat memori per
+  container** (sekarang tidak ada): usul collector ringan (mis. timer yang menulis `docker stats` ke textfile
+  node-exporter — desain/verifikasi opsi flag di tugas terpisah) sebagai prasyarat.
+
+Status ADR tetap **accepted**; angka § Decision yang berubah tidak ditimpa, dibaca bersama bagian ini.
 
 ## Alternatives
 

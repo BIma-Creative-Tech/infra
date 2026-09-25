@@ -21,6 +21,13 @@ bootstrap; item **[CLAUDE]** dikerjakan agent setelah discovery.
 > "platform + 3–5 client kecil" pada baris "Minimum uji" **belum berubah** dari ADR 0004 (revisi
 > penuh menunggu T19). Baris "Rekomendasi awal" (8 vCPU/32 GB) tetap sebagai opsi upgrade bila
 > threshold § 6 di bawah terpicu, bukan kebutuhan saat ini.
+> UPDATED 2026-09-25 (T19, analyst — `docs/adr/0004-capacity.md` § "Pengukuran ulang T19"): semua service
+> berjalan (20 container). **NYATA:** jumlah `mem_limit` 12 400 MiB, pemakaian container ≈ 3 033 MiB (24%), RAM used
+> host p95 48 j 5 029 MiB (puncak 10 767 MiB + swap 1,19 GiB saat **build image lokal**), CPU busy rata-rata 16% /
+> p95 48%, disk `/` 95 G/193 G (49%) naik ±30–50 GB/hari karena image/build cache/worktree build (data platform
+> < 0,2 GB/hari) → runway ke 80% ≈ 1,3–2 hari sampai build dibersihkan. Sisa perencanaan RAM ≈ 1 672 MiB
+> (≈ 1 096 setelah DRMS prod): **+3–4 tenant Odoo kecil** (pembatas: RAM odoo-staging) dan **≤ 3–4 website Next.js**.
+> Spek "Minimum uji" tetap cukup untuk target itu; pemicu VPS-2/upgrade di ADR 0004 T19 §6.
 
 - OS: **Ubuntu Server 24.04 LTS** (fresh install).
 - Virtualisasi KVM (bukan OpenVZ/LXC) agar Docker, cgroups v2, dan nested limit berjalan.
