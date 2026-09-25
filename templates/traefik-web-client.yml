@@ -1,0 +1,73 @@
+# Template router Traefik untuk SATU website Next.js client (plan 03 W2).
+# JANGAN edit hasil render di traefik/dynamic/clients/web-<slug>-<env>.yml secara manual — render ulang dengan
+#   /opt/infra/scripts/provision-web-client.sh <slug> <prod|staging> --host <fqdn> --image <ref> [--www] [--contact]
+# Placeholder (divalidasi regex oleh skrip sebelum substitusi):
+#   __ROUTE__    web-<slug>-<env> = nama router/service = container_name (templates/web-client/docker-compose.yml)
+#   __HOST__     FQDN kanonik (DNS pre-check lulus)     __WWW__      www.__HOST__ (hanya blok www)
+#   __HOST_RE__  __HOST__ dengan '.' di-escape untuk regex (hanya blok www)
+#   __SLUG__ / __ENV__ / __GENERATED__   hanya untuk komentar
+# Blok di antara penanda `# >>> www` dan `# <<< www` hanya disertakan dengan --www (skrip menghapus penandanya).
+#
+# Website: slug=__SLUG__ env=__ENV__ host=__HOST__ (dirender __GENERATED__)
+#
+# Urutan middleware = konvensi router client lain: crowdsec (paling depan) → security-headers → ratelimit-*.
+# HSTS/nosniff/frame/referrer/permissions dari `security-headers` (middlewares/security-headers.yml; stsSeconds
+# mengikuti nilai platform di file itu). CSP TIDAK diset di Traefik: aplikasi mengirim CSP dengan nonce
+# (plan 03 §3), seperti control-plane (dynamic/platform/cp.yml).
+http:
+  routers:
+    # Form kontak (plan 03 §3): POST ke /contact atau /api/contact → limit per IP lebih ketat. GET halaman
+    # /contact tetap lewat router utama. Aktif walau form kontak off (endpoint 404; limit tidak merugikan).
+    __ROUTE__-contact:
+      entryPoints: [websecure]
+      rule: "Host(`__HOST__`) && Method(`POST`) && (Path(`/contact`) || Path(`/api/contact`))"
+      priority: 100
+      middlewares: [crowdsec, security-headers, __ROUTE__-ratelimit-contact]
+      service: __ROUTE__
+      tls:
+        certResolver: le-http
+    __ROUTE__:
+      entryPoints: [websecure]
+      rule: "Host(`__HOST__`)"
+      priority: 1
+      middlewares: [crowdsec, security-headers, ratelimit-default]
+      service: __ROUTE__
+      tls:
+        certResolver: le-http
+# >>> www
+    # www.__HOST__ → 301 permanen ke host kanonik (path & query dipertahankan). Sertifikat terpisah untuk
+    # www (Host() eksplisit, tanpa wildcard — CLAUDE.md §3.5.1). Service tidak pernah tercapai (redirect dulu).
+    __ROUTE__-www:
+      entryPoints: [websecure]
+      rule: "Host(`__WWW__`)"
+      priority: 1
+      middlewares: [crowdsec, security-headers, __ROUTE__-www-redirect]
+      service: __ROUTE__
+      tls:
+        certResolver: le-http
+# <<< www
+
+  middlewares:
+    # POST form kontak: 5 req/menit per IP sumber, burst 5 (ESTIMASI; tuning dari access log). Opsi: docs v3.7
+    # reference/routing-configuration/http/middlewares/ratelimit.md (average/period/burst; sourceCriterion
+    # default = remote address, X-Forwarded-For klien tidak dipakai).
+    __ROUTE__-ratelimit-contact:
+      rateLimit:
+        average: 5
+        period: 1m
+        burst: 5
+# >>> www
+    # Opsi: docs v3.7 .../middlewares/redirectregex.md (regex, replacement `${1}`, permanent). Single-quoted
+    # YAML → backslash literal (regex `\.`).
+    __ROUTE__-www-redirect:
+      redirectRegex:
+        regex: '^https?://www\.__HOST_RE__/(.*)'
+        replacement: 'https://__HOST__/${1}'
+        permanent: true
+# <<< www
+
+  services:
+    __ROUTE__:
+      loadBalancer:
+        servers:
+          - url: "http://__ROUTE__:3000"

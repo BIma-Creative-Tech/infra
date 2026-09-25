@@ -1,0 +1,20 @@
+# Override form kontak (plan 03 §3, default OFF) — hanya dimuat bila `.env` berisi
+#   COMPOSE_FILE=docker-compose.yml:docker-compose.contact.yml
+# (ditulis provision-web-client.sh --contact). Tanpa --contact file ini tidak dimuat → secret tidak dibutuhkan.
+# Password SMTP: file ./secrets/smtp_password.secret (TIDAK di git), owner 1001:1001 mode 0400 — Compose
+# non-swarm mengabaikan uid/gid/mode secret file (catatan staging/drms-proyekkas/docker-compose.yml), jadi
+# kepemilikan di host harus cocok dengan uid container. Mailbox per client (docs/03-operations/mail.md).
+services:
+  web:
+    environment:
+      CONTACT_ENABLED: "true"
+      SMTP_HOST: ${SMTP_HOST:?SMTP_HOST wajib bila form kontak aktif}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:?SMTP_USER wajib bila form kontak aktif}
+      SMTP_FROM_ADDRESS: ${SMTP_FROM_ADDRESS:?SMTP_FROM_ADDRESS wajib bila form kontak aktif}
+      SMTP_PASSWORD_FILE: /run/secrets/smtp_password
+    secrets: [smtp_password]
+
+secrets:
+  smtp_password:
+    file: ./secrets/smtp_password.secret
