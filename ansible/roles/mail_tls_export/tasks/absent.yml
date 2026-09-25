@@ -1,0 +1,23 @@
+---
+- name: Path + timer stop + disable (abaikan bila belum ada)
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    enabled: false
+    state: stopped
+  loop:
+    - mail-tls-export.path
+    - mail-tls-export.timer
+  failed_when: false
+
+- name: Hapus unit
+  ansible.builtin.file:
+    path: "/etc/systemd/system/{{ item }}"
+    state: absent
+  loop:
+    - mail-tls-export.service
+    - mail-tls-export.path
+    - mail-tls-export.timer
+  notify: Reload systemd (mail_tls_export)
+
+- name: Terapkan daemon-reload
+  ansible.builtin.meta: flush_handlers

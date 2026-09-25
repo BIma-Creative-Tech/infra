@@ -1,0 +1,14 @@
+# {{ ansible_managed }} — role mail_tls_export (QA-T17B-02 / B18)
+# Jaring pengaman: ekspor ulang (idempoten) + cek kedaluwarsa < {{ mail_tls_export_warn_days }} hari (exit 2 → OnFailure alert).
+[Unit]
+Description=Ekspor & cek sertifikat {{ mail_tls_export_domain }} harian
+
+[Timer]
+OnBootSec={{ mail_tls_export_on_boot_sec }}
+OnCalendar={{ mail_tls_export_on_calendar }}
+RandomizedDelaySec=15min
+Persistent=true
+Unit=mail-tls-export.service
+
+[Install]
+WantedBy=timers.target

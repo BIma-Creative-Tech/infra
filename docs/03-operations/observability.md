@@ -12,7 +12,7 @@
 | `loki` | `grafana/loki:3.7.8@sha256:1107dd52…` | 10001 | 384m / 0.25 | observability | volume `observability_loki_data` (retensi **7 hari**) |
 | `alloy` | `grafana/alloy:v1.19.2@sha256:b8ec653c…` | 473 (+gid 4 adm, +gid 0 — lihat §Log) | 192m / 0.2 | observability | volume `observability_alloy_data` (positions) |
 | `grafana` | `grafana/grafana:13.2.2@sha256:ac461fb3…` | 472 | 256m / 0.25 | observability, proxy | bind `data/grafana` |
-| `uptime-kuma` | `louislam/uptime-kuma:2.5.5-rootless@sha256:c4e17ce0…` | 10101 | 192m / 0.2 | proxy | bind `data/uptime-kuma` (SQLite) |
+| `uptime-kuma` | `louislam/uptime-kuma:2.5.5-slim-rootless@sha256:a292237a…` (QA-T17B-04, 2026-09-25; dulu `2.5.5-rootless@sha256:c4e17ce0…`) | 10101 | 192m / 0.2 | proxy | bind `data/uptime-kuma` (SQLite) |
 
 Semua: `restart: unless-stopped`, `read_only: true` (+tmpfs `/tmp` bila perlu), `cap_drop: [ALL]`, `no-new-privileges`,
 log json-file 10m×3, **tanpa port publish**. `GOMEMLIMIT` (soft limit GC Go) di grafana (210MiB) & node-exporter (26MiB)
@@ -132,6 +132,40 @@ H5b (2026-09-23): `GF_SERVER_ROOT_URL=https://grafana.bimacreative.tech:8443/` (
 Setelah login pertama: ganti password Grafana di UI, aktifkan 2FA Uptime Kuma (Settings → Security), lalu hapus file
 `secrets/*-password` (`shred -u`) bila password sudah disimpan di password manager — **ingat**: Grafana membaca
 `GF_SECURITY_ADMIN_PASSWORD__FILE` saat start → setelah file dihapus, hapus juga baris env + mount itu dari compose.
+
+## Uptime Kuma — varian slim-rootless (QA-T17B-04, keputusan user 2026-09-25)
+
+- Image `louislam/uptime-kuma:2.5.5-slim-rootless@sha256:a292237a108fa8843d09bb4066e738f02e913ef893542740f80c26556601ab77`
+  (index multi-arch; amd64 `sha256:8bdad438…`; `docker buildx imagetools inspect` 2026-09-25).
+- Beda dengan `2.5.5-rootless` (dibaca dari `docker/dockerfile` + `docker/debian-base.dockerfile` tag `2.5.5`, dan
+  `docker image inspect`): base `base2-slim` **tanpa** `chromium`, `fonts-indic/noto/noto-cjk`, `mariadb-server`, dan tanpa env
+  `UPTIME_KUMA_ENABLE_EMBEDDED_MARIADB=1`. User (`node`), entrypoint, cmd, workdir, HEALTHCHECK (`extra/healthcheck`), Node 22.22.3
+  sama. Release notes 2.5.5 tidak menyebut perubahan varian.
+- Dampak fungsi: monitor tipe **Real Browser** (Chromium lokal, `playwright-core`) dan tombol uji Chrome di Settings tidak
+  bekerja (auto-install `apt install chromium` Kuma gagal di rootless/read_only). Per 2026-09-25 (salinan `kuma.db`, read-only):
+  8 monitor = 6 `http` + 2 `port`, tabel `remote_browser` 0 baris → **tidak ada yang terdampak**. MariaDB embedded tidak dipakai
+  (`UPTIME_KUMA_DB_TYPE=sqlite`). Bila kelak butuh Real Browser: pakai *Remote Browser* (container terpisah, ADR baru), bukan
+  kembali ke image penuh.
+- Trivy (`aquasec/trivy:0.74.0`, sock ro, `--severity CRITICAL,HIGH`, 2026-09-25): rootless **164 CRITICAL (145 fixable) /
+  1 688 HIGH (1 513)** → slim-rootless **14 CRITICAL (8 fixable) / 213 HIGH (110)**. CRITICAL sisa: gnutls (2, fix
+  `deb12u7`), Go stdlib di `extra/healthcheck` (2) + grpc di `cloudflared` (1), npm `protobufjs` (1) + `tar` (2) — fixable, menunggu
+  rilis Kuma; perl-base (3), sqlite (2), zlib (1) unfixed Debian 12.
+- Uji 2026-09-25: container sekali-pakai slim-rootless dengan **salinan** `data/uptime-kuma`, `user 10101`, `read_only`, tmpfs,
+  `cap_drop ALL`, network internal → `healthy`, 8 monitor dimuat (probe gagal karena tanpa egress — diharapkan), 149 MiB.
+
+### Terapkan (Lead)
+```bash
+cd /opt/infra/observability && docker compose config --quiet
+docker compose pull uptime-kuma                  # image sudah ada lokal (dipull 2026-09-25) → no-op
+docker compose up -d uptime-kuma                 # recreate; status.bimacreative.tech 502/404 ±30–60 s (start_period 180 s)
+docker compose ps uptime-kuma                    # (healthy) — bisa sampai ±3 menit
+docker inspect uptime-kuma --format '{{.Config.Image}}'
+docker logs --since 5m uptime-kuma 2>&1 | grep -iE "error|listening" | head
+curl -s -o /dev/null -w '%{http_code}\n' --resolve status.bimacreative.tech:443:127.0.0.1 https://status.bimacreative.tech/api/entry-page   # 200
+```
+Dampak: status page publik & probe Kuma berhenti selama recreate (±1–3 menit, ESTIMASI); tidak ada data yang dimigrasi (versi
+aplikasi sama 2.5.5). Rollback: kembalikan baris `image:` ke `louislam/uptime-kuma:2.5.5-rootless@sha256:c4e17ce033deb811aff8a61a5f8f736f35b1bd937458ddeec46c59ca190f0e03`
+(image lama masih ada lokal) → `docker compose up -d uptime-kuma`.
 
 ## Uptime Kuma — provisioning (idempoten)
 

@@ -9,6 +9,7 @@
 #   H7  --tags healthcheck,backup (timer infra-healthcheck + alert email; OnFailure restic)
 #   T19 --tags container_metrics (timer metrik per container → textfile node-exporter; ADR 0004 T19 §8.2)
 #   P05 --tags infra_jobs,auditd (dispatcher infra-job + spool + unit; watch auditd /usr/local/sbin/infra-job)
+#   T17b --tags mail_tls_export (ekspor sertifikat mail.* dari acme.json; QA-T17B-02 / B18, docs/03-operations/mail.md §TLS)
 # Tag ssh_phase_b / ssh_phase_c hanya boleh dijalankan Lead bersama user (S4–S7).
 - name: Bootstrap host VPS
   hosts: vps
@@ -69,3 +70,6 @@
     #   (/var/lib/node-exporter-textfile/containers.prom). --tags container_metrics (--check --diff dulu), lalu recreate
     #   node-exporter (observability/docker-compose.yml). Rollback: container_metrics_state=absent.
     - { role: container_metrics, tags: [container_metrics] }
+    # QA-T17B-02 / B18: ekspor HANYA sertifikat mail.* dari acme.json (unit path+timer). Butuh infra-unit-failure@ (healthcheck).
+    #   --tags mail_tls_export (--check --diff dulu). Rollback: mail_tls_export_state=absent.
+    - { role: mail_tls_export, tags: [mail_tls_export] }

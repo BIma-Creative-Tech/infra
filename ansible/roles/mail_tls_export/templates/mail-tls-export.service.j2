@@ -1,0 +1,41 @@
+# {{ ansible_managed }} — role mail_tls_export (QA-T17B-02 / B18)
+# Membaca acme.json (0600 uid 65532) → butuh CAP_DAC_READ_SEARCH saja; menulis ke dir root 0700 milik root (tanpa cap).
+# Tanpa jaringan. Hardening diuji dengan systemd-run (properti sama) terhadap SALINAN acme.json (mail.md §TLS).
+# Exit: 0 ok/unchanged · 1 validasi gagal (file lama TIDAK diubah) · 2 sertifikat < {{ mail_tls_export_warn_days }} hari.
+[Unit]
+Description=Ekspor sertifikat {{ mail_tls_export_domain }} dari acme.json untuk docker-mailserver
+Documentation=file://{{ infra_root }}/docs/03-operations/mail.md
+OnFailure=infra-unit-failure@%n.service
+StartLimitIntervalSec=10min
+StartLimitBurst=30
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 {{ mail_tls_export_script }} --acme {{ mail_tls_export_acme }} --resolver {{ mail_tls_export_resolver }} --domain {{ mail_tls_export_domain }} --out {{ mail_tls_export_out }} --warn-days {{ mail_tls_export_warn_days }}
+SyslogIdentifier=mail-tls-export
+UMask=0077
+TimeoutStartSec=60
+NoNewPrivileges=yes
+CapabilityBoundingSet=CAP_DAC_READ_SEARCH
+AmbientCapabilities=
+ProtectSystem=strict
+ReadWritePaths={{ mail_tls_export_out }}
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+PrivateNetwork=yes
+IPAddressDeny=any
+RestrictAddressFamilies=AF_UNIX
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+RestrictNamespaces=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native

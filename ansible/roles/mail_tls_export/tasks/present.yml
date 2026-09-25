@@ -1,0 +1,62 @@
+---
+- name: Skrip ekspor ada di repo (root, bukan writable user lain)
+  ansible.builtin.stat:
+    path: "{{ mail_tls_export_script }}"
+  register: mail_tls_export_script_stat
+
+- name: Guard skrip ekspor
+  ansible.builtin.assert:
+    that:
+      - mail_tls_export_script_stat.stat.exists
+      - mail_tls_export_script_stat.stat.pw_name == 'root'
+      - not mail_tls_export_script_stat.stat.woth
+      - not mail_tls_export_script_stat.stat.wgrp
+    fail_msg: "{{ mail_tls_export_script }} tidak ada / bukan milik root / writable grup-lain (dijalankan sebagai root)"
+    quiet: true
+
+- name: Direktori ekspor (root 0700)
+  ansible.builtin.file:
+    path: "{{ mail_tls_export_out }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: Unit systemd ekspor sertifikat mail
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "/etc/systemd/system/{{ item }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - mail-tls-export.service
+    - mail-tls-export.path
+    - mail-tls-export.timer
+  notify: Reload systemd (mail_tls_export)
+
+- name: Terapkan daemon-reload sebelum mengaktifkan unit
+  ansible.builtin.meta: flush_handlers
+
+- name: Path + timer aktif
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    enabled: true
+    state: started
+  loop:
+    - mail-tls-export.path
+    - mail-tls-export.timer
+  # --check pada host baru: unit belum terpasang (template tidak ditulis di check mode) → modul gagal; pola sama infra_jobs.
+  ignore_errors: "{{ ansible_check_mode }}"
+
+- name: Cek file ekspor sudah ada
+  ansible.builtin.stat:
+    path: "{{ mail_tls_export_out }}/fullchain.pem"
+  register: mail_tls_export_cert
+
+# Hanya saat file belum ada (run pertama). Selanjutnya .path/.timer yang menjalankan — task ini tidak mengubah apa pun.
+- name: Ekspor pertama (belum ada file)
+  ansible.builtin.systemd_service:
+    name: mail-tls-export.service
+    state: started
+  when: not mail_tls_export_cert.stat.exists and not ansible_check_mode

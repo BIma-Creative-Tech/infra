@@ -1,5 +1,8 @@
 # Operasional — Mail (docker-mailserver, T11)
 
+> **Risk acceptance CVE image 16.0.1:** `docs/risk/2026-09-25-mailserver-16.0.1-cves.md` (review 2026-10-09; keluar saat
+> DMS `16.0.2`/`16.1.0` rilis).
+
 - **Stack:** `/opt/infra/mail/` · image `mailserver/docker-mailserver:16.0.1@sha256:d0fe7668…` (index multi-arch, ADR 0001)
 - **Hostname:** `mail.bimacreative.tech` = HELO = PTR = CN sertifikat untuk **semua** domain (ADR 0005 #5, #9)
 - **Terkait:** ADR 0005 (keputusan utama), 0002 (DNS/TLS), 0004 (RAM), 0006 (backup); `traefik.md`, `crowdsec.md`,
@@ -19,9 +22,11 @@
 | `config/rspamd/override.d/ratelimit.conf` | rate limit outbound per mailbox & per domain | ya |
 | `scripts/bootstrap.sh` | idempoten: `data/`, `/var/log/mailserver`, `secrets/`, sinkron `config/` → `data/config/` | ya |
 | `scripts/mailbox-add.sh` | tambah mailbox (password acak → `secrets/`, kuota default 2G) / `--rotate` | ya |
+| `scripts/tls-export.py` (+ `scripts/tests/`) | ekspor cert/key `mail.*` dari acme.json → `data/tls/` (QA-T17B-02/B18, §TLS); unit dari role Ansible `mail_tls_export` | ya |
 | `data/config/` (= `/tmp/docker-mailserver`) | `postfix-accounts.cf` (hash SHA512-CRYPT), `postfix-virtual.cf` (alias), `dovecot-quotas.cf`, `rspamd/dkim/*.private.txt` (kunci DKIM privat), salinan override | **tidak** (`**/data/`) |
 | `data/mail/` (= `/var/mail`) | maildir `<domain>/<local>/` (uid/gid 5000) | tidak |
 | `data/state/` (= `/var/mail-state`) | antrean Postfix, Redis (bucket ratelimit, history), state Dovecot/Rspamd | tidak |
+| `data/tls/` (= `/etc/dms-tls`, ro) | `fullchain.pem` 0644 + `privkey.pem` 0600 (kunci privat `mail.*` saja), dir root 0700 | **tidak** (`**/data/`) |
 | `secrets/<alamat>.password` | password mailbox, 600 root, 32 char tanpa newline | **tidak** (`mail/.gitignore`) |
 | `/var/log/mailserver/dms/` (= `/var/log/mail`) | `mail.log` (Postfix/Dovecot), `rspamd.log`; parent `root:adm 750` | — |
 | `traefik/dynamic/platform/mail.yml` | router dummy sertifikat (redirect 307 → cp) | ya |
@@ -63,13 +68,59 @@
   `ratelimit-default` + redirect 307 → `https://cp.bimacreative.tech/`, service `deny-sink`) menuntut sertifikat `le-http`.
   Riwayat 2026-09-23: staging (`(STAGING) Baloney Bulgur YE2`, 17:49) → production (issuer `YE2`, 17:50; restart Traefik
   17:50:04–17:50:08 WIB tanpa respons).
-- DMS (`SSL_TYPE=letsencrypt`, `SSL_DOMAIN=mail.bimacreative.tech`) membaca `traefik/acme/acme.json` (mount **file** read-only
-  → `/etc/letsencrypt/acme.json`), mengekstrak cert/key ke `/etc/letsencrypt/live/mail.bimacreative.tech/` (`acme_extract.py`).
-- **Perpanjangan otomatis:** change detection DMS memantau `/etc/letsencrypt/acme.json` (tiap `DMS_CONFIG_POLL`=2 s) → ekstrak
-  ulang + reload Postfix/Dovecot (`check-for-changes.sh` `_ssl_changes`). Mount file tunggal aman karena Traefik menulis
-  `acme.json` **di tempat** (`os.WriteFile`, `pkg/provider/acme/local_store.go` v3.7.13 → inode tetap). **Jika** `acme.json`
-  pernah diganti dengan `mv`/restore (inode baru) → `docker compose up -d --force-recreate mailserver`.
-- Perubahan sertifikat hostname lain juga mengubah `acme.json` → DMS ekstrak ulang + reload (tanpa efek bagi klien).
+- **Sejak QA-T17B-02 / B18 (2026-09-25, keputusan user "risk acceptance + hardening"):** DMS **tidak** lagi me-mount
+  `acme.json` penuh (kunci privat SEMUA hostname). Host mengekspor HANYA sertifikat `mail.bimacreative.tech`:
+  - `mail/scripts/tls-export.py` (root, Python stdlib + `/usr/bin/openssl`) membaca `traefik/acme/acme.json` resolver
+    `le-http`, memvalidasi (tepat 1 entri untuk domain, PEM, `-checkhost`, belum kedaluwarsa, kunci cocok sertifikat), lalu
+    menulis atomik (tmp + `rename`) `mail/data/tls/privkey.pem` (0600) dan `fullchain.pem` (0644), dir `root 0700`. Isi sama →
+    tidak menyentuh file (DMS tidak reload). Validasi gagal → exit 1, file lama utuh. Kunci tidak pernah dicetak.
+  - Unit (role Ansible `mail_tls_export`): `mail-tls-export.path` (`PathChanged=` acme.json — Traefik menulis di tempat) +
+    `mail-tls-export.timer` (harian 04:30 + 5 menit setelah boot) → `mail-tls-export.service` (oneshot, `ProtectSystem=strict`,
+    `ReadWritePaths=` dir ekspor saja, `CapabilityBoundingSet=CAP_DAC_READ_SEARCH`, `PrivateNetwork=yes`,
+    `OnFailure=infra-unit-failure@` → email). Exit 2 bila sertifikat terpasang habis < 20 hari (perpanjangan Traefik gagal).
+  - DMS: `SSL_TYPE=manual`, `SSL_CERT_PATH=/etc/dms-tls/fullchain.pem`, `SSL_KEY_PATH=/etc/dms-tls/privkey.pem`, mount
+    **direktori** `./data/tls:/etc/dms-tls:ro` (docs DMS v16.0.1 `security/ssl.md` §Bring Your Own Certificates; mount dir,
+    bukan file, agar rename atomik terlihat — §Caddy "Bind mounting a file directly … will mount by inode").
+- **Perpanjangan otomatis:** change detection DMS memantau `SSL_CERT_PATH`/`SSL_KEY_PATH` (sha512, tiap `DMS_CONFIG_POLL`=2 s;
+  `helpers/change-detection.sh`) → `_setup_ssl` (salin ke `/etc/dms/tls/{cert,key}`) + reload Postfix/Dovecot
+  (`check-for-changes.sh` `_ssl_changes`). **Tanpa restart container.** Diuji 2026-09-25 di container DMS sekali-pakai (image &
+  cap sama, network internal): ekspor sertifikat baru → ±2 s kemudian `postfix/master: reload` + `dovecot: SIGHUP`, serial di
+  465/993/587 berganti; ekspor ulang isi sama → 0 reload. Kunci & cert di-rename berurutan (jendela ~µs); bila poll DMS jatuh
+  tepat di antaranya, poll berikutnya (2 s) memuat pasangan lengkap.
+- Perubahan sertifikat hostname lain mengubah `acme.json` → service jalan, `unchanged` → DMS **tidak** reload (dulu reload).
+- Log: `journalctl -u mail-tls-export.service` (`exported|unchanged domain=… serial=… notAfter=…`, `ERROR: …`, `WARNING: …`).
+- Uji skrip: `python3 -m unittest discover -s /opt/infra/mail/scripts/tests -v` (13 uji, acme.json sintetis). Lint:
+  `docker run --rm --network none -v "$PWD:/src:ro" -w /src <RUFF_IMAGE> check --no-cache --config scripts/infra-job/ruff.toml mail/scripts`.
+
+### Terapkan ekspor TLS (Lead — urutan wajib; mailserver di-recreate SEKALI di langkah 4)
+```bash
+# 0. Serial sebelum (catat): harus sama di keempat port
+for t in "-connect 31.97.50.221:465" "-connect 31.97.50.221:993" "-starttls smtp -connect 31.97.50.221:587" "-starttls smtp -connect 31.97.50.221:25"; do
+  echo "$t $(echo | timeout 20 openssl s_client $t -servername mail.bimacreative.tech -verify_hostname mail.bimacreative.tech 2>/dev/null | openssl x509 -noout -serial -enddate | tr '\n' ' ')"; done
+# 1. Unit + ekspor pertama (tanpa menyentuh mailserver)
+cd /opt/infra/ansible && /opt/ansible-venv/bin/ansible-playbook site.yml --tags mail_tls_export --check --diff
+/opt/ansible-venv/bin/ansible-playbook site.yml --tags mail_tls_export --diff
+/opt/ansible-venv/bin/ansible-playbook site.yml --tags mail_tls_export          # run kedua: changed=0
+# 2. Bukti ekspor
+systemctl is-active mail-tls-export.path mail-tls-export.timer; journalctl -u mail-tls-export.service -n 3 --no-pager
+stat -c '%U:%G %a %n' /opt/infra/mail/data/tls /opt/infra/mail/data/tls/*    # root:root 700 / 644 fullchain / 600 privkey
+openssl x509 -in /opt/infra/mail/data/tls/fullchain.pem -noout -serial        # = serial langkah 0
+# 3. Pasangan cocok dengan yang disajikan DMS sekarang (hash saja, tanpa isi)
+docker exec mailserver sha256sum /etc/letsencrypt/live/mail.bimacreative.tech/fullchain.pem | cut -c1-16; sha256sum /opt/infra/mail/data/tls/fullchain.pem | cut -c1-16
+# 4. Recreate mailserver dengan compose baru (gangguan ±1 menit — ESTIMASI: stop ≤60 s grace + start ±15–40 s)
+cd /opt/infra/mail && docker compose config --quiet && docker compose up -d --force-recreate mailserver
+docker compose ps mailserver                           # (healthy) — tunggu ≤120 s start_period
+docker logs --since 5m mailserver 2>&1 | grep -iE "error|panic|ssl|cert" | head
+# 5. Verifikasi
+docker inspect mailserver --format '{{range .Mounts}}{{.Source}} -> {{.Destination}} {{.RW}}{{"\n"}}{{end}}' | grep -E "tls|acme"   # hanya data/tls -> /etc/dms-tls false
+docker exec mailserver sh -c 'ls /etc/letsencrypt 2>&1; postconf -h smtpd_tls_chain_files'   # tidak ada acme.json; /etc/dms/tls/key /etc/dms/tls/cert
+# ulangi perintah langkah 0 → serial SAMA di 465/993/587/25, Verify return code 0 (tambahkan -verify_return_error)
+```
+**Rollback** (kembali ke mount acme.json): `git revert <commit compose>` (atau kembalikan `SSL_TYPE: letsencrypt`,
+`SSL_DOMAIN: mail.bimacreative.tech`, volume `../traefik/acme/acme.json:/etc/letsencrypt/acme.json:ro`, hapus `SSL_*_PATH` dan
+mount `data/tls`) → `docker compose up -d --force-recreate mailserver` (±1 menit) → cek serial seperti langkah 0. Unit ekspor
+boleh tetap jalan (tidak berbahaya) atau `-e mail_tls_export_state=absent --tags mail_tls_export`; file `data/tls/` dihapus
+manual bila perlu (`shred -u` privkey — konfirmasi Lead, §0.5).
 - Deteksi kegagalan: monitor Kuma `Mail IMAPS (993)` memeriksa sertifikat (notifikasi kedaluwarsa).
 ```bash
 for t in "-starttls smtp -connect 31.97.50.221:587" "-connect 31.97.50.221:465" "-connect 31.97.50.221:993" "-starttls smtp -connect 31.97.50.221:25"; do

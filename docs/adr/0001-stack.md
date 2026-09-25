@@ -50,7 +50,7 @@ Semua tanggal cek = **2026-09-23**. "Rilis" = tanggal publish tag/rilis dari sum
 | Prometheus | `prom/prometheus:v3.13.3` (LTS) | 2026-09-07 | hub.docker.com; prometheus.io/docs/introduction/release-cycle/ (3.13 LTS, support s.d. 2027-07-31) | Apache-2.0 | 3.14.0 ada, tetapi non-LTS |
 | node-exporter | `prom/node-exporter:v1.12.1` | 2026-07-14 | hub.docker.com; GitHub releases | Apache-2.0 | |
 | cAdvisor | `v0.60.6` | 2026-09-18 | GitHub releases google/cadvisor | Apache-2.0 (LICENSE file) | **Registry/tag image UNVERIFIED** (gcr.io tags list tidak mengembalikan v0.60.x). Opsional — lihat ADR 0004 |
-| Uptime Kuma | `louislam/uptime-kuma:2.5.5-rootless` | 2026-09-16 | hub.docker.com | MIT | varian rootless dipilih (§3.5 non-root) — perilaku rootless UNVERIFIED |
+| Uptime Kuma | `louislam/uptime-kuma:2.5.5-slim-rootless` (sejak 2026-09-25; sebelumnya `2.5.5-rootless`) | 2026-09-16 | hub.docker.com | MIT | varian rootless dipilih (§3.5 non-root); slim = tanpa chromium/mariadb (QA-T17B-04) |
 | docker-socket-proxy | `tecnativa/docker-socket-proxy:v0.5.0` | 2026-07-27 | hub.docker.com; GitHub releases | Apache-2.0 | |
 | Ansible | `ansible-core==2.21.4` (venv/pipx, butuh Python ≥ 3.12; host 3.12.3) | — | pypi.org/pypi/ansible-core/json | GPL-3.0 | APT noble: ansible-core 2.16.3 (lebih tua). Collections: `community.general 13.4.0`, `ansible.posix 2.2.2`, `community.docker 5.3.0` (Galaxy API) |
 | fail2ban | APT noble `1.0.2-3ubuntu0.1` | — | `apt-cache policy fail2ban` | GPL-2.0 (COPYING) | Lihat "Perubahan CLAUDE.md" #4 (lisensi GPL) |
@@ -193,3 +193,6 @@ sistem sampai FASE 2.
 - 2026-09-25 (plan 03, GATE 1 disetujui user): **library UI website client** (`web-starter` → `web-<slug>`: `motion` 13.4.3,
   `animejs` 4.5.0, `iconsax` 0.1.1, Tailwind 4.3.3, komponen Magic UI via 21st.dev, skill `ui-ux-pro-max`) dicatat di
   **ADR 0007** (`docs/adr/0007-web-client-ui-stack.md`) — bukan bagian stack platform di tabel pin ini.
+- 2026-09-25 (QA-T17B-04, keputusan user): **Uptime Kuma → `2.5.5-slim-rootless`** (tanpa Chromium/MariaDB bawaan; CRITICAL
+  Trivy 164 → 14). Monitor Real Browser tidak didukung (tidak ada yang memakai). Detail & rollback: `docs/03-operations/observability.md`
+  §Uptime Kuma — varian slim-rootless.

@@ -1,0 +1,13 @@
+# {{ ansible_managed }} — role mail_tls_export (QA-T17B-02 / B18)
+# Traefik menulis acme.json di tempat (os.WriteFile) setiap sertifikat hostname MANA PUN diterbitkan/diperbarui →
+# service jalan; bila sertifikat {{ mail_tls_export_domain }} tidak berubah, tidak ada file yang disentuh (DMS tidak reload).
+[Unit]
+Description=Pantau acme.json Traefik untuk ekspor sertifikat {{ mail_tls_export_domain }}
+Documentation=file://{{ infra_root }}/docs/03-operations/mail.md
+
+[Path]
+PathChanged={{ mail_tls_export_acme }}
+Unit=mail-tls-export.service
+
+[Install]
+WantedBy=paths.target
