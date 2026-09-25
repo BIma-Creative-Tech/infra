@@ -6,6 +6,8 @@
 #     password, dihitung dengan crypt_context Odoo di image).
 #  2. <pool>/secrets/master-password (600 root): plaintext master password (48 char acak) —
 #     hanya dibuat bila belum ada. secrets/tenants/ (700) untuk password admin tenant.
+#     secrets/oidc/ (0750 root:<gid odoo>) untuk secret client OIDC per DB (plan 04; diisi provision-odoo-sso.sh,
+#     di-mount ro ke container — compose memakai create_host_path: false, jadi direktori harus ada sebelum `up`).
 #  3. addons/clients/ ada (glob addons_path).
 # Tidak mencetak secret; tidak menimpa nilai yang sudah ada (kecuali sinkron PGPASSWORD).
 set -euo pipefail
@@ -23,6 +25,7 @@ umask 077
 ENV_FILE="$POOL_DIR/.env"
 SECRETS="$POOL_DIR/secrets"
 install -d -o root -g root -m 0700 "$SECRETS" "$SECRETS/tenants"
+install -d -o root -g "$ODOO_GID" -m 0750 "$(oidc_secret_dir)"
 install -d -o root -g root -m 0755 "$POOL_DIR/addons/clients"
 touch "$ENV_FILE"; chown root:root "$ENV_FILE"; chmod 600 "$ENV_FILE"
 
