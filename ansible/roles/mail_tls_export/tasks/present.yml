@@ -54,6 +54,49 @@
     path: "{{ mail_tls_export_out }}/fullchain.pem"
   register: mail_tls_export_cert
 
+# ADR 0011: reload Postfix + Dovecot saat sertifikat SNI client berubah (fullchain.pem ditulis TERAKHIR oleh tls-export.py).
+- name: Unit reload SNI (ada hostname SNI)
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "/etc/systemd/system/{{ item }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - mail-tls-reload.service
+    - mail-tls-reload.path
+  notify: Reload systemd (mail_tls_export)
+  when: mail_tls_export_sni_domains | length > 0
+
+- name: Unit reload SNI — hentikan (tanpa hostname SNI)
+  ansible.builtin.systemd_service:
+    name: mail-tls-reload.path
+    enabled: false
+    state: stopped
+  failed_when: false
+  when: mail_tls_export_sni_domains | length == 0
+
+- name: Unit reload SNI — hapus (tanpa hostname SNI)
+  ansible.builtin.file:
+    path: "/etc/systemd/system/{{ item }}"
+    state: absent
+  loop:
+    - mail-tls-reload.service
+    - mail-tls-reload.path
+  notify: Reload systemd (mail_tls_export)
+  when: mail_tls_export_sni_domains | length == 0
+
+- name: Terapkan daemon-reload unit reload SNI
+  ansible.builtin.meta: flush_handlers
+
+- name: Path reload SNI aktif
+  ansible.builtin.systemd_service:
+    name: mail-tls-reload.path
+    enabled: true
+    state: started
+  when: mail_tls_export_sni_domains | length > 0
+  ignore_errors: "{{ ansible_check_mode }}"
+
 # Hanya saat file belum ada (run pertama). Selanjutnya .path/.timer yang menjalankan — task ini tidak mengubah apa pun.
 - name: Ekspor pertama (belum ada file)
   ansible.builtin.systemd_service:

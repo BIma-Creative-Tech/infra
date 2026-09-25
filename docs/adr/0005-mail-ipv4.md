@@ -65,6 +65,9 @@ Keputusan:
 9. **Satu hostname server** `mail.bimacreative.tech` untuk semua domain: HELO, PTR, sertifikat TLS, dan
    host IMAP/SMTP yang dipakai klien email **semua** domain. Tidak ada `mail.<domain-client>` (butuh
    sertifikat per hostname + SNI di Dovecot/Postfix — di luar scope).
+   > **Direvisi oleh ADR 0011 (2026-09-25, keputusan user):** hostname klien email `mail.<domain-client>` **boleh** ditambahkan
+   > per client (sertifikat LE sendiri per hostname + SNI Postfix/Dovecot); HELO/PTR/MX tetap `mail.bimacreative.tech`.
+   > Pertama: `mail.expomedia.id`. Teks asli di atas dipertahankan sebagai riwayat.
 10. `ACCOUNT_PROVISIONER=FILE` (default) → mailbox via `setup email add`; kuota via `setup quota set`.
 11. DKIM **per domain** (selector `mail`, RSA 2048 — docs menyatakan tidak perlu > 2048) + `dkim_signing.conf`
     kustom dengan blok `domain { … }` per domain; `check_pubkey = true` saat onboarding.
@@ -98,7 +101,7 @@ Untuk domain `<client-domain>` (contoh pertama: `expomedia.id`, DNS dikelola cli
 | TXT | `@` | `v=spf1 include:_spf.bimacreative.tech -all` | jika client juga kirim via layanan lain, tambahkan `include:` layanan itu **sebelum** `-all`; hanya boleh **satu** record SPF |
 | TXT | `mail._domainkey` | `v=DKIM1; k=rsa; p=<kunci publik>` | nilai dari `setup config dkim domain <client-domain>`; diberikan setelah kunci dibuat |
 | TXT | `_dmarc` | `v=DMARC1; p=none; adkim=s; aspf=s; rua=mailto:dmarc@<client-domain>` | mulai `p=none` 2–4 minggu, lalu `quarantine` → `reject` setelah laporan bersih |
-| — | (klien email) | IMAP `mail.bimacreative.tech:993` (TLS), SMTP submission `mail.bimacreative.tech:465` (TLS) atau `:587` (STARTTLS) | jangan pakai `mail.<client-domain>` (sertifikat tidak cocok) |
+| — | (klien email) | IMAP `mail.bimacreative.tech:993` (TLS), SMTP submission `mail.bimacreative.tech:465` (TLS) atau `:587` (STARTTLS) | jangan pakai `mail.<client-domain>` (sertifikat tidak cocok) — **direvisi ADR 0011:** opsional `A mail.<client-domain>` → `31.97.50.221` lalu klien memakai `mail.<client-domain>` setelah tim platform mengaktifkan sertifikat + SNI |
 
 Verifikasi sebelum domain diaktifkan: `dig +short MX <client-domain> @1.1.1.1` = `10 mail.bimacreative.tech.`;
 SPF memuat include; DKIM publik cocok (`check_pubkey`); lalu kirim uji ke penguji eksternal (mis. mail-tester — opsional).
@@ -174,3 +177,8 @@ retry (antrian pengirim) selama beberapa hari.
   hostname platform/tenant. Alternatif `traefik-certs-dumper` ditolak (tool pihak ketiga tambahan + butuh akses acme.json
   juga; skrip stdlib ±150 baris cukup). CVE image 16.0.1 diterima sementara: `docs/risk/2026-09-25-mailserver-16.0.1-cves.md`.
   Runbook terapkan/rollback: `docs/03-operations/mail.md` §TLS.
+- 2026-09-25 (ADR 0011, keputusan user): **#9 direvisi** — hostname mail per domain client via TLS SNI (`mail.expomedia.id`
+  pertama): router sertifikat `traefik/dynamic/platform/mail-clients.yml`, ekspor allowlist `--sni-domain`
+  (`mail_tls_export_sni_domains`), `tls_server_sni_maps` (Postfix, tabel `inline`) + `local_name` (Dovecot 2.4, `dovecot.cf`),
+  reload renew `mail-tls-reload.{path,service}`. HELO/PTR/MX/SPF/DKIM/DMARC tidak berubah. Runbook: `docs/03-operations/mail.md`
+  §Hostname mail per domain client.

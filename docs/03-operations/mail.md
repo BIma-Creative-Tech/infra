@@ -4,7 +4,9 @@
 > DMS `16.0.2`/`16.1.0` rilis).
 
 - **Stack:** `/opt/infra/mail/` · image `mailserver/docker-mailserver:16.0.1@sha256:d0fe7668…` (index multi-arch, ADR 0001)
-- **Hostname:** `mail.bimacreative.tech` = HELO = PTR = CN sertifikat untuk **semua** domain (ADR 0005 #5, #9)
+- **Hostname:** `mail.bimacreative.tech` = HELO = PTR = MX = sertifikat default untuk **semua** domain (ADR 0005 #5, #9).
+  Opsional per client (ADR 0011): nama server klien email `mail.<domain-client>` dengan sertifikat sendiri via TLS SNI —
+  aktif: `mail.expomedia.id` (§Hostname mail per domain client).
 - **Terkait:** ADR 0005 (keputusan utama), 0002 (DNS/TLS), 0004 (RAM), 0006 (backup); `traefik.md`, `crowdsec.md`,
   `backup.md`, `observability.md`
 - Versi komponen di image (dicek 2026-09-23): Postfix 3.10.13, Dovecot 2.4.1, Rspamd 4.1.5, Redis internal, swaks 20240103.
@@ -17,7 +19,8 @@
 | Path | Isi | Git |
 |---|---|---|
 | `docker-compose.yml` | service `mailserver`, network `mail` 10.100.10.0/24 (compose-managed, tanpa IPv6) | ya |
-| `config/postfix-main.cf` | override Postfix (di-append ke main.cf saat **start**) — saat ini hanya guard `defer_transports` | ya |
+| `config/postfix-main.cf` | override Postfix (di-append ke main.cf saat **start**) — `tls_server_sni_maps` (ADR 0011) | ya |
+| `config/dovecot.cf` | override Dovecot 2.4 (→ `/etc/dovecot/local.conf` saat **start**) — blok SNI `local_name` (ADR 0011) | ya |
 | `config/rspamd/override.d/dkim_signing.conf` | DKIM multi-domain (blok `domain { … }` per domain) | ya |
 | `config/rspamd/override.d/ratelimit.conf` | rate limit outbound per mailbox & per domain | ya |
 | `scripts/bootstrap.sh` | idempoten: `data/`, `/var/log/mailserver`, `secrets/`, sinkron `config/` → `data/config/` | ya |
@@ -26,10 +29,11 @@
 | `data/config/` (= `/tmp/docker-mailserver`) | `postfix-accounts.cf` (hash SHA512-CRYPT), `postfix-virtual.cf` (alias), `dovecot-quotas.cf`, `rspamd/dkim/*.private.txt` (kunci DKIM privat), salinan override | **tidak** (`**/data/`) |
 | `data/mail/` (= `/var/mail`) | maildir `<domain>/<local>/` (uid/gid 5000) | tidak |
 | `data/state/` (= `/var/mail-state`) | antrean Postfix, Redis (bucket ratelimit, history), state Dovecot/Rspamd | tidak |
-| `data/tls/` (= `/etc/dms-tls`, ro) | `fullchain.pem` 0644 + `privkey.pem` 0600 (kunci privat `mail.*` saja), dir root 0700 | **tidak** (`**/data/`) |
+| `data/tls/` (= `/etc/dms-tls`, ro) | `fullchain.pem` 0644 + `privkey.pem` 0600 (kunci privat `mail.*` saja), dir root 0700; `<fqdn>/{privkey,chain,fullchain}.pem` 0600 per hostname SNI allowlist (ADR 0011) | **tidak** (`**/data/`) |
 | `secrets/<alamat>.password` | password mailbox, 600 root, 32 char tanpa newline | **tidak** (`mail/.gitignore`) |
 | `/var/log/mailserver/dms/` (= `/var/log/mail`) | `mail.log` (Postfix/Dovecot), `rspamd.log`; parent `root:adm 750` | — |
 | `traefik/dynamic/platform/mail.yml` | router dummy sertifikat (redirect 307 → cp) | ya |
+| `traefik/dynamic/platform/mail-clients.yml` | router dummy sertifikat per hostname mail client (ADR 0011), mis. `mail-cert-expomedia` | ya |
 | `security/crowdsec/acquis.d/mail.yaml`, `security/crowdsec/scenarios/mail-postfix-sasl-bf.yaml` | acquisition log mail + skenario lokal brute force SASL | ya |
 
 ## Keputusan (implementasi T11, diverifikasi dari docs/source v16.0.1 — lihat komentar compose)
@@ -89,8 +93,25 @@
   tepat di antaranya, poll berikutnya (2 s) memuat pasangan lengkap.
 - Perubahan sertifikat hostname lain mengubah `acme.json` → service jalan, `unchanged` → DMS **tidak** reload (dulu reload).
 - Log: `journalctl -u mail-tls-export.service` (`exported|unchanged domain=… serial=… notAfter=…`, `ERROR: …`, `WARNING: …`).
-- Uji skrip: `python3 -m unittest discover -s /opt/infra/mail/scripts/tests -v` (13 uji, acme.json sintetis). Lint:
+- Uji skrip: `python3 -m unittest discover -s /opt/infra/mail/scripts/tests -v` (26 uji: 13 hostname utama + 13 SNI, acme.json sintetis). Lint:
   `docker run --rm --network none -v "$PWD:/src:ro" -w /src <RUFF_IMAGE> check --no-cache --config scripts/infra-job/ruff.toml mail/scripts`.
+
+### SNI hostname mail client (ADR 0011)
+- `tls-export.py --sni-domain <fqdn>` (berulang; unit dari `mail_tls_export_sni_domains` role Ansible) → `data/tls/<fqdn>/`
+  `privkey.pem`, `chain.pem` (kunci + fullchain, format `smtpd_tls_chain_files`), `fullchain.pem` — semua 0600, dir 0700,
+  urutan tulis privkey → chain → fullchain. Validasi sama dengan hostname utama; hostname gagal dilewati (file lamanya utuh,
+  exit 1 → alert), hostname lain tetap diproses. Subdir di luar allowlist tidak dihapus otomatis (`NOTE: …`). Tidak `chmod`
+  bila mode sudah benar (chmod = IN_ATTRIB → memicu `mail-tls-reload.path`).
+- Postfix: `tls_server_sni_maps = inline:{ … }` di `config/postfix-main.cf` (docs postconf(5): tabel `inline` memuat file saat
+  tabel dibuka → tanpa `postmap -F`). Berlaku untuk smtpd 25/465/587 (+ tlsproxy). SNI tak dikenal → log `TLS SNI … not matched,
+  using default chain` + sertifikat default.
+- Dovecot 2.4: `local_name <fqdn> { ssl_server_cert_file / ssl_server_key_file }` di `config/dovecot.cf` (docs Dovecot 2.4.1
+  `core/config/ssl.html` §SNI; DMS v16.0.1 menyalinnya ke `/etc/dovecot/local.conf` saat start). Cek: `docker exec mailserver
+  doveconf -n | grep -A4 ^local_name`.
+- Renew: `mail-tls-reload.path` (`PathChanged=` `data/tls/<fqdn>/fullchain.pem`) → `mail-tls-reload.service`
+  (`docker exec mailserver postfix reload` + `dovecot reload`, graceful). Diuji 2026-09-25: replace atomik fullchain →
+  ±1 s kemudian `postfix/master: reload` + `dovecot: SIGHUP`; ekspor `unchanged` → 0 reload.
+  Log: `journalctl -u mail-tls-reload.service`.
 
 ### Terapkan ekspor TLS (Lead — urutan wajib; mailserver di-recreate SEKALI di langkah 4)
 ```bash
@@ -236,8 +257,56 @@ Prasyarat: domain terdaftar & DNS aktif (2026-09-23: `expomedia.id` **belum** ak
    login `…@expomedia.id` dengan `From: x@bimacreative.tech` → **tidak** ditandatangani (`allow_username_mismatch=false`);
    envelope `MAIL FROM` domain lain → `553 … not owned by user`.
 7. Klien email client: IMAP `mail.bimacreative.tech:993` (TLS), SMTP `mail.bimacreative.tech:465` (TLS) atau `:587`
-   (STARTTLS), username = alamat email lengkap. **Bukan** `mail.expomedia.id` (sertifikat tidak cocok).
+   (STARTTLS), username = alamat email lengkap. **Bukan** `mail.<domain-client>` — kecuali hostname itu sudah diaktifkan lewat
+   §Hostname mail per domain client (opsional, ADR 0011; `expomedia.id` → `mail.expomedia.id` aktif 2026-09-25).
 8. Rate limit berlaku per mailbox (30/jam) dan per domain (200/jam); override per plan belum ada (backlog control plane).
+
+## Hostname mail per domain client (opsional, ADR 0011) — contoh `mail.expomedia.id`
+
+Nama server klien email per client; HELO/PTR/**MX tetap** `mail.bimacreative.tech` (MX client tidak diubah). Satu router + satu
+sertifikat per hostname (tanpa SAN gabungan/wildcard). Recreate `mailserver` sekali (terukur 2026-09-25: IMAP ±9 s, SMTP 25
+±22 s tanpa respons). Ganti `<fqdn>` (mis. `mail.expomedia.id`).
+
+1. **DNS (client):** `A mail.<domain-client> 31.97.50.221`, tanpa AAAA/CNAME (instruksi: `templates/mail-client-dns.txt` record 5).
+2. **Pre-check (wajib sebelum router):**
+   ```bash
+   for ns in <ns-otoritatif-1> <ns-otoritatif-2> 1.1.1.1 8.8.8.8; do
+     echo "$ns A=$(dig +short A <fqdn> @$ns) AAAA=$(dig +short AAAA <fqdn> @$ns) CNAME=$(dig +short CNAME <fqdn> @$ns)"; done
+   grep -rn '<fqdn>' /opt/infra/traefik/dynamic/          # harus kosong (hostname unik)
+   ```
+3. **Sertifikat:** tambah router di `traefik/dynamic/platform/mail-clients.yml` (salin blok `mail-cert-expomedia`, nama router
+   `mail-cert-<slug>`, `Host(\`<fqdn>\`)`, `certResolver: le-http`) → `docker exec traefik kill -HUP 1` (H7). Bukti:
+   `docker logs --since 2m traefik 2>&1 | grep -i '<fqdn>'` (`Server responded with a certificate`) dan
+   `echo | openssl s_client -connect 127.0.0.1:443 -servername <fqdn> -verify_hostname <fqdn> -verify_return_error 2>&1 | grep -E '^subject=|Verify return'`.
+4. **Ekspor (allowlist):** tambahkan `<fqdn>` ke `mail_tls_export_sni_domains` (`ansible/roles/mail_tls_export/defaults/main.yml`)
+   → `cd /opt/infra/ansible && /opt/ansible-venv/bin/ansible-playbook -i inventories/local/hosts.yml site.yml --tags mail_tls_export --check --diff`,
+   lalu tanpa `--check`, run kedua `changed=0` → `systemctl start mail-tls-export.service` →
+   `journalctl -u mail-tls-export.service -n 3` (`exported domain=<fqdn>`), `stat -c '%a %n' /opt/infra/mail/data/tls/<fqdn>/*` (600).
+   **Langkah 4 WAJIB selesai sebelum langkah 5** (file harus ada sebelum Postfix/Dovecot merujuknya).
+5. **SNI:** tambah `{ <fqdn> = /etc/dms-tls/<fqdn>/chain.pem }` di `tls_server_sni_maps` (`config/postfix-main.cf`) dan blok
+   `local_name <fqdn> { … }` di `config/dovecot.cf` → `sudo ./scripts/bootstrap.sh` →
+   `docker exec mailserver postqueue -p` (catat) + `dms-healthcheck` → `docker compose up -d --force-recreate mailserver` →
+   `(healthy)`; `docker exec mailserver sh -c 'postconf tls_server_sni_maps; doveconf -n | grep -A4 ^local_name'`.
+6. **Verifikasi:**
+   ```bash
+   for p in "993" "465" "587 -starttls smtp" "25 -starttls smtp"; do set -- $p; port=$1; shift
+     for sn in <fqdn> mail.bimacreative.tech; do echo "$port $sn: $(echo | openssl s_client -connect 31.97.50.221:$port "$@" \
+       -servername $sn -verify_hostname $sn -verify_return_error 2>&1 | grep -E '^subject=|Verify return code' | tr '\n' ' ')"; done; done
+   echo | openssl s_client -connect 31.97.50.221:993 -noservername 2>/dev/null | openssl x509 -noout -subject   # default: mail.bimacreative.tech
+   # AUTH (password via stdin, tidak pernah di argv host / output):
+   sudo cat /opt/infra/mail/secrets/<user>.password | sudo docker exec -i mailserver sh -c 'SWAKS_OPT_auth_password="$(cat)"; \
+     export SWAKS_OPT_auth_password; swaks --server 127.0.0.1 --port 587 --tls --tls-sni <fqdn> --tls-verify \
+     --tls-verify-target <fqdn> --auth LOGIN --auth-user <user> --auth-hide-password --quit-after AUTH 2>&1' \
+     | grep -E '^(<~  2|<~  5|=== TLS peer certificate)'
+   ```
+   Lalu update dokumen client (`docs/clients/<slug>.md` §klien email) dan kabari client: server = `<fqdn>`.
+7. **Rollback** (urutan terbalik; staf kembali ke `mail.bimacreative.tech`): keluarkan entri dari `config/postfix-main.cf` +
+   `config/dovecot.cf` → `bootstrap.sh` → recreate `mailserver` (atau live: `postconf -e` tanpa entri / `postconf -X
+   tls_server_sni_maps` + `postfix reload`; hapus `/etc/dovecot/local.conf` bila kosong + `dovecot reload`) → hapus dari
+   `mail_tls_export_sni_domains` → role (daftar kosong = unit `mail-tls-reload.*` dihapus) → hapus router di `mail-clients.yml` →
+   HUP Traefik → hapus `data/tls/<fqdn>/` (`shred -u`, konfirmasi Lead). Uji kering 2026-09-25: ADR 0011 §Rollback.
+
+Status: `mail.expomedia.id` aktif 2026-09-25 (bukti `docs/clients/expomedia.md` §7b).
 
 ## Cek reputasi & kesehatan
 
@@ -310,6 +379,7 @@ docker exec crowdsec cscli explain --log '<baris mail.log>' --type syslog      #
   Data tetap di `data/`. Hapus `data/` / `secrets/` = destruktif → konfirmasi.
 - Router sertifikat: hapus `traefik/dynamic/platform/mail.yml` → `docker exec traefik kill -HUP 1` (sertifikat tetap di
   `acme.json` sampai kedaluwarsa).
+- Hostname mail per domain client (ADR 0011): §Hostname mail per domain client langkah 7.
 - Firewall: hapus `ufw_allow_tcp_ports_mail` + task di role `firewall` **dan** `ufw delete allow from 0.0.0.0/0 to any port <p>
   proto tcp` per port (role hanya menambah).
 - CrowdSec: hapus `acquis.d/mail.yaml`, `scenarios/mail-postfix-sasl-bf.yaml` (+ mount & baris `COLLECTIONS`), `cscli collections

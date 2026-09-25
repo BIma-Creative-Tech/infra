@@ -19,6 +19,7 @@ from pathlib import Path
 
 SCRIPT = Path(__file__).resolve().parent.parent / "tls-export.py"
 DOMAIN = "mail.example.test"
+SNI = "mail.client.test"  # hostname mail per domain client (ADR 0011)
 OPENSSL = "/usr/bin/openssl"
 
 
@@ -119,7 +120,7 @@ def acme_doc(entries: list[tuple[str, bytes, bytes]], resolver: str = "le-http")
     return {resolver: {"Account": {"Email": "x@example.test"}, "Certificates": certs}}
 
 
-class TlsExportTest(unittest.TestCase):
+class TlsExportBase(unittest.TestCase):
     def setUp(self) -> None:
         self._tmp = tempfile.TemporaryDirectory()
         self.tmp = Path(self._tmp.name)
@@ -150,6 +151,8 @@ class TlsExportTest(unittest.TestCase):
         self.assertEqual(stat.S_IMODE((self.out / "privkey.pem").stat().st_mode), 0o600)
         self.assertEqual(sorted(p.name for p in self.out.iterdir()), ["fullchain.pem", "privkey.pem"])
 
+
+class TlsExportTest(TlsExportBase):
     def test_export_only_target_domain(self) -> None:
         self.write_acme([("other.example.test", self.other_cert, self.other_key), (DOMAIN, self.cert, self.key)])
         res = self.run_export()
@@ -238,6 +241,155 @@ class TlsExportTest(unittest.TestCase):
         os.chmod(self.out, 0o755)  # noqa: S103 - kasus uji: dir terlalu longgar harus dikencangkan
         self.assertEqual(self.run_export().returncode, 0)
         self.assert_exported(self.cert, self.key)
+
+
+class TlsExportSniTest(TlsExportBase):
+    """ADR 0011: hostname SNI (allowlist --sni-domain) → <out>/<fqdn>/{privkey,chain,fullchain}.pem, per host."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.sni_cert, self.sni_key = make_cert(self.tmp, "sni", SNI)
+
+    def run_export(self, *extra: str) -> subprocess.CompletedProcess[str]:
+        res = super().run_export(*extra)
+        self.assertNotIn(base64.b64encode(self.sni_key).decode()[:40], res.stdout + res.stderr)
+        return res
+
+    def assert_sni_exported(self, cert: bytes, key: bytes) -> None:
+        d = self.out / SNI
+        self.assertEqual(stat.S_IMODE(d.stat().st_mode), 0o700)
+        self.assertEqual(sorted(p.name for p in d.iterdir()), ["chain.pem", "fullchain.pem", "privkey.pem"])
+        self.assertEqual((d / "privkey.pem").read_bytes(), key)
+        self.assertEqual((d / "fullchain.pem").read_bytes(), cert)
+        # Format smtpd_tls_chain_files / tls_server_sni_maps: kunci DULU, lalu rantai sertifikat.
+        self.assertEqual((d / "chain.pem").read_bytes(), key + cert)
+        for name in ("privkey.pem", "fullchain.pem", "chain.pem"):
+            self.assertEqual(stat.S_IMODE((d / name).stat().st_mode), 0o600, name)
+
+    def test_primary_and_sni_exported(self) -> None:
+        self.write_acme(
+            [
+                ("other.example.test", self.other_cert, self.other_key),
+                (DOMAIN, self.cert, self.key),
+                (SNI, self.sni_cert, self.sni_key),
+            ]
+        )
+        res = self.run_export("--sni-domain", SNI)
+        self.assertEqual(res.returncode, 0, res.stdout)
+        self.assertIn(f"exported domain={SNI}", res.stdout)
+        # Hostname utama tidak berubah tata letaknya (path SSL_CERT_PATH/SSL_KEY_PATH DMS tetap).
+        self.assertEqual((self.out / "fullchain.pem").read_bytes(), self.cert)
+        self.assertEqual((self.out / "privkey.pem").read_bytes(), self.key)
+        self.assert_sni_exported(self.sni_cert, self.sni_key)
+        # Hanya allowlist: tidak ada dir untuk other.example.test.
+        self.assertEqual(sorted(p.name for p in self.out.iterdir()), ["fullchain.pem", SNI, "privkey.pem"])
+
+    def test_sni_idempotent_no_rewrite(self) -> None:
+        self.write_acme([(DOMAIN, self.cert, self.key), (SNI, self.sni_cert, self.sni_key)])
+        self.assertEqual(self.run_export("--sni-domain", SNI).returncode, 0)
+        names = ("privkey.pem", "chain.pem", "fullchain.pem")
+        before = [((self.out / SNI / n).stat().st_ino, (self.out / SNI / n).stat().st_mtime_ns) for n in names]
+        res = self.run_export("--sni-domain", SNI)
+        self.assertEqual(res.returncode, 0)
+        self.assertIn(f"unchanged domain={SNI}", res.stdout)
+        after = [((self.out / SNI / n).stat().st_ino, (self.out / SNI / n).stat().st_mtime_ns) for n in names]
+        self.assertEqual(before, after)
+
+    def test_unchanged_does_not_touch_ctime(self) -> None:
+        # chmod tanpa perlu = IN_ATTRIB → systemd PathChanged= memicu reload Postfix/Dovecot yang tidak perlu.
+        self.write_acme([(DOMAIN, self.cert, self.key), (SNI, self.sni_cert, self.sni_key)])
+        self.assertEqual(self.run_export("--sni-domain", SNI).returncode, 0)
+        paths = [self.out, self.out / "fullchain.pem", self.out / "privkey.pem", self.out / SNI]
+        paths += [self.out / SNI / n for n in ("privkey.pem", "chain.pem", "fullchain.pem")]
+        before = [p.stat().st_ctime_ns for p in paths]
+        self.assertEqual(self.run_export("--sni-domain", SNI).returncode, 0)
+        self.assertEqual(before, [p.stat().st_ctime_ns for p in paths])
+
+    def test_wrong_mode_fixed(self) -> None:
+        self.write_acme([(DOMAIN, self.cert, self.key), (SNI, self.sni_cert, self.sni_key)])
+        self.assertEqual(self.run_export("--sni-domain", SNI).returncode, 0)
+        os.chmod(self.out / SNI / "chain.pem", 0o644)
+        self.assertEqual(self.run_export("--sni-domain", SNI).returncode, 0)
+        self.assert_sni_exported(self.sni_cert, self.sni_key)
+
+    def test_sni_renewal_replaces_all(self) -> None:
+        self.write_acme([(DOMAIN, self.cert, self.key), (SNI, self.sni_cert, self.sni_key)])
+        self.assertEqual(self.run_export("--sni-domain", SNI).returncode, 0)
+        new_cert, new_key = make_cert(self.tmp, "sni-renew", SNI)
+        self.write_acme([(DOMAIN, self.cert, self.key), (SNI, new_cert, new_key)])
+        res = self.run_export("--sni-domain", SNI)
+        self.assertEqual(res.returncode, 0, res.stdout)
+        self.assertIn(f"unchanged domain={DOMAIN}", res.stdout)
+        self.assertIn(f"exported domain={SNI}", res.stdout)
+        self.assert_sni_exported(new_cert, new_key)
+
+    def test_sni_failure_does_not_block_primary(self) -> None:
+        # Sertifikat client belum terbit / perpanjangan gagal → hostname utama tetap diekspor, exit 1 (alert).
+        self.write_acme([(DOMAIN, self.cert, self.key)])
+        res = self.run_export("--sni-domain", SNI)
+        self.assertEqual(res.returncode, 1, res.stdout)
+        self.assertIn(f"ERROR: domain={SNI}", res.stdout)
+        self.assert_exported(self.cert, self.key)
+        self.assertFalse((self.out / SNI).exists())
+
+    def test_sni_bad_cert_keeps_old_files(self) -> None:
+        self.write_acme([(DOMAIN, self.cert, self.key), (SNI, self.sni_cert, self.sni_key)])
+        self.assertEqual(self.run_export("--sni-domain", SNI).returncode, 0)
+        self.write_acme([(DOMAIN, self.cert, self.key), (SNI, self.sni_cert, self.other_key)])  # kunci salah
+        res = self.run_export("--sni-domain", SNI)
+        self.assertEqual(res.returncode, 1, res.stdout)
+        self.assert_sni_exported(self.sni_cert, self.sni_key)
+
+    def test_primary_failure_does_not_block_sni(self) -> None:
+        self.write_acme([(DOMAIN, self.cert, self.key), (SNI, self.sni_cert, self.sni_key)])
+        self.assertEqual(self.run_export("--sni-domain", SNI).returncode, 0)
+        new_cert, new_key = make_cert(self.tmp, "sni-renew2", SNI)
+        self.write_acme([(DOMAIN, self.cert, self.other_key), (SNI, new_cert, new_key)])
+        res = self.run_export("--sni-domain", SNI)
+        self.assertEqual(res.returncode, 1, res.stdout)
+        self.assertIn(f"ERROR: domain={DOMAIN}", res.stdout)
+        self.assertEqual((self.out / "fullchain.pem").read_bytes(), self.cert)
+        self.assertEqual((self.out / "privkey.pem").read_bytes(), self.key)
+        self.assert_sni_exported(new_cert, new_key)
+
+    def test_invalid_sni_names_rejected(self) -> None:
+        self.write_acme([(DOMAIN, self.cert, self.key)])
+        for bad in ("../etc", "Mail.Client.test", "*.client.test", "client", "a/b.test", DOMAIN, ".", ".."):
+            res = self.run_export("--sni-domain", bad)
+            self.assertEqual(res.returncode, 1, (bad, res.stdout))
+            self.assertIn("ERROR", res.stdout)
+        self.assertFalse(self.out.exists())
+
+    def test_duplicate_sni_rejected(self) -> None:
+        self.write_acme([(DOMAIN, self.cert, self.key), (SNI, self.sni_cert, self.sni_key)])
+        res = self.run_export("--sni-domain", SNI, "--sni-domain", SNI)
+        self.assertEqual(res.returncode, 1, res.stdout)
+        self.assertFalse(self.out.exists())
+
+    def test_sni_symlink_dir_rejected(self) -> None:
+        self.write_acme([(DOMAIN, self.cert, self.key), (SNI, self.sni_cert, self.sni_key)])
+        self.assertEqual(self.run_export().returncode, 0)
+        target = self.tmp / "elsewhere"
+        target.mkdir()
+        (self.out / SNI).symlink_to(target)
+        res = self.run_export("--sni-domain", SNI)
+        self.assertEqual(res.returncode, 1, res.stdout)
+        self.assertEqual(list(target.iterdir()), [])
+
+    def test_stale_sni_dir_reported(self) -> None:
+        self.write_acme([(DOMAIN, self.cert, self.key), (SNI, self.sni_cert, self.sni_key)])
+        self.assertEqual(self.run_export("--sni-domain", SNI).returncode, 0)
+        res = self.run_export()  # hostname dikeluarkan dari allowlist → file lama tidak dihapus otomatis, dilaporkan
+        self.assertEqual(res.returncode, 0, res.stdout)
+        self.assertIn(f"NOTE: subdirektori di luar allowlist (tidak diperbarui lagi; hapus manual): {SNI}", res.stdout)
+
+    def test_sni_expiring_soon_exit_2(self) -> None:
+        short_cert, short_key = make_cert(self.tmp, "sni-short", SNI, days=5)
+        self.write_acme([(DOMAIN, self.cert, self.key), (SNI, short_cert, short_key)])
+        res = self.run_export("--sni-domain", SNI, "--warn-days", "20")
+        self.assertEqual(res.returncode, 2, res.stdout)
+        self.assertIn(f"WARNING: sertifikat {SNI}", res.stdout)
+        self.assert_sni_exported(short_cert, short_key)
 
 
 if __name__ == "__main__":

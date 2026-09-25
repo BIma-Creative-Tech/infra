@@ -1,6 +1,7 @@
 Instruksi DNS — email untuk domain <CLIENT_DOMAIN> (dilayani mail.bimacreative.tech)
 Sumber: docs/adr/0005-mail-ipv4.md §Template; prosedur: docs/03-operations/mail.md §Menambah domain client.
-Ganti <CLIENT_DOMAIN> dan <DKIM_PUBLIC> (isi file data/config/rspamd/dkim/rsa-2048-mail-<CLIENT_DOMAIN>.public.dns.txt).
+Ganti <CLIENT_DOMAIN>, <DKIM_PUBLIC> (isi file data/config/rspamd/dkim/rsa-2048-mail-<CLIENT_DOMAIN>.public.dns.txt) dan
+<MAIL_HOST> (lihat bawah). Record 5 opsional (ADR 0011).
 
 Tambahkan di DNS <CLIENT_DOMAIN>:
 
@@ -13,10 +14,19 @@ Tambahkan di DNS <CLIENT_DOMAIN>:
 4. TXT  _dmarc            v=DMARC1; p=none; adkim=s; aspf=s; rua=mailto:dmarc@<CLIENT_DOMAIN>
         -> mulai p=none 2-4 minggu; naik ke quarantine lalu reject setelah laporan bersih.
 
-JANGAN membuat record AAAA untuk mail; JANGAN memakai mail.<CLIENT_DOMAIN> sebagai server.
+5. (OPSIONAL, ADR 0011 — hanya bila disepakati dengan tim platform)
+   A    mail              31.97.50.221
+        -> nama server sendiri untuk aplikasi email. TANPA AAAA, bukan CNAME. MX TETAP 10 mail.bimacreative.tech.
+        -> baru dipakai di aplikasi email SETELAH tim platform mengonfirmasi sertifikat aktif
+           (docs/03-operations/mail.md §Hostname mail per domain client). Sebelum itu: pakai mail.bimacreative.tech.
+
+JANGAN membuat record AAAA untuk mail. Tanpa record 5 (atau sebelum dikonfirmasi): JANGAN memakai mail.<CLIENT_DOMAIN>
+sebagai server (sertifikat tidak cocok).
 
 Pengaturan aplikasi email (Outlook/Thunderbird/ponsel):
   Username   : alamat email lengkap (mis. nama@<CLIENT_DOMAIN>)
-  IMAP masuk : mail.bimacreative.tech  port 993  SSL/TLS
-  SMTP keluar: mail.bimacreative.tech  port 465  SSL/TLS   (atau port 587 STARTTLS)
+  IMAP masuk : <MAIL_HOST>  port 993  SSL/TLS
+  SMTP keluar: <MAIL_HOST>  port 465  SSL/TLS   (atau port 587 STARTTLS)
   Autentikasi SMTP: wajib (username & password yang sama)
+  <MAIL_HOST> = mail.<CLIENT_DOMAIN> bila record 5 aktif & dikonfirmasi, selain itu mail.bimacreative.tech
+  (mail.bimacreative.tech selalu berfungsi untuk semua domain).

@@ -1,0 +1,16 @@
+# {{ ansible_managed }} — role mail_tls_export (ADR 0011)
+# tls-export.py menulis per hostname SNI: privkey.pem → chain.pem → fullchain.pem (tmp + rename; fullchain TERAKHIR) →
+# pasangan sudah lengkap saat unit reload jalan. Isi sama → tidak ada file ditulis → tidak ada reload.
+# Hostname utama TIDAK di sini: change detection DMS sudah me-reload Postfix/Dovecot untuk SSL_CERT_PATH/SSL_KEY_PATH.
+[Unit]
+Description=Pantau sertifikat SNI mail client ({{ mail_tls_export_sni_domains | join(', ') }})
+Documentation=file://{{ infra_root }}/docs/03-operations/mail.md
+
+[Path]
+{% for d in mail_tls_export_sni_domains %}
+PathChanged={{ mail_tls_export_out }}/{{ d }}/fullchain.pem
+{% endfor %}
+Unit=mail-tls-reload.service
+
+[Install]
+WantedBy=paths.target

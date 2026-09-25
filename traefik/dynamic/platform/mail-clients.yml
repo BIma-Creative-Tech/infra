@@ -1,0 +1,22 @@
+# ADR 0011 — router "dummy" sertifikat untuk hostname mail per domain client (SNI Postfix/Dovecot).
+# Pola sama dengan platform/mail.yml (mail-cert): satu-satunya fungsi = membuat Traefik menerbitkan & memperpanjang
+# sertifikat LE (HTTP-01, resolver le-http) per hostname. SATU router + SATU sertifikat per hostname (bukan SAN gabungan:
+# kegagalan renew satu domain client tidak boleh menggagalkan sertifikat platform — ADR 0011 Alternatives).
+# Sertifikat diekspor dari acme.json HANYA bila hostname ada di allowlist role Ansible mail_tls_export
+# (mail_tls_export_sni_domains) → mail/data/tls/<fqdn>/ → Dovecot local_name + Postfix tls_server_sni_maps.
+# Request HTTPS → redirect 307 ke control plane (middleware mail-redirect-cp, didefinisikan di platform/mail.yml).
+# File di subdirektori → setelah mengubah: `docker exec traefik kill -HUP 1` (H7; BUKAN docker kill --signal).
+# Menambah/menghapus hostname: docs/03-operations/mail.md §Hostname mail per domain client.
+#
+# mail.expomedia.id — client expomedia (docs/clients/expomedia.md). DNS pre-check lulus 2026-09-25 19:4x WIB:
+# A = 31.97.50.221 @103.253.212.32 (ns1.mysrsx.com), @107.170.170.91 (ns1.mysrsx.net), @1.1.1.1, @8.8.8.8;
+# AAAA kosong (NOERROR, ANSWER 0), tanpa CNAME. MX expomedia.id tetap 10 mail.bimacreative.tech.
+http:
+  routers:
+    mail-cert-expomedia:
+      entryPoints: [websecure]
+      rule: "Host(`mail.expomedia.id`)"
+      middlewares: [crowdsec, security-headers, ratelimit-default, mail-redirect-cp]
+      service: deny-sink
+      tls:
+        certResolver: le-http

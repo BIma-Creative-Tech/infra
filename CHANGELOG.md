@@ -9,6 +9,13 @@ file `VERSION`.
 ## [Unreleased]
 
 ### Added
+- mail (ADR 0011, keputusan user 2026-09-25): hostname klien email per domain client via TLS SNI — `mail.expomedia.id`
+  (IMAP 993, SMTP 465/587, juga 25) menyajikan sertifikat LE sendiri; tanpa SNI/SNI lain tetap `mail.bimacreative.tech`;
+  HELO/PTR/MX tidak berubah. Router `traefik/dynamic/platform/mail-clients.yml` (`mail-cert-expomedia`, `le-http`);
+  `tls-export.py --sni-domain` (allowlist, `data/tls/<fqdn>/`, 26 unit test); `tls_server_sni_maps` inline
+  (`mail/config/postfix-main.cf`) + `local_name` Dovecot 2.4 (`mail/config/dovecot.cf`, disinkron `bootstrap.sh`); role
+  `mail_tls_export` `mail_tls_export_sni_domains` + unit `mail-tls-reload.{path,service}` (reload Postfix/Dovecot saat renew).
+  ADR 0005 #9 direvisi. Runbook `docs/03-operations/mail.md` §Hostname mail per domain client.
 - Client Expomedia Indo Karya (plan 07, discovery `docs/discovery/2026-09-25-expomedia.md`): website staging
   `https://expomedia.staging.bimacreative.tech` (`web-expomedia:dev-0e87369`, image lokal TEMPORARY, form kontak via
   `info@expomedia.id`), route `traefik/dynamic/clients/web-expomedia-staging.yml`; domain mail `expomedia.id` (DKIM `mail`,

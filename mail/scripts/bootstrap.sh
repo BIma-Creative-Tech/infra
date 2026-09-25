@@ -5,8 +5,8 @@
 #  2. /var/log/mailserver (root:adm 750) + subdir dms/ (di-mount ke /var/log/mail; DMS set 755 + file root 644)
 #     — parent 750 menutup akses user host lain; CrowdSec (uid 0 di container) membaca sebagai owner.
 #  3. secrets/ (700 root) — password mailbox (dibuat scripts/mailbox-add.sh).
-#  4. Sinkron config git → data/config: postfix-main.cf, rspamd/override.d/*.conf.
-#     postfix-main.cf hanya dibaca saat START container (butuh recreate); rspamd/** dipantau change detection DMS.
+#  4. Sinkron config git → data/config: postfix-main.cf, dovecot.cf (ADR 0011: SNI local_name), rspamd/override.d/*.conf.
+#     postfix-main.cf & dovecot.cf hanya dibaca saat START container (butuh recreate); rspamd/** dipantau change detection DMS.
 set -euo pipefail
 
 STACK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -38,11 +38,12 @@ sync_file() { # sync_file <src> <dst> — salin hanya bila isi berbeda
   fi
 }
 sync_file "$STACK_DIR/config/postfix-main.cf" "$STACK_DIR/data/config/postfix-main.cf"
+sync_file "$STACK_DIR/config/dovecot.cf" "$STACK_DIR/data/config/dovecot.cf"   # → /etc/dovecot/local.conf saat start
 for f in "$STACK_DIR"/config/rspamd/override.d/*.conf; do
   sync_file "$f" "$STACK_DIR/data/config/rspamd/override.d/$(basename "$f")"
 done
 [[ $changed -eq 1 ]] || echo "config: tidak ada perubahan"
 if [[ $changed -eq 1 ]]; then
-  echo "CATATAN: perubahan postfix-main.cf butuh 'docker compose up -d --force-recreate mailserver';" \
+  echo "CATATAN: perubahan postfix-main.cf/dovecot.cf butuh 'docker compose up -d --force-recreate mailserver';" \
        "perubahan rspamd/override.d diterapkan otomatis oleh change detection DMS (±2 s + reload Rspamd)."
 fi

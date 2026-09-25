@@ -1,6 +1,6 @@
 ---
 # Role mail_tls_export (QA-T17B-02 / B18, keputusan user 2026-09-25 "risk acceptance + hardening").
-# Mengekspor HANYA sertifikat + kunci mail.<platform> dari acme.json Traefik ke {{ mail_tls_export_out }} (root 0700;
+# Mengekspor HANYA sertifikat + kunci mail.<platform> (+ allowlist hostname SNI client, ADR 0011) dari acme.json Traefik ke {{ mail_tls_export_out }} (root 0700;
 # fullchain.pem 0644, privkey.pem 0600). Mailserver me-mount dir itu read-only (SSL_TYPE=manual) — bukan acme.json penuh.
 # Terapkan:  ansible-playbook site.yml --tags mail_tls_export --check --diff  lalu tanpa --check (run kedua changed=0).
 # Rollback:  mail_tls_export_state: absent → unit dihapus; file ekspor DIPERTAHANKAN (compose lama tidak memakainya).
@@ -10,6 +10,15 @@ mail_tls_export_acme: "{{ infra_root }}/traefik/acme/acme.json"
 mail_tls_export_resolver: le-http
 mail_tls_export_domain: mail.bimacreative.tech
 mail_tls_export_out: "{{ infra_root }}/mail/data/tls"
+# ADR 0011: ALLOWLIST eksplisit hostname mail per domain client (SNI) yang cert/key-nya boleh diekspor ke
+# {{ mail_tls_export_out }}/<fqdn>/ (privkey/chain/fullchain 0600, dir 0700). Hanya hostname yang punya router
+# traefik/dynamic/platform/mail-clients.yml (sertifikat le-http sendiri) + entri SNI Postfix/Dovecot (mail/config/).
+# Kosong → unit mail-tls-reload.{path,service} dihapus. Urutan tambah/hapus: docs/03-operations/mail.md
+# §Hostname mail per domain client.
+mail_tls_export_sni_domains:
+  - mail.expomedia.id
+# Container yang di-reload (postfix reload + dovecot reload) saat sertifikat SNI berubah.
+mail_tls_export_container: mailserver
 # Traefik memperbarui sertifikat saat sisa 30 hari (default LE 90 hari); < 20 hari = perpanjangan gagal → exit 2 → alert.
 mail_tls_export_warn_days: 20
 # Jaring pengaman selain .path (acme.json berubah): run harian + saat boot.

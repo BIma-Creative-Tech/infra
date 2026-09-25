@@ -1,0 +1,24 @@
+# {{ ansible_managed }} — role mail_tls_export (ADR 0011)
+# Muat ulang sertifikat SNI client: Postfix `tls_server_sni_maps` tabel inline (file dibaca saat tabel dibuka — proses
+# smtpd baru setelah `postfix reload`) + Dovecot `local_name` (dibaca ulang saat `dovecot reload`). Keduanya graceful:
+# koneksi berjalan tidak diputus. Butuh akses Docker (root) — sengaja unit TERPISAH dari mail-tls-export.service
+# (yang di-sandbox tanpa akses Docker). Argumen tetap, tanpa shell.
+# Gagal (mis. container mati) → OnFailure alert; container yang start ulang memuat file terbaru sendiri.
+[Unit]
+Description=Reload Postfix + Dovecot di {{ mail_tls_export_container }} setelah sertifikat SNI mail client berubah
+Documentation=file://{{ infra_root }}/docs/03-operations/mail.md
+OnFailure=infra-unit-failure@%n.service
+After=docker.service
+StartLimitIntervalSec=10min
+StartLimitBurst=10
+
+[Service]
+Type=oneshot
+SyslogIdentifier=mail-tls-reload
+ExecStart=/usr/bin/docker exec {{ mail_tls_export_container }} postfix reload
+ExecStart=/usr/bin/docker exec {{ mail_tls_export_container }} dovecot reload
+TimeoutStartSec=60
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes

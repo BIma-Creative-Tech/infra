@@ -1,0 +1,11 @@
+# ADR 0011 (2026-09-25) — hostname mail per domain client via TLS SNI (IMAPS 993).
+# Mekanisme DMS v16.0.1 (docs config/advanced/override-defaults/dovecot.md; setup.d/dovecot.sh): file ini
+# (data/config/dovecot.cf) disalin ke /etc/dovecot/local.conf saat START container (`!include_try local.conf`) →
+# perubahan butuh recreate (atau salin live + `doveconf -n` + `dovecot reload`). Sintaks Dovecot 2.4 (docs
+# doc.dovecot.org/2.4.1/core/config/ssl.html §With Client TLS SNI Support): filter `local_name` + ssl_server_{cert,key}_file.
+# File dari tls-export.py (data/tls/<fqdn>/ = /etc/dms-tls/<fqdn>/, ro). Perpanjangan → `dovecot reload`
+# (unit host mail-tls-reload.path). PERINGATAN: file WAJIB ada saat Dovecot start/reload (bila tidak, config gagal).
+local_name mail.expomedia.id {
+  ssl_server_cert_file = /etc/dms-tls/mail.expomedia.id/fullchain.pem
+  ssl_server_key_file = /etc/dms-tls/mail.expomedia.id/privkey.pem
+}

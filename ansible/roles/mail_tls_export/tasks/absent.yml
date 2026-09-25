@@ -7,6 +7,7 @@
   loop:
     - mail-tls-export.path
     - mail-tls-export.timer
+    - mail-tls-reload.path
   failed_when: false
 
 - name: Hapus unit
@@ -17,6 +18,8 @@
     - mail-tls-export.service
     - mail-tls-export.path
     - mail-tls-export.timer
+    - mail-tls-reload.service
+    - mail-tls-reload.path
   notify: Reload systemd (mail_tls_export)
 
 - name: Terapkan daemon-reload

@@ -8,7 +8,12 @@
       - mail_tls_export_domain is match('^[a-z0-9.-]+$')
       - mail_tls_export_out is match('^/opt/infra/mail/data/[a-z0-9_-]+$')
       - mail_tls_export_warn_days | int > 0
-    fail_msg: "mail_tls_export: state/domain/out/warn_days tidak valid"
+      - mail_tls_export_sni_domains is sequence and mail_tls_export_sni_domains is not string
+      - mail_tls_export_sni_domains | select('match', '^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z]([a-z0-9-]{0,61}[a-z0-9])?$') | list | length == mail_tls_export_sni_domains | length
+      - mail_tls_export_domain not in mail_tls_export_sni_domains
+      - mail_tls_export_sni_domains | unique | length == mail_tls_export_sni_domains | length
+      - mail_tls_export_container is match('^[a-z0-9][a-z0-9_.-]*$')
+    fail_msg: "mail_tls_export: state/domain/out/warn_days/sni_domains/container tidak valid"
     quiet: true
 
 - name: Terapkan (present)

@@ -1,7 +1,8 @@
 # {{ ansible_managed }} — role mail_tls_export (QA-T17B-02 / B18)
 # Membaca acme.json (0600 uid 65532) → butuh CAP_DAC_READ_SEARCH saja; menulis ke dir root 0700 milik root (tanpa cap).
 # Tanpa jaringan. Hardening diuji dengan systemd-run (properti sama) terhadap SALINAN acme.json (mail.md §TLS).
-# Exit: 0 ok/unchanged · 1 validasi gagal (file lama TIDAK diubah) · 2 sertifikat < {{ mail_tls_export_warn_days }} hari.
+# SNI (ADR 0011): {{ mail_tls_export_sni_domains | join(', ') if mail_tls_export_sni_domains else '-' }} → {{ mail_tls_export_out }}/<fqdn>/; reload oleh mail-tls-reload.path.
+# Exit: 0 ok/unchanged · 1 validasi gagal pada ≥1 hostname (file lama hostname itu TIDAK diubah; hostname lain tetap diproses) · 2 sertifikat < {{ mail_tls_export_warn_days }} hari.
 [Unit]
 Description=Ekspor sertifikat {{ mail_tls_export_domain }} dari acme.json untuk docker-mailserver
 Documentation=file://{{ infra_root }}/docs/03-operations/mail.md
@@ -11,7 +12,7 @@ StartLimitBurst=30
 
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/python3 {{ mail_tls_export_script }} --acme {{ mail_tls_export_acme }} --resolver {{ mail_tls_export_resolver }} --domain {{ mail_tls_export_domain }} --out {{ mail_tls_export_out }} --warn-days {{ mail_tls_export_warn_days }}
+ExecStart=/usr/bin/python3 {{ mail_tls_export_script }} --acme {{ mail_tls_export_acme }} --resolver {{ mail_tls_export_resolver }} --domain {{ mail_tls_export_domain }}{% for d in mail_tls_export_sni_domains %} --sni-domain {{ d }}{% endfor %} --out {{ mail_tls_export_out }} --warn-days {{ mail_tls_export_warn_days }}
 SyslogIdentifier=mail-tls-export
 UMask=0077
 TimeoutStartSec=60

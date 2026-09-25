@@ -1,4 +1,4 @@
-Instruksi DNS — email untuk domain expomedia.id (dilayani mail.bimacreative.tech)
+Instruksi DNS — email untuk domain expomedia.id (dilayani mail.bimacreative.tech; nama server klien: mail.expomedia.id, ADR 0011)
 Sumber: docs/adr/0005-mail-ipv4.md §Template; prosedur: docs/03-operations/mail.md §Menambah domain client.
 Dibuat 2026-09-25 dari templates/mail-client-dns.txt (kunci DKIM: mail/data/config/rspamd/dkim/rsa-2048-mail-expomedia.id.public.dns.txt). Lengkap (termasuk DNS web): docs/clients/expomedia.md.
 
@@ -13,10 +13,15 @@ Tambahkan di DNS expomedia.id:
 4. TXT  _dmarc            v=DMARC1; p=none; adkim=s; aspf=s; rua=mailto:dmarc@expomedia.id
         -> mulai p=none 2-4 minggu; naik ke quarantine lalu reject setelah laporan bersih.
 
-JANGAN membuat record AAAA untuk mail; JANGAN memakai mail.expomedia.id sebagai server.
+5. A    mail              31.97.50.221
+        -> (SUDAH diisi 2026-09-25) nama server untuk aplikasi email (ADR 0011). TANPA AAAA, bukan CNAME.
+        -> MX TETAP 10 mail.bimacreative.tech (record 1) — jangan diganti ke mail.expomedia.id.
 
-Pengaturan aplikasi email (Outlook/Thunderbird/ponsel):
+JANGAN membuat record AAAA untuk mail.
+
+Pengaturan aplikasi email (Outlook/Thunderbird/ponsel) — sejak 2026-09-25:
   Username   : alamat email lengkap (mis. nama@expomedia.id)
-  IMAP masuk : mail.bimacreative.tech  port 993  SSL/TLS
-  SMTP keluar: mail.bimacreative.tech  port 465  SSL/TLS   (atau port 587 STARTTLS)
+  IMAP masuk : mail.expomedia.id  port 993  SSL/TLS
+  SMTP keluar: mail.expomedia.id  port 465  SSL/TLS   (atau port 587 STARTTLS)
   Autentikasi SMTP: wajib (username & password yang sama)
+  (mail.bimacreative.tech dengan port yang sama tetap berfungsi — perangkat yang sudah memakainya tidak wajib diubah.)

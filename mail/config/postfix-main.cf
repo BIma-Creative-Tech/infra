@@ -6,3 +6,16 @@
 
 # 2026-09-23: guard defer_transports DICABUT setelah PTR 31.97.50.221 = mail.bimacreative.tech terverifikasi
 # (Cloudflare, Quad9, OpenDNS, Google). Prosedur: docs/03-operations/mail.md §PTR.
+
+# ADR 0011 (2026-09-25) — hostname mail per domain client via TLS SNI (smtpd 25/465/587 + tlsproxy).
+# postconf(5) tls_server_sni_maps (Postfix ≥ 3.4; container 3.10.13): tabel "inline"/"texthash" = nilai berupa daftar file
+# yang dimuat ke memori saat tabel dibuka (tanpa postmap -F) → perpanjangan sertifikat cukup `postfix reload`
+# (unit host mail-tls-reload.path, role Ansible mail_tls_export). File chain.pem = kunci privat diikuti fullchain
+# (format smtpd_tls_chain_files), ditulis tls-export.py ke data/tls/<fqdn>/ (= /etc/dms-tls/<fqdn>/, ro, root 0700/0600).
+# Entri hostname utama → sertifikat default DMS (/etc/dms/tls, diperbarui change detection DMS) agar SNI
+# mail.bimacreative.tech tidak dicatat "mismatch" (saran postconf(5)). Tanpa SNI / SNI tak dikenal → sertifikat default.
+# PERINGATAN: file yang disebut di sini WAJIB ada saat smtpd start (bila tidak, TLS di smtpd gagal) — lihat mail.md
+# §Hostname mail per domain client (urutan tambah/hapus).
+tls_server_sni_maps = inline:{
+    { mail.bimacreative.tech = /etc/dms/tls/key, /etc/dms/tls/cert },
+    { mail.expomedia.id = /etc/dms-tls/mail.expomedia.id/chain.pem } }

@@ -50,6 +50,7 @@ Setelah record ini aktif, tim platform menerbitkan sertifikat TLS otomatis (HTTP
 | TXT | `@` | `v=spf1 include:_spf.bimacreative.tech -all` | 3600 | hanya **satu** record SPF; layanan pengirim lain ditambahkan `include:` sebelum `-all` |
 | TXT | `mail._domainkey` | `v=DKIM1; k=rsa; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAvQCxEq0VoR5V6cp8iljWrY6vZG+lzZGzI02vnSzIQUDaICbpSpHAJ2JhEPaC0VxbPHvaD2/Hd6OfaObDRF1z0kumm5EwtpsyUSEFNrGhgHhyv0ZfUxM28FgnnKR1FmmX6loxqPmy0GzlFoscp0Z1PEddWI3O6cEibuNkXfseCQ3NrjI1rq9ni6yDj9sOuMgf+qGRz5QGz6zEO2RpUTG+8FJnR5/JkhFIY1w0Gb527qJb5/jsIitfEF46jVJsFnuB/AM1Nm+JK3aMvqFuZWrUkCTRG7ReN8yzYtPmcaCGFFr6JyAqeOMy+F0ruJesQ4ixz6Qdj/Sah1aIYgggoakKuwIDAQAB` | 3600 | kunci publik DKIM selector `mail` (sumber: `mail/data/config/rspamd/dkim/rsa-2048-mail-expomedia.id.public.dns.txt`); satu string, tanpa spasi tambahan |
 | TXT | `_dmarc` | `v=DMARC1; p=none; adkim=s; aspf=s; rua=mailto:dmarc@expomedia.id` | 3600 | mulai `p=none` 2–4 minggu → `quarantine` → `reject` setelah laporan bersih |
+| A | `mail` | `31.97.50.221` | 14400 | **sudah diisi 2026-09-25** — nama server klien email (ADR 0011); tanpa AAAA; **MX tetap** `10 mail.bimacreative.tech` |
 
 Bila panel Dewaweb membatasi panjang TXT (255 karakter per string), nilai DKIM boleh dipecah menjadi beberapa string dalam satu
 record (format `"v=DKIM1; k=rsa; " "p=…" "…"`), lihat `rsa-2048-mail-expomedia.id.public.txt`.
@@ -74,11 +75,15 @@ biasa/chat); rotasi: `sudo /opt/infra/mail/scripts/mailbox-add.sh --rotate <alam
 | Item | Nilai |
 |---|---|
 | Username | alamat email lengkap, mis. `info@expomedia.id` |
-| IMAP masuk | `mail.bimacreative.tech`, port `993`, SSL/TLS |
-| SMTP keluar | `mail.bimacreative.tech`, port `465` SSL/TLS **atau** port `587` STARTTLS |
+| IMAP masuk | **`mail.expomedia.id`**, port `993`, SSL/TLS |
+| SMTP keluar | **`mail.expomedia.id`**, port `465` SSL/TLS **atau** port `587` STARTTLS |
 | Autentikasi SMTP | wajib, username & password sama dengan IMAP |
-| **JANGAN** | memakai `mail.expomedia.id` sebagai nama server — tidak ada record-nya dan sertifikat TLS tidak cocok |
+| Alternatif | `mail.bimacreative.tech` (port sama) **tetap berfungsi** — perangkat yang sudah memakainya tidak wajib diubah |
 | POP3 | tidak disediakan (port 110/995 tidak dipublikasikan) |
+
+Sejak 2026-09-25 (ADR 0011): `mail.expomedia.id` memakai sertifikat Let's Encrypt sendiri yang dipilih lewat TLS SNI di server
+yang sama (`mail.bimacreative.tech`). Banner/EHLO SMTP tetap `mail.bimacreative.tech` (normal). Klien email sangat tua tanpa SNI
+akan melihat sertifikat `mail.bimacreative.tech` → pakai `mail.bimacreative.tech` untuk perangkat itu. Bukti: §7b.
 
 ## 6. Rate limit & batasan (ADR 0005 #13)
 
@@ -102,6 +107,19 @@ biasa/chat); rotasi: `sudo /opt/infra/mail/scripts/mailbox-add.sh --rotate <alam
 Sertifikat server = `mail.bimacreative.tech`; uji ke `127.0.0.1` memakai `swaks --tls` tanpa `--tls-verify` (nama host tidak cocok
 dengan sertifikat, wajar untuk uji loopback; klien nyata memakai nama `mail.bimacreative.tech` dan verifikasi penuh).
 
+### 7b. Hostname `mail.expomedia.id` (ADR 0011, 2026-09-25)
+
+| Uji | Hasil |
+|---|---|
+| DNS pre-check 19:4x WIB | `A mail.expomedia.id` = `31.97.50.221` @ns1.mysrsx.com, @ns1.mysrsx.net, @1.1.1.1, @8.8.8.8; AAAA kosong; tanpa CNAME |
+| Sertifikat (router `mail-cert-expomedia`, `le-http`) | terbit 19:43:51 WIB, `CN = mail.expomedia.id`, issuer `YE2`, notAfter `Dec 24 11:45:17 2026 GMT` |
+| `openssl s_client -servername mail.expomedia.id` 993 / 465 / 587 STARTTLS / 25 STARTTLS (127.0.0.1 & 31.97.50.221) | `subject=CN = mail.expomedia.id`, `-verify_hostname mail.expomedia.id -verify_return_error` → `Verify return code: 0 (ok)` |
+| Tanpa SNI / SNI `mail.bimacreative.tech` / SNI tak dikenal | `CN = mail.bimacreative.tech`, verify 0 (tidak regresi) |
+| `swaks` 587 STARTTLS `--tls-sni mail.expomedia.id --tls-verify` AUTH `admin@expomedia.id` | CA + host verification passed; `235 2.7.0 Authentication successful`; `250 2.0.0 Ok: queued`; terkirim ke maildir (`status=sent`) |
+| `swaks` 465 (TLS implisit) sama | verification passed; `235` |
+| IMAP 993 SNI `mail.expomedia.id` `a LOGIN admin@expomedia.id` | rantai terverifikasi (`depth=0 CN=mail.expomedia.id`), `a OK`, `SELECT INBOX` OK |
+| Regresi `bimacreative.tech` | `alerts@` → `dmarc@bimacreative.tech` (587, SNI `mail.bimacreative.tech`, verify) → `status=sent` |
+
 ## 8. Verifikasi setelah client mengisi DNS (langkah 5 runbook)
 
 ```
@@ -119,6 +137,11 @@ Lalu: kirim uji ke penerima eksternal (mis. Gmail / mail-tester) → header `Aut
 provision router prod web (`provision-web-client.sh expomedia prod --host expomedia.id --www …`, Lead); umumkan mailbox aktif ke client.
 
 ## 9. Rollback
+
+- Hostname `mail.expomedia.id` (ADR 0011 §Rollback): keluarkan entri SNI dari `mail/config/postfix-main.cf` + `mail/config/dovecot.cf`
+  → `bootstrap.sh` → recreate `mailserver`; hapus dari `mail_tls_export_sni_domains` → role `mail_tls_export`; hapus router
+  `mail-cert-expomedia` di `traefik/dynamic/platform/mail-clients.yml` → `docker exec traefik kill -HUP 1`. Staf kembali memakai
+  `mail.bimacreative.tech` (tetap berfungsi selama ini).
 
 - Mail: `setup email del <alamat>` per mailbox, `setup alias del abuse@expomedia.id postmaster@expomedia.id`, komentari blok
   `expomedia.id` di `mail/config/rspamd/override.d/dkim_signing.conf`, `sudo mail/scripts/bootstrap.sh` (Rspamd reload otomatis).

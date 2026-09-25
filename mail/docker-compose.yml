@@ -9,10 +9,12 @@ services:
   mailserver:
     # ADR 0001: mailserver/docker-mailserver:16.0.1 — digest index multi-arch (docker buildx imagetools
     # inspect, 2026-09-23). CHANGELOG v16.0.0/v16.0.1 dibaca: breaking = SA_SPAM_SUBJECT dihapus, Dovecot
-    # 2.3→2.4 (config dovecot.cf kustom 2.3 tidak dimuat — kita tidak memakai), dhparams.pem diabaikan.
+    # 2.3→2.4 (config dovecot.cf kustom bersintaks 2.3 tidak valid), dhparams.pem diabaikan. Sejak ADR 0011 dovecot.cf
+    # (sintaks 2.4: blok SNI local_name) dipakai — config/dovecot.cf → data/config → /etc/dovecot/local.conf saat start.
     image: mailserver/docker-mailserver:16.0.1@sha256:d0fe7668defe157aad57ea31b1707ad1e2fb57d7a91bdf17cbdf876549946c86
     container_name: mailserver
-    # FQDN = HELO = PTR = CN sertifikat, untuk SEMUA domain (ADR 0005 #5, #9). DMS memakai `hostname --fqdn`.
+    # FQDN = HELO = PTR = CN sertifikat default, untuk SEMUA domain (ADR 0005 #5, #9). DMS memakai `hostname --fqdn`.
+    # ADR 0011: hostname klien email per domain client (mail.<client>) via SNI — sertifikat di data/tls/<fqdn>/.
     hostname: mail.bimacreative.tech
     restart: unless-stopped
     stop_grace_period: 1m
@@ -82,6 +84,7 @@ services:
       # root:adm 750 (bootstrap) mencegah user host lain membaca (log berisi alamat email & IP).
       - /var/log/mailserver/dms:/var/log/mail
       - ./data/tls:/etc/dms-tls:ro                 # fullchain.pem 0644 + privkey.pem 0600, dir root 0700 (role mail_tls_export)
+                                                   # + <fqdn>/{privkey,chain,fullchain}.pem 0600 per hostname SNI (ADR 0011)
     networks:
       - mail
     healthcheck:
