@@ -28,6 +28,15 @@
   **≈ 2 312 → ≈ 1 672 MiB** (≈ 1 096 setelah DRMS prod) karena drms-pk-stg + web-starter-staging belum tercatat di
   § Decision; usul T07 cadangan host 1 152 MiB **dibatalkan**; runway disk ≈ 1,3–2 hari akibat build lokal (risiko
   utama); target 3–5 tenant Odoo kecil dipertahankan (+3–4), website Next.js ≤ 3–4. Angka lama tidak diubah.
+- 2026-09-25 (T19 follow-up #3, infra): **§ T19 §8.2** kolektor memori/CPU per container (timer host 60 s → textfile
+  node-exporter), prasyarat R3; §8.1 ditambah dampak restart dockerd terukur (±2 s, H3). Belum diterapkan.
+- 2026-09-25 (T19 follow-up #2, keputusan user): **cadangan host perencanaan 1 536 → 2 048 MiB** (usul R2 diterima).
+  Dihitung ulang: § Decision "+ cadangan host" 13 680 → 14 192, sisa ≈ 2 312 → ≈ 1 800 MiB; § T19 §3 sisa ≈ 1 672 →
+  **≈ 1 160 MiB** (setelah DRMS prod ≈ 1 096 → **≈ 584**); § T19 §5 website Next.js baru 6/4 → **4/2** (rencana ≤ 2).
+  Kapasitas tenant Odoo (+3–4, dibatasi limit container pool) tidak berubah. Angka lama tetap ditampilkan (dicoret).
+- 2026-09-25 (T19 follow-up #1, infra): **§ T19 §8.1** batas GC BuildKit di `daemon.json` (`builder.gc`: max 10 GiB,
+  reserved 2 GiB, min-free 56 GiB Bfree); kunci diverifikasi dari source moby `docker-v29.8.1`. Belum diterapkan (butuh
+  restart dockerd, dijadwalkan Lead).
 - 2026-09-25 (grafana/kuma, sebelum T19): grafana 256 → 384 MiB, uptime-kuma 192 → 320 MiB (tabel § Decision).
 
 > **SEMUA ANGKA DI § "Decision" DI BAWAH INI = ESTIMASI** kecuali yang diberi sumber resmi.
@@ -59,7 +68,7 @@ Sebagai bantalan lonjakan, bukan kapasitas. Alert bila swap terpakai > 1 GiB sel
 
 | Stack / service | mem_limit | cpus | Catatan (ESTIMASI kecuali disebut) |
 |---|---:|---:|---|
-| **Cadangan host** (kernel, systemd, dockerd, containerd, sshd, fail2ban, crowdsec-firewall-bouncer, auditd, page cache minimum) | 1 536 MiB | — | bukan limit; idle host sekarang ±689 MiB (discovery) |
+| **Cadangan host** (kernel, systemd, dockerd, containerd, sshd, fail2ban, crowdsec-firewall-bouncer, auditd, page cache minimum) | **2 048 MiB** | — | bukan limit; idle host sekarang ±689 MiB (discovery). **1 536 → 2 048 MiB (keputusan user 2026-09-25, T19 R2)**: overhead host non-container NYATA ±1 691 MiB saat sesi Claude Code + BuildKit di host |
 | traefik | 256 MiB | 1.0 | + plugin bouncer |
 | crowdsec (agent + LAPI + AppSec) | 384 MiB | 0.5 | |
 | docker-socket-proxy | 64 MiB | 0.1 | |
@@ -80,10 +89,10 @@ Sebagai bantalan lonjakan, bukan kapasitas. Alert bila swap terpakai > 1 GiB sel
 | grafana | 384 MiB | 0.25 | 256 → 384 MiB (2026-09-25) |
 | uptime-kuma | 320 MiB | 0.2 | 192 → 320 MiB (2026-09-25) |
 | **Jumlah mem_limit platform** | **12 144 MiB** | | +256 MiB (2026-09-25) |
-| **+ cadangan host** | **13 680 MiB** | | |
-| **Sisa untuk client (web Next.js per client, growth)** | **≈ 2 312 MiB** | | 15 992 − 13 680 |
+| **+ cadangan host** | **14 192 MiB** | | sebelumnya 13 680 (cadangan 1 536) |
+| **Sisa untuk client (web Next.js per client, growth)** | **≈ 1 800 MiB** | | 15 992 − 14 192 (sebelumnya ≈ 2 312) |
 
-> **T19 (2026-09-25):** sisa nyata perencanaan = **≈ 1 672 MiB** (≈ 1 096 setelah DRMS prod) — tabel di atas belum memuat drms-pk-stg/web-starter-staging; lihat § "Pengukuran ulang T19" §3.
+> **T19 (2026-09-25):** sisa nyata perencanaan = **≈ 1 160 MiB** (≈ 584 setelah DRMS prod) dengan cadangan host 2 048 MiB (sebelumnya ≈ 1 672 / ≈ 1 096 dengan 1 536) — tabel di atas belum memuat drms-pk-stg/web-starter-staging; lihat § "Pengukuran ulang T19" §3.
 
 Catatan: jumlah `mem_limit` = batas atas, bukan pemakaian nyata; pemakaian tipikal diperkirakan
 lebih rendah. Namun perencanaan memakai batas atas agar tidak ada OOM berantai.
@@ -286,8 +295,10 @@ dipasang) − datamart dbt 384 (**belum di-deploy**: `/opt/infra/datamart` tidak
 
 | Basis | Perhitungan | Hasil |
 |---|---|---:|
-| **mem_limit (dasar perencanaan, dipertahankan)** [NYATA limit] | 15 992 − 12 400 (berjalan) − 384 (dbt, dicadangkan) − 1 536 (cadangan host) | **≈ 1 672 MiB** (turun dari ≈ 2 312) |
-| … setelah DRMS **prod** (web 384 + worker 192, [ESTIMASI] = limit staging; migrate one-shot 384 hanya saat deploy) | 1 672 − 576 | **≈ 1 096 MiB** |
+| **mem_limit (dasar perencanaan, dipertahankan) — BERLAKU, cadangan host 2 048** [NYATA limit] | 15 992 − 12 400 (berjalan) − 384 (dbt, dicadangkan) − **2 048** (cadangan host, keputusan user 2026-09-25) | **≈ 1 160 MiB** |
+| … setelah DRMS **prod** (web 384 + worker 192, [ESTIMASI] = limit staging; migrate one-shot 384 hanya saat deploy) — BERLAKU | 1 160 − 576 | **≈ 584 MiB** |
+| ~~mem_limit, cadangan host 1 536~~ (angka awal T19, digantikan) | 15 992 − 12 400 − 384 − 1 536 | ~~≈ 1 672 MiB~~ (turun dari ≈ 2 312) |
+| ~~… setelah DRMS prod, cadangan 1 536~~ (digantikan) | 1 672 − 576 | ~~≈ 1 096 MiB~~ |
 | Pemakaian nyata p95 host [NYATA] | 15 992 − p95 used 5 029 | ≈ 10 960 MiB |
 | Pemakaian nyata puncak (saat build) [NYATA] | 15 992 − maks 10 767 | ≈ 5 225 MiB (+ swap 1,2 GiB terpakai) |
 
@@ -334,9 +345,11 @@ sesi Claude Code yang tidak terbatasi** — itulah yang mendorong swap ke 1,19 G
   ukur ulang dengan tenant nyata.
 
 **Website Next.js client (256m, `web-edge`)** — pemakaian nyata 70–77 MiB (web-starter-staging, 27% limit):
-- Berdasarkan mem_limit: 1 672 / 256 = **6** tanpa DRMS prod; **4** setelah DRMS prod (1 096 / 256) —
-  **rencanakan ≤ 3–4** (sisakan satu slot untuk lonjakan/deploy migrate one-shot). Staging tiap website ikut dihitung
-  (256m per env yang hidup).
+- Berdasarkan mem_limit (cadangan host 2 048, BERLAKU): 1 160 / 256 = **4** tanpa DRMS prod; **2** setelah DRMS prod
+  (584 / 256) — **rencanakan ≤ 2 website/env baru** sampai R3 diputuskan (sisa ±72 MiB setelah 2 site + DRMS prod
+  tidak cukup untuk migrate one-shot 384 → jadwalkan deploy migrate saat build tidak berjalan). Staging tiap website
+  ikut dihitung (256m per env yang hidup). *(Angka awal T19 dengan cadangan 1 536: 1 672 / 256 = 6; 1 096 / 256 = 4;
+  "≤ 3–4" — digantikan.)*
 - Berdasarkan pemakaian nyata (±80 MiB/site) jauh lebih banyak (> 20) — **tidak dipakai** sebagai dasar tanpa kebijakan
   overcommit yang disetujui user (lihat usulan R3).
 
@@ -346,7 +359,7 @@ Per client (tetap): > 10 user konkuren puncak atau > 25 user aktif; DB > 5 GB at
 client > 40% request; versi/addon/SLA berbeda. **Tambahan level platform (7 hari berturut-turut, di luar jendela build):**
 - RAM available **p05 < 3 GiB**, atau swap terpakai > 1 GiB > 15 menit berulang;
 - CPU busy **p95 > 70%** atau steal p95 > 15%;
-- jumlah `mem_limit` + cadangan host melebihi 15 992 MiB (tidak bisa menambah client tanpa overcommit);
+- jumlah `mem_limit` + cadangan host (2 048 MiB) melebihi 15 992 MiB (tidak bisa menambah client tanpa overcommit);
 - odoo-staging atau odoo-pool-a > 80% `mem_limit` dengan tenant nyata, atau `/web/health` lambat saat jam kerja;
 - disk `/` > 70% **setelah** build cache/image dibersihkan (artinya data nyata yang tumbuh).
 Urutan pemindahan yang disarankan tetap: build/CI keluar host → mail/observability ke VPS-2 → dedicated Odoo client
@@ -360,7 +373,7 @@ besar (§ Decision poin 5 dan `00-server-environment.md` §1 "Skala lanjut").
   **Destruktif → konfirmasi user (CLAUDE.md §0.5).** Lalu cegah berulang: batas GC BuildKit di `daemon.json`
   (`builder.gc`, nilai & sintaks diverifikasi dulu dari docs Docker), pindahkan build ke CI/GHCR (image lokal masih
   `TEMPORARY(2026-09-23)`), dan pasang **alert disk `/` > 70%** + swap > 1 GiB (masih "belum" di `observability.md`).
-- **R2 (RAM host):** naikkan "Cadangan host" di perencanaan 1 536 → **2 048 MiB** (bukan turun ke 1 152 seperti usul
+- **R2 (RAM host) — DITERIMA user 2026-09-25 (cadangan host 2 048 MiB berlaku, §3/§5 dihitung ulang):** naikkan "Cadangan host" di perencanaan 1 536 → **2 048 MiB** (bukan turun ke 1 152 seperti usul
   T07) selama sesi Claude Code + build berjalan di host; batasi build (mis. jadwal di luar jam kerja, atau builder
   terpisah ber-limit) agar puncak 10,7 GiB/swap 1,2 GiB tidak berulang. Efek: sisa perencanaan ≈ 1 160 MiB (584
   setelah DRMS prod) → **maks 2 website Next.js baru** sampai R3 diputuskan.
@@ -370,6 +383,78 @@ besar (§ Decision poin 5 dan `00-server-environment.md` §1 "Skala lanjut").
   limit boleh sampai RAM − cadangan + 1 GiB selama p95 nyata < 50% RAM. Untuk keduanya perlu **riwayat memori per
   container** (sekarang tidak ada): usul collector ringan (mis. timer yang menulis `docker stats` ke textfile
   node-exporter — desain/verifikasi opsi flag di tugas terpisah) sebagai prasyarat.
+
+### 8. Tindak lanjut T19 yang disetujui user (2026-09-25)
+
+#### 8.1 Batas GC BuildKit (R1 bagian "cegah berulang") — `ansible/roles/docker` → `/etc/docker/daemon.json`
+
+**Kunci [NYATA, diverifikasi dari source/docs versi pin Docker Engine 29.8.1, build `464cd50` = tag `docker-v29.8.1`]:**
+`builder.gc.{enabled, defaultReservedSpace, defaultMaxUsedSpace, defaultMinFreeSpace}` — struct `BuilderGCConfig` di
+moby `daemon/config/builder.go` (tag `docker-v29.8.1`) dan contoh `daemon.json` di docker/cli `docs/reference/dockerd.md`
+(tag `v29.8.1`). `defaultKeepStorage` = alias **usang** untuk `defaultReservedSpace` (lantai, bukan plafon) → tidak
+dipakai. Nilai diparse `units.RAMInBytes` (go-units v0.5.0): `GB` = GiB (1024³), **persen tidak didukung** di
+`daemon.json`. Tanpa `policy` custom → dockerd memakai 4 aturan bawaan (`daemon/internal/builder-next/worker/gc.go`
+`DefaultGCPolicy`, BuildKit v0.33.0) dengan tiga ambang ini.
+
+| Kunci | Nilai | Arti (BuildKit v0.33.0 `cache/manager.go` `calculateKeepBytes`) |
+|---|---|---|
+| `enabled` | `true` | GC aktif (default juga `true`; ditulis eksplisit) |
+| `defaultMaxUsedSpace` | `10GB` | plafon build cache (tidak-shared) ±10 GiB |
+| `defaultReservedSpace` | `2GB` | lantai: cache tidak dipangkas di bawah 2 GiB |
+| `defaultMinFreeSpace` | `56GB` | pangkas cache selama statfs **Bfree** < 56 GiB. Bfree ≈ `df` Avail + ±15,6 GiB (blok reserved + overhead ext4; NYATA `df -B1 /` 2026-09-25) → setara `df` Avail ≥ ±40 GiB ≈ ≥ 20% dari 193G (Use% ≤ ±79%) |
+
+Sebelumnya (default dihitung dari ukuran disk, `docker buildx inspect default` [NYATA]): reserved **18,63 GiB**, max
+144,4 GiB, min-free 36,32 GiB — lantai 18,6 GiB itu sebabnya build cache sempat 30 GB. Catatan: `minFreeSpace` hanya
+memangkas **build cache**; image, volume, dan worktree `/opt/src` tetap harus dibersihkan manual (R1, destruktif →
+konfirmasi user).
+
+**`dockerd --validate` TIDAK memeriksa isi `builder`** [NYATA]: file dengan `"defaultMaxUsedSpace": "10XB"` maupun kunci
+salah ketik tetap `configuration OK`. Nilai salah → dockerd **gagal start** (`error creating buildkit instance`,
+`daemon/command/daemon.go`); kunci salah ketik → diabaikan diam-diam. Karena itu verifikasi wajib lewat
+`docker buildx inspect default` setelah restart.
+
+**Dampak penerapan:** `builder` tidak ada di daftar opsi reload (SIGHUP) `dockerd.md` §"Configuration reload behavior"
+maupun `daemon/reload.go` → **restart dockerd wajib**; handler role `Restart docker` (`systemctl restart docker`)
+otomatis terpicu saat `daemon.json` berubah. `live-restore: true` (terpasang) → container tetap berjalan (opsi
+bridge/storage driver tidak berubah, syarat live-restore docs.docker.com "Live restore upon restart"). Selama jendela
+restart (± detik): Docker API/`docker compose`/`infra-job`/`infra-deploy` tidak tersedia, healthcheck & restart policy
+container tidak dievaluasi, log container tertahan di FIFO 64K (proses bisa tertahan menulis log bila jendela lama).
+**Terukur pada restart dockerd sebelumnya (H3, 2026-09-23, `observability.md` §Rollback): gangguan ±2 s — DNS embedded
+Docker & bouncer CrowdSec sempat gagal → 403/timeout singkat di edge.** Jadwalkan di jam sepi.
+GC berjalan ±1 s setelah start (throttle 1 menit) dan setelah tiap build (BuildKit `control/control.go`).
+
+**Langkah terapkan (Lead, jendela terjadwal, tidak ada build berjalan):**
+```bash
+# 0. pra-cek & snapshot
+pgrep -af 'buildx|docker build|compose.*build' || echo "tidak ada build"
+cp -a /etc/docker/daemon.json /etc/docker/daemon.json.bak-t19
+docker ps --format '{{.Names}}' | sort | xargs docker inspect -f '{{.Name}} {{.State.StartedAt}}' > /root/t19-before.txt
+docker buildx inspect default | sed -n '/GC Policy/,$p' > /root/t19-gc-before.txt
+# 1. terapkan (handler me-restart docker)
+cd /opt/infra/ansible && /opt/ansible-venv/bin/ansible-playbook site.yml --tags docker --check --diff   # diff hanya blok "builder"
+/opt/ansible-venv/bin/ansible-playbook site.yml --tags docker --diff
+# 2. verifikasi
+systemctl is-active docker && docker info --format 'live-restore={{.LiveRestoreEnabled}}'
+docker buildx inspect default | sed -n '/GC Policy/,$p'
+#   harapan: rule#0 Max Used Space 488.3MiB (512 MB minimum); rule#1–3 Reserved Space 2GiB, Max Used Space 10GiB,
+#   Min Free Space 56GiB; rule#1 Keep Duration 1440h0m0s; rule#3 All: true
+docker ps --format '{{.Names}}' | sort | xargs docker inspect -f '{{.Name}} {{.State.StartedAt}}' | diff /root/t19-before.txt - && echo "StartedAt tidak berubah"
+docker system df   # Build Cache ≤ ±10 GB setelah GC berikutnya
+systemctl start infra-healthcheck.service && systemctl status infra-healthcheck.service --no-pager | tail -5
+```
+**Rollback:** `cp -a /etc/docker/daemon.json.bak-t19 /etc/docker/daemon.json && systemctl restart docker` (container
+tetap berjalan, live-restore), lalu `git revert` commit role agar Ansible tidak menulis ulang. Bila dockerd gagal start:
+`journalctl -u docker -n 50 --no-pager` → rollback yang sama.
+
+#### 8.2 Riwayat memori/CPU per container (prasyarat R3) — role `container_metrics` + textfile node-exporter
+
+Timer root di host tiap 60 s (`scripts/container-metrics.sh`) membaca cgroup v2 (`memory.current`, `memory.max`,
+`memory.swap.current`, `memory.stat inactive_file`, `memory.events oom_kill`, `cpu.stat usage_usec`) tiap container
+yang berjalan (`docker ps` di host — tidak ada docker.sock di container) → `/var/lib/node-exporter-textfile/containers.prom`
+(atomik, label `name`/`compose_project` saja) → node-exporter `--collector.textfile.directory` (bind ro) → Prometheus
+(retensi 15 hari cukup untuk jendela 7 hari R3). Detail, uji, PromQL, penerapan & rollback: `docs/03-operations/
+observability.md` §"Metrik per container". **RAM [ESTIMASI]:** proses oneshot ±0,5 s/menit (`MemoryMax=64M`), node-exporter
++ Prometheus ±125 seri tambahan → dapat diabaikan; tidak mengubah angka §3. Belum diterapkan (Lead).
 
 Status ADR tetap **accepted**; angka § Decision yang berubah tidak ditimpa, dibaca bersama bagian ini.
 

@@ -1,0 +1,46 @@
+---
+- name: Skrip kolektor ada di repo & executable
+  ansible.builtin.stat:
+    path: "{{ container_metrics_script }}"
+  register: container_metrics_script_stat
+
+- name: Assert skrip kolektor
+  ansible.builtin.assert:
+    that:
+      - container_metrics_script_stat.stat.exists
+      - container_metrics_script_stat.stat.executable
+      - container_metrics_script_stat.stat.pw_name == 'root'
+    fail_msg: "{{ container_metrics_script }} harus ada, executable, milik root"
+    quiet: true
+
+# 0755 root: node-exporter (uid 65534) perlu r-x untuk membaca containers.prom (0644); hanya root yang menulis.
+- name: Direktori textfile node-exporter
+  ansible.builtin.file:
+    path: "{{ container_metrics_textfile_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Unit systemd container-metrics
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "/etc/systemd/system/{{ item }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - container-metrics.service
+    - container-metrics.timer
+  notify: Reload systemd (container_metrics)
+
+- name: Terapkan daemon-reload sebelum mengaktifkan timer
+  ansible.builtin.meta: flush_handlers
+
+# --check pada pemasangan pertama: unit belum ada di disk → modul gagal "Could not find"; diabaikan HANYA di check mode.
+- name: Timer container-metrics aktif
+  ansible.builtin.systemd_service:
+    name: container-metrics.timer
+    enabled: true
+    state: started
+  ignore_errors: "{{ ansible_check_mode }}"

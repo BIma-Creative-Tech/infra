@@ -1,0 +1,15 @@
+---
+# Role container_metrics — riwayat memori/CPU per container untuk node-exporter textfile collector
+# (T19 follow-up, ADR 0004 § "Pengukuran ulang T19" §8.2, docs/03-operations/observability.md §Metrik per container).
+# Tanpa docker.sock di container: skrip berjalan di HOST sebagai root (timer systemd), node-exporter hanya membaca
+# file .prom lewat bind mount read-only.
+# Terapkan:  ansible-playbook site.yml --tags container_metrics   (check dulu: --check --diff)
+# Rollback:  container_metrics_state: absent → timer/service dihapus + file containers.prom dihapus
+#            (direktori dibiarkan; node-exporter tetap jalan, kolektor textfile hanya kosong).
+container_metrics_state: present # present | absent
+
+container_metrics_script: "{{ infra_root }}/scripts/container-metrics.sh"
+# Harus sama dengan sumber bind mount node-exporter di observability/docker-compose.yml.
+container_metrics_textfile_dir: /var/lib/node-exporter-textfile
+container_metrics_on_boot_sec: 1min
+container_metrics_on_unit_active_sec: 60s

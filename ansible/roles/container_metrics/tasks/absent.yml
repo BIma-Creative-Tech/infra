@@ -1,0 +1,17 @@
+---
+- name: Timer container-metrics berhenti & nonaktif
+  ansible.builtin.systemd_service:
+    name: container-metrics.timer
+    enabled: false
+    state: stopped
+  failed_when: false
+
+- name: Hapus unit & file metrik
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /etc/systemd/system/container-metrics.timer
+    - /etc/systemd/system/container-metrics.service
+    - "{{ container_metrics_textfile_dir }}/containers.prom"
+  notify: Reload systemd (container_metrics)

@@ -25,8 +25,9 @@ bootstrap; item **[CLAUDE]** dikerjakan agent setelah discovery.
 > berjalan (20 container). **NYATA:** jumlah `mem_limit` 12 400 MiB, pemakaian container ≈ 3 033 MiB (24%), RAM used
 > host p95 48 j 5 029 MiB (puncak 10 767 MiB + swap 1,19 GiB saat **build image lokal**), CPU busy rata-rata 16% /
 > p95 48%, disk `/` 95 G/193 G (49%) naik ±30–50 GB/hari karena image/build cache/worktree build (data platform
-> < 0,2 GB/hari) → runway ke 80% ≈ 1,3–2 hari sampai build dibersihkan. Sisa perencanaan RAM ≈ 1 672 MiB
-> (≈ 1 096 setelah DRMS prod): **+3–4 tenant Odoo kecil** (pembatas: RAM odoo-staging) dan **≤ 3–4 website Next.js**.
+> < 0,2 GB/hari) → runway ke 80% ≈ 1,3–2 hari sampai build dibersihkan. Sisa perencanaan RAM ≈ 1 160 MiB
+> (≈ 584 setelah DRMS prod) dengan cadangan host **2 048 MiB** (keputusan user 2026-09-25; sebelumnya 1 536 → ≈ 1 672 /
+> ≈ 1 096): **+3–4 tenant Odoo kecil** (pembatas: RAM odoo-staging) dan **≤ 2 website Next.js baru** (sebelumnya ≤ 3–4).
 > Spek "Minimum uji" tetap cukup untuk target itu; pemicu VPS-2/upgrade di ADR 0004 T19 §6.
 
 - OS: **Ubuntu Server 24.04 LTS** (fresh install).
@@ -94,7 +95,8 @@ bootstrap; item **[CLAUDE]** dikerjakan agent setelah discovery.
 6. Swap file 4 GB, timezone `Asia/Jakarta`, locale `en_US.UTF-8`.
 7. Docker daemon.json: `log-driver json-file`, `max-size 10m`, `max-file 3`,
    `live-restore true`, `userland-proxy false`, `no-new-privileges true`, `icc false`
-   (isolasi antar network default).
+   (isolasi antar network default); sejak T19 (2026-09-25) juga `builder.gc` (build cache ≤ 10 GiB,
+   lantai 2 GiB, pangkas bila Bfree < 56 GiB — `docs/adr/0004-capacity.md` § "Pengukuran ulang T19" §8.1).
 8. Struktur `/opt/infra` (owner `root:admin`, 750; `*/data` 700 owner service).
    > UPDATED 2026-09-23: owner **`deploy:docker`** yang diusulkan sebelumnya **ditolak** —
    > anggota grup `docker` setara root di host, dan `deploy` yang bisa menulis skrip yang
