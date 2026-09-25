@@ -18,7 +18,7 @@
 | Router Traefik | `templates/traefik-web-client.yml` | `traefik/dynamic/clients/web-<slug>-<env>.yml` |
 
 Nama `web-<slug>-<env>` = project compose = `container_name` = router/service Traefik (`http://web-<slug>-<env>:3000`,
-network `proxy`, tanpa port publik). Hardening container: uid 1001, `read_only` + tmpfs `/tmp` (16m) &
+network `web-edge` saja — traefik + website client, bukan `proxy` — tanpa port publik). Hardening container: uid 1001, `read_only` + tmpfs `/tmp` (16m) &
 `/app/.next/cache` (64m), `cap_drop: [ALL]`, `no-new-privileges`, `mem_limit 256m`, `cpus 0.5`, `pids_limit 128`,
 healthcheck `GET /api/health`, json-file 10m×3.
 
@@ -42,6 +42,8 @@ Deploy uji/sementara: jangan commit; `--remove` lalu hapus direktori render.
    `…@sha256:<digest>`). `latest` / tanpa tag ditolak skrip. Host sudah `docker login ghcr.io` bila repo private.
 2. Slug client `^[a-z0-9-]{3,30}$` (sama dengan tenant Odoo).
 3. DNS: lihat §2. Tanpa DNS benar skrip berhenti **sebelum** menulis apa pun.
+4. Network `web-edge` ada dan `traefik` terhubung (`docker inspect traefik -f '{{json .NetworkSettings.Networks}}'`);
+   bila tidak, skrip berhenti dengan pesan jelas — lihat `docs/03-operations/traefik.md` §Network web-edge.
 
 ## 2. DNS
 
@@ -125,8 +127,9 @@ Ada jeda singkat (stop → start container, ±beberapa detik 502) — satu repli
   ProyekKas. Form kontak sebaiknya Route Handler `POST /api/contact` (JSON/multipart), atau Server Action dengan argumen
   `FormData` (multipart). Server Action tanpa argumen FormData butuh pengecualian AppSec per host (keputusan Lead) — uji di
   staging sebelum prod.
-- Container berada di network `proxy` (bersama Traefik, control-plane, Grafana, Uptime Kuma). Website tidak butuh akses
-  ke layanan tsb; isolasi per network edge (pola `odoo-edge`/`drms-kas-edge`) = perbaikan lanjutan.
+- Container berada di network `web-edge` (hanya traefik + website client; `docs/03-operations/traefik.md` §Network
+  web-edge) — tidak bisa menjangkau control-plane/Grafana/Uptime Kuma di `proxy`. Sisa risiko diterima: website saling
+  bisa menjangkau `:3000` di `web-edge`; network per client = opsi masa depan.
 - HSTS mengikuti `security-headers` (`stsSeconds` platform, saat ini 300) — naik otomatis ketika nilai platform dinaikkan.
 - Nama file route `web-<slug>-<env>.yml` bisa sama dengan route tenant Odoo bila slug Odoo diawali `web-`; kedua skrip
   menolak menimpa/menghapus file yang bukan hasil render-nya sendiri.

@@ -156,6 +156,17 @@ for f in "$COMPOSE_TEMPLATE_DIR/docker-compose.yml" "$COMPOSE_TEMPLATE_DIR/docke
   [[ -f "$f" ]] || die "template tidak ada: $f"
 done
 
+# ------------------------------------------------------------------------------------------------ network
+# W2b: website HANYA di network `web-edge` (traefik/scripts/bootstrap.sh). Tanpa network atau tanpa traefik di
+# dalamnya, container tidak bisa dijangkau (502) → gagal lebih awal, sebelum menulis apa pun.
+WEB_NETWORK=web-edge
+docker network inspect "$WEB_NETWORK" >/dev/null 2>&1 \
+  || die "network ${WEB_NETWORK} tidak ada — jalankan /opt/infra/traefik/scripts/bootstrap.sh (docs/03-operations/traefik.md §Network web-edge)"
+traefik_nets="$(docker inspect -f '{{range $k, $v := .NetworkSettings.Networks}}{{$k}} {{end}}' "$TRAEFIK_CONTAINER" 2>/dev/null)" \
+  || die "container ${TRAEFIK_CONTAINER} tidak ada"
+[[ " ${traefik_nets}" == *" ${WEB_NETWORK} "* ]] \
+  || die "${TRAEFIK_CONTAINER} belum terhubung ke ${WEB_NETWORK} — \`docker network connect ${WEB_NETWORK} ${TRAEFIK_CONTAINER}\` (tanpa recreate; lihat traefik.md)"
+
 # ------------------------------------------------------------------------------------------------ DNS + unik
 dns_precheck "$HOST"
 [[ "$WWW" == no ]] || dns_precheck "$WWW_HOST"

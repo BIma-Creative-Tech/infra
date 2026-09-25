@@ -5,6 +5,7 @@
 #     tidak bisa menghubungi Odoo :8069/:8072 langsung (melewati CrowdSec/ratelimit/header DB)
 #     + network `drms-kas-edge` (ProyekKas client DRMS): HANYA traefik + container web ProyekKas
 #     + network `drms-kc-admin{,-stg}` (H5, --internal): traefik + app ProyekKas → Admin REST realm drms*
+#     + network `web-edge` (W2b): HANYA traefik + website client web-<slug>-<env>
 #  2. direktori acme/ (700) + acme-staging.json & acme.json (600) milik uid Traefik
 #  3. direktori logs/ (750, grup adm) milik uid Traefik + secrets/ (700)
 #  4. pasang konfigurasi logrotate host untuk access log (salin, bukan symlink: logrotate
@@ -52,6 +53,10 @@ ensure_network drms-kas-edge 10.100.7.0/24 10.100.7.1
 # (10.100.6.0/24 = bekas obs-dockerapi, dihapus H3 — tidak dipakai ulang.)
 ensure_network drms-kc-admin     10.100.8.0/24 10.100.8.1 internal
 ensure_network drms-kc-admin-stg 10.100.9.0/24 10.100.9.1 internal
+# web-edge (W2b, keputusan user 2026-09-25): traefik + container website client `web-<slug>-<env>` saja (pola
+# odoo-edge/drms-kas-edge) — website tidak lagi di `proxy` (control-plane, Grafana, Uptime Kuma). Bukan --internal:
+# website butuh egress (SMTP :587 hairpin ke mail.bimacreative.tech, API eksternal). (10.100.10.0/24 = mail.)
+ensure_network web-edge 10.100.11.0/24 10.100.11.1
 
 install -d -o "$TRAEFIK_UID" -g "$TRAEFIK_GID" -m 0700 "$STACK_DIR/acme"
 for f in acme-staging.json acme.json; do

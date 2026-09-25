@@ -7,8 +7,10 @@
 # Kontrak image (repo web-starter / web-<slug>): port 3000, GET /api/health → 200, uid 1001:1001, rootfs
 # read-only (tulis hanya /tmp dan /app/.next/cache), env SITE_URL wajib, CONTACT_ENABLED (default false).
 # Hardening CLAUDE.md §3.5: read_only + tmpfs, cap_drop ALL, no-new-privileges, non-root, mem/cpu/pids limit,
-# healthcheck, json-file 10m×3, hanya network `proxy`, TANPA port publik (Traefik → http://<WEB_CONTAINER>:3000,
-# router traefik/dynamic/clients/web-<slug>-<env>.yml).
+# healthcheck, json-file 10m×3, hanya network `web-edge` (W2b: anggota traefik + website client saja — BUKAN `proxy`
+# tempat control-plane/Grafana/Uptime Kuma), TANPA port publik (Traefik → http://<WEB_CONTAINER>:3000, router
+# traefik/dynamic/clients/web-<slug>-<env>.yml). Sisa risiko diterima: website di web-edge saling bisa menjangkau :3000
+# (docs/03-operations/traefik.md §Network web-edge).
 # Form kontak (opsional): docker-compose.contact.yml (secret smtp_password) — dipilih lewat COMPOSE_FILE di .env,
 # sehingga render default TIDAK butuh file secret.
 
@@ -37,7 +39,8 @@ services:
       # (halaman tetap dilayani, cache tidak bertambah).
       - /tmp:uid=1001,gid=1001,mode=0700,size=16m
       - /app/.next/cache:uid=1001,gid=1001,mode=0700,size=64m
-    networks: [proxy]
+    # web-edge: dibuat traefik/scripts/bootstrap.sh (10.100.11.0/24, bukan --internal → egress SMTP/API tetap ada).
+    networks: [web-edge]
     healthcheck:
       # Sama dengan kontrak image (HEALTHCHECK Dockerfile web-starter).
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
@@ -51,6 +54,6 @@ services:
     pids_limit: 128
 
 networks:
-  proxy:
+  web-edge:
     external: true
-    name: proxy
+    name: web-edge

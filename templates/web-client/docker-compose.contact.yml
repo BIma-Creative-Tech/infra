@@ -4,6 +4,7 @@
 # Password SMTP: file ./secrets/smtp_password.secret (TIDAK di git), owner 1001:1001 mode 0400 — Compose
 # non-swarm mengabaikan uid/gid/mode secret file (catatan staging/drms-proyekkas/docker-compose.yml), jadi
 # kepemilikan di host harus cocok dengan uid container. Mailbox per client (docs/03-operations/mail.md).
+# Egress SMTP :587 lewat network `web-edge` (bukan --internal; hairpin ke IP publik mail.bimacreative.tech).
 services:
   web:
     environment:

@@ -169,6 +169,23 @@ Dari host (skrip/automation): `curl --resolve auth.bimacreative.tech:8443:127.0.
 - Staging app **berjalan** sejak 2026-09-23 (`/opt/infra/staging/drms-proyekkas/`); router `drms-pk-stg-*` memakai
   `le-http` (production; backup `acme/acme-staging.json.bak-drms-stg-1840`, restart Traefik ±3,6 s tanpa respons).
 
+## Network `web-edge` (website client, W2b — keputusan user 2026-09-25)
+
+- Bridge **`10.100.11.0/24`, gateway `10.100.11.1`**, dibuat `scripts/bootstrap.sh` (`ensure_network`), bukan
+  `--internal` (website butuh egress: SMTP :587 hairpin ke `mail.bimacreative.tech`, API eksternal). Subnet dipilih
+  setelah cek `docker network inspect` semua network + `ip route` host (10.100.6.0/24 pensiun, 10.100.10.0/24 = `mail`).
+- Anggota **hanya** `traefik` + container website `web-<slug>-<env>` (`templates/web-client/docker-compose.yml`,
+  `scripts/provision-web-client.sh`) — website **tidak** di `proxy`, jadi tidak bisa menjangkau control-plane, Grafana,
+  Uptime Kuma, dst. `provision-web-client.sh` gagal lebih awal bila network tidak ada atau traefik belum terhubung.
+- Traefik join **tanpa** `gw_priority` (pola `odoo-edge`/`drms-kas-edge`) → gateway tetap `proxy`, koneksi host tetap
+  tiba sebagai `10.100.0.1` (`ipallowlist-admin`).
+- Penerapan live tanpa recreate: `scripts/bootstrap.sh` (idempoten) lalu `docker network connect web-edge traefik`;
+  compose sudah memuat network yang sama sehingga recreate berikutnya konsisten. Verifikasi: access log `ClientHost`
+  = `10.100.0.1`, `curl --resolve auth.bimacreative.tech:8443:127.0.0.1 https://auth.bimacreative.tech:8443/admin/` → 302,
+  situs biasa → 200. Regresi → `docker network disconnect web-edge traefik`.
+- **Sisa risiko diterima:** semua website di `web-edge` saling bisa menjangkau `:3000` satu sama lain (satu network
+  bersama). Opsi masa depan: network per client (`web-edge-<slug>`) — butuh `docker network connect` traefik per client.
+
 ## Start / stop / reload
 
 ```bash

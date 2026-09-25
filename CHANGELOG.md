@@ -8,6 +8,17 @@ file `VERSION`.
 
 ## [Unreleased]
 
+### Plan 03 W2b — network `web-edge` untuk website client (2026-09-25, branch `feat/infra-web-edge`)
+
+#### Added
+- Network `web-edge` (bridge 10.100.11.0/24, gw 10.100.11.1, bukan `--internal`) di `traefik/scripts/bootstrap.sh`;
+  traefik join tanpa `gw_priority` (`traefik/docker-compose.yml`). Dokumentasi `docs/03-operations/traefik.md` §Network web-edge.
+
+#### Changed
+- `templates/web-client/docker-compose.yml`: website hanya di `web-edge` (bukan `proxy`).
+- `scripts/provision-web-client.sh`: gagal jelas bila network `web-edge` tidak ada atau traefik belum terhubung.
+- Runbook `web-client-onboarding.md` (prasyarat + catatan keamanan, sisa risiko antar-website di `web-edge`).
+
 ### Plan 03 W2 — template website Next.js client (2026-09-25, branch `feat/infra-web-client-template`)
 
 #### Added
