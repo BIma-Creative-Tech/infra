@@ -308,6 +308,22 @@ sertifikat per hostname (tanpa SAN gabungan/wildcard). Recreate `mailserver` sek
 
 Status: `mail.expomedia.id` aktif 2026-09-25 (bukti `docs/clients/expomedia.md` §7b).
 
+## Webmail & helper ganti password (ADR 0012, plan 08 — 2026-09-25)
+
+- Network `webmail-mail` (10.100.16.0/24, `--internal`, didefinisikan di compose ini) — anggota HANYA `mailserver`
+  (`ipv4_address 10.100.16.2`) + `webmail`. Webmail memakai `mail.expomedia.id` → `10.100.16.2` (IMAPS 993 / 587, SNI +
+  verifikasi sertifikat). Login webmail tiba di Dovecot/Postfix dari `10.100.16.3` (privat → whitelist CrowdSec; brute force
+  webmail ditahan di edge, lihat `webmail.md`). Rate limit Rspamd per user tetap berlaku.
+- Helper `pwhelper` (program supervisord, root, `10.100.16.2:8080`) dipasang `config/user-patches.sh` (mekanisme resmi DMS,
+  dijalankan saat container BARU). Kode/allowlist di `config/pwhelper/` → `bootstrap.sh` → `data/config/pwhelper/`; token +
+  deny list: `scripts/pwhelper-secrets.sh`. Audit: `/var/log/mailserver/dms/pwhelper.log`. Helper memanggil
+  `setup email update <alamat>` dengan password lewat STDIN setelah memverifikasi password lama via IMAP loopback 143.
+  Status/kill switch: `webmail.md` §Kill switch. Kegagalan helper tidak memengaruhi `dms-healthcheck`.
+- Recreate mailserver untuk menerapkan (2026-09-25 20:29:34 → Dovecot 20:29:55, Postfix 20:29:59 WIB: **±25 s** tanpa
+  layanan; antrean kosong sebelum & sesudah; healthy).
+- Mailbox teknis **`noreply@expomedia.id`** (200M, password acak 32 char, `mailbox-add.sh`) = kredensial SMTP form kontak website
+  prod & staging (bukan info@ lagi). Tidak bisa login webmail, tidak di allowlist ganti password.
+
 ## Cek reputasi & kesehatan
 
 ```bash

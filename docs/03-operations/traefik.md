@@ -218,6 +218,17 @@ ulang, `burst` = kapasitas; docs v3.7 `middlewares/ratelimit.md`), lewat batas �
 - **Sisa risiko diterima:** semua website di `web-edge` saling bisa menjangkau `:3000` satu sama lain (satu network
   bersama). Opsi masa depan: network per client (`web-edge-<slug>`) — butuh `docker network connect` traefik per client.
 
+## Network `webmail-edge` (webmail Roundcube, ADR 0012 — 2026-09-25)
+
+- `10.100.15.0/24` `--internal`, dibuat `scripts/bootstrap.sh`; anggota HANYA `traefik` + `webmail` (`webmail:8000`).
+  Diterapkan live: `bootstrap.sh` lalu `docker network connect webmail-edge traefik` (tanpa recreate; Traefik 10.100.15.2).
+  Internal → tanpa gateway, tidak memengaruhi gateway Traefik (`proxy` gw_priority 1).
+- Router `dynamic/clients/webmail-expomedia.yml`: `webmail-expomedia-login` (POST `_task=login`/tanpa `_task`, priority 100,
+  `ratelimit-login`) + `webmail-expomedia`. Middleware `webmail-security-headers` = salinan `security-headers` dengan
+  `X-Frame-Options: SAMEORIGIN` (iframe pratinjau Roundcube) + CSP minimal — **`stsSeconds` wajib ikut dinaikkan** bersama
+  `security-headers` / `auth-security-headers` / `odoo-security-headers` (§HSTS bertahap).
+- Regresi → hapus file router + `kill -HUP 1`, `docker network disconnect webmail-edge traefik`.
+
 ## Start / stop / reload
 
 ```bash
@@ -274,9 +285,10 @@ limit LE: 5 authorization failure / identifier / jam (ADR 0002).
 
 ## HSTS bertahap (QA-T17B-06 / F3, disetujui user 2026-09-25)
 
-`stsSeconds` didefinisikan di **tiga** middleware dan harus selalu sama: `security-headers`
+`stsSeconds` didefinisikan di **empat** middleware dan harus selalu sama: `security-headers`
 (`dynamic/middlewares/security-headers.yml`), `auth-security-headers` (`dynamic/platform/auth.yml`),
-`odoo-security-headers` (`dynamic/platform/odoo-pools.yml`). `stsIncludeSubdomains: false` dan `stsPreload: false`
+`odoo-security-headers` (`dynamic/platform/odoo-pools.yml`), `webmail-security-headers`
+(`dynamic/clients/webmail-expomedia.yml`, ADR 0012). `stsIncludeSubdomains: false` dan `stsPreload: false`
 di ketiganya — **tidak** diubah (preload tidak direncanakan; includeSubDomains = keputusan terpisah: berlaku untuk
 semua subdomain host yang mengirimnya, mis. `*.staging.bimacreative.tech` dari host `staging.…` bila kelak ada).
 

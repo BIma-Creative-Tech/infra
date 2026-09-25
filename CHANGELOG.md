@@ -9,6 +9,17 @@ file `VERSION`.
 ## [Unreleased]
 
 ### Added
+- webmail (ADR 0012, plan 08, keputusan user 2026-09-25): Roundcube 1.7.4 `apache-nonroot` (digest ter-pin) di
+  `https://webmail.expomedia.id` — stack `webmail/` (SQLite, uid 33, rootfs ro + tmpfs, cap_drop ALL, 256m, tanpa egress),
+  login hanya `@expomedia.id` (`login_username_filter` + `username_domain_forced`), IMAP/SMTP ke `mail.expomedia.id`
+  lewat network internal `webmail-mail` dengan verifikasi sertifikat; network `webmail-edge` (`--internal`, traefik);
+  router `traefik/dynamic/clients/webmail-expomedia.yml` (POST login → `ratelimit-login`, `webmail-security-headers`
+  SAMEORIGIN + CSP minimal). Ganti password self-service: helper `pwhelper` (Python stdlib) di container mailserver via
+  `mail/config/user-patches.sh` — token, allowlist (admin@/info@/sales@), verifikasi password lama via IMAP, kebijakan +
+  deny list password default, rate limit, `setup email update` via STDIN, audit tanpa password
+  (`mail/scripts/pwhelper-secrets.sh`). Ops: `docs/03-operations/webmail.md`.
+- mail: mailbox teknis `noreply@expomedia.id` (200M) — kredensial SMTP form kontak website expomedia prod & staging
+  (sebelumnya info@); re-provision `provision-web-client.sh --smtp-user/--smtp-from noreply@expomedia.id`.
 - mail (ADR 0011, keputusan user 2026-09-25): hostname klien email per domain client via TLS SNI — `mail.expomedia.id`
   (IMAP 993, SMTP 465/587, juga 25) menyajikan sertifikat LE sendiri; tanpa SNI/SNI lain tetap `mail.bimacreative.tech`;
   HELO/PTR/MX tidak berubah. Router `traefik/dynamic/platform/mail-clients.yml` (`mail-cert-expomedia`, `le-http`);

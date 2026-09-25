@@ -25,7 +25,8 @@
 | Website prod (`expomedia.id`, `www`) | **BELUM** — menunggu DNS client | router Traefik prod hanya dibuat setelah `dig` pre-check lulus (ADR 0002) |
 | Mail di server (DMS) | **SIAP** | DKIM `mail._domainkey` (rsa-2048) dibuat & signing aktif; 5 mailbox + alias `abuse@`; uji lokal lulus (§6) |
 | DNS mail di zona client | **BELUM** — zona `expomedia.id` di NS Dewaweb kosong | client (pemilik zona) harus mengisi record §3; sampai saat itu mail keluar ke domain luar gagal SPF/DKIM/DMARC dan mail masuk tidak sampai |
-| Secret SMTP form kontak | tersedia | `/opt/infra/staging/web-clients/expomedia/secrets/smtp_password.secret` (400, uid 1001) = password `info@expomedia.id` |
+| Secret SMTP form kontak | tersedia | prod `web/clients/expomedia/secrets/smtp_password.secret` + staging `staging/web-clients/expomedia/secrets/…` (400, uid 1001) = password **`noreply@expomedia.id`** (sejak 2026-09-25, plan 08) |
+| Webmail `https://webmail.expomedia.id` | **AKTIF** 2026-09-25 | Roundcube 1.7.4 + ganti password self-service (ADR 0012, §11) |
 
 ## 3. Instruksi DNS untuk client (siap kirim)
 
@@ -61,14 +62,16 @@ record (format `"v=DKIM1; k=rsa; " "p=…" "…"`), lihat `rsa-2048-mail-expomed
 |---|---|---|
 | `postmaster@expomedia.id` | 2G | wajib (RFC 5321); target alias `abuse@` |
 | `dmarc@expomedia.id` | 2G | penerima laporan DMARC (`rua`) |
-| `info@expomedia.id` | 2G | kontak umum; **pengirim form kontak website** (SMTP AUTH dari container web) |
+| `info@expomedia.id` | 2G | kontak umum; **penerima** form kontak website (pengirim = `noreply@` sejak 2026-09-25) |
 | `admin@expomedia.id` | 2G | administrasi |
 | `sales@expomedia.id` | 2G | penjualan |
+| `noreply@expomedia.id` | 200M | **akun teknis** pengirim form kontak website (SMTP AUTH, password acak 32 char); tidak bisa login webmail, tidak untuk staf |
 | `abuse@expomedia.id` | alias → `postmaster@expomedia.id` | wajib (RFC 2142) |
 
 Password: `/opt/infra/mail/secrets/<alamat>.password` (600 root; 32 karakter). Serahkan ke client lewat jalur aman (bukan email
-biasa/chat); rotasi: `sudo /opt/infra/mail/scripts/mailbox-add.sh --rotate <alamat>` (bila `info@` dirotasi, salin ulang ke
-`staging/web-clients/expomedia/secrets/smtp_password.secret` dan recreate container web).
+biasa/chat); rotasi: `sudo /opt/infra/mail/scripts/mailbox-add.sh --rotate <alamat>`. Bila **`noreply@`** dirotasi, salin ulang
+ke `web/clients/expomedia/secrets/smtp_password.secret` dan `staging/web-clients/expomedia/secrets/smtp_password.secret`
+(1001:1001, 0400, tanpa newline), jalankan ulang `provision-web-client.sh` (prod & staging, opsi sama §11) dan uji `POST /api/contact`.
 
 ## 5. Pengaturan klien email (Outlook / Thunderbird / ponsel)
 
@@ -155,6 +158,39 @@ provision router prod web (`provision-web-client.sh expomedia prod --host expome
   diputuskan user setelah diberi tahu risikonya (password mudah ditebak dan sama untuk semua + port mail terbuka ke internet). Penggantian password
   **tidak dipaksa oleh sistem** (DMS tidak punya fitur itu, dan belum ada webmail); user memberi tahu staf secara pribadi untuk mengganti password.
   Ganti password saat staf meminta: `sudo /opt/infra/mail/scripts/mailbox-add.sh --rotate <alamat>` (acak) atau `setup email update`.
-- **PENTING:** `info@expomedia.id` juga dipakai form kontak website. Setiap kali password info@ diganti, perbarui juga
-  `web/clients/expomedia/secrets/smtp_password.secret` dan `staging/web-clients/expomedia/secrets/smtp_password.secret`
-  (1001:1001, 0400, tanpa newline), lalu uji `POST /api/contact` → `status=sent`.
+- ~~info@ dipakai form kontak~~ — **sejak 2026-09-25 (plan 08) form kontak memakai `noreply@expomedia.id`** (password acak,
+  hanya di file secret web). Password info@ bebas diganti staf tanpa memengaruhi website.
+- **Sejak 2026-09-25 staf bisa mengganti password sendiri di webmail** (§11) — admin@, info@, sales@. `postmaster@`/`dmarc@`
+  (akun sistem) dan `noreply@` (teknis) dikelola ops. Setelah staf mengganti, file `mail/secrets/<alamat>.password` = password
+  AWAL (basi); penanda: `mail/data/config/pwhelper/state/changed/<alamat>`. Ops tidak mengetahui password baru.
+
+## 11. Webmail `https://webmail.expomedia.id` (ADR 0012, plan 08 — aktif 2026-09-25)
+
+- DNS: `A webmail` → `31.97.50.221` (diisi user; pre-check 20:31 WIB lulus, tanpa AAAA/CNAME). Sertifikat LE `le-http`.
+- Login: alamat lengkap (`sales@expomedia.id`) atau cukup `sales`. Hanya `@expomedia.id`; `noreply@` ditolak.
+- Batas: lampiran 5 MB per file, pesan 10 MB; kirim 30 mail/jam per mailbox (sama dengan klien email); satu identitas pengirim
+  (alamat tidak bisa diganti); sesi berakhir setelah 30 menit tidak aktif.
+- Operasi/reset/kill switch: `docs/03-operations/webmail.md`.
+
+### Panduan staf: mengganti password (siap kirim)
+
+1. Buka **https://webmail.expomedia.id**, masuk dengan alamat email dan password saat ini.
+2. Klik **Pengaturan** (ikon roda gigi) → **Kata Sandi**.
+3. Isi *Sandi saat ini*, lalu *Sandi baru* dua kali → **Simpan**. Muncul "Berhasil disimpan".
+4. Syarat password baru: minimal **10 karakter**, mengandung **huruf dan angka/simbol**, tanpa spasi dan tanpa tanda `:` atau `|`,
+   tidak sama dengan password lama/password awal, dan tidak memuat nama mailbox (mis. `sales`). Bila muncul "Tidak dapat
+   menyimpan sandi baru.", periksa syarat ini; setelah 5 kali gagal tunggu 15 menit.
+5. Perbarui password di aplikasi email lain (HP, Outlook, Thunderbird) — server `mail.expomedia.id`, lihat §5.
+6. Lupa password: hubungi admin platform (reset hanya oleh ops, lewat jalur aman).
+
+### Form kontak website (re-provision 2026-09-25)
+
+```
+sudo /opt/infra/scripts/provision-web-client.sh expomedia prod --host expomedia.id --www --image web-expomedia:dev-148b002 \
+  --contact --smtp-host mail.bimacreative.tech --smtp-port 587 --smtp-user noreply@expomedia.id --smtp-from noreply@expomedia.id
+sudo /opt/infra/scripts/provision-web-client.sh expomedia staging --host expomedia.staging.bimacreative.tech \
+  --image web-expomedia:dev-148b002 --contact --smtp-host mail.bimacreative.tech --smtp-port 587 \
+  --smtp-user noreply@expomedia.id --smtp-from noreply@expomedia.id
+```
+Bukti: `POST /api/contact` prod → `303 /?status=sent`, staging → `303 /contact?status=sent`; log `sasl_username=noreply@expomedia.id`,
+`to=<info@expomedia.id> status=sent`, header `From: noreply@expomedia.id`, `Reply-To` pengunjung, `DKIM-Signature d=expomedia.id`.
