@@ -234,6 +234,9 @@ Lisensi semua di atas: Apache-2/MIT/AGPL/LGPL — tercatat di `docs/adr/0001-sta
   Validasi ID token: `iss`, `aud`=client_id, `azp`, `exp`, `nonce`; `state`+`nonce` disimpan
   di session (anti-CSRF login). Next.js portal pakai Auth.js OIDC → Keycloak yang sama →
   single sign-on. Mapping user Keycloak ↔ `res.users` via `oauth_uid` (claim `sub`).
+  Multi-tenant (ADR 0008, keputusan user 2026-09-25): satu realm `platform`/`platform-staging`, **satu client Keycloak
+  `odoo-<slug>-<env>` per tenant-env** (redirect URI eksak per host, role `odoo_access`), secret client **per DB dari file
+  platform** (`SH_OIDC_SECRET_DIR/<db>`), bukan env var per tenant; user dibuat/ditautkan ops via skrip, tanpa self-signup.
   Password lokal Odoo dinonaktifkan untuk user client (kecuali admin teknis). "Referensi" ke
   OCA `auth_oidc`/`dbfilter_from_header` (AGPL-3) berarti membaca README/spesifikasi lalu
   implementasi ulang dari spesifikasi (OIDC Core, RFC 7636, RFC 9700) — bukan menyalin/adaptasi

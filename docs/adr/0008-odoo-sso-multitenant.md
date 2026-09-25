@@ -1,6 +1,6 @@
 # ADR 0008 — SSO Odoo multi-tenant: satu realm, satu client per tenant-env, secret per DB dari file platform
 
-- **Status:** proposed (menunggu GATE 1 plan 04)
+- **Status:** accepted (GATE 1 plan 04, user 2026-09-25: semua rekomendasi §8 + perubahan CLAUDE.md §3.2)
 - **Tanggal:** 2026-09-25
 - **Penulis:** Analyst (FASE 0/1 plan 04)
 - **Terkait:** CLAUDE.md §3.2 (Login), §3.4, §3.6; ADR 0003 D1/D2 + riwayat revisi 2026-09-23 (secret dari env

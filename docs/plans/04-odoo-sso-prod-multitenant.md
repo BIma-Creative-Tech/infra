@@ -1,6 +1,6 @@
 # Plan 04 — SSO Odoo prod multi-tenant (`odoo-pool-a`, Keycloak realm `platform`, `sh_auth_oidc`)
 
-- Status: **DRAFT — menunggu GATE 1** (FASE 0/1 saja; belum ada perubahan config/live).
+- Status: **APPROVED GATE 1 (user, 2026-09-25): semua rekomendasi §8** — 1 satu realm, 2 file per DB (B), 3 onboarding ops+undangan+TOTP admin tenant+Forgot password+admin break-glass, 4 role `odoo_access`, 5 recreate kapan saja setelah QA staging lulus; CLAUDE.md §3.2 diperbarui.
 - Tanggal: 2026-09-25 · Penulis: Analyst · ADR: `docs/adr/0008-odoo-sso-multitenant.md` (proposed)
 - Terkait: CLAUDE.md §3.2 (Login, dbfilter header), §3.4 (control plane), §3.6; ADR 0003 D1/D2; T15 (`docs/03-operations/odoo.md`
   §SSO); `docs/03-operations/keycloak.md`; `docs/03-operations/crowdsec.md`; repo `odoo-addons-shared` (`/opt/src/odoo-addons-shared`).
