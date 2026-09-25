@@ -147,3 +147,14 @@ provision router prod web (`provision-web-client.sh expomedia prod --host expome
   `expomedia.id` di `mail/config/rspamd/override.d/dkim_signing.conf`, `sudo mail/scripts/bootstrap.sh` (Rspamd reload otomatis).
   Hapus `secrets/*@expomedia.id.password` dan `staging/web-clients/expomedia/secrets/`. Kunci DKIM di `data/` boleh dibiarkan.
 - Web staging: `provision-web-client.sh expomedia staging --remove`.
+
+## 10. Kepemilikan & password awal (keputusan user 2026-09-25)
+
+- Pemilik mailbox `admin@expomedia.id`: **am.ademaryadi@gmail.com** (kontak/pemulihan; alamat Gmail bukan mailbox di server ini).
+- Kelima mailbox `@expomedia.id` memakai **password default yang sama** (nilai di `mail/secrets/<alamat>.password`, TIDAK di git),
+  diputuskan user setelah diberi tahu risikonya (password mudah ditebak dan sama untuk semua + port mail terbuka ke internet). Penggantian password
+  **tidak dipaksa oleh sistem** (DMS tidak punya fitur itu, dan belum ada webmail); user memberi tahu staf secara pribadi untuk mengganti password.
+  Ganti password saat staf meminta: `sudo /opt/infra/mail/scripts/mailbox-add.sh --rotate <alamat>` (acak) atau `setup email update`.
+- **PENTING:** `info@expomedia.id` juga dipakai form kontak website. Setiap kali password info@ diganti, perbarui juga
+  `web/clients/expomedia/secrets/smtp_password.secret` dan `staging/web-clients/expomedia/secrets/smtp_password.secret`
+  (1001:1001, 0400, tanpa newline), lalu uji `POST /api/contact` → `status=sent`.
