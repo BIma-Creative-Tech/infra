@@ -1,0 +1,31 @@
+# Plan 04 BUG-S5-01 — pengecualian SEMPIT OWASP CRS (crowdsecurity/crs-inband) untuk back-channel token OIDC
+# pool Odoo → Keycloak. Dimuat lewat acquis.d/appsec.yaml (appsec_configs) — di-mount read-only dari git.
+# Sintaks sama dengan local/odoo-crs-exclusions (RemoveInBandRuleByTag) dan local/keycloak-admin-exclusions
+# (req.Host, req.URL.Path, req.RemoteAddr tanpa port) — diverifikasi di file tersebut (crowdsec v1.8.1).
+#
+# Masalah (QA S5 2026-09-25, docs/qa/2026-09-25-plan04-staging.md): ±1/22 login SSO gagal — POST
+# /realms/platform-staging/protocol/openid-connect/token dari pool (hairpin 10.100.0.1, router Traefik
+# auth-oidc-backchannel) → 403 AppSec, alert "anomaly score block: sql_injection: 5", rule native 942100
+# (libinjection SQLi) — authorization_code acak Keycloak kadang cocok pola SQLi. Non-deterministik, semua tenant.
+#
+# Keputusan user 2026-09-25 (plan 04 §3.6 "exclusion sempit"). Cakupan:
+#   - HANYA rule bertag `attack-sqli` — XSS/RCE/LFI/protocol/anomaly lain, virtual patching & generic rules
+#     TETAP aktif pada path ini;
+#   - HANYA in-band, POST, host auth.bimacreative.tech, path EKSAK token endpoint realm platform / platform-staging
+#     (bukan drms*, bukan master, bukan /auth atau login-actions);
+#   - HANYA IP klien 10.100.0.1 (hairpin container → edge; = ClientIP router auth-oidc-backchannel).
+#   Endpoint ini mewajibkan autentikasi client (secret) + code sekali pakai + PKCE verifier.
+# Rollback: hapus file ini + barisnya di acquis.d/appsec.yaml + mount di docker-compose.yml →
+# `docker compose up -d` (recreate crowdsec; situs ber-crowdsec 403 ±40–50 s).
+name: local/oidc-backchannel-exclusions
+default_remediation: ban
+pre_eval:
+  - filter: >-
+      IsInBand &&
+      req.Method == "POST" &&
+      req.Host == "auth.bimacreative.tech" &&
+      req.URL.Path in ["/realms/platform/protocol/openid-connect/token",
+                       "/realms/platform-staging/protocol/openid-connect/token"] &&
+      req.RemoteAddr == "10.100.0.1"
+    apply:
+      - RemoveInBandRuleByTag("attack-sqli")
