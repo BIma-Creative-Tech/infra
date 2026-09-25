@@ -8,6 +8,9 @@ file `VERSION`.
 
 ## [Unreleased]
 
+### Fixed
+- observability: `mem_limit` grafana 256m → 384m (GOMEMLIMIT 320MiB), uptime-kuma 192m → 320m (pemakaian 72–81%); ADR 0004 diperbarui.
+
 ## [0.2.0] - 2026-09-25
 
 Rilis bertag pertama repo `infra`: mencakup semua perubahan sejak bootstrap (FASE 0/1, T01–T16, H1–H7, plan 03 web client template). `VERSION` 0.1.0 sebelumnya tidak pernah di-tag.
