@@ -2,7 +2,7 @@
 # Tenant: slug=demo env=staging db=demo_staging pool=odoo-staging (dirender oleh render-client-route.sh)
 #
 # Urutan middleware (router ke Odoo): crowdsec (paling depan) [→ ipallowlist-admin] → odoo-security-headers →
-# ratelimit-default [→ ratelimit-login] → strip-odoo-db-headers → odoo-demo-staging-db (set header eksak).
+# ratelimit-default [→ ratelimit-login | ratelimit-oidc] → strip-odoo-db-headers → odoo-demo-staging-db (set header eksak).
 # Router deny (odoo-demo-staging-dbmanager-deny): crowdsec → deny-all → deny-sink.
 # Service: odoo-staging-http (:8069) / odoo-staging-ws (:8072), didefinisikan di dynamic/platform/odoo-pools.yml.
 http:
@@ -47,6 +47,17 @@ http:
       rule: "Host(`demo.staging.bimacreative.tech`) && (Path(`/web/login`) || Path(`/web/session/authenticate`) || PathPrefix(`/web/reset_password`) || PathPrefix(`/web/signup`))"
       priority: 200
       middlewares: [crowdsec, odoo-security-headers, ratelimit-default, ratelimit-login, strip-odoo-db-headers, odoo-demo-staging-db]
+      service: odoo-staging-http
+      tls:
+        certResolver: le-http
+    # SSO sh_auth_oidc (plan 04 S3, F9/AC-S7): /sh_auth_oidc/authorize (303 → Keycloak) & /sh_auth_oidc/callback
+    # (303 → /web; memicu 1 exchange token back-channel). Header DB sama dengan router utama; rate limit per IP
+    # tersendiri `ratelimit-oidc` (middlewares/ratelimit.yml) di samping ratelimit-default.
+    odoo-demo-staging-oidc:
+      entryPoints: [websecure]
+      rule: "Host(`demo.staging.bimacreative.tech`) && PathPrefix(`/sh_auth_oidc/`)"
+      priority: 200
+      middlewares: [crowdsec, odoo-security-headers, ratelimit-default, ratelimit-oidc, strip-odoo-db-headers, odoo-demo-staging-db]
       service: odoo-staging-http
       tls:
         certResolver: le-http
