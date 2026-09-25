@@ -1,6 +1,6 @@
 # Plan 05 — Control plane memicu job Odoo/SSO (DB, route, SSO tenant, user SSO) lewat jembatan root `infra-job`
 
-- **Status:** proposed (menunggu GATE 1)
+- **Status:** APPROVED GATE 1 (user, 2026-09-25): semua rekomendasi — 1 opsi (a) spool+dispatcher + CLAUDE.md §3/§3.4 & nextjs-developer.md diperbarui, 2 iterasi 1 ops/superadmin saja, 3 subdomain platform saja, 4 res.users manual, 5 kuota 60 job/jam · 3 DB/hari · 30 user-job/jam · 5 rotasi/hari + alert
 - **Tanggal:** 2026-09-25 · **Penulis:** Analyst (FASE 0/1, read-only)
 - **ADR:** `docs/adr/0009-control-plane-job-bridge.md` (proposed)
 - **Asal:** task S9 plan 04 (`docs/plans/04-odoo-sso-prod-multitenant.md` §3.4 "Kontrak control plane", §9.3 open item 2)

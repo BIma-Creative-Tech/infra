@@ -157,7 +157,7 @@ Laporan format §1.3 + path semua file yang diubah
 | IaC | Ansible (playbook bootstrap host) | Idempotent; dijalankan dari laptop/CI |
 | Backup | restic → repo lokal (sementara) → S3-compatible offsite (placeholder) | pg_dump per DB sebelum snapshot; lihat `docs/adr/0006-backup.md` |
 | Observability | Uptime Kuma; Grafana + Loki + Grafana Alloy + Prometheus + node-exporter + cAdvisor | Alert via email/Telegram |
-| Docker API akses | tecnativa/docker-socket-proxy | Hanya control-plane; permission minimal |
+| Orkestrasi host dari control plane | Spool job + systemd path + dispatcher root `/usr/local/sbin/infra-job` (ADR 0009) | Control plane TANPA Docker API/SSH/sudo/secret; allowlist tipe job + regex argumen; socket-proxy tidak dipakai (dihapus H3) |
 | Secrets | `.env` mode 600 (host) + GitHub Secrets (CI) + SOPS/age untuk yang di-commit | |
 
 Lisensi semua di atas: Apache-2/MIT/AGPL/LGPL — tercatat di `docs/adr/0001-stack.md`.
@@ -256,8 +256,8 @@ Lisensi semua di atas: Apache-2/MIT/AGPL/LGPL — tercatat di `docs/adr/0001-sta
 Entitas minimum: `client`, `subscription` (plan, period, status: pending/active/grace/suspended/terminated),
 `invoice` (manual transfer: bukti bayar upload, admin confirm), `domain` (verification status),
 `environment` (prod/demo/staging → DB name, odoo instance, URL), `provision_job` (audit log).
-Aksi orkestrasi (lewat docker-socket-proxy + skrip di `/opt/infra/scripts`, dijalankan sebagai
-job antrean, bukan langsung di request HTTP):
+Aksi orkestrasi (worker menulis file job ke spool `/var/lib/infra-jobs/<inst>/spool/new` → dispatcher root `infra-job`
+menjalankan skrip di `/opt/infra/scripts` dengan argumen tervalidasi — ADR 0009; job antrean, bukan langsung di request HTTP):
 `provision`, `suspend`, `resume`, `terminate (grace 30 hari → hapus)`, `backup-now`, `restore`.
 Semua aksi dicatat audit (siapa, kapan, hasil). Role: `superadmin`, `ops`, `client_admin`, `client_user`.
 

@@ -1,6 +1,6 @@
 # ADR 0009 — Jembatan job control plane → skrip root: spool + systemd path + dispatcher `infra-job`
 
-- **Status:** proposed (menunggu GATE 1 plan 05)
+- **Status:** accepted (GATE 1 plan 05, user 2026-09-25)
 - **Tanggal:** 2026-09-25
 - **Penulis:** Analyst (FASE 1 plan 05)
 - **Terkait:** CLAUDE.md §3 (tabel "Docker API akses"), §3.4, §3.6, §3.7; ADR 0001 riwayat H3 (socket-proxy dihapus dari

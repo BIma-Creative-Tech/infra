@@ -29,9 +29,9 @@ Kamu bekerja untuk Lead. Patuhi §0 CLAUDE.md. Pin versi persis: lihat
   `audit_logs`, `users` (role: superadmin/ops/client_admin/client_user).
 - **Orkestrasi**: request HTTP hanya membuat `provision_job`; worker terpisah (proses Node
   yang sama via cron container atau `pg-boss` — open source, MIT) mengeksekusi:
-  memanggil skrip di `/opt/infra/scripts/*.sh` melalui `docker-socket-proxy`
-  (eksekusi container "runner" one-shot dengan mount terbatas) — TIDAK pernah `child_process`
-  ke shell host dengan input user. Semua argumen skrip di-whitelist (regex slug `^[a-z0-9-]{3,30}$`).
+  menulis file job JSON ke spool (bind mount `/var/lib/infra-jobs/<inst>/spool/new`); dispatcher root
+  `/usr/local/sbin/infra-job` (systemd path unit) memvalidasi & menjalankan skrip `/opt/infra/scripts/*.sh`
+  (ADR 0009) — control plane TIDAK punya Docker API/SSH/sudo, TIDAK pernah `child_process` ke shell host. Semua argumen skrip di-whitelist (regex slug `^[a-z0-9-]{3,30}$`).
 - **Domain client**: alur = user input domain → sistem tampilkan instruksi (A record ke IP VPS,
   atau CNAME ke `edge.<platform>`), + TXT `_platform-verify.<domain>=<token>` → tombol
   "Verifikasi" (`dns.resolveTxt`, `dns.resolve4`) → aktif → job tulis dynamic config Traefik
