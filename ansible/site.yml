@@ -8,6 +8,7 @@
 #   T13 --tags backup (restic + timer; skrip di scripts/backup.sh, restore.sh, restore-test.sh)
 #   H7  --tags healthcheck,backup (timer infra-healthcheck + alert email; OnFailure restic)
 #   P05 --tags infra_jobs,auditd (dispatcher infra-job + spool + unit; watch auditd /usr/local/sbin/infra-job)
+#   T17b --tags mail_tls_export (ekspor sertifikat mail.* dari acme.json; QA-T17B-02 / B18, docs/03-operations/mail.md §TLS)
 # Tag ssh_phase_b / ssh_phase_c hanya boleh dijalankan Lead bersama user (S4–S7).
 - name: Bootstrap host VPS
   hosts: vps
@@ -64,3 +65,6 @@
     # Plan 05 J1/J4 (ADR 0009): dispatcher root infra-job + spool + unit path/service. Butuh infra-unit-failure@ (healthcheck).
     #   --tags infra_jobs (--check --diff dulu). Rollback: infra_jobs_state=absent / path_enabled=false (defaults role).
     - { role: infra_jobs, tags: [infra_jobs] }
+    # QA-T17B-02 / B18: ekspor HANYA sertifikat mail.* dari acme.json (unit path+timer). Butuh infra-unit-failure@ (healthcheck).
+    #   --tags mail_tls_export (--check --diff dulu). Rollback: mail_tls_export_state=absent.
+    - { role: mail_tls_export, tags: [mail_tls_export] }

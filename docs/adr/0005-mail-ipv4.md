@@ -166,3 +166,11 @@ retry (antrian pengirim) selama beberapa hari.
   - TEMPORARY: `defer_transports = smtp` (`mail/config/postfix-main.cf`) menahan semua pengiriman keluar sampai PTR = FQDN (#5).
   - `ENABLE_DNSBL=0` (resolver publik, docs DMS rspamd.md §RBLs) — backlog resolver rekursif privat.
   - Rspamd controller `0.0.0.0:11334` hanya di network `mail` (tanpa anggota lain, tidak di-publish).
+- 2026-09-25 (QA-T17B-02 / B18, keputusan user "risk acceptance + hardening"): **#8 diubah — acme.json penuh tidak lagi
+  di-mount.** Host mengekspor HANYA cert/key `mail.bimacreative.tech` (`mail/scripts/tls-export.py`, unit
+  `mail-tls-export.{path,timer,service}` dari role Ansible `mail_tls_export`) ke `mail/data/tls/`; DMS `SSL_TYPE=manual` +
+  `SSL_CERT_PATH`/`SSL_KEY_PATH` (docs DMS v16.0.1 `security/ssl.md`), mount direktori read-only. Perpanjangan tetap otomatis
+  (change detection DMS → reload Postfix/Dovecot). Alasan: kompromi container publik tidak lagi membocorkan kunci privat semua
+  hostname platform/tenant. Alternatif `traefik-certs-dumper` ditolak (tool pihak ketiga tambahan + butuh akses acme.json
+  juga; skrip stdlib ±150 baris cukup). CVE image 16.0.1 diterima sementara: `docs/risk/2026-09-25-mailserver-16.0.1-cves.md`.
+  Runbook terapkan/rollback: `docs/03-operations/mail.md` §TLS.

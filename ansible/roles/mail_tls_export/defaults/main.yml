@@ -1,0 +1,17 @@
+---
+# Role mail_tls_export (QA-T17B-02 / B18, keputusan user 2026-09-25 "risk acceptance + hardening").
+# Mengekspor HANYA sertifikat + kunci mail.<platform> dari acme.json Traefik ke {{ mail_tls_export_out }} (root 0700;
+# fullchain.pem 0644, privkey.pem 0600). Mailserver me-mount dir itu read-only (SSL_TYPE=manual) — bukan acme.json penuh.
+# Terapkan:  ansible-playbook site.yml --tags mail_tls_export --check --diff  lalu tanpa --check (run kedua changed=0).
+# Rollback:  mail_tls_export_state: absent → unit dihapus; file ekspor DIPERTAHANKAN (compose lama tidak memakainya).
+mail_tls_export_state: present # present | absent
+mail_tls_export_script: "{{ infra_root }}/mail/scripts/tls-export.py"
+mail_tls_export_acme: "{{ infra_root }}/traefik/acme/acme.json"
+mail_tls_export_resolver: le-http
+mail_tls_export_domain: mail.bimacreative.tech
+mail_tls_export_out: "{{ infra_root }}/mail/data/tls"
+# Traefik memperbarui sertifikat saat sisa 30 hari (default LE 90 hari); < 20 hari = perpanjangan gagal → exit 2 → alert.
+mail_tls_export_warn_days: 20
+# Jaring pengaman selain .path (acme.json berubah): run harian + saat boot.
+mail_tls_export_on_calendar: "*-*-* 04:30:00"
+mail_tls_export_on_boot_sec: 5min

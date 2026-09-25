@@ -56,10 +56,15 @@ services:
       ENABLE_MTA_STS: "0"
       # --- Kuota Dovecot (default 1; hanya ACCOUNT_PROVISIONER=FILE). 2 GiB per mailbox via setup quota set.
       ENABLE_QUOTAS: "1"
-      # --- TLS (ADR 0005 #8): sertifikat Traefik dari acme.json (router dummy traefik/dynamic/platform/mail.yml).
-      #     Diekstrak saat start + saat acme.json berubah (change detection, check-for-changes.sh `_ssl_changes`).
-      SSL_TYPE: letsencrypt
-      SSL_DOMAIN: mail.bimacreative.tech
+      # --- TLS (ADR 0005 #8, revisi QA-T17B-02/B18 2026-09-25): HANYA cert/key mail.bimacreative.tech, diekspor dari
+      #     acme.json Traefik oleh host (mail/scripts/tls-export.py via unit mail-tls-export.{path,timer}, role Ansible
+      #     mail_tls_export) ke data/tls/ — acme.json penuh (kunci SEMUA hostname) TIDAK lagi di-mount.
+      #     docs DMS v16.0.1 security/ssl.md §Bring Your Own Certificates: SSL_TYPE=manual + SSL_CERT_PATH/SSL_KEY_PATH.
+      #     Perpanjangan: change detection DMS memantau kedua path (helpers/change-detection.sh) → _setup_ssl + reload
+      #     Postfix/Dovecot (check-for-changes.sh `_ssl_changes`). Dir di-mount (bukan file) → rename atomik terlihat.
+      SSL_TYPE: manual
+      SSL_CERT_PATH: /etc/dms-tls/fullchain.pem
+      SSL_KEY_PATH: /etc/dms-tls/privkey.pem
       TLS_LEVEL: modern                   # TLS ≥ 1.2, cipher ECDHE-AEAD saja
     ports:
       # Bind eksplisit 0.0.0.0 = IPv4 saja (ADR 0005 #3). 143/110/995/4190 tidak di-publish.
@@ -76,7 +81,7 @@ services:
       # DMS meng-chown dir mount (syslog:root 755) & file log root:root 644 → parent /var/log/mailserver
       # root:adm 750 (bootstrap) mencegah user host lain membaca (log berisi alamat email & IP).
       - /var/log/mailserver/dms:/var/log/mail
-      - ../traefik/acme/acme.json:/etc/letsencrypt/acme.json:ro
+      - ./data/tls:/etc/dms-tls:ro                 # fullchain.pem 0644 + privkey.pem 0600, dir root 0700 (role mail_tls_export)
     networks:
       - mail
     healthcheck:
@@ -95,7 +100,7 @@ services:
       - ALL
     cap_add:
       - CHOWN          # entrypoint chown maildir/state/dkim ke vmail/_rspamd/postfix
-      - DAC_OVERRIDE   # root membaca acme.json (600 uid 65532) & file milik user layanan
+      - DAC_OVERRIDE   # root mengakses file milik user layanan saat setup (dulu juga acme.json 600 uid 65532; belum diuji tanpa cap ini)
       - FOWNER         # chmod/utime file milik user lain (setup state)
       - SETUID         # Postfix/Dovecot/Rspamd/Redis drop ke user layanan
       - SETGID

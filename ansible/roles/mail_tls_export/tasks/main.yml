@@ -1,0 +1,20 @@
+---
+# mail_tls_export — ekspor sertifikat mail.* dari acme.json (QA-T17B-02 / B18). Idempoten.
+# Butuh: role healthcheck (unit infra-unit-failure@ untuk OnFailure=), python3 + openssl host (Ubuntu 24.04 base).
+- name: Validasi variabel mail_tls_export
+  ansible.builtin.assert:
+    that:
+      - mail_tls_export_state in ['present', 'absent']
+      - mail_tls_export_domain is match('^[a-z0-9.-]+$')
+      - mail_tls_export_out is match('^/opt/infra/mail/data/[a-z0-9_-]+$')
+      - mail_tls_export_warn_days | int > 0
+    fail_msg: "mail_tls_export: state/domain/out/warn_days tidak valid"
+    quiet: true
+
+- name: Terapkan (present)
+  ansible.builtin.include_tasks: present.yml
+  when: mail_tls_export_state == 'present'
+
+- name: Hapus (absent — file ekspor dipertahankan)
+  ansible.builtin.include_tasks: absent.yml
+  when: mail_tls_export_state == 'absent'
