@@ -79,6 +79,15 @@ ssh -p 2221 -N -L 8443:127.0.0.1:8443 admin@31.97.50.221
 # 3) buka https://auth.bimacreative.tech:8443/admin/  → login platform-admin
 # 4) selesai: hapus baris /etc/hosts tadi
 ```
+Windows: langkah 1 = Notepad **Run as administrator** → `C:\Windows\System32\drivers\etc\hosts`, tambah baris yang
+sama, lalu `ipconfig /flushdns` dan buka ulang browser (tanpa langkah ini browser memakai IP publik :8443 → "can't be
+reached"; dialami user 2026-09-25). Hapus baris itu + `ipconfig /flushdns` setelah selesai — selama ada, SSO dari
+laptop gagal bila tunnel mati.
+
+Pengecualian client (keputusan user 2026-09-25, **staging saja**): `drms-staging` / `proyekkas-mobile` (public, PKCE
+S256) **Direct access grants ON** + standard flow ON — login APK native username+password (Custom Tab kehilangan hasil
+di HP user). Brute force realm tetap ON. Realm prod `drms` tetap OFF (diverifikasi token endpoint `unauthorized_client`).
+Diubah user via console; export `realm-export/drms-staging.json` disesuaikan manual (1 baris, commit a6024cd).
 H5 (2026-09-23): tunnel lama `-L 8443:127.0.0.1:443` tidak lagi membuka admin (:443 → 403). Diverifikasi dari host
 (`--resolve auth.bimacreative.tech:8443:127.0.0.1`): `GET :8443/admin/` → 302 ke `:8443/admin/master/console/` → 200,
 discovery realm master via :8443 → 200. Uji T06 (sebelum H5, jalur :443) di bawah tetap relevan untuk alur login.
