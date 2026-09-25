@@ -8,6 +8,26 @@ file `VERSION`.
 
 ## [Unreleased]
 
+### Plan 03 W2 — template website Next.js client (2026-09-25, branch `feat/infra-web-client-template`)
+
+#### Added
+- `templates/web-client/` (`docker-compose.yml`, `docker-compose.contact.yml`, `.env.example`, `.gitignore`): service `web`
+  `web-<slug>-<env>`, image tag/digest pin dari `.env`, uid 1001, `read_only` + tmpfs `/tmp` 16m & `/app/.next/cache` 64m,
+  `cap_drop: [ALL]`, `no-new-privileges`, 256m / 0.5 CPU / 128 pids, healthcheck `/api/health`, json-file 10m×3, hanya
+  network `proxy`, tanpa port publik. Form kontak (secret `smtp_password`) hanya lewat override `COMPOSE_FILE`.
+- `templates/traefik-web-client.yml`: router `Host()` eksplisit, `crowdsec → security-headers → ratelimit-default`,
+  router `POST /contact|/api/contact` dengan ratelimit 5/menit/IP, opsional `www.<host>` → 301 host kanonik, `le-http`.
+- `scripts/provision-web-client.sh <slug> <prod|staging> --host --image [--www] [--contact …] | --remove`: validasi
+  (slug, FQDN, image tanpa `latest`), DNS pre-check, hostname unik, render stack + route, `compose up -d`, tunggu healthy,
+  HUP Traefik (`docker exec`, H7), smoke test TLS, idempoten (`changed=no`), `--remove` tanpa hapus data.
+- `scripts/lib/traefik-route.sh`: `dns_precheck` + `traefik_hup` (dipindah dari `render-client-route.sh`).
+- `docs/runbooks/web-client-onboarding.md`.
+
+#### Changed
+- `scripts/render-client-route.sh`: memakai `lib/traefik-route.sh` (perilaku sama; diverifikasi `demo staging` →
+  `changed=no`) + menolak menimpa/menghapus file route yang bukan hasil render-nya.
+- `docs/runbooks/client-domain-onboarding.md` bagian A → tautan runbook website; `docs/03-operations/traefik.md` tabel struktur.
+
 ### CI security workflows (2026-09-24, branch `ci/security-workflows`)
 
 #### Added

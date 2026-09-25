@@ -10,6 +10,10 @@
 
 ## A. Onboarding domain web (Odoo dan/atau Next.js)
 
+> **Website Next.js client** (repo `web-<slug>`): ikuti `docs/runbooks/web-client-onboarding.md` — satu perintah
+> `scripts/provision-web-client.sh` (DNS pre-check A/AAAA, stack, router, smoke test). Langkah A1 (instruksi DNS) dan
+> pemeriksaan TXT verifikasi di A2 tetap berlaku; A3 di bawah khusus router Odoo (`render-client-route.sh`).
+
 ### A1. Kumpulkan instruksi DNS untuk client
 
 Berikan salah satu dari dua opsi ke client (nilai target dari `docs/adr/0002-tls-dns-manual.md`):
