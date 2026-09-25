@@ -29,7 +29,7 @@
 |---|---|---|
 | `next` | 16.3.6 | App Router, `output: standalone` (ADR 0001) |
 | `react` / `react-dom` | 19.3.0 | |
-| `tailwindcss` / `@tailwindcss/postcss` | 4.3.3 | styling, design token per client (`brand.config.ts`) |
+| `tailwindcss` / `@tailwindcss/postcss` | 4.3.3 | styling, design token per client (`src/config/brand.ts`) |
 | `motion` | 13.4.3 | animasi React (`motion/react`), penerus/identik `framer-motion` |
 | `animejs` | 4.5.0 | animasi intro hero (via adapter WAAPI sejak `d5f6148`) |
 | `iconsax` | 0.1.1 | web component resmi `<iconsax-icon>`; subset SVG diekstrak saat build (`scripts/iconsax-subset.mjs`) |
