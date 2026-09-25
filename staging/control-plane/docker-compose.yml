@@ -8,7 +8,7 @@ name: staging-control-plane
 x-hardening: &hardening
   # Tag pin (short SHA commit main repo control-plane). Override sementara:
   #   CONTROL_PLANE_TAG=<tag> docker compose up -d
-  image: control-plane:${CONTROL_PLANE_TAG:-7b85a78}   # plan 05 J4 (2026-09-25; rollback 4fc3828 — migrasi 0001/0002 additive)
+  image: control-plane:${CONTROL_PLANE_TAG:-6d94d2b}   # plan 05 J5 fixes (2026-09-25; rollback 7b85a78/4fc3828 — migrasi 0001-0003 additive)
   env_file:
     - .env
   user: "1001:1001"
