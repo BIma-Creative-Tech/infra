@@ -5,7 +5,8 @@
 #  2. /var/log/mailserver (root:adm 750) + subdir dms/ (di-mount ke /var/log/mail; DMS set 755 + file root 644)
 #     — parent 750 menutup akses user host lain; CrowdSec (uid 0 di container) membaca sebagai owner.
 #  3. secrets/ (700 root) — password mailbox (dibuat scripts/mailbox-add.sh).
-#  4. Sinkron config git → data/config: postfix-main.cf, dovecot.cf (ADR 0011: SNI local_name), rspamd/override.d/*.conf.
+#  4. Sinkron config git → data/config: postfix-main.cf, dovecot.cf (ADR 0011: SNI local_name), rspamd/override.d/*.conf,
+#     user-patches.sh + pwhelper/{pwhelper.py,allowlist.txt} (ADR 0012, helper ganti password webmail).
 #     postfix-main.cf & dovecot.cf hanya dibaca saat START container (butuh recreate); rspamd/** dipantau change detection DMS.
 set -euo pipefail
 
@@ -39,6 +40,13 @@ sync_file() { # sync_file <src> <dst> — salin hanya bila isi berbeda
 }
 sync_file "$STACK_DIR/config/postfix-main.cf" "$STACK_DIR/data/config/postfix-main.cf"
 sync_file "$STACK_DIR/config/dovecot.cf" "$STACK_DIR/data/config/dovecot.cf"   # → /etc/dovecot/local.conf saat start
+# ADR 0012 (plan 08): helper ganti password webmail. user-patches.sh hanya dijalankan DMS saat container BARU (recreate);
+# pwhelper.py dibaca ulang saat `supervisorctl restart pwhelper`; allowlist.txt dibaca setiap request.
+# Secret helper (token, deny list) dibuat scripts/pwhelper-secrets.sh — bukan di sini.
+sync_file "$STACK_DIR/config/user-patches.sh" "$STACK_DIR/data/config/user-patches.sh"
+install -d -o root -g root -m 0700 "$STACK_DIR/data/config/pwhelper"
+sync_file "$STACK_DIR/config/pwhelper/pwhelper.py" "$STACK_DIR/data/config/pwhelper/pwhelper.py"
+sync_file "$STACK_DIR/config/pwhelper/allowlist.txt" "$STACK_DIR/data/config/pwhelper/allowlist.txt"
 for f in "$STACK_DIR"/config/rspamd/override.d/*.conf; do
   sync_file "$f" "$STACK_DIR/data/config/rspamd/override.d/$(basename "$f")"
 done

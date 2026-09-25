@@ -86,7 +86,13 @@ services:
       - ./data/tls:/etc/dms-tls:ro                 # fullchain.pem 0644 + privkey.pem 0600, dir root 0700 (role mail_tls_export)
                                                    # + <fqdn>/{privkey,chain,fullchain}.pem 0600 per hostname SNI (ADR 0011)
     networks:
-      - mail
+      mail: {}
+      # ADR 0012 (plan 08): network --internal bersama container `webmail` (Roundcube) SAJA. IP tetap .2 = tujuan
+      # extra_hosts mail.expomedia.id di webmail (IMAPS 993 / submission 587, SNI + verifikasi sertifikat) dan alamat
+      # bind helper ganti password `pwhelper` (:8080, dipasang config/user-patches.sh). Internal → tanpa gateway, tidak
+      # mengubah egress/gateway mailserver (tetap `mail`).
+      webmail-mail:
+        ipv4_address: 10.100.16.2
     healthcheck:
       # dms-healthcheck (v16.0.0): semua layanan supervisord yang diaktifkan env harus RUNNING.
       test: ["CMD", "dms-healthcheck"]
@@ -127,3 +133,14 @@ networks:
       config:
         - subnet: 10.100.10.0/24
           gateway: 10.100.10.1
+  webmail-mail:
+    # ADR 0012: anggota HANYA mailserver (10.100.16.2) + webmail. Dibuat/dimiliki stack ini; webmail/docker-compose.yml
+    # memakainya sebagai external → `mail` harus up sebelum webmail.
+    name: webmail-mail
+    driver: bridge
+    internal: true
+    enable_ipv6: false
+    ipam:
+      config:
+        - subnet: 10.100.16.0/24
+          gateway: 10.100.16.1

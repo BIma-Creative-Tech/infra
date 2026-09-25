@@ -7,8 +7,8 @@ http:
         # HSTS bertahap (QA-T17B-06, disetujui user 2026-09-25): 300 → 604800 (1 minggu, semua host sudah
         # le-http). Bila 2 minggu stabil → 31536000 mulai 2026-10-09 (docs/03-operations/traefik.md §HSTS).
         # includeSubdomains & preload TETAP false (keputusan terpisah; preload tidak direncanakan).
-        # Nilai sama WAJIB dijaga di auth-security-headers (platform/auth.yml) & odoo-security-headers
-        # (platform/odoo-pools.yml).
+        # Nilai sama WAJIB dijaga di auth-security-headers (platform/auth.yml), odoo-security-headers
+        # (platform/odoo-pools.yml) & webmail-security-headers (clients/webmail-expomedia.yml, ADR 0012).
         stsSeconds: 604800
         stsIncludeSubdomains: false
         stsPreload: false

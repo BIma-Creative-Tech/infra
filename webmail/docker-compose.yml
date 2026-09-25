@@ -1,0 +1,83 @@
+# Webmail Roundcube untuk client Expomedia — https://webmail.expomedia.id (ADR 0012, plan 08, ops: docs/03-operations/webmail.md).
+# Jalankan scripts/bootstrap.sh (root) sebelum `docker compose up -d`. Stack `mail` harus up dulu (network webmail-mail).
+# Env & perilaku diverifikasi dari /docker-entrypoint.sh image 1.7.4-apache-nonroot (dibaca 2026-09-25): ROUNDCUBEMAIL_DEFAULT_HOST/
+# _DEFAULT_PORT/_SMTP_SERVER/_SMTP_PORT/_PLUGINS/_SKIN/_TEMP_DIR/_DB_TYPE(sqlite default, /var/roundcube/db)/_REQUEST_PATH;
+# /run/secrets/roundcube_des_key; include /var/roundcube/config/*.php terakhir.
+name: webmail
+
+services:
+  webmail:
+    # Roundcube 1.7.4 (rilis keamanan 2026-09-06, GPL-3, dijalankan apa adanya — CLAUDE.md §0.10). Varian nonroot resmi
+    # (USER 33:33 www-data, Apache Listen 8000). Digest = index multi-arch (docker buildx imagetools inspect, 2026-09-25).
+    image: roundcube/roundcubemail:1.7.4-apache-nonroot@sha256:38e4b5295c6b80da288b023e650286a65e4e3fe9f5b9e7f6b4993cf6b8f27cf4
+    container_name: webmail
+    restart: unless-stopped
+    user: "33:33"
+    environment:
+      TZ: Asia/Jakarta
+      # Nilai final ditimpa config/webmail.inc.php; env di sini hanya agar config.docker.inc.php yang ditulis entrypoint konsisten.
+      ROUNDCUBEMAIL_DEFAULT_HOST: ssl://mail.expomedia.id
+      ROUNDCUBEMAIL_DEFAULT_PORT: "993"
+      ROUNDCUBEMAIL_SMTP_SERVER: tls://mail.expomedia.id
+      ROUNDCUBEMAIL_SMTP_PORT: "587"
+      ROUNDCUBEMAIL_PLUGINS: archive,zipdownload,password
+      ROUNDCUBEMAIL_SKIN: elastic
+      ROUNDCUBEMAIL_TEMP_DIR: /tmp/roundcube-temp
+      ROUNDCUBEMAIL_DB_TYPE: sqlite
+      ROUNDCUBEMAIL_DB_DIR: /var/roundcube/db
+    secrets:
+      - roundcube_des_key     # → /run/secrets/roundcube_des_key (entrypoint: file_get_contents, tanpa newline)
+      - pwhelper_token        # → /run/secrets/pwhelper_token (Bearer ke helper ganti password)
+    volumes:
+      - ./data/db:/var/roundcube/db                 # SQLite (user, prefs, kontak, sesi) — ikut backup restic `files`
+      - ./config/webmail.inc.php:/var/roundcube/config/webmail.inc.php:ro
+      - ./config/apache-webmail.conf:/etc/apache2/conf-enabled/zz-webmail.conf:ro
+    # Rootfs read-only. Entrypoint menyalin /usr/src/roundcubemail (35 MB) ke docroot /var/www/html setiap start dan menulis
+    # config/config.inc.php di sana → tmpfs (kode segar tiap start, tidak persisten). Apache butuh run/lock dir.
+    read_only: true
+    tmpfs:
+      # exec: entrypoint menjalankan bin/initdb.sh dari docroot (tanpa exec → "Permission denied", DB tidak diinisialisasi).
+      - /var/www/html:size=96m,uid=33,gid=33,mode=0755,exec
+      - /tmp:size=64m,uid=33,gid=33,mode=1777
+      - /var/run/apache2:size=4m,uid=33,gid=33,mode=0755
+      - /var/lock/apache2:size=1m,uid=33,gid=33,mode=0755
+    networks:
+      webmail-edge: {}        # Traefik → webmail:8000 (--internal)
+      webmail-mail: {}        # IMAPS/submission + helper di mailserver 10.100.16.2 (--internal)
+    # Nama sertifikat mail.expomedia.id → IP mailserver di network internal (tanpa hairpin ke IP publik; ADR 0012 §Decision 3).
+    extra_hosts:
+      - "mail.expomedia.id:10.100.16.2"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "-H", "Host: webmail.expomedia.id", "-H", "X-Forwarded-Proto: https", "http://127.0.0.1:8000/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+    mem_limit: 256m
+    cpus: 0.5
+    pids_limit: 64
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+secrets:
+  roundcube_des_key:
+    file: ./secrets/des_key
+  pwhelper_token:
+    file: ./secrets/pwhelper_token
+
+networks:
+  webmail-edge:
+    # Dibuat traefik/scripts/bootstrap.sh: 10.100.15.0/24 --internal — anggota: traefik + webmail saja.
+    external: true
+    name: webmail-edge
+  webmail-mail:
+    # Dibuat & dimiliki stack mail (mail/docker-compose.yml): 10.100.16.0/24 --internal — anggota: mailserver + webmail saja.
+    external: true
+    name: webmail-mail

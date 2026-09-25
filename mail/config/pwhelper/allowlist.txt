@@ -1,0 +1,8 @@
+# Allowlist ganti password self-service via webmail (ADR 0012, plan 08). Satu alamat per baris, huruf kecil.
+# Disinkron bootstrap.sh → data/config/pwhelper/allowlist.txt (dibaca pwhelper setiap request, tanpa restart).
+# DIKECUALIKAN (sengaja tidak ada di sini): noreply@expomedia.id (akun teknis form kontak, juga tidak bisa login webmail),
+# postmaster@expomedia.id & dmarc@expomedia.id (akun sistem RFC 5321/DMARC rua — boleh login webmail untuk membaca, password
+# dikelola ops). Password tab Roundcube juga disembunyikan untuk ketiganya (password_login_exceptions).
+admin@expomedia.id
+info@expomedia.id
+sales@expomedia.id

@@ -1,0 +1,57 @@
+# ADR 0012 / plan 08 — Webmail Roundcube client Expomedia: https://webmail.expomedia.id → container `webmail:8000`
+# (network --internal `webmail-edge`, 10.100.15.0/24). Operasional: docs/03-operations/webmail.md.
+# DNS pre-check lulus 2026-09-25 20:31 WIB: A webmail.expomedia.id = 31.97.50.221 @103.253.212.32 (ns1.mysrsx.com),
+# @107.170.170.91 (ns1.mysrsx.net), @ns4.mysrsx.org, @1.1.1.1, @8.8.8.8; AAAA kosong (NOERROR, ANSWER 0), tanpa CNAME.
+# File di subdirektori → setelah mengubah: `docker exec traefik kill -HUP 1` (H7).
+#
+# Urutan middleware konvensi platform: crowdsec (paling depan, termasuk AppSec) → headers → ratelimit.
+http:
+  routers:
+    # POST login lebih ketat (CLAUDE.md §3.6 "login path lebih ketat"): form login Roundcube = POST /?_task=login
+    # (action form, diamati 2026-09-25). Roundcube membaca _task dari GET/POST/COOKIE (rcube_utils::get_input_value,
+    # POST menimpa GET) → POST tanpa query `_task` juga dimasukkan ke sini. Sisa celah (query _task=lain + body _task=login)
+    # ditutup lapisan lain: login gagal = HTTP 401 → skenario CrowdSec LePresidente/http-generic-401-bf (POST+401, kapasitas
+    # 5/10 s → ban) + login_rate_limit Roundcube 3/menit/user. Opsi rule: docs v3.7 rules-and-priority.md (Query/QueryRegexp, `!`).
+    webmail-expomedia-login:
+      entryPoints: [websecure]
+      rule: "Host(`webmail.expomedia.id`) && Method(`POST`) && (Query(`_task`, `login`) || !QueryRegexp(`_task`, `^.*$`))"
+      priority: 100
+      middlewares: [crowdsec, webmail-security-headers, ratelimit-login]
+      service: webmail
+      tls:
+        certResolver: le-http
+    webmail-expomedia:
+      entryPoints: [websecure]
+      rule: "Host(`webmail.expomedia.id`)"
+      priority: 1
+      middlewares: [crowdsec, webmail-security-headers, ratelimit-default]
+      service: webmail
+      tls:
+        certResolver: le-http
+
+  middlewares:
+    # Salinan `security-headers` (middlewares/security-headers.yml) dengan 2 beda: X-Frame-Options SAMEORIGIN (bukan DENY —
+    # pratinjau pesan Roundcube adalah iframe same-origin) dan CSP minimal yang tidak bergantung inline script (Roundcube tidak
+    # mengirim CSP sendiri; skin elastic memakai inline script/style → script-src ketat tidak mungkin tanpa patch).
+    # stsSeconds WAJIB sama dengan security-headers (nilai platform, lihat komentar di file itu).
+    # Opsi: docs v3.7 reference/routing-configuration/http/middlewares/headers.md.
+    webmail-security-headers:
+      headers:
+        stsSeconds: 604800
+        stsIncludeSubdomains: false
+        stsPreload: false
+        contentTypeNosniff: true
+        frameDeny: false
+        customFrameOptionsValue: "SAMEORIGIN"
+        contentSecurityPolicy: "frame-ancestors 'self'; object-src 'none'; base-uri 'self'; form-action 'self'"
+        referrerPolicy: "same-origin"
+        permissionsPolicy: "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+        customResponseHeaders:
+          X-Powered-By: ""
+          Server: ""
+
+  services:
+    webmail:
+      loadBalancer:
+        servers:
+          - url: "http://webmail:8000"

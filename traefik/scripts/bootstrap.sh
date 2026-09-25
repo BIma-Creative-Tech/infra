@@ -6,6 +6,7 @@
 #     + network `drms-kas-edge` (ProyekKas client DRMS): HANYA traefik + container web ProyekKas
 #     + network `drms-kc-admin{,-stg}` (H5, --internal): traefik + app ProyekKas → Admin REST realm drms*
 #     + network `web-edge` (W2b): HANYA traefik + website client web-<slug>-<env>
+#     + network `webmail-edge` (ADR 0012, --internal): HANYA traefik + webmail (Roundcube)
 #     + network `kc-edge` / `odoo-edge-stg` (ADR 0010, plan 06): HANYA traefik + keycloak / traefik + odoo-staging
 #  2. direktori acme/ (700) + acme-staging.json & acme.json (600) milik uid Traefik
 #  3. direktori logs/ (750, grup adm) milik uid Traefik + secrets/ (700)
@@ -69,6 +70,9 @@ ensure_network drms-kc-admin-stg 10.100.9.0/24 10.100.9.1 internal
 # odoo-edge/drms-kas-edge) — website tidak lagi di `proxy` (control-plane, Grafana, Uptime Kuma). Bukan --internal:
 # website butuh egress (SMTP :587 hairpin ke mail.bimacreative.tech, API eksternal). (10.100.10.0/24 = mail.)
 ensure_network web-edge 10.100.11.0/24 10.100.11.1
+# webmail-edge (ADR 0012, plan 08): traefik + container `webmail` (Roundcube) saja. --internal: webmail TIDAK butuh egress
+# (IMAP/SMTP lewat network internal `webmail-mail` milik stack mail; remote content/CSS proxy Roundcube sengaja tanpa internet).
+ensure_network webmail-edge 10.100.15.0/24 10.100.15.1 internal
 
 install -d -o "$TRAEFIK_UID" -g "$TRAEFIK_GID" -m 0700 "$STACK_DIR/acme"
 for f in acme-staging.json acme.json; do
