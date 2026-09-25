@@ -49,9 +49,17 @@ services:
         # tiba sebagai 10.100.2.1, bukan 10.100.0.1 (ipallowlist-admin). Diuji 2026-09-23.
         gw_priority: 1
       crowdsec: {}   # T05: LAPI :8080 & AppSec :7422 container crowdsec (tidak ada di network proxy)
-      # H1: backend Odoo (odoo-pool-a, odoo-staging :8069/:8072) HANYA di network ini — bukan di
+      # H1: backend Odoo prod (odoo-pool-a :8069/:8072) HANYA di network ini — bukan di
       # `proxy`. Tanpa gw_priority (default 0): gateway tetap `proxy` (lihat komentar di atas).
       odoo-edge: {}
+      # ADR 0010 #4 (plan 06): backend Odoo STAGING (odoo-staging :8069/:8072) — edge terpisah dari prod. Tanpa
+      # gw_priority: gateway tetap `proxy`.
+      odoo-edge-stg: {}
+      # ADR 0010 #3 (plan 06): Keycloak (keycloak:8080) HANYA di network ini (keluar dari `proxy`). Tanpa gw_priority:
+      # gateway tetap `proxy`. DNS: urutan endpoint Traefik = proxy (gw_priority 1) → non-internal (nama) → internal,
+      # sehingga `keycloak` di-resolve ke IP kc-edge (bukan `metrics`) — moby v29.8.1 daemon/libnetwork/sandbox.go
+      # Endpoint.Less + Sandbox.ResolveName. IP sumber Traefik = 10.100.12.x = KC_PROXY_TRUSTED_ADDRESSES Keycloak.
+      kc-edge: {}
       # ProyekKas DRMS: backend drms-pk-{web,stg}:3000 HANYA di network ini (bukan `proxy`).
       # Tanpa gw_priority (default 0): gateway tetap `proxy`.
       drms-kas-edge: {}
@@ -99,11 +107,19 @@ networks:
     external: true
     name: crowdsec
   odoo-edge:
-    # Dibuat scripts/bootstrap.sh: 10.100.3.0/24 (H1) — anggota: traefik + pool Odoo saja.
+    # Dibuat scripts/bootstrap.sh: 10.100.3.0/24 (H1) — anggota: traefik + odoo-pool-a (prod) saja (plan 06).
     external: true
     name: odoo-edge
+  odoo-edge-stg:
+    # Dibuat scripts/bootstrap.sh: 10.100.13.0/24 gw 10.100.13.1 (ADR 0010) — anggota: traefik + odoo-staging saja.
+    external: true
+    name: odoo-edge-stg
+  kc-edge:
+    # Dibuat scripts/bootstrap.sh: 10.100.12.0/24 gw 10.100.12.1 (ADR 0010) — anggota: traefik + keycloak saja.
+    external: true
+    name: kc-edge
   drms-kas-edge:
-    # Dibuat scripts/bootstrap.sh: 10.100.7.0/24 gw 10.100.7.1 — anggota: traefik + web ProyekKas DRMS saja.
+    # Dibuat scripts/bootstrap.sh: 10.100.7.0/24 gw 10.100.7.1 — anggota: traefik + web ProyekKas DRMS staging saja.
     external: true
     name: drms-kas-edge
   metrics:

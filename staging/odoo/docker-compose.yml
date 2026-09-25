@@ -1,8 +1,9 @@
 # T10 — Odoo CE 19.0 pool shared STAGING (plan 02; ADR 0001 pin, ADR 0003 D1, ADR 0004 §2).
 # Jalankan dulu: /opt/infra/scripts/odoo-pool-bootstrap.sh staging  (membuat .env 600 + secrets/).
 # DB tenant: /opt/infra/scripts/provision-odoo-db.sh <slug> staging. Router: render-client-route.sh.
-# Tidak ada port di-publish: Traefik menjangkau odoo-staging:8069 (HTTP) & :8072 (/websocket) via `odoo-edge`
-# (H1: network khusus traefik + pool Odoo; pool TIDAK di `proxy` → service lain tidak bisa langsung ke Odoo).
+# Tidak ada port di-publish: Traefik menjangkau odoo-staging:8069 (HTTP) & :8072 (/websocket) via `odoo-edge-stg`
+# (H1 + ADR 0010 #4: network khusus traefik + pool staging; pool TIDAK di `proxy`/`odoo-edge` → pool prod & service lain
+# tidak bisa langsung ke Odoo staging, dan sebaliknya).
 name: odoo-staging
 
 services:
@@ -24,6 +25,12 @@ services:
       # terdaftar agar secret platform dilepas (dipisah koma).
       SH_OIDC_SECRET_DIR: /run/sh-oidc
       SH_OIDC_TRUSTED_ISSUERS: https://auth.bimacreative.tech/realms/platform-staging
+      # ADR 0010 #5a / plan 06 §4.2 (D-i-D, sh_dbfilter_header >= 19.0.1.1.0): header X-Sh-Odoo-Db HANYA dipakai bila
+      # peer TCP ada di daftar ini (CIDR dipisah koma) = subnet `odoo-edge-stg` (anggota: traefik + pool ini saja). Nilai LITERAL
+      # (bukan ${VAR}): nilai kosong/rusak = fail-closed untuk semua tenant. HARUS aktif di recreate yang SAMA dengan
+      # perpindahan network pool ini (plan 06 S4) — bila pool masih dijangkau Traefik dari subnet lain, semua tenant 303 →
+      # /web/database/selector. Modul < 19.0.1.1.0 mengabaikan env ini. Rollback: hapus baris ini + `docker compose up -d`.
+      SH_DBFILTER_TRUSTED_PROXIES: "10.100.13.0/24"
     # Entry point image: wait-for-psql.py (PG* dari env) lalu `odoo`. Opsi di odoo.conf.
     command: ["odoo"]
     volumes:
@@ -47,9 +54,10 @@ services:
     tmpfs:
       # wkhtmltopdf/report & upload sementara. uid odoo.
       - /tmp:uid=100,gid=101,mode=1777,size=512m
+    # ADR 0010 (plan 06): DB lewat network per konsumen, edge staging terpisah.
     networks:
-      - db
-      - odoo-edge
+      - db-odoo-staging   # → postgres:5432 (internal 10.100.22.0/24; pg_hba role pool hanya dari subnet ini)
+      - odoo-edge-stg     # Traefik → :8069/:8072 + egress/hairpin OIDC (non-internal, 10.100.13.0/24)
     healthcheck:
       # /web/health tidak butuh DB/header (README sh_dbfilter_header). curl ada di image.
       test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://127.0.0.1:8069/web/health"]
@@ -75,10 +83,11 @@ volumes:
     name: odoo_staging_data
 
 networks:
-  db:
+  db-odoo-staging:
+    # postgres/scripts/bootstrap.sh: 10.100.22.0/24 --internal, anggota hanya postgres + pool ini (ADR 0010).
     external: true
-    name: db
-  odoo-edge:
-    # traefik/scripts/bootstrap.sh: 10.100.3.0/24, anggota hanya traefik + pool Odoo (H1).
+    name: db-odoo-staging
+  odoo-edge-stg:
+    # traefik/scripts/bootstrap.sh: 10.100.13.0/24, anggota: traefik + odoo-staging saja (H1, ADR 0010 #4).
     external: true
-    name: odoo-edge
+    name: odoo-edge-stg

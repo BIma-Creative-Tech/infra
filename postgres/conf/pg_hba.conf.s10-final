@@ -1,0 +1,42 @@
+#S10# plan 06 S10 — VERSI FINAL pg_hba.conf (TIDAK dimount; referensi yang sudah direview & divalidasi).
+#S10# Terapkan di S10 (inode tetap, baris #S10# dibuang):
+#S10#   sed '/^#S10#/d' postgres/conf/pg_hba.conf.s10-final > postgres/conf/pg_hba.conf  → SELECT pg_reload_conf()
+#S10# Commit S10 lalu menghapus file ini. Isinya = pg_hba.conf transisi tanpa baris 10.100.1.0/24.
+# pg_hba.conf — cluster Postgres shared (T04). Dibaca via -c hba_file=/etc/postgresql/pg_hba.conf.
+# Urutan penting: baris pertama yang cocok dipakai (docs PG16 §21.1).
+# ADR 0010 / plan 06 §3.3: satu network --internal `db-<konsumen>` per konsumen (postgres/scripts/bootstrap.sh);
+# setiap subnet HANYA muncul di baris konsumennya sendiri. Network lama `db` (10.100.1.0/24) dipensiunkan di plan 06 S10
+# — subnet itu tidak dipakai ulang.
+# Reload setelah mengubah: docker exec postgres psql -U postgres -c 'SELECT pg_reload_conf()'
+# File ini di-bind-mount sebagai FILE TUNGGAL: terapkan dengan menulis di tempat (`cat baru > conf/pg_hba.conf`, inode
+# tetap) — git checkout/merge/sed -i membuat inode baru yang TIDAK terlihat container (docs/03-operations/postgres.md).
+#
+# TYPE  DATABASE       USER           ADDRESS          METHOD
+
+# Socket unix di dalam container: hanya superuser via peer (docker exec, init script, healthcheck).
+local   all            postgres                        peer
+local   all            all                             reject
+
+# Superuser tidak boleh login lewat jaringan.
+host    all            postgres       0.0.0.0/0        reject
+host    all            postgres       ::/0             reject
+
+# Satu baris per DB/role aplikasi — hanya dari network `db-<konsumen>` milik aplikasi itu (ADR 0010, plan 06 §3.3).
+# T10 pool Odoo: DB `postgres` (daftar/buat DB) + DB tenant sesuai konvensi nama pool (regex PG16: field diawali `/`,
+# docs PG16 §21.1); pool staging tidak bisa ke DB prod/demo dan sebaliknya (scripts/provision-odoo-db.sh).
+# ProyekKas DRMS (ProyekKas ADR 0006 §1): satu baris per DB, hanya role DB itu (daftar user dipisah koma).
+# 10.100.25.0/24 (db-drms) & 10.100.27.0/24 (db-datamart) = network CADANGAN, belum dibuat (tanpa anggota).
+host    keycloak       keycloak       10.100.20.0/24   scram-sha-256   # db-keycloak
+host    control_plane  control_plane  10.100.23.0/24   scram-sha-256   # db-cp
+host    control_plane_staging  control_plane_staging  10.100.24.0/24   scram-sha-256   # db-cp-stg
+host    datamart       datamart       10.100.27.0/24   scram-sha-256   # db-datamart (cadangan)
+host    postgres                        odoo_pool_a    10.100.21.0/24   scram-sha-256   # db-odoo-pool-a
+host    /^[a-z0-9_]+_(prod|demo)$       odoo_pool_a    10.100.21.0/24   scram-sha-256   # db-odoo-pool-a
+host    postgres                        odoo_staging   10.100.22.0/24   scram-sha-256   # db-odoo-staging
+host    /^[a-z0-9_]+_staging$           odoo_staging   10.100.22.0/24   scram-sha-256   # db-odoo-staging
+host    pk_drms                         pk_drms_owner,pk_drms_app,pk_drms_ro              10.100.25.0/24   scram-sha-256   # db-drms (cadangan)
+host    pk_drms_stg                     pk_drms_stg_owner,pk_drms_stg_app,pk_drms_stg_ro  10.100.26.0/24   scram-sha-256   # db-drms-stg
+
+# Sisanya ditolak eksplisit.
+host    all            all            0.0.0.0/0        reject
+host    all            all            ::/0             reject

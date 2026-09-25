@@ -92,7 +92,7 @@ services:
     secrets: [database_url_owner, payload_secret]
     tmpfs:
       - /tmp:uid=1001,gid=1001,mode=0700
-    networks: [db]
+    networks: [db-drms-stg]   # infra ADR 0010: DB network per consumer (10.100.26.0/24, internal)
     mem_limit: 384m
     cpus: 0.5
 
@@ -115,7 +115,7 @@ services:
       - /app/apps/web/.next/cache:uid=1001,gid=1001,mode=0700
     volumes:
       - media:/data/media
-    networks: [drms-kas-edge, db, drms-kc-admin-stg]
+    networks: [drms-kas-edge, db-drms-stg, drms-kc-admin-stg]
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 30s
@@ -146,9 +146,9 @@ services:
       - /tmp:uid=1001,gid=1001,mode=0700
     volumes:
       - media:/data/media
-    # drms-kas-edge: egress (SMTP :587 to mail.bimacreative.tech, FCM/Odoo later); db; Keycloak
+    # drms-kas-edge: egress (SMTP :587 to mail.bimacreative.tech, FCM/Odoo later); db-drms-stg; Keycloak
     # Admin API network (infra decision).
-    networks: [drms-kas-edge, db, drms-kc-admin-stg]
+    networks: [drms-kas-edge, db-drms-stg, drms-kc-admin-stg]
     healthcheck:
       test: ["CMD", "node", "-e", "const t=+require('fs').readFileSync('/tmp/worker-heartbeat','utf8');process.exit(Date.now()-t<90000?0:1)"]
       interval: 30s
@@ -190,7 +190,7 @@ services:
       - /tmp:uid=1001,gid=1001,mode=0700
     volumes:
       - media:/data/media
-    networks: [db]
+    networks: [db-drms-stg]
     mem_limit: 384m
     cpus: 0.5
 
@@ -217,9 +217,11 @@ networks:
   drms-kas-edge:
     external: true
     name: drms-kas-edge
-  db:
+  db-drms-stg:
+    # infra postgres/scripts/bootstrap.sh: 10.100.26.0/24 --internal — members: postgres + this stack only (infra
+    # ADR 0010; pg_hba pk_drms_stg_* only from this subnet). The shared `db` network is retired (plan 06 S10).
     external: true
-    name: db
+    name: db-drms-stg
   drms-kc-admin-stg:
     external: true
     name: drms-kc-admin-stg

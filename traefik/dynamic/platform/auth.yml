@@ -48,7 +48,7 @@ http:
       service: deny-sink   # middlewares/deny-all.yml — backend tidak ada (502 bila deny-all terlepas)
       tls:
         certResolver: le-http
-    # Plan 04 S3 (F10, AC-S6): back-channel OIDC pool Odoo (sh_auth_oidc) → Keycloak. Pool di `odoo-edge`
+    # Plan 04 S3 (F10, AC-S6): back-channel OIDC pool Odoo (sh_auth_oidc) → Keycloak. Pool di `odoo-edge`/`odoo-edge-stg`
     # memanggil issuer publik via hairpin → tiba sebagai 10.100.0.1 (access log 2026-09-23..25:
     # python-requests POST /realms/platform-staging/.../token dari 10.100.0.1, router auth-login) dan dulu berbagi
     # bucket `ratelimit-login` (10/menit) dengan login manusia & uji host → 429 massal lintas tenant.
@@ -107,6 +107,7 @@ http:
           Server: ""
 
   services:
+    # keycloak:8080 di-resolve lewat network `kc-edge` (hanya traefik + keycloak; ADR 0010 / plan 06 S8), bukan `proxy`.
     keycloak:
       loadBalancer:
         servers:

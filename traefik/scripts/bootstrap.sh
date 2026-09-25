@@ -6,6 +6,7 @@
 #     + network `drms-kas-edge` (ProyekKas client DRMS): HANYA traefik + container web ProyekKas
 #     + network `drms-kc-admin{,-stg}` (H5, --internal): traefik + app ProyekKas → Admin REST realm drms*
 #     + network `web-edge` (W2b): HANYA traefik + website client web-<slug>-<env>
+#     + network `kc-edge` / `odoo-edge-stg` (ADR 0010, plan 06): HANYA traefik + keycloak / traefik + odoo-staging
 #  2. direktori acme/ (700) + acme-staging.json & acme.json (600) milik uid Traefik
 #  3. direktori logs/ (750, grup adm) milik uid Traefik + secrets/ (700)
 #  4. pasang konfigurasi logrotate host untuk access log (salin, bukan symlink: logrotate
@@ -40,10 +41,21 @@ ensure_network() {
 
 # proxy: semua service HTTP. Gateway 10.100.0.1 = IP sumber koneksi dari host (ipallowlist-admin).
 ensure_network proxy 10.100.0.0/24 10.100.0.1
-# odoo-edge: traefik + odoo-pool-a + odoo-staging saja. Bukan --internal: Odoo tetap butuh egress
-# (sebelumnya lewat `proxy`, mis. OIDC ke auth.bimacreative.tech / SMTP keluar).
+# odoo-edge: traefik + odoo-pool-a (prod) saja — sejak plan 06 S4 odoo-staging pindah ke `odoo-edge-stg` (ADR 0010 #4).
+# Bukan --internal: Odoo tetap butuh egress (sebelumnya lewat `proxy`, mis. OIDC ke auth.bimacreative.tech / SMTP keluar).
 ensure_network odoo-edge 10.100.3.0/24 10.100.3.1
-# drms-kas-edge: traefik + container web ProyekKas DRMS (drms-pk-web, drms-pk-stg) saja (pola odoo-edge).
+# odoo-edge-stg (ADR 0010 #4, plan 06 §3.2): traefik + odoo-staging saja — pool staging tidak lagi bisa membuka
+# odoo-pool-a:8069/8072. Bukan --internal: back-channel OIDC hairpin (tiba sebagai 10.100.0.1 → router
+# auth-oidc-backchannel) + egress. Nilai SH_DBFILTER_TRUSTED_PROXIES pool staging (N2) = subnet ini.
+ensure_network odoo-edge-stg 10.100.13.0/24 10.100.13.1
+# kc-edge (ADR 0010 #3, plan 06 §3.2): traefik + keycloak saja (Keycloak keluar dari `proxy` & `db`). Bukan --internal:
+# Keycloak butuh egress SMTP mail.bimacreative.tech:587 (realm_smtp_config) — di sisi Keycloak gw_priority 1; Traefik
+# join tanpa gw_priority (`proxy` tetap gateway Traefik). KC_PROXY_TRUSTED_ADDRESSES Keycloak = subnet ini.
+ensure_network kc-edge 10.100.12.0/24 10.100.12.1
+# CADANGAN — belum dibuat: drms-kas-edge-prod 10.100.14.0/24 gw 10.100.14.1 (traefik + drms-pk-web(-worker)), saat
+# onboarding ProyekKas DRMS prod (plan 06 §3.2; `drms-kas-edge` tetap untuk staging).
+# drms-kas-edge: traefik + container web ProyekKas DRMS STAGING (drms-pk-stg) saja (pola odoo-edge). Prod kelak memakai
+# `drms-kas-edge-prod` (cadangan di bawah, ADR 0010 #4) — prod & staging tidak berbagi network edge.
 # Bukan --internal: app butuh egress (FCM, issuer publik Keycloak via hairpin). Runbook
 # docs/runbooks/proyekkas-drms-onboarding.md §Langkah 0.
 ensure_network drms-kas-edge 10.100.7.0/24 10.100.7.1
