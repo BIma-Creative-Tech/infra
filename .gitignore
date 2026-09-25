@@ -11,3 +11,5 @@ backups/
 
 # Ansible collections diunduh via requirements.yml (tidak di-commit)
 ansible/collections/
+__pycache__/
+*.pyc
