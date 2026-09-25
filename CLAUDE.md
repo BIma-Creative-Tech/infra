@@ -154,6 +154,7 @@ Laporan format §1.3 + path semua file yang diubah
 | SSO/Identity | Keycloak (OIDC) | Odoo via modul sendiri `sh_auth_oidc` (authorization code + PKCE) di atas core `auth_oauth`; Next.js via Auth.js provider OIDC |
 | Data mart | Postgres DB `datamart` + dbt-core (dbt-postgres) + cron container | Next.js hanya baca role read-only |
 | Mail | docker-mailserver | IPv4-only (tanpa AAAA); satu server `mail.<platform-domain>` (HELO/PTR/MX) melayani beberapa domain (DKIM per domain); hostname klien `mail.<domain-client>` opsional via SNI (ADR 0011); SPF/DKIM/DMARC/rDNS wajib; rspamd; rate-limit; fail2ban terintegrasi |
+| Webmail | Roundcube 1.7.x (`roundcube/roundcubemail:*-apache-nonroot`, GPL-3, dijalankan apa adanya) | Per domain client (`webmail.<domain-client>`), network `webmail-edge` + `webmail-mail`; IMAP/SMTP ke DMS dengan verifikasi sertifikat; ganti password via helper `pwhelper` di dalam DMS (token, allowlist, rate-limit) — ADR 0012 |
 | CI/CD | GitHub Actions + GHCR; deploy via SSH ke VPS | Semgrep, gitleaks, Trivy, Hadolint, ZAP baseline |
 | IaC | Ansible (playbook bootstrap host) | Idempotent; dijalankan dari laptop/CI |
 | Backup | restic → repo lokal (sementara) → S3-compatible offsite (placeholder) | pg_dump per DB sebelum snapshot; lihat `docs/adr/0006-backup.md` |

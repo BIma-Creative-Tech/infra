@@ -105,3 +105,6 @@ token/allowlist/injeksi → 4xx; rate limit helper 429; brute force 10×401 + 5�
 ## Rollback
 
 ADR 0012 §Rollback.
+
+## Akun yang boleh login (update 2026-09-25, keputusan user)
+`login_username_filter` menolak `noreply@`, `postmaster@`, `dmarc@` (akun teknis/sistem — tidak dibutuhkan di webmail). Diverifikasi: postmaster@/dmarc@ → 401, sales@ → 302 ke inbox.

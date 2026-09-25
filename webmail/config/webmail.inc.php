@@ -29,7 +29,7 @@ unset($webmail_tls);
 // --- Login: HANYA @expomedia.id. Filter dievaluasi pada input mentah SEBELUM domain ditambahkan (rcmail::login →
 //     login_input_checks), jadi menerima "sales" atau "sales@expomedia.id"; domain lain & noreply@ (akun teknis form kontak)
 //     → "login gagal" tanpa koneksi IMAP. username_domain_forced = sabuk pengaman kedua (domain lain diganti expomedia.id).
-$config['login_username_filter'] = '/^(?!noreply(@|$))[a-z0-9][a-z0-9._-]{0,63}(@expomedia\.id)?$/i';
+$config['login_username_filter'] = '/^(?!(noreply|postmaster|dmarc)(@|$))[a-z0-9][a-z0-9._-]{0,63}(@expomedia\.id)?$/i';
 $config['username_domain'] = 'expomedia.id';
 $config['username_domain_forced'] = true;
 $config['login_lc'] = 2;
