@@ -1,0 +1,22 @@
+Instruksi DNS — email untuk domain expomedia.id (dilayani mail.bimacreative.tech)
+Sumber: docs/adr/0005-mail-ipv4.md §Template; prosedur: docs/03-operations/mail.md §Menambah domain client.
+Dibuat 2026-09-25 dari templates/mail-client-dns.txt (kunci DKIM: mail/data/config/rspamd/dkim/rsa-2048-mail-expomedia.id.public.dns.txt). Lengkap (termasuk DNS web): docs/clients/expomedia.md.
+
+Tambahkan di DNS expomedia.id:
+
+1. MX   @                 10 mail.bimacreative.tech
+        -> satu-satunya MX. Bila memindahkan mail dari penyedia lain, koordinasikan waktunya agar mail tidak hilang.
+2. TXT  @                 v=spf1 include:_spf.bimacreative.tech -all
+        -> hanya boleh SATU record SPF. Bila juga mengirim lewat layanan lain, tambahkan include:<layanan> sebelum -all.
+3. TXT  mail._domainkey   v=DKIM1; k=rsa; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAvQCxEq0VoR5V6cp8iljWrY6vZG+lzZGzI02vnSzIQUDaICbpSpHAJ2JhEPaC0VxbPHvaD2/Hd6OfaObDRF1z0kumm5EwtpsyUSEFNrGhgHhyv0ZfUxM28FgnnKR1FmmX6loxqPmy0GzlFoscp0Z1PEddWI3O6cEibuNkXfseCQ3NrjI1rq9ni6yDj9sOuMgf+qGRz5QGz6zEO2RpUTG+8FJnR5/JkhFIY1w0Gb527qJb5/jsIitfEF46jVJsFnuB/AM1Nm+JK3aMvqFuZWrUkCTRG7ReN8yzYtPmcaCGFFr6JyAqeOMy+F0ruJesQ4ixz6Qdj/Sah1aIYgggoakKuwIDAQAB
+        -> (v=DKIM1; k=rsa; p=...) diberikan oleh tim platform setelah kunci dibuat.
+4. TXT  _dmarc            v=DMARC1; p=none; adkim=s; aspf=s; rua=mailto:dmarc@expomedia.id
+        -> mulai p=none 2-4 minggu; naik ke quarantine lalu reject setelah laporan bersih.
+
+JANGAN membuat record AAAA untuk mail; JANGAN memakai mail.expomedia.id sebagai server.
+
+Pengaturan aplikasi email (Outlook/Thunderbird/ponsel):
+  Username   : alamat email lengkap (mis. nama@expomedia.id)
+  IMAP masuk : mail.bimacreative.tech  port 993  SSL/TLS
+  SMTP keluar: mail.bimacreative.tech  port 465  SSL/TLS   (atau port 587 STARTTLS)
+  Autentikasi SMTP: wajib (username & password yang sama)

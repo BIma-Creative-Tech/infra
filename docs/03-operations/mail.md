@@ -216,6 +216,13 @@ Verifikasi: `dig +short MX bimacreative.tech @1.1.1.1` (hanya `10 mail.bimacreat
 ## Menambah domain client (contoh `expomedia.id`) — JANGAN dijalankan sebelum DNS client siap
 
 Prasyarat: domain terdaftar & DNS aktif (2026-09-23: `expomedia.id` **belum** aktif), plan subscription menentukan jumlah mailbox/kuota.
+
+> **Status `expomedia.id` (2026-09-25, plan 07 — GATE 1: sisi server dikerjakan lebih dulu, DNS menyusul):** langkah 2–4 & 6 selesai —
+> DKIM `mail` rsa-2048 dibuat, blok `expomedia.id` di `dkim_signing.conf` aktif (Rspamd reload otomatis), mailbox `postmaster@`, `dmarc@`,
+> `info@`, `admin@`, `sales@` (2G) + alias `abuse@→postmaster@`; uji lokal lulus (DKIM `d=expomedia.id; s=mail`, cross-domain From tidak
+> ditandatangani, envelope domain lain `553`). Langkah 1 & 5: instruksi DNS siap di `docs/clients/expomedia.md` /
+> `docs/clients/expomedia-dns-mail.txt`, tetapi zona Dewaweb masih **kosong** → verifikasi DNS publik **BELUM**.
+
 1. Kirim instruksi DNS ke client dari `templates/mail-client-dns.txt` (ganti `<CLIENT_DOMAIN>`; `<DKIM_PUBLIC>` diisi di langkah 3).
 2. DKIM: `docker exec mailserver setup config dkim domain expomedia.id`.
 3. Aktifkan blok `expomedia.id { … }` di `config/rspamd/override.d/dkim_signing.conf` (sudah disiapkan sebagai komentar) → commit →
