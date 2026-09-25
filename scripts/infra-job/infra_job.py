@@ -101,7 +101,7 @@ KILL_GRACE_S = 30
 LEDGER_KEEP_S = 7 * 86400
 
 RESULT_KEYS = frozenset(
-    "db realm client provider hosts changed kc_user odoo_user action mode blockers route host created pool".split()
+    "db realm client provider hosts changed kc_user odoo_user action invite mode blockers route host created pool".split()
 )
 RESULT_VAL_RE = re.compile(r"[A-Za-z0-9._,:@/=-]{0,512}", A)
 TAIL_MAX_LINES = 40

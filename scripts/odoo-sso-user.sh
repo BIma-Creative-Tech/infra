@@ -23,7 +23,7 @@
 #                    --grant/--revoke/--resend-invite saling eksklusif.
 #   --dry-run        hanya GET Admin REST + SELECT psql; mencetak rencana.
 # Syarat: provision-odoo-sso.sh <slug> <env> sudah dijalankan (client Keycloak + role + provider Odoo ada).
-# Output baris terakhir: RESULT db=<db> realm=<r> client=<clientId> kc_user=<id> odoo_user=<id> action=<grant|revoke|resend_invite> changed=<n>
+# Output baris terakhir: RESULT db=<db> realm=<r> client=<clientId> kc_user=<id> odoo_user=<id> action=<grant|revoke|resend_invite> changed=<n> invite=<sent|none>
 # (tanpa email/login — log job tanpa PII). JANGAN jalankan dengan `bash -x`.
 set -euo pipefail
 LIB="$(dirname "${BASH_SOURCE[0]}")/lib"
@@ -164,6 +164,7 @@ else
   fi
 fi
 
+INVITE=none   # RESULT invite=<sent|none> (dibaca control plane; tail di-redaksi)
 # send_invite → execute-actions-email untuk required actions yang masih tertunda (tidak mengubah user/role/tautan).
 send_invite() {
   local actions
@@ -172,6 +173,7 @@ send_invite() {
     log "tidak ada required action tertunda — undangan tidak dikirim"
   elif change "execute-actions-email ${actions} → ${EMAIL} (tautan kembali ke client ${CLIENT_ID})"; then
     kc_send PUT "/users/${KC_UID}/execute-actions-email?client_id=$(kc_urlencode "$CLIENT_ID")" "$actions" 204
+    INVITE=sent
   fi
 }
 
@@ -288,4 +290,4 @@ fi
 fi  # grant|revoke
 
 extra=""; [[ $DRY -eq 1 ]] && extra=" mode=dry-run blockers=${BLOCKERS}"
-echo "RESULT db=${DB_NAME} realm=${REALM} client=${CLIENT_ID} kc_user=${KC_UID:--} odoo_user=${ODOO_UID:--} action=${ACTION} changed=${CHANGED}${extra}"
+echo "RESULT db=${DB_NAME} realm=${REALM} client=${CLIENT_ID} kc_user=${KC_UID:--} odoo_user=${ODOO_UID:--} action=${ACTION} changed=${CHANGED} invite=${INVITE}${extra}"
