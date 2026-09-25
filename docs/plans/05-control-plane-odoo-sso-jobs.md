@@ -335,7 +335,7 @@ Sumber: git log `main` infra sejak `2317d19` (s.d. `682e32b`), repo control-plan
 | J5 fix | BUG-J5-01 skrip (`--resend-invite` aksi tersendiri) + CP; BUG-J5-02 CP; OBS-J5-01 `RESULT invite=`; OBS-J5-02 Origin asing → 403; migrasi `0003` (`inconsistent`, `result_inconsistent`); staging CP `6d94d2b` | infra `3ca5501`/merge `7611e5e`, `8226b7b`, `6845ea1`; CP `a0e8f09`, `6d94d2b`; backup `control_plane_staging-20260925-134933-pre-6d94d2b.dump` |
 | J5R | Regresi R1–R13 PASS; sign-off J6 | `785d682`, merge `fc7c7d4` |
 | J6 | Prod: backup `control_plane-20260925-135715-pre-6d94d2b.dump`, migrasi 0001–0003, CP `6d94d2b`, worker uid 950 + mount, `infra-job-prod.path` enabled; CP tidak tersedia ±4 s (13:57:18–13:57:22); E2E dry-run `odoo_sso_provision demo demo` via spool → succeeded 3 438 ms (`changed=0 blockers=0`, job `7f5cdba0`) | infra `682e32b` |
-| J7 | Docs: `infra-jobs.md` final, `control-plane.md` §Jembatan infra-job, runbook §CP, plan/ADR hasil, CHANGELOG infra; CP `CHANGELOG.md` + `package.json` 0.2.0 + tag lokal `v0.2.0` | branch infra `docs/docs-versioning-plan05`; CP `docs/docs-versioning-v0.2.0` |
+| J7 | Docs: `infra-jobs.md` final, `control-plane.md` §Jembatan infra-job, runbook §CP, plan/ADR hasil, CHANGELOG infra; CP `CHANGELOG.md` + `package.json` 0.2.0 + tag lokal `v0.2.0` | branch infra `docs/docs-versioning-plan05`; CP `docs/docs-versioning-v0.2.0` `31411f0` (tag `v0.2.0`, belum merge ke `main`) |
 
 CLAUDE.md §3/§3.4 dan `nextjs-developer.md` §Orkestrasi sudah diperbarui saat GATE 1 (`2317d19`); tidak diubah lagi di J7.
 

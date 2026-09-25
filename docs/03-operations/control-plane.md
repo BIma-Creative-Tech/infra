@@ -3,7 +3,7 @@
 - **Publik:** `https://cp.bimacreative.tech` (router `traefik/dynamic/platform/cp.yml`, sertifikat LE production `le-http`).
 - **Stack:** `/opt/infra/web/control-plane/` (CLAUDE.md §3.1) · project compose `web-control-plane`.
 - **Image:** lokal `control-plane:<short-sha>` dibangun dari repo `/opt/src/control-plane` commit `main`
-  (saat ini **`control-plane:6d94d2b`** = `v0.2.0`, prod + staging sejak 2026-09-25 plan 05; label
+  (saat ini **`control-plane:6d94d2b`** = kode `v0.2.0`, prod + staging sejak 2026-09-25 plan 05; label
   `org.opencontainers.image.revision`). **TEMPORARY:** image dibangun lokal di VPS, tidak ada registry — sama seperti image
   platform lain; GHCR + deploy CI menyusul (CLAUDE.md §3.7).
 - **Jembatan job host:** `infra-job` (ADR 0009) — §Jembatan infra-job di bawah, `infra-jobs.md`.
@@ -80,7 +80,7 @@ Network tidak berubah (worker hanya `db`).
 
 | Tag image | Commit repo control-plane | Isi | Migrasi | Dipakai |
 |---|---|---|---|---|
-| `6d94d2b` | `6d94d2b` (tag lokal `v0.2.0`) | jembatan + perbaikan QA J5 | 0001–0003 | staging `6845ea1`, prod `682e32b` (**sekarang**) |
+| `6d94d2b` | `6d94d2b` (kode = tag lokal `v0.2.0` `31411f0`, yang hanya menambah CHANGELOG + versi) | jembatan + perbaikan QA J5 | 0001–0003 | staging `6845ea1`, prod `682e32b` (**sekarang**) |
 | `7b85a78` | `7b85a78` | jembatan J2/J2b | 0001–0002 | staging `84f8246` (J4, digantikan) |
 | `4fc3828` | `4fc3828` | sebelum plan 05 | 0000 | prod & staging sebelum plan 05 |
 

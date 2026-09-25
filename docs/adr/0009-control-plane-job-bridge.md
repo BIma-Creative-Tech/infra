@@ -67,7 +67,7 @@ durasi nyata tiap job (timeout), dan apakah proses di dalam container ikut berhe
 - **Berjalan di prod dan staging.** Dispatcher `infra-job` 1.0.0 (infra `8340a4d`, 233 unit test), role Ansible `infra_jobs`
   (`c63201b`) diterapkan ±13:00 WIB (idempoten); user host final `cpjob-prod` uid/gid **950**, `cpjob-staging` **951**.
   `infra-job-staging.path` aktif sejak J4 (`84f8246`), `infra-job-prod.path` sejak J6 (`682e32b`). Control plane `6d94d2b`
-  (repo control-plane `v0.2.0`, tag lokal) di kedua instance; worker berjalan sebagai uid 950/951 dengan spool rw + results ro,
+  (kode = repo control-plane tag lokal `v0.2.0` `31411f0`) di kedua instance; worker berjalan sebagai uid 950/951 dengan spool rw + results ro,
   web tetap uid 1001 tanpa mount.
 - **Tidak ada kredensial/akses baru di CP** — terbukti QA J5: 30 file jahat di spool (lintas instance, injeksi argumen, symlink,
   hardlink, FIFO, uid/mode salah, duplikat, kuota) ditolak tanpa satu pun `START`; `deploy` (uid 1001) tidak bisa menulis spool;

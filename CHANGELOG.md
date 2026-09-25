@@ -39,7 +39,7 @@ file `VERSION`.
   per tenant; laporan QA `docs/qa/2026-09-25-plan04-{staging,prod}.md`.
 
 ### Changed
-- control plane prod & staging: image `control-plane:4fc3828` → `6d94d2b` (repo control-plane `v0.2.0`; staging lewat `7b85a78`
+- control plane prod & staging: image `control-plane:4fc3828` → `6d94d2b` (kode = repo control-plane `v0.2.0`, tag lokal `31411f0`; staging lewat `7b85a78`
   di J4). Migrasi additive 0001–0003. Backup `control_plane_staging-20260925-130346-pre-7b85a78`,
   `control_plane_staging-20260925-134933-pre-6d94d2b`, `control_plane-20260925-135715-pre-6d94d2b`. Prod tidak tersedia ±4 s
   (13:57:18–13:57:22 WIB); pool Odoo/Traefik/Keycloak tidak di-restart. Image masih build lokal (TEMPORARY, tanpa GHCR).
