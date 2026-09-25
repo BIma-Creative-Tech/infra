@@ -281,6 +281,6 @@ tertutup); `/web/signup` prod → 404.
 |---|---|---|
 | 1 | Aktifkan "Forgot password" (`resetPasswordAllowed`) realm `platform` via console (GATE 1 #3; `automation` tanpa `manage-realm`) | **user** |
 | 2 | S9 — integrasi control plane (job `odoo_sso_provision` / `odoo_sso_user` memanggil skrip via wrapper root, kontrak §3.4) | plan terpisah |
-| 3 | `staging/odoo/.env` (dan env container `odoo-staging`) masih memuat `SH_OIDC_ODOO_DEMO_STAGING_SECRET` dari T15 walau provider `demo_staging` sudah sumber `file` — hapus pada recreate staging berikutnya (ditemukan S8, `cut -d= -f1 .env`) | Lead / infra |
+| 3 | `staging/odoo/.env` (dan env container `odoo-staging`) masih memuat `SH_OIDC_ODOO_DEMO_STAGING_SECRET` dari T15 walau provider `demo_staging` sudah sumber `file` — hapus pada recreate staging berikutnya (ditemukan S8, `cut -d= -f1 .env`) | **SELESAI 2026-09-25** (Lead: baris dihapus, recreate staging, secret dirotasi) |
 | 4 | Realm-export git belum memuat client `odoo-*` (butuh `manage-realm` / partial export console) | user / Lead |
 | 5 | Backlog tetap: RP-initiated logout; rate-limit login kantor di balik NAT (§7) | backlog |

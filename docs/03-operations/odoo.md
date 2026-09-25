@@ -215,10 +215,10 @@ restart pool**. Nama file = DB request (bukan nilai provider): provider di DB B 
 membaca file DB B (QA S5 AC-Q6). Issuer provider wajib ada di `SH_OIDC_TRUSTED_ISSUERS`, kalau tidak secret tidak dilepas.
 Mengubah env/mount = `docker compose up -d --force-recreate` (downtime semua tenant pool; §Riwayat).
 
-> Sisa migrasi staging (dicek 2026-09-25): `staging/odoo/.env` dan env container `odoo-staging` **masih** memuat
-> `SH_OIDC_ODOO_DEMO_STAGING_SECRET` (sumber lama T15), padahal provider `demo_staging` sudah `sh_oidc_secret_source=file`
-> dengan `sh_oidc_client_secret_env` kosong (QA S5 baseline). Tidak dipakai modul; hapus baris itu dari `.env` pada recreate
-> staging berikutnya (secret masih terlihat di `docker inspect odoo-staging`). Pool prod tidak punya env secret apa pun.
+> Sisa migrasi staging **selesai 2026-09-25 ~11:35 WIB**: baris `SH_OIDC_ODOO_DEMO_STAGING_SECRET` (dan `SH_OIDC_TRUSTED_ISSUERS`
+> duplikat — kini di `environment:` compose) dihapus dari `staging/odoo/.env`, `odoo-staging` di-recreate (healthy), lalu secret
+> client `odoo-demo-staging` dirotasi (`provision-odoo-sso.sh demo staging --rotate-secret`, tanpa restart) karena nilai lama
+> sempat terlihat di `docker inspect`. Tidak ada lagi env secret per tenant di kedua pool.
 
 ### Skrip (harus root, idempoten, baris terakhir `RESULT …`, jangan `bash -x`)
 
