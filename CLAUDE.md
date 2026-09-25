@@ -133,7 +133,8 @@ Laporan format §1.3 + path semua file yang diubah
   DNS domain platform (`bimacreative.tech`) dikelola **manual** di DNS manager Hostinger,
   tanpa API DNS — lihat `docs/adr/0002-tls-dns-manual.md`.
 - Mail server tetap di VPS yang sama untuk saat ini, IPv4-only, melayani beberapa domain
-  (platform + domain client) dari satu hostname `mail.bimacreative.tech`, dengan proteksi
+  (platform + domain client) dari satu server `mail.bimacreative.tech` (HELO/PTR/MX); domain client boleh punya
+  hostname klien email sendiri `mail.<domain-client>` via TLS SNI (ADR 0011), dengan proteksi
   anomali ketat — lihat `docs/adr/0005-mail-ipv4.md`.
 - Staging berada di VPS yang sama (subdomain `staging.*`).
 
@@ -152,7 +153,7 @@ Laporan format §1.3 + path semua file yang diubah
 | Web/Control plane | Next.js 16 (App Router, TypeScript), Drizzle ORM, Auth.js | Node 24 LTS, `output: standalone` |
 | SSO/Identity | Keycloak (OIDC) | Odoo via modul sendiri `sh_auth_oidc` (authorization code + PKCE) di atas core `auth_oauth`; Next.js via Auth.js provider OIDC |
 | Data mart | Postgres DB `datamart` + dbt-core (dbt-postgres) + cron container | Next.js hanya baca role read-only |
-| Mail | docker-mailserver | IPv4-only (tanpa AAAA); satu hostname `mail.<platform-domain>` melayani beberapa domain (DKIM per domain); SPF/DKIM/DMARC/rDNS wajib; rspamd; rate-limit; fail2ban terintegrasi |
+| Mail | docker-mailserver | IPv4-only (tanpa AAAA); satu server `mail.<platform-domain>` (HELO/PTR/MX) melayani beberapa domain (DKIM per domain); hostname klien `mail.<domain-client>` opsional via SNI (ADR 0011); SPF/DKIM/DMARC/rDNS wajib; rspamd; rate-limit; fail2ban terintegrasi |
 | CI/CD | GitHub Actions + GHCR; deploy via SSH ke VPS | Semgrep, gitleaks, Trivy, Hadolint, ZAP baseline |
 | IaC | Ansible (playbook bootstrap host) | Idempotent; dijalankan dari laptop/CI |
 | Backup | restic → repo lokal (sementara) → S3-compatible offsite (placeholder) | pg_dump per DB sebelum snapshot; lihat `docs/adr/0006-backup.md` |
