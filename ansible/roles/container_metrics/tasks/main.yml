@@ -1,0 +1,14 @@
+---
+- name: Validasi container_metrics_state
+  ansible.builtin.assert:
+    that:
+      - container_metrics_state in ['present', 'absent']
+    quiet: true
+
+- name: Pasang kolektor
+  ansible.builtin.include_tasks: present.yml
+  when: container_metrics_state == 'present'
+
+- name: Hapus kolektor
+  ansible.builtin.include_tasks: absent.yml
+  when: container_metrics_state == 'absent'

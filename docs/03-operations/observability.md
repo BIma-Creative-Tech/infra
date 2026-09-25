@@ -8,7 +8,7 @@
 | Service (container) | Image (tag + digest, 2026-09-23) | User | mem_limit / cpus | Network | Data |
 |---|---|---|---|---|---|
 | `prometheus` | `prom/prometheus:v3.13.3@sha256:6976aa8a…` | 65534 | 384m / 0.25 | observability, metrics | volume `observability_prometheus_data` (retensi 15d / 3GB) |
-| `node-exporter` | `prom/node-exporter:v1.12.1@sha256:1b4e4438…` | 65534 | 32m / 0.1 | observability | — (`/` host ro di `/host`) |
+| `node-exporter` | `prom/node-exporter:v1.12.1@sha256:1b4e4438…` | 65534 | 32m / 0.1 | observability | — (`/` host ro di `/host`; `/var/lib/node-exporter-textfile` ro di `/textfile`, T19 — §Metrik per container) |
 | `loki` | `grafana/loki:3.7.8@sha256:1107dd52…` | 10001 | 384m / 0.25 | observability | volume `observability_loki_data` (retensi **7 hari**) |
 | `alloy` | `grafana/alloy:v1.19.2@sha256:b8ec653c…` | 473 (+gid 4 adm, +gid 0 — lihat §Log) | 192m / 0.2 | observability | volume `observability_alloy_data` (positions) |
 | `grafana` | `grafana/grafana:13.2.2@sha256:ac461fb3…` | 472 | 256m / 0.25 | observability, proxy | bind `data/grafana` |
@@ -24,6 +24,8 @@ tanpa shell/wget, tanpa flag health) → dipantau lewat `up{job="loki"}` dan `GE
 - **cAdvisor TIDAK dipasang.** ADR 0004 §5 langkah 1 menjadikannya komponen pertama yang dipangkas; registry/tag image
   masih UNVERIFIED (ADR 0001); butuh mount `/var/lib/docker`, `/sys`, `/dev/disk` dan biasanya `privileged` → bertentangan
   dengan §3.5. Metrik container cukup dari `docker stats` + log di Loki. RAM tidak menjadi alasan (available ±12 GiB).
+  **Sejak T19 follow-up (2026-09-25):** riwayat memori/CPU per container dari timer host + textfile node-exporter
+  (§Metrik per container) — tetap tanpa cAdvisor dan tanpa docker.sock di container.
 - **postgres-exporter TIDAK dipasang** (opsional di brief). Butuh role `pg_monitor` via `postgres/init-roles.sh` —
   ditunda ke keputusan Lead; Postgres dipantau lewat log (Loki) + Uptime Kuma tidak langsung.
 - **Log container dari file json-file, TANPA Docker API (H3, 2026-09-23)** — menggantikan `obs-docker-socket-proxy`
@@ -179,6 +181,75 @@ docker run --rm --network observability curlimages/curl:8.22.0 -sG http://loki:3
 Validasi config sebelum restart: `promtool check config` (entrypoint `promtool` image prometheus), `loki -verify-config`,
 `alloy fmt`. Perubahan `prometheus.yml`/`config.yaml`/`config.alloy` → `docker compose restart <svc>`.
 Cek label container di Loki: `…/loki/api/v1/series --data-urlencode 'match[]={job="docker"}'` (lihat laporan H3).
+
+## Metrik per container (T19 follow-up, 2026-09-25)
+
+Prasyarat keputusan ADR 0004 § "Pengukuran ulang T19" R3 (limit per container berdasar data ≥ 7 hari). **Tanpa
+docker.sock di container mana pun, tanpa cAdvisor.**
+
+| Bagian | Isi |
+|---|---|
+| `scripts/container-metrics.sh` | dijalankan **root di host**: `docker ps --no-trunc` (id, nama, label `com.docker.compose.project`) → baca cgroup v2 `/sys/fs/cgroup/system.slice/docker-<id>.scope/` → tulis atomik (tmp `.containers.prom.XXXXXX` di dir yang sama + `mv -f`) `/var/lib/node-exporter-textfile/containers.prom` (0644, dir root 0755). Docker API gagal → file lama dibiarkan, exit 1 |
+| role Ansible `container_metrics` | dir textfile + `container-metrics.service` (oneshot, `ProtectSystem=strict`, `ReadWritePaths=` dir textfile, `CapabilityBoundingSet=` kosong, `RestrictAddressFamilies=AF_UNIX`, `MemoryMax=64M`) + `container-metrics.timer` (`OnBootSec=1min`, `OnUnitActiveSec=60s`, `AccuracySec=1s`). Rollback: `container_metrics_state: absent` |
+| node-exporter | `--collector.textfile.directory=/textfile` (flag diverifikasi `--help` v1.12.1; kolektor textfile aktif default) + bind `/var/lib/node-exporter-textfile:/textfile:ro` |
+
+Label **hanya** `name` (nama container) dan `compose_project` — tanpa image/env/command/label lain (tidak ada secret).
+
+| Metrik | Tipe | Sumber cgroup v2 |
+|---|---|---|
+| `infra_container_memory_current_bytes` | gauge | `memory.current` (termasuk page cache) |
+| `infra_container_memory_max_bytes` | gauge | `memory.max` (= `mem_limit`; `+Inf` bila tanpa limit) |
+| `infra_container_memory_swap_current_bytes` | gauge | `memory.swap.current` |
+| `infra_container_memory_inactive_file_bytes` | gauge | `memory.stat` `inactive_file` → *working set* = current − inactive_file (= angka `docker stats`) |
+| `infra_container_memory_oom_kill_total` | counter | `memory.events` `oom_kill` |
+| `infra_container_cpu_usage_seconds_total` | counter | `cpu.stat` `usage_usec` / 1e6 |
+| `infra_container_metrics_{containers,missing_cgroup,duration_seconds,last_success_timestamp_seconds}` | gauge | status kolektor |
+
+Counter reset saat container dibuat ulang (label sama → `rate()`/`increase()` menangani reset). Nilai sesaat tiap 60 s,
+di-scrape tiap 30 s → resolusi efektif 60 s (lonjakan < 60 s bisa terlewat; `memory.peak` tidak diekspor).
+
+Uji 2026-09-25 (worktree, belum diterapkan): run manual ke dir sementara → 20 container, 0 missing, ±0,45–0,5 s;
+working set cocok dengan `docker stats` (postgres 372 592 640 − 95 780 864 B = 264,0 MiB vs `docker stats` 264,5 MiB;
+grafana 252,3 MiB = 252,3 MiB); `promtool check metrics` (prom/prometheus:v3.13.3) bersih; shellcheck v0.11.0 bersih;
+unit hardening diuji via `systemd-run` properti sama (exit 0); node-exporter v1.12.1 sekali-pakai (`--network none`)
+membaca file → `node_textfile_scrape_error 0`; Docker API tak terjangkau → exit 1, file lama utuh.
+
+### Terapkan (Lead)
+```bash
+cd /opt/infra/ansible && /opt/ansible-venv/bin/ansible-playbook site.yml --tags container_metrics --check --diff
+/opt/ansible-venv/bin/ansible-playbook site.yml --tags container_metrics --diff
+systemctl list-timers container-metrics.timer; journalctl -u container-metrics.service -n 5 --no-pager
+head -3 /var/lib/node-exporter-textfile/containers.prom; stat -c '%U %a %y' /var/lib/node-exporter-textfile/containers.prom
+cd /opt/infra/observability && docker compose up -d node-exporter && docker compose ps node-exporter   # recreate ±detik
+docker exec node-exporter wget -qO- http://127.0.0.1:9100/metrics | grep -E '^node_textfile_scrape_error|^infra_container_metrics_containers'
+```
+Dampak: recreate node-exporter → metrik host (`job="node"`) kosong beberapa detik (satu scrape bisa hilang); tidak ada
+service lain tersentuh. +±125 seri Prometheus (±20 container × 6 + 4), dapat diabaikan terhadap retensi 3 GB.
+Rollback: `git revert` baris flag + mount di compose → `docker compose up -d node-exporter`; role dengan
+`-e container_metrics_state=absent --tags container_metrics` (timer/unit + `containers.prom` dihapus).
+
+### Contoh PromQL (tanpa Grafana)
+```bash
+q() { docker run --rm --network observability curlimages/curl:8.22.0 -sG http://prometheus:9090/api/v1/query \
+        --data-urlencode "query=$1" | python3 -c 'import json,sys; [print(r["metric"].get("name",""), r["value"][1]) for r in json.load(sys.stdin)["data"]["result"]]'; }
+# puncak memory.current 7 hari per container (termasuk page cache)
+q 'max by (name) (max_over_time(infra_container_memory_current_bytes[7d])) / 2^20'
+# puncak working set 7 hari (≈ docker stats) — dasar usul penurunan limit (ADR 0004 T19 R3)
+q 'max by (name) (max_over_time((infra_container_memory_current_bytes - infra_container_memory_inactive_file_bytes)[7d:1m])) / 2^20'
+# p95 working set 7 hari
+q 'quantile_over_time(0.95, (infra_container_memory_current_bytes - infra_container_memory_inactive_file_bytes)[7d:1m]) / 2^20'
+# puncak 7 hari sebagai % mem_limit
+q 'max_over_time(infra_container_memory_current_bytes[7d]) / on (name, compose_project) infra_container_memory_max_bytes * 100'
+# swap per container (puncak 7 hari), OOM kill 7 hari
+q 'max by (name) (max_over_time(infra_container_memory_swap_current_bytes[7d])) / 2^20'
+q 'increase(infra_container_memory_oom_kill_total[7d]) > 0'
+# CPU (core) rata-rata 5 menit, dan p95 7 hari
+q 'rate(infra_container_cpu_usage_seconds_total[5m])'
+q 'quantile_over_time(0.95, rate(infra_container_cpu_usage_seconds_total[5m])[7d:5m])'
+# kolektor basi (> 3 menit) atau container tanpa cgroup
+q 'time() - infra_container_metrics_last_success_timestamp_seconds > 180'
+q 'infra_container_metrics_missing_cgroup > 0'
+```
 
 ## Belum / berikutnya
 

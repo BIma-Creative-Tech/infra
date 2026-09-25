@@ -57,8 +57,13 @@ services:
     command:
       - --path.rootfs=/host
       - --web.listen-address=:9100
+      # T19 follow-up: metrik per container dari timer host `container-metrics` (role ansible container_metrics,
+      # scripts/container-metrics.sh) — tanpa docker.sock. Flag diverifikasi `node_exporter --help` v1.12.1.
+      - --collector.textfile.directory=/textfile
     volumes:
       - /:/host:ro,rslave
+      # Hanya file .prom kolektor (root 0755/0644 di host); read-only.
+      - /var/lib/node-exporter-textfile:/textfile:ro
     read_only: true
     networks:
       - observability

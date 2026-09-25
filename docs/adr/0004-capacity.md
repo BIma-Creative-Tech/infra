@@ -28,6 +28,8 @@
   **≈ 2 312 → ≈ 1 672 MiB** (≈ 1 096 setelah DRMS prod) karena drms-pk-stg + web-starter-staging belum tercatat di
   § Decision; usul T07 cadangan host 1 152 MiB **dibatalkan**; runway disk ≈ 1,3–2 hari akibat build lokal (risiko
   utama); target 3–5 tenant Odoo kecil dipertahankan (+3–4), website Next.js ≤ 3–4. Angka lama tidak diubah.
+- 2026-09-25 (T19 follow-up #3, infra): **§ T19 §8.2** kolektor memori/CPU per container (timer host 60 s → textfile
+  node-exporter), prasyarat R3; §8.1 ditambah dampak restart dockerd terukur (±2 s, H3). Belum diterapkan.
 - 2026-09-25 (T19 follow-up #2, keputusan user): **cadangan host perencanaan 1 536 → 2 048 MiB** (usul R2 diterima).
   Dihitung ulang: § Decision "+ cadangan host" 13 680 → 14 192, sisa ≈ 2 312 → ≈ 1 800 MiB; § T19 §3 sisa ≈ 1 672 →
   **≈ 1 160 MiB** (setelah DRMS prod ≈ 1 096 → **≈ 584**); § T19 §5 website Next.js baru 6/4 → **4/2** (rencana ≤ 2).
@@ -417,6 +419,8 @@ otomatis terpicu saat `daemon.json` berubah. `live-restore: true` (terpasang) �
 bridge/storage driver tidak berubah, syarat live-restore docs.docker.com "Live restore upon restart"). Selama jendela
 restart (± detik): Docker API/`docker compose`/`infra-job`/`infra-deploy` tidak tersedia, healthcheck & restart policy
 container tidak dievaluasi, log container tertahan di FIFO 64K (proses bisa tertahan menulis log bila jendela lama).
+**Terukur pada restart dockerd sebelumnya (H3, 2026-09-23, `observability.md` §Rollback): gangguan ±2 s — DNS embedded
+Docker & bouncer CrowdSec sempat gagal → 403/timeout singkat di edge.** Jadwalkan di jam sepi.
 GC berjalan ±1 s setelah start (throttle 1 menit) dan setelah tiap build (BuildKit `control/control.go`).
 
 **Langkah terapkan (Lead, jendela terjadwal, tidak ada build berjalan):**
@@ -441,6 +445,16 @@ systemctl start infra-healthcheck.service && systemctl status infra-healthcheck.
 **Rollback:** `cp -a /etc/docker/daemon.json.bak-t19 /etc/docker/daemon.json && systemctl restart docker` (container
 tetap berjalan, live-restore), lalu `git revert` commit role agar Ansible tidak menulis ulang. Bila dockerd gagal start:
 `journalctl -u docker -n 50 --no-pager` → rollback yang sama.
+
+#### 8.2 Riwayat memori/CPU per container (prasyarat R3) — role `container_metrics` + textfile node-exporter
+
+Timer root di host tiap 60 s (`scripts/container-metrics.sh`) membaca cgroup v2 (`memory.current`, `memory.max`,
+`memory.swap.current`, `memory.stat inactive_file`, `memory.events oom_kill`, `cpu.stat usage_usec`) tiap container
+yang berjalan (`docker ps` di host — tidak ada docker.sock di container) → `/var/lib/node-exporter-textfile/containers.prom`
+(atomik, label `name`/`compose_project` saja) → node-exporter `--collector.textfile.directory` (bind ro) → Prometheus
+(retensi 15 hari cukup untuk jendela 7 hari R3). Detail, uji, PromQL, penerapan & rollback: `docs/03-operations/
+observability.md` §"Metrik per container". **RAM [ESTIMASI]:** proses oneshot ±0,5 s/menit (`MemoryMax=64M`), node-exporter
++ Prometheus ±125 seri tambahan → dapat diabaikan; tidak mengubah angka §3. Belum diterapkan (Lead).
 
 Status ADR tetap **accepted**; angka § Decision yang berubah tidak ditimpa, dibaca bersama bagian ini.
 

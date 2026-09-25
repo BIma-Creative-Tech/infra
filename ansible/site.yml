@@ -7,6 +7,7 @@
 #   T05 --tags crowdsec_bouncer (setelah stack security/crowdsec up)
 #   T13 --tags backup (restic + timer; skrip di scripts/backup.sh, restore.sh, restore-test.sh)
 #   H7  --tags healthcheck,backup (timer infra-healthcheck + alert email; OnFailure restic)
+#   T19 --tags container_metrics (timer metrik per container → textfile node-exporter; ADR 0004 T19 §8.2)
 #   P05 --tags infra_jobs,auditd (dispatcher infra-job + spool + unit; watch auditd /usr/local/sbin/infra-job)
 # Tag ssh_phase_b / ssh_phase_c hanya boleh dijalankan Lead bersama user (S4–S7).
 - name: Bootstrap host VPS
@@ -64,3 +65,7 @@
     # Plan 05 J1/J4 (ADR 0009): dispatcher root infra-job + spool + unit path/service. Butuh infra-unit-failure@ (healthcheck).
     #   --tags infra_jobs (--check --diff dulu). Rollback: infra_jobs_state=absent / path_enabled=false (defaults role).
     - { role: infra_jobs, tags: [infra_jobs] }
+    # T19 follow-up (ADR 0004 T19 §8.2): timer root 60 s → cgroup v2 per container → textfile node-exporter
+    #   (/var/lib/node-exporter-textfile/containers.prom). --tags container_metrics (--check --diff dulu), lalu recreate
+    #   node-exporter (observability/docker-compose.yml). Rollback: container_metrics_state=absent.
+    - { role: container_metrics, tags: [container_metrics] }

@@ -1,0 +1,4 @@
+---
+- name: Reload systemd (container_metrics)
+  ansible.builtin.systemd_service:
+    daemon_reload: true

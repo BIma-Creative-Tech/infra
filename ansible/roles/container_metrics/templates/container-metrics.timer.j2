@@ -1,0 +1,12 @@
+# {{ ansible_managed }} — role container_metrics (T19 follow-up)
+[Unit]
+Description=Timer: metrik per container tiap {{ container_metrics_on_unit_active_sec }}
+
+[Timer]
+# systemd.timer(5): monotonic — relatif terhadap boot dan terhadap aktivasi terakhir unit service.
+OnBootSec={{ container_metrics_on_boot_sec }}
+OnUnitActiveSec={{ container_metrics_on_unit_active_sec }}
+AccuracySec=1s
+
+[Install]
+WantedBy=timers.target

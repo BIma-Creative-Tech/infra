@@ -1,0 +1,27 @@
+# {{ ansible_managed }} — role container_metrics (T19 follow-up)
+[Unit]
+Description=Metrik memori/CPU per container (cgroup v2) → textfile node-exporter
+Wants=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart={{ container_metrics_script }} {{ container_metrics_textfile_dir }}
+SyslogIdentifier=container-metrics
+UMask=0022
+TimeoutStartSec=30s
+# Hardening (diuji 2026-09-25 via systemd-run dengan properti yang sama: exit 0, 20 container).
+ProtectSystem=strict
+ReadWritePaths={{ container_metrics_textfile_dir }}
+ProtectHome=read-only
+PrivateTmp=yes
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_UNIX
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryMax=64M
+TasksMax=32
