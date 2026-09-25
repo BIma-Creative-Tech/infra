@@ -11,7 +11,7 @@ name: web-control-plane
 x-hardening: &hardening
   # Tag pin (short SHA commit main repo control-plane). Override sementara untuk rollback:
   #   CONTROL_PLANE_TAG=<tag-lama> docker compose up -d   (lihat docs)
-  image: control-plane:${CONTROL_PLANE_TAG:-4fc3828}
+  image: control-plane:${CONTROL_PLANE_TAG:-6d94d2b}   # plan 05 J6 (2026-09-25; rollback 4fc3828 — migrasi 0001-0003 additive)
   env_file:
     - .env
   user: "1001:1001"
@@ -53,6 +53,7 @@ services:
         condition: service_completed_successfully
     environment:
       SERVICE_NAME: control-plane-web
+      INFRA_JOBS_INSTANCE: prod   # plan 05 / ADR 0009
     tmpfs:
       - /tmp:uid=1001,gid=1001,mode=0700
       - /app/.next/cache:uid=1001,gid=1001,mode=0700
@@ -72,6 +73,9 @@ services:
   worker:
     <<: *hardening
     container_name: control-plane-worker
+    # Plan 05 J6 (ADR 0009): uid khusus cpjob-prod 950 (BUKAN 1001 = user host `deploy`) — hanya uid ini yang bisa
+    # menulis spool infra-job prod (spool/new root:cpjob-prod 0730, tmp cpjob-prod 0700).
+    user: "950:950"
     restart: unless-stopped
     depends_on:
       migrate:
@@ -80,8 +84,22 @@ services:
     environment:
       SERVICE_NAME: control-plane-worker
       WORKER_HEARTBEAT_FILE: /tmp/worker-heartbeat
+      INFRA_JOBS_INSTANCE: prod
+      INFRA_JOBS_SPOOL_DIR: /jobs/spool
+      INFRA_JOBS_RESULTS_DIR: /jobs/results
     tmpfs:
-      - /tmp:uid=1001,gid=1001,mode=0700
+      - /tmp:uid=950,gid=950,mode=0700
+    volumes:
+      # Spool rw (worker menulis tmp/ lalu rename ke new/) + hasil ro — dikelola role Ansible infra_jobs.
+      - type: bind
+        source: /var/lib/infra-jobs/prod/spool
+        target: /jobs/spool
+        bind: { create_host_path: false }
+      - type: bind
+        source: /var/lib/infra-jobs/prod/results
+        target: /jobs/results
+        read_only: true
+        bind: { create_host_path: false }
     networks:
       - db      # hanya DB; tidak butuh egress
     healthcheck:

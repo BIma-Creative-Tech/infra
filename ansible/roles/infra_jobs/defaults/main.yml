@@ -25,7 +25,7 @@ infra_jobs_instances:
     user: cpjob-prod
     uid: 950
     gid: 950
-    path_enabled: false
+    path_enabled: true   # J6 2026-09-25 (QA J5 + regresi sign-off)
     disabled: false
   staging:
     user: cpjob-staging
