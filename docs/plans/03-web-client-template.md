@@ -1,6 +1,6 @@
 # Plan 03 — Template web client Next.js (website per client)
 
-- Status: **DRAFT — menunggu GATE 1 (persetujuan user)**
+- Status: **APPROVED GATE 1 (user, 2026-09-25): semua pertanyaan §7 sesuai rekomendasi** — 1 ya (web-starter → web-<slug>), 2 GHCR, 3 style-src unsafe-inline (style saja), 4 pasang skill, 5 form kontak default off
 - Tanggal: 2026-09-25 · Lead: infra Lead · CLAUDE.md §2, §3.1 (`web/clients/<slug>/`), §3.5, §3.6 Next.js, §3.7
 - Permintaan user (2026-09-25): template web client Next.js; setiap website memakai Iconsax, anime.js,
   framer-motion (Motion), ui-ux-pro-max-skill, 21st.dev agar tampil modern/outstanding.
