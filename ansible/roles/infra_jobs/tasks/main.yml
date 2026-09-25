@@ -1,0 +1,22 @@
+---
+# infra_jobs — dispatcher root `infra-job` + spool + unit path/service (plan 05 §3.2, ADR 0009). Idempoten.
+- name: Validasi variabel infra_jobs
+  ansible.builtin.assert:
+    that:
+      - infra_jobs_state in ['present', 'absent']
+      - infra_jobs_instances.keys() | list | sort == ['prod', 'staging']
+      - infra_jobs_instances.values() | map(attribute='uid') | select('in', [0, 1000, 1001]) | list | length == 0
+      - infra_jobs_instances.values() | map(attribute='gid') | select('in', [0, 1000, 1001]) | list | length == 0
+      - infra_jobs_instances.values() | map(attribute='uid') | unique | list | length == 2
+      - infra_jobs_instances.prod.user == 'cpjob-prod'
+      - infra_jobs_instances.staging.user == 'cpjob-staging'
+    fail_msg: "infra_jobs: state/instance/uid tidak valid (uid/gid bukan 0/1000/1001, unik; nama user di-hard-code dispatcher)"
+    quiet: true
+
+- name: Terapkan (present)
+  ansible.builtin.include_tasks: present.yml
+  when: infra_jobs_state == 'present'
+
+- name: Hapus (absent — spool/log/config dipertahankan untuk audit)
+  ansible.builtin.include_tasks: absent.yml
+  when: infra_jobs_state == 'absent'

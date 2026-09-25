@@ -1,0 +1,65 @@
+---
+# Role infra_jobs — jembatan job control plane → skrip root (plan 05 §3.2, ADR 0009).
+# Terapkan HANYA dengan tag:  ansible-playbook site.yml --tags infra_jobs  (check dulu: --check --diff)
+#
+# Rollback / kill switch (plan 05 §8.3):
+#   - per instance: path_enabled: false   → infra-job-<inst>.path stop + disable (job tertahan di spool → CP no_result)
+#   - per instance: disabled: true        → /etc/infra-jobs/<inst>.disabled (dispatcher menolak semua job, error_code=disabled)
+#   - seluruh role: infra_jobs_state: absent → unit, /usr/local/sbin/infra-job, tmpfiles, user/grup cpjob-* dihapus;
+#     /var/lib/infra-jobs, /var/log/infra-jobs, /etc/infra-jobs DIPERTAHANKAN (audit).
+infra_jobs_state: present # present | absent
+
+infra_jobs_sbin: /usr/local/sbin/infra-job
+# Sumber dispatcher di repo (controller). Satu-satunya salinan yang dipasang ke host.
+infra_jobs_src: "{{ playbook_dir }}/../scripts/infra-job/infra_job.py"
+infra_jobs_base_dir: /var/lib/infra-jobs
+infra_jobs_log_dir: /var/log/infra-jobs
+infra_jobs_etc_dir: /etc/infra-jobs
+
+# User host penulis job per instance (plan 05 §3.2, D3): system user, nologin, tanpa home, tanpa grup lain.
+# uid/gid TETAP — bukan 1001 (= deploy). Dicek bebas 2026-09-25 (getent passwd/group 950, 951 kosong; tidak ada file
+# ber-uid/gid itu di /opt /var/lib /etc /home /srv). Worker CP (J3) memakai `user: "<uid>:<gid>"` yang SAMA.
+# path_enabled: rollout staging dulu (J4); prod di-enable di J6 (ubah ke true lalu jalankan ulang role).
+infra_jobs_instances:
+  prod:
+    user: cpjob-prod
+    uid: 950
+    gid: 950
+    path_enabled: false
+    disabled: false
+  staging:
+    user: cpjob-staging
+    uid: 951
+    gid: 951
+    path_enabled: true
+    disabled: false
+
+# Kuota & timeout (plan 05 §4.4, Q5) → /etc/infra-jobs/<inst>.conf (JSON). Batas yang diterima dispatcher:
+# kuota 0..10000, timeout 5..7200 detik; nilai di luar batas / kunci lain → dispatcher fail-closed (semua job disabled).
+infra_jobs_quota:
+  total_per_hour: 60
+  odoo_db_provision_per_day: 3
+  odoo_sso_user_per_hour: 30
+  rotate_secret_per_day: 5
+infra_jobs_timeouts:
+  odoo_db_provision: 900
+  odoo_route: 60
+  odoo_sso_provision: 300
+  odoo_sso_disable: 120
+  odoo_sso_user: 180
+  dry_run: 60
+# Override per instance (mis. AC-J8 staging: {staging: {timeouts: {odoo_sso_provision: 5}}}). Digabung di atas default.
+infra_jobs_overrides: {}
+
+# Retensi (systemd-tmpfiles age, dibersihkan systemd-tmpfiles-clean.timer harian)
+infra_jobs_results_age: 7d
+infra_jobs_rejected_age: 30d
+infra_jobs_log_age: 30d
+infra_jobs_spool_tmp_age: 1d
+
+# Rate limit pemicu (systemd.path(5) TriggerLimit*; systemd.unit(5) StartLimit*). Terlampaui → unit failed + email.
+infra_jobs_trigger_limit_interval: 60s
+infra_jobs_trigger_limit_burst: 30
+infra_jobs_start_limit_interval: 60s
+infra_jobs_start_limit_burst: 30
+infra_jobs_timeout_start: 60min

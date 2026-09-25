@@ -1,0 +1,39 @@
+# {{ ansible_managed }} — role infra_jobs (plan 05 §3.2, ADR 0009)
+# Dipicu infra-job-<inst>.path (DirectoryNotEmpty= spool/new). %i = instance (prod|staging), divalidasi dispatcher.
+# Hardening diverifikasi 2026-09-25 dengan transient unit (systemd-run, properti sama) menjalankan unit test dispatcher
+# + dry-run skrip asli (provision-odoo-sso.sh, odoo-sso-user.sh) — lihat docs/03-operations/infra-jobs.md §Hardening.
+# Jalur apply (install -o/-g, chown secret, rename route) diverifikasi di J4 (AC-J6).
+[Unit]
+Description=infra-job dispatcher (%i) — job control plane -> scripts (ADR 0009)
+Documentation=file://{{ infra_root }}/docs/03-operations/infra-jobs.md
+After=docker.service
+OnFailure=infra-unit-failure@%n.service
+StartLimitIntervalSec={{ infra_jobs_start_limit_interval }}
+StartLimitBurst={{ infra_jobs_start_limit_burst }}
+
+[Service]
+Type=oneshot
+ExecStart={{ infra_jobs_sbin }} %i
+SyslogIdentifier=infra-job
+UMask=0077
+# Run dispatcher berhenti mengambil job baru setelah 30 menit; timeout terpanjang per job 900 s (+ dry-run 60 s + grace 30 s).
+TimeoutStartSec={{ infra_jobs_timeout_start }}
+KillMode=control-group
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectHome=yes
+ProtectSystem=full
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+RestrictNamespaces=yes
+LockPersonality=yes
+SystemCallArchitectures=native
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+CapabilityBoundingSet=CAP_CHOWN CAP_DAC_OVERRIDE CAP_DAC_READ_SEARCH CAP_FOWNER CAP_FSETID

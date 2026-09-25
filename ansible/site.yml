@@ -7,6 +7,7 @@
 #   T05 --tags crowdsec_bouncer (setelah stack security/crowdsec up)
 #   T13 --tags backup (restic + timer; skrip di scripts/backup.sh, restore.sh, restore-test.sh)
 #   H7  --tags healthcheck,backup (timer infra-healthcheck + alert email; OnFailure restic)
+#   P05 --tags infra_jobs,auditd (dispatcher infra-job + spool + unit; watch auditd /usr/local/sbin/infra-job)
 # Tag ssh_phase_b / ssh_phase_c hanya boleh dijalankan Lead bersama user (S4–S7).
 - name: Bootstrap host VPS
   hosts: vps
@@ -60,3 +61,6 @@
     - { role: healthcheck, tags: [healthcheck] }
     # T13 (plan 02, ADR 0006): restic 0.19.1 terverifikasi + repo lokal + timer backup/prune/restore-test.
     - { role: backup, tags: [backup] }
+    # Plan 05 J1/J4 (ADR 0009): dispatcher root infra-job + spool + unit path/service. Butuh infra-unit-failure@ (healthcheck).
+    #   --tags infra_jobs (--check --diff dulu). Rollback: infra_jobs_state=absent / path_enabled=false (defaults role).
+    - { role: infra_jobs, tags: [infra_jobs] }

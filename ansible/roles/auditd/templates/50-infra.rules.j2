@@ -6,6 +6,9 @@
 -w /etc/docker/ -p wa -k docker_config
 -w /etc/restic/ -p wa -k restic_config
 -w {{ deploy_wrapper_path }} -p wa -k infra_deploy
+## plan 05 §3.2 (ADR 0009): dispatcher root job control plane + konfigurasi/kill switch-nya.
+-w /usr/local/sbin/infra-job -p wa -k infra_job
+-w /etc/infra-jobs/ -p wa -k infra_job_config
 -w /usr/bin/docker -p x -k docker_exec
 -w /usr/bin/sudo -p x -k sudo_exec
 ## TODO(T03+): watch /opt/infra/<stack>/.env ditambahkan per stack (audit tidak mendukung glob **).

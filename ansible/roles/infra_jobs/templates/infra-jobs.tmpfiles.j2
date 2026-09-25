@@ -1,0 +1,14 @@
+# {{ ansible_managed }} — role infra_jobs (plan 05 §3.2). tmpfiles.d(5): mode/owner + retensi (age) — dibersihkan
+# systemd-tmpfiles-clean.timer. work/ (ledger idempotensi + kuota) sengaja TANPA age.
+d {{ infra_jobs_base_dir }} 0755 root root -
+d {{ infra_jobs_log_dir }} 0750 root root -
+{% for inst, i in infra_jobs_instances.items() %}
+d {{ infra_jobs_base_dir }}/{{ inst }} 0755 root root -
+d {{ infra_jobs_base_dir }}/{{ inst }}/spool 0730 root {{ i.user }} -
+d {{ infra_jobs_base_dir }}/{{ inst }}/spool/tmp 0700 {{ i.user }} {{ i.user }} {{ infra_jobs_spool_tmp_age }}
+d {{ infra_jobs_base_dir }}/{{ inst }}/spool/new 0730 root {{ i.user }} -
+d {{ infra_jobs_base_dir }}/{{ inst }}/work 0700 root root -
+d {{ infra_jobs_base_dir }}/{{ inst }}/rejected 0700 root root {{ infra_jobs_rejected_age }}
+d {{ infra_jobs_base_dir }}/{{ inst }}/results 0750 root {{ i.user }} {{ infra_jobs_results_age }}
+d {{ infra_jobs_log_dir }}/{{ inst }} 0700 root root {{ infra_jobs_log_age }}
+{% endfor %}

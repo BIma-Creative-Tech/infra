@@ -1,0 +1,15 @@
+# {{ ansible_managed }} — role infra_jobs (plan 05 §3.2, ADR 0009)
+# Kill switch: systemctl disable --now infra-job-{{ item.key }}.path  (atau var path_enabled: false di role).
+[Unit]
+Description=infra-job spool watcher ({{ item.key }}) — ADR 0009
+Documentation=file://{{ infra_root }}/docs/03-operations/infra-jobs.md
+OnFailure=infra-unit-failure@%n.service
+
+[Path]
+DirectoryNotEmpty={{ infra_jobs_base_dir }}/{{ item.key }}/spool/new
+Unit=infra-job@{{ item.key }}.service
+TriggerLimitIntervalSec={{ infra_jobs_trigger_limit_interval }}
+TriggerLimitBurst={{ infra_jobs_trigger_limit_burst }}
+
+[Install]
+WantedBy=paths.target
