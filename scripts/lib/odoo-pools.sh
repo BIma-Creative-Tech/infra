@@ -17,6 +17,9 @@ TRAEFIK_CONTAINER="${TRAEFIK_CONTAINER:-traefik}"
 TRAEFIK_CLIENTS_DIR="$INFRA_DIR/traefik/dynamic/clients"
 PLATFORM_DOMAIN="bimacreative.tech"
 ODOO_CONF_IN_CONTAINER="/etc/odoo/odoo.conf"
+# uid:gid proses Odoo di image resmi (compose `user: "100:101"`; `docker exec odoo-staging id` → gid=101(odoo)).
+# Di host gid 101 = `messagebus` (tanpa anggota) — hanya dipakai sebagai grup file secret OIDC 0440 (ADR 0008).
+ODOO_GID=101
 
 SLUG_RE='^[a-z0-9-]{3,30}$'
 ENV_RE='^(prod|demo|staging)$'
@@ -74,6 +77,10 @@ default_host() {
 validate_host() {
   [[ ${#1} -le 253 && "$1" =~ $FQDN_RE ]] || die "hostname tidak valid: $1"
 }
+
+# Direktori secret client OIDC per DB (plan 04, ADR 0008 #4): host <pool>/secrets/oidc (0750 root:$ODOO_GID)
+# di-mount ro ke container sebagai $SH_OIDC_SECRET_DIR (compose). File: <db>, 0440 root:$ODOO_GID, tanpa newline.
+oidc_secret_dir() { echo "$POOL_DIR/secrets/oidc"; }
 
 # Nama file secret password admin tenant (600 root, di luar git).
 tenant_secret_file() { echo "$POOL_DIR/secrets/tenants/${DB_NAME}.admin-password"; }

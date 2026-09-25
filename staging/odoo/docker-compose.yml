@@ -17,6 +17,13 @@ services:
     user: "100:101"
     env_file:
       - .env        # PGHOST/PGPORT/PGUSER/PGPASSWORD + ODOO_ADMIN_PASSWD (hash) — 600, tidak di git
+    environment:
+      # Plan 04 / ADR 0008 #4 — sh_auth_oidc >= 19.0.1.2.0: secret client OIDC per DB dibaca dari file
+      # $SH_OIDC_SECRET_DIR/<db> (mount ro di bawah; ditulis scripts/provision-odoo-sso.sh, 0440 root:101) saat
+      # token exchange → tenant baru / rotasi tanpa restart. Tidak ada secret di env. Issuer (bukan secret) wajib
+      # terdaftar agar secret platform dilepas (dipisah koma).
+      SH_OIDC_SECRET_DIR: /run/sh-oidc
+      SH_OIDC_TRUSTED_ISSUERS: https://auth.bimacreative.tech/realms/platform-staging
     # Entry point image: wait-for-psql.py (PG* dari env) lalu `odoo`. Opsi di odoo.conf.
     command: ["odoo"]
     volumes:
@@ -27,6 +34,15 @@ services:
       - ./addons:/mnt/extra-addons:ro
       # filestore + sessions — volume terpisah per pool
       - filestore:/var/lib/odoo
+      # secret client OIDC per DB (plan 04): host secrets/oidc (0750 root:101, file 0440, di luar git) → ro.
+      # create_host_path: false → `up` gagal bila direktori belum ada (odoo-pool-bootstrap.sh membuatnya dengan
+      # mode benar) daripada Docker membuatnya 0755 root:root.
+      - type: bind
+        source: ./secrets/oidc
+        target: /run/sh-oidc
+        read_only: true
+        bind:
+          create_host_path: false
     read_only: true
     tmpfs:
       # wkhtmltopdf/report & upload sementara. uid odoo.

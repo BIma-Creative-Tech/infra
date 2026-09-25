@@ -20,6 +20,10 @@
 #     demo/demo, portal/portal) → password acak (tidak disimpan).
 # Output baris terakhir (untuk control plane):  RESULT db=<db> pool=<pool> host=<host> created=<yes|no> changed=<n> secret=<path>
 # Exit ≠ 0 bila gagal. Tidak pernah DROP DATABASE.
+# SSO (plan 04 F5): setelan auth_signup.invitation_scope=b2b + nonaktif provider Odoo.com SENGAJA tidak di sini — DB baru
+# hanya punya base (tanpa auth_oauth/auth_signup), dan install auth_signup men-set ulang invitation_scope=b2c
+# (auth_signup/data/ir_config_parameter_data.xml) serta auth_oauth membuat Odoo.com enabled. Diatur oleh
+# scripts/provision-odoo-sso.sh tepat setelah install auth_oauth,sh_auth_oidc.
 set -euo pipefail
 # shellcheck source=lib/odoo-pools.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib/odoo-pools.sh"
