@@ -1,7 +1,9 @@
 # T04 — Postgres 16 shared cluster (plan 02, ADR 0001 pin, ADR 0004 sizing).
-# Jalankan scripts/bootstrap.sh sekali sebelum `docker compose up -d` (membuat network `db`
+# Jalankan scripts/bootstrap.sh sekali sebelum `docker compose up -d` (membuat network `db-*`
 # dan .env berisi password acak). Role/DB dibuat oleh scripts/init-roles.sh (idempoten).
-# Tidak ada port yang di-publish ke host — service lain terhubung lewat network external `db`.
+# Tidak ada port yang di-publish ke host — setiap konsumen terhubung lewat network external `db-<konsumen>` miliknya
+# sendiri (ADR 0010, plan 06 §3.2; anggota hanya postgres + konsumen). Konsumen baru: bootstrap.sh (network) +
+# `docker network connect <net> postgres` (live, tanpa recreate) + entri di bawah + baris conf/pg_hba.conf.
 name: postgres
 
 services:
@@ -42,7 +44,14 @@ services:
       - /tmp:uid=999,gid=999,mode=1777
     shm_size: 256mb
     networks:
+      # TRANSISI plan 06: `db` lama dipertahankan sampai S10 (lalu dihapus dari sini + `docker network rm db`).
       - db
+      - db-keycloak       # 10.100.20.0/24 — keycloak
+      - db-odoo-pool-a    # 10.100.21.0/24 — odoo-pool-a
+      - db-odoo-staging   # 10.100.22.0/24 — odoo-staging
+      - db-cp             # 10.100.23.0/24 — control-plane (+worker, migrate)
+      - db-cp-stg         # 10.100.24.0/24 — control-plane-staging (+worker, migrate)
+      - db-drms-stg       # 10.100.26.0/24 — drms-pk-stg (+worker, migrate, seed)
     healthcheck:
       test: ["CMD", "pg_isready", "-U", "postgres", "-h", "/var/run/postgresql"]
       interval: 10s
@@ -66,8 +75,27 @@ volumes:
     name: postgres_pgdata
 
 networks:
+  # Semua dibuat oleh scripts/bootstrap.sh: bridge --internal (tanpa egress), subnet tetap (plan 06 §3.2).
   db:
-    # Dibuat oleh scripts/bootstrap.sh: internal (tanpa egress), subnet tetap 10.100.1.0/24.
-    # Service lain (Keycloak, control-plane, Odoo) join sebagai `external: true, name: db`.
+    # LAMA (10.100.1.0/24, dipakai bersama) — pensiun di plan 06 S10.
     external: true
     name: db
+  db-keycloak:
+    external: true
+    name: db-keycloak
+  db-odoo-pool-a:
+    external: true
+    name: db-odoo-pool-a
+  db-odoo-staging:
+    external: true
+    name: db-odoo-staging
+  db-cp:
+    external: true
+    name: db-cp
+  db-cp-stg:
+    external: true
+    name: db-cp-stg
+  db-drms-stg:
+    external: true
+    name: db-drms-stg
+  # CADANGAN (belum dibuat): db-drms 10.100.25.0/24 (ProyekKas DRMS prod), db-datamart 10.100.27.0/24.

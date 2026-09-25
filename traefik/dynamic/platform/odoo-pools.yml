@@ -5,7 +5,8 @@
 #
 # Odoo 19 (workers > 0): HTTP di :8069, websocket/bus di gevent :8072 (deploy.rst 19.0 §LiveChat,
 # odoo.conf gevent_port). Tidak ada port Odoo yang di-publish ke host.
-# H1: nama container di-resolve lewat network `odoo-edge` (hanya traefik + pool Odoo), bukan `proxy`.
+# H1 + ADR 0010 #4 (plan 06): nama container di-resolve lewat network edge per env, bukan `proxy` —
+# odoo-pool-a via `odoo-edge` (traefik + pool prod), odoo-staging via `odoo-edge-stg` (traefik + pool staging).
 http:
   services:
     odoo-pool-a-http:

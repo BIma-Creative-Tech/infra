@@ -5,7 +5,8 @@
 # Jalur: app join network --internal `drms-kc-admin` (10.100.8.0/24, prod) / `drms-kc-admin-stg`
 # (10.100.9.0/24, staging). Traefik join keduanya dengan alias `auth.bimacreative.tech` → DNS Docker di
 # network itu me-resolve host Keycloak ke IP Traefik → koneksi langsung ke entrypoint `websecure` :443 dengan
-# IP sumber = IP container app (tanpa NAT). Keycloak TIDAK join network ini (Traefik → keycloak:8080 via proxy).
+# IP sumber = IP container app (tanpa NAT). Keycloak TIDAK join network ini (Traefik → keycloak:8080 via `kc-edge`,
+# ADR 0010 / plan 06 S8; sebelumnya via `proxy`).
 #
 # Kunci per env: ClientIP subnet env × PathPrefix realm env (subnet staging TIDAK bisa ke realm prod dan
 # sebaliknya). Path admin lain (/admin/realms/<realm lain>/, /admin/master/console/, /realms/master/) dari

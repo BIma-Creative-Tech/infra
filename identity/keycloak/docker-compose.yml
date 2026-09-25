@@ -23,16 +23,25 @@ services:
       # /admin & /realms/master hanya di entrypoint Traefik `admin` (127.0.0.1:8443 host, H5); di :443 → 403.
       KC_HOSTNAME: https://auth.bimacreative.tech
       KC_HOSTNAME_ADMIN: https://auth.bimacreative.tech:8443
-      # TLS di-terminate Traefik (edge) → listener HTTP 8080 hanya di network proxy.
+      # TLS di-terminate Traefik (edge) → listener HTTP 8080; hanya Traefik yang berbagi network edge (`kc-edge`).
       KC_HTTP_ENABLED: "true"
       KC_PROXY_HEADERS: xforwarded
+      # ADR 0010 #5b / plan 06 §4.3 (D-i-D): X-Forwarded-* hanya dipercaya dari subnet kc-edge (anggota: traefik +
+      # keycloak sendiri; IP Traefik dinamis). Opsi RUNTIME — diverifikasi 26.7.4: tidak ada di `kc.sh build --help-all`,
+      # `kc.sh show-config` → "(ENV)" bukan "(Persisted)", source quarkus/config-api ProxyOptions tanpa buildTime(true).
+      # Peer lain (anggota `metrics`: prometheus, crowdsec) → header proxy diabaikan. Rollback: hapus baris ini + up -d.
+      KC_PROXY_TRUSTED_ADDRESSES: "10.100.12.0/24"
       # Satu node: cache lokal (tanpa clustering JGroups/port tambahan).
       KC_CACHE: local
       # Heap default image = 70% dari limit container (ADR 0004). Log ke stdout.
+    # ADR 0010 #3 (plan 06 S8): keluar dari `proxy` & `db`.
     networks:
-      - proxy     # Traefik → keycloak:8080 (tidak publish port ke host)
-      - db        # → postgres:5432
-      - metrics   # T14a: internal 10.100.5.0/24 — Prometheus scrape management :9000 (/metrics)
+      kc-edge:
+        # Traefik → keycloak:8080. Satu-satunya network non-internal → gateway/egress SMTP
+        # mail.bimacreative.tech:587 (realm_smtp_config). gw_priority 1 eksplisit (default route via 10.100.12.1).
+        gw_priority: 1
+      db-keycloak: {}   # → postgres:5432 (internal 10.100.20.0/24; pg_hba keycloak hanya dari subnet ini)
+      metrics: {}       # T14a: internal 10.100.5.0/24 — Prometheus scrape management :9000 (/metrics)
     read_only: true
     tmpfs:
       - /tmp:uid=1000,gid=0,mode=1770
@@ -57,12 +66,14 @@ services:
         max-file: "3"
 
 networks:
-  proxy:
+  kc-edge:
+    # Dibuat traefik/scripts/bootstrap.sh: 10.100.12.0/24 gw .1, BUKAN --internal (egress SMTP) — anggota: traefik + keycloak.
     external: true
-    name: proxy
-  db:
+    name: kc-edge
+  db-keycloak:
+    # Dibuat postgres/scripts/bootstrap.sh: 10.100.20.0/24 --internal — anggota: postgres + keycloak.
     external: true
-    name: db
+    name: db-keycloak
   metrics:
     # Dibuat observability/scripts/bootstrap.sh: 10.100.5.0/24 --internal (T14a).
     external: true
