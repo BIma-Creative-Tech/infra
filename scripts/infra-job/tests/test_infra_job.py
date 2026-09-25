@@ -725,6 +725,29 @@ class TestExecution(Base):
         self.env.run()
         self.assertEqual([c["dry"] for c in self.env.calls()], [False])
 
+    def test_resend_invite_argv_never_implies_grant(self) -> None:
+        # BUG-J5-01: resend_invite (juga admin=true dari CP) → hanya --resend-invite; tidak pernah --grant/--create-kc.
+        job = json.loads(json.dumps(fx_valid("sso_user_resend")["job"]))
+        job["args"]["admin"] = True
+        jid = self.env.put_job(job)
+        self.env.run()
+        self.assertEqual(self.env.result(jid)["state"], "succeeded")
+        calls = self.env.calls()
+        self.assertEqual([c["dry"] for c in calls], [True, False], "resend_invite wajib dry-run pendahulu")
+        for c in calls:
+            self.assertIn("--resend-invite", c["argv"])
+            self.assertNotIn("--grant", c["argv"])
+            self.assertNotIn("--create-kc", c["argv"])
+
+    def test_resend_invite_blocked_in_pre_dry_run(self) -> None:
+        # User dicabut → skrip melaporkan blocker di dry-run → apply (email) tidak pernah jalan.
+        self.env.behaviour({"dry": {"blockers": 1}})
+        jid = self.env.put_job(fx_valid("sso_user_resend")["job"])
+        self.env.run()
+        r = self.env.result(jid)
+        self.assertEqual((r["state"], r["error_code"], r["phase"]), ("failed", "blocked_dry_run", "dry_run"))
+        self.assertEqual([c["dry"] for c in self.env.calls()], [True], "apply tidak boleh jalan")
+
     def test_dry_run_job_reports_blockers_as_succeeded(self) -> None:
         self.env.cleanup()
         self.env = Env("staging")
