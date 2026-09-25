@@ -44,13 +44,17 @@ docs/
     0004-capacity.md                #   alokasi RAM/CPU, swap, threshold shared→dedicated
     0005-mail-ipv4.md              #   mail IPv4-only, multi-domain
     0006-backup.md                 #   restic lokal + placeholder S3 + backup provider
+    0007-web-client-ui-stack.md    #   stack UI website client (Motion, anime.js, Iconsax, Magic UI), CSP, web-edge
   plans/
     00-gate1-summary.md            #   ringkasan yang disetujui user di GATE 1
     01-host-bootstrap.md           #   Ansible bootstrap host + prosedur anti-lockout S0–S8
     02-platform-bringup.md         #   dependency graph FASE 2 (task → agent → depends_on)
+    03-web-client-template.md      #   template website Next.js client (web-starter) — EXECUTED W1–W4
   runbooks/
     emergency-console-access.md    #   akses darurat via konsol Hostinger, rollback sshd/ufw
     client-domain-onboarding.md    #   onboarding domain web & mail client baru
+    web-client-onboarding.md       #   provision/upgrade/rollback website Next.js client
+  03-operations/                   # operasional per stack (traefik, crowdsec, keycloak, …, web-clients.md)
   qa/<tanggal>-<fitur>.md          # laporan QA (dibuat saat FASE 3 berjalan)
   _templates/{adr,runbook,bug-report,plan}.md   # template dokumen baru
 CHANGELOG.md                       # Keep a Changelog + semver

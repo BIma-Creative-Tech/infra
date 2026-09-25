@@ -8,6 +8,35 @@ file `VERSION`.
 
 ## [Unreleased]
 
+### Plan 03 W5 — dokumentasi & versi web client template (2026-09-25, branch `docs/docs-versioning-w5`)
+
+#### Added
+- `docs/adr/0007-web-client-ui-stack.md` (accepted): library UI website client (`motion` 13.4.3, `animejs` 4.5.0,
+  `iconsax` 0.1.1 resmi — `iconsax-react`/`iconsax-reactjs` ditolak), komponen 21st.dev bersumber upstream Magic UI
+  (MIT, commit `d7207e5`) karena registry 21st.dev butuh autentikasi, skill `ui-ux-pro-max` (pin `dcc40ff`, tanpa MCP
+  config), tabel lisensi, CSP (`style-src 'unsafe-inline'` khusus style), form kontak Route Handler tanpa Server Action,
+  network `web-edge`.
+- `docs/03-operations/web-clients.md`: lokasi file, upgrade tag image, rollback, monitoring, catatan image lokal sementara
+  demo `starter.staging` (`web-starter:dev-d5f6148`, TEMPORARY sampai token baca GHCR).
+
+#### Changed
+- `docs/plans/03-web-client-template.md`: status EXECUTED (W1–W4) + tabel acceptance §8 dan open items (CI GitHub belum
+  terkonfirmasi, token GHCR, PageSpeed Insights final, HSTS platform `max-age=300`).
+- `docs/adr/0001-stack.md` riwayat revisi → rujukan ADR 0007; `README.md` peta dokumen (ADR 0007, plan 03, runbook web client,
+  `03-operations/`).
+
+### Plan 03 W4 — demo website `starter.staging.bimacreative.tech` (2026-09-25, `ecdafb8`)
+
+#### Added
+- `staging/web-clients/starter/` + `traefik/dynamic/clients/web-starter-staging.yml` (hasil `provision-web-client.sh`).
+  Image lokal `web-starter:dev-*` (TEMPORARY sampai VPS punya token baca GHCR); saat ini `web-starter:dev-d5f6148`.
+
+### Keycloak `drms-staging` — direct access grants `proyekkas-mobile` (2026-09-25, `a6024cd`, `5b27540`)
+
+#### Changed
+- Client `proyekkas-mobile` realm `drms-staging`: direct access grants ON (login password APK native) — **staging saja**, realm prod `drms` tidak berubah, keputusan user; langkah hosts
+  Windows untuk tunnel admin di docs Keycloak.
+
 ### Plan 03 W2b — network `web-edge` untuk website client (2026-09-25, branch `feat/infra-web-edge`)
 
 #### Added

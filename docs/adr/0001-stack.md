@@ -190,3 +190,6 @@ sistem sampai FASE 2.
   `MaxAuthTries 3`, fail2ban + CrowdSec firewall bouncer. Konsekuensi: lebih banyak noise bot di log port 22.
   Rollback: set `ssh_keep_legacy_port: false` → `ansible-playbook site.yml --tags ssh,firewall,fail2ban`.
 
+- 2026-09-25 (plan 03, GATE 1 disetujui user): **library UI website client** (`web-starter` → `web-<slug>`: `motion` 13.4.3,
+  `animejs` 4.5.0, `iconsax` 0.1.1, Tailwind 4.3.3, komponen Magic UI via 21st.dev, skill `ui-ux-pro-max`) dicatat di
+  **ADR 0007** (`docs/adr/0007-web-client-ui-stack.md`) — bukan bagian stack platform di tabel pin ini.
