@@ -71,11 +71,11 @@ Sebagai bantalan lonjakan, bukan kapasitas. Alert bila swap terpakai > 1 GiB sel
 | cAdvisor (**opsional**) | 128 MiB | 0.2 | image UNVERIFIED (ADR 0001) |
 | loki (retensi 7 hari, single-binary) | 384 MiB | 0.25 | |
 | alloy (log shipper) | 192 MiB | 0.2 | |
-| grafana | 256 MiB | 0.25 | |
-| uptime-kuma | 192 MiB | 0.2 | |
-| **Jumlah mem_limit platform** | **11 888 MiB** | | |
-| **+ cadangan host** | **13 424 MiB** | | |
-| **Sisa untuk client (web Next.js per client, growth)** | **≈ 2 568 MiB** | | 15 992 − 13 424 |
+| grafana | 384 MiB | 0.25 | 256 → 384 MiB (2026-09-25) |
+| uptime-kuma | 320 MiB | 0.2 | 192 → 320 MiB (2026-09-25) |
+| **Jumlah mem_limit platform** | **12 144 MiB** | | +256 MiB (2026-09-25) |
+| **+ cadangan host** | **13 680 MiB** | | |
+| **Sisa untuk client (web Next.js per client, growth)** | **≈ 2 312 MiB** | | 15 992 − 13 680 |
 
 Catatan: jumlah `mem_limit` = batas atas, bukan pemakaian nyata; pemakaian tipikal diperkirakan
 lebih rendah. Namun perencanaan memakai batas atas agar tidak ada OOM berantai.
