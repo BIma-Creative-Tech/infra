@@ -1,0 +1,11 @@
+# Ruff untuk dispatcher infra-job (plan 05 AC-J13). Image: ghcr.io/astral-sh/ruff:0.13.0 (pin digest, docs/04-development.md).
+#   docker run --rm --network none -v "$PWD:/src:ro" -w /src <RUFF_IMAGE> check --no-cache scripts/infra-job
+target-version = "py312"
+line-length = 120
+
+[lint]
+select = ["E", "F", "W", "B", "S", "UP", "I", "RUF", "BLE"]
+
+[lint.per-file-ignores]
+# Test: assert/chmod permisif/tmp adalah bagian dari kasus uji negatif (file jahat di spool), bukan kode produksi.
+"tests/*" = ["S101", "S103", "S108"]

@@ -1,0 +1,5 @@
+Salinan apa adanya dari repo control-plane (J2, plan 05):
+  /opt/src/control-plane  branch feat/nextjs-developer-infra-jobs  commit 013de24
+  tests/fixtures/infra-job/{job-valid,job-invalid,result-valid}.json
+Jangan diedit di sini — perbarui di control-plane lalu salin ulang (test_infra_job.TestControlPlaneFixtures).
+job-invalid.json memakai bentuk request CP (dryRun, tanpa v/job_id/actor/requested_at); test mengonversinya ke format file.
