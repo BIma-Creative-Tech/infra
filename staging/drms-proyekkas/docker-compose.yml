@@ -47,6 +47,9 @@ x-app-env: &app-env
   ANDROID_APP_CERT_SHA256: ${ANDROID_APP_CERT_SHA256:-}
   # F3 rollback switch for Excel exports (write-excel-file): false → Excel buttons hidden, .xlsx → 404.
   EXPORT_XLSX_ENABLED: ${EXPORT_XLSX_ENABLED:-true}
+  # FCM push (ProyekKas ADR 0011): must stay false until the Firebase project (Q-44) and the dispatcher exist;
+  # `true` is refused at boot by the env schema.
+  PUSH_FCM_ENABLED: ${PUSH_FCM_ENABLED:-false}
   DATABASE_URL_FILE: /run/secrets/database_url_app
   PAYLOAD_SECRET_FILE: /run/secrets/payload_secret
   OIDC_WEB_CLIENT_SECRET_FILE: /run/secrets/oidc_web_client_secret
