@@ -53,7 +53,7 @@ tidak mengubah gateway traefik/crowdsec/keycloak (diverifikasi `ip route` di cro
 |---|---|---|
 | prometheus | `localhost:9090` | — |
 | node | `node-exporter:9100` | — |
-| traefik | `traefik:8082` | entrypoint `metrics` (traefik.yml, T14a), tidak di-publish |
+| traefik | `traefik:8082` | entrypoint `metrics` (traefik.yml, T14a), tidak di-publish; hanya IP `10.100.5.0/24` (router `metrics-prometheus` + `ipallowlist-metrics`, QA-T17B-03 — `traefik.md`) |
 | crowdsec | `crowdsec:6060` | `config.yaml` bawaan image: `prometheus.listen_addr 0.0.0.0`, port 6060, level full |
 | keycloak | `keycloak:9000` | management interface (`KC_METRICS_ENABLED=true` saat build), tidak di-route |
 | loki / alloy / grafana | `loki:3100`, `alloy:12345`, `grafana:3000` | — |

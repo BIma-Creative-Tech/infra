@@ -11,6 +11,7 @@
 | `dynamic/middlewares/*.yml` | `security-headers`, `ratelimit-default`, `ratelimit-login`, `ratelimit-oidc`, `ratelimit-oidc-backchannel` (plan 04 S3), `ipallowlist-admin`, `strip-odoo-db-headers`, `deny-all` + service `deny-sink` (H5) | ya |
 | `dynamic/tls.yml` | TLS option `default` (min TLS 1.2) | ya |
 | `dynamic/platform/<svc>.yml` | router layanan platform (T06 `auth.yml`, T16a `cp.yml`, T16b `cp-staging.yml`, T14a `status.yml`/`grafana.yml`, T11 `mail.yml` = router dummy sertifikat `mail.bimacreative.tech` untuk docker-mailserver, `mail.md`, …) — satu file per task | ya |
+| `dynamic/platform/metrics.yml` | router `metrics-prometheus` (entrypoint `metrics`, `prometheus@internal`) + middleware `ipallowlist-metrics` (QA-T17B-03) | ya |
 | `dynamic/platform/odoo-pools.yml` | service `odoo-pool-a-{http,ws}`, `odoo-staging-{http,ws}` + middleware `odoo-security-headers` (T10) | ya |
 | `dynamic/clients/<slug>-<env>.yml` | router tenant Odoo, dirender `scripts/render-client-route.sh` dari `templates/traefik-client.yml` (T10) — lihat `odoo.md` | ya |
 | `dynamic/clients/web-<slug>-<env>.yml` | router website Next.js client (+ `-contact` POST ratelimit, opsional `-www` redirect), dirender `scripts/provision-web-client.sh` dari `templates/traefik-web-client.yml` (plan 03 W2) — lihat `docs/runbooks/web-client-onboarding.md`. Kedua skrip menolak menimpa file milik skrip lain (penanda baris 1) | ya (deploy permanen) |
@@ -41,6 +42,14 @@
   internal **`metrics`** (10.100.5.0/24, tanpa gateway → `proxy` tetap gateway). Scrape: `prometheus` → `traefik:8082/metrics`.
   Semua router di `dynamic/` WAJIB menyebut `entryPoints` eksplisit — router tanpa `entryPoints` akan menempel ke
   semua entrypoint termasuk `metrics`/`traefik`.
+- **Pembatasan metrics (QA-T17B-03, 2026-09-25):** socket `:8082` listen di **semua** network Traefik (bukan hanya
+  `metrics`) — sebelumnya website klien (`web-edge`), pool Odoo (`odoo-edge`), ProyekKas (`drms-kas-edge`) dan anggota
+  `proxy` bisa membaca daftar router/tenant. Kini `metrics.prometheus.manualRouting: true` (static) mematikan router
+  internal otomatis; router file `metrics-prometheus` (`dynamic/platform/metrics.yml`, rule `PathPrefix(/metrics)`,
+  service `prometheus@internal`) + middleware `ipallowlist-metrics` (`10.100.5.0/24`, 403). Sisa: crowdsec & keycloak
+  (anggota `metrics`) tetap bisa membaca; /32 Prometheus butuh IP tetap (keputusan Lead). Uji:
+  `docker exec web-starter-staging node -e "fetch('http://traefik:8082/metrics').then(r=>console.log(r.status))"` → 403;
+  `docker exec prometheus wget -qO- http://traefik:8082/metrics | head -1` → metrik; Prometheus target `traefik` = up.
 - `forwardedHeaders` tidak diset → `X-Forwarded-For`/`X-Real-Ip` dari client **ditimpa** (diuji:
   kirim `X-Forwarded-For: 1.2.3.4` → backend menerima IP koneksi sebenarnya).
 - Email ACME: **kosong** (LE menerima akun tanpa email; notifikasi kedaluwarsa LE sudah dihentikan).
