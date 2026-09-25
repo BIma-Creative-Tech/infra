@@ -17,8 +17,8 @@
 set -euo pipefail
 # shellcheck source=lib/odoo-pools.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib/odoo-pools.sh"
-
-VPS_IP="31.97.50.221"
+# shellcheck source=lib/traefik-route.sh
+source "$(dirname "${BASH_SOURCE[0]}")/lib/traefik-route.sh"   # VPS_IP, dns_precheck, traefik_hup
 TEMPLATE="$INFRA_DIR/templates/traefik-client.yml"
 
 usage() { echo "pemakaian: $0 <slug> <prod|demo|staging> [--host <fqdn>] | --remove" >&2; exit 2; }
@@ -34,16 +34,13 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 OUT="$TRAEFIK_CLIENTS_DIR/${SLUG}-${TENANT_ENV}.yml"
+# Nama file bisa bentrok dengan router website (provision-web-client.sh: web-<slug>-<env>.yml) bila slug
+# Odoo diawali `web-` → jangan pernah menimpa/menghapus file milik skrip lain.
+if [[ -f "$OUT" ]] && ! grep -q '^# DIRENDER OTOMATIS oleh scripts/render-client-route.sh' "$OUT"; then
+  die "$OUT ada tetapi bukan hasil render-client-route.sh — tidak disentuh"
+fi
 
-hup() {
-  local since; since="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  docker exec "$TRAEFIK_CONTAINER" kill -HUP 1
-  sleep 3
-  # Traefik tidak punya API aktif (dashboard off) → cek log error konfigurasi sejak HUP.
-  if docker logs --since "$since" "$TRAEFIK_CONTAINER" 2>&1 | grep -E '"level":"(error|fatal)"' | grep -F -e "$ROUTE_NAME" -e "clients/"; then
-    die "Traefik melaporkan error untuk ${ROUTE_NAME} (log di atas)"
-  fi
-}
+hup() { traefik_hup "$ROUTE_NAME"; }
 
 exec 9>"/run/lock/odoo-route-${SLUG}-${TENANT_ENV}.lock"
 flock -n 9 || die "render ${SLUG}-${TENANT_ENV} sedang berjalan (lock)"
@@ -67,17 +64,8 @@ owner="$(docker exec -i "$PG_CONTAINER" psql -X -q -tA -U postgres -d postgres \
   -c "SELECT pg_get_userbyid(datdba) FROM pg_database WHERE datname = '${DB_NAME}'")"
 [[ "$owner" == "$POOL_PGUSER" ]] || die "DB ${DB_NAME} belum ada / owner '${owner}' ≠ ${POOL_PGUSER} — jalankan provision-odoo-db.sh dulu"
 
-# 2. DNS pre-check
-ok=0
-for r in 1.1.1.1 8.8.8.8; do
-  a="$(dig +short +time=3 +tries=2 A "$HOST" "@$r" 2>/dev/null | grep -E '^[0-9.]+$' | sort -u | tr '\n' ' ' || true)"
-  aaaa="$(dig +short +time=3 +tries=2 AAAA "$HOST" "@$r" 2>/dev/null | grep -E '^[0-9a-fA-F:]+$' || true)"   # hanya baris IPv6; abaikan ';; communications error ...' dari dig
-  [[ -z "$aaaa" ]] || die "DNS: ${HOST} punya AAAA di @$r (${aaaa}) — IPv4-only (ADR 0002 #4)"
-  if [[ -z "$a" ]]; then echo "DNS: @$r tidak menjawab/kosong untuk ${HOST}" >&2; continue; fi
-  [[ "$a" == "${VPS_IP} " ]] || die "DNS: A ${HOST} @$r = '${a% }' ≠ ${VPS_IP}"
-  ok=$((ok+1))
-done
-[[ $ok -ge 1 ]] || die "DNS pre-check gagal: tidak ada resolver yang mengembalikan A ${HOST} = ${VPS_IP}"
+# 2. DNS pre-check (lib/traefik-route.sh)
+dns_precheck "$HOST"
 
 # 3. hostname unik di antara router client
 if grep -l -F "Host(\`${HOST}\`)" "$TRAEFIK_CLIENTS_DIR"/*.yml 2>/dev/null | grep -v -x -F "$OUT"; then
