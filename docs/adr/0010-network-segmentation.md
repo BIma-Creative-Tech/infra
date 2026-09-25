@@ -1,6 +1,6 @@
 # ADR 0010 — Segmentasi network Docker: network DB per konsumen, `kc-edge`, edge Odoo per env
 
-- **Status:** proposed (menunggu GATE 1 plan 06)
+- **Status:** accepted (GATE 1 plan 06, user 2026-09-25)
 - **Tanggal:** 2026-09-25
 - **Penulis:** Analyst (FASE 1 plan 06)
 - **Terkait:** CLAUDE.md §3.2, §3.5, §3.6; QA `docs/qa/2026-09-25-t17b-platform-full.md` **QA-T17B-01** (High, B15) dan

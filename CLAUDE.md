@@ -215,8 +215,8 @@ Lisensi semua di atas: Apache-2/MIT/AGPL/LGPL — tercatat di `docs/adr/0001-sta
   - `dbfilter` global tetap ketat per pool (mis. `^[a-z0-9]+_(prod|demo)$`), `list_db=False`.
   - Mapping hostname → DB disimpan di control plane (`environment`) dan di-render ke
     dynamic config Traefik per client (`/opt/infra/traefik/dynamic/clients/<slug>.yml`).
-- **`list_db = False`** di prod pool; database manager hanya bisa diakses control plane
-  via jaringan internal dengan `admin_passwd` (master password) kuat.
+- **`list_db = False`** di prod pool; database manager tidak terjangkau dari container mana pun selain lewat Traefik
+  (router admin :8443 + `ipallowlist-admin`), `admin_passwd` (master password) kuat. Provisioning DB lewat `infra-job` (ADR 0009, 0010).
 - Provision DB baru: `docker exec odoo-pool-a odoo -c /etc/odoo/odoo.conf -d <db> -i base,<modul_dasar> --stop-after-init --without-demo=all` (demo DB: tanpa `--without-demo`).
 - **Dedicated instance** dipicu jika client: > N user aktif, butuh versi/addons berbeda,
   atau SLA terpisah. Threshold N diputuskan Analyst di ADR.
@@ -262,7 +262,10 @@ menjalankan skrip di `/opt/infra/scripts` dengan argumen tervalidasi — ADR 000
 Semua aksi dicatat audit (siapa, kapan, hasil). Role: `superadmin`, `ops`, `client_admin`, `client_user`.
 
 ### 3.5 Docker — aturan
-- Setiap stack: network internal sendiri + attach `proxy` hanya untuk service HTTP.
+- Setiap stack punya network internal sendiri. Konsumen Postgres memakai network `db-<konsumen>` sendiri (`--internal`,
+  anggota hanya `postgres` + konsumen), tidak ada network DB bersama, `pg_hba` per subnet konsumen. Backend HTTP hanya di
+  network edge khusus bersama Traefik (`odoo-edge*`, `kc-edge`, `*-edge`); prod dan staging tidak berbagi network edge.
+  `proxy` hanya untuk service HTTP yang belum punya edge sendiri (ADR 0010).
 - Postgres, Redis, Keycloak internal, Odoo: **tidak** publish port ke host.
 - Wajib: `restart: unless-stopped`, `mem_limit`/`cpus`, `healthcheck`, `logging` (json-file
   max-size 10m/3 files), `read_only: true` + `tmpfs` bila memungkinkan, `cap_drop: [ALL]`

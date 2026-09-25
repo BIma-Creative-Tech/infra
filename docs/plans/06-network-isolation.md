@@ -1,6 +1,6 @@
 # Plan 06 — Isolasi network: DB per konsumen, Keycloak `kc-edge`, edge Odoo per env (QA-T17B-01)
 
-- **Status:** proposed (menunggu GATE 1)
+- **Status:** APPROVED GATE 1 (user 2026-09-25 "lanjutkan" = semua rekomendasi §13: 1 recreate prod 22:00–23:00 WIB, staging siang; 2 pisah odoo-edge prod/staging; 3 kedua D-i-D; 4 pecah proxy → plan 07; 5 hapus `db` setelah 24 jam soak + QA hijau); CLAUDE.md §3.5/§3.2 diperbarui
 - **Tanggal:** 2026-09-25 · **Penulis:** Analyst (FASE 0/1, read-only)
 - **ADR:** `docs/adr/0010-network-segmentation.md` (proposed)
 - **Asal:** QA-T17B-01 (High), `docs/qa/2026-09-25-t17b-platform-full.md` §Ringkasan #1 + B15. Diverifikasi ulang oleh Lead dari
