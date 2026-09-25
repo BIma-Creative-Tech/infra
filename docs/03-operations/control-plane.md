@@ -107,9 +107,10 @@ CONTROL_PLANE_TAG=4fc3828 docker compose up -d
 # 3) permanen: kembalikan compose dari git (tanpa uid 950/951 dan mount), commit di repo infra
 git -C /opt/infra checkout 682e32b~1 -- web/control-plane/docker-compose.yml     # staging: 84f8246~1 -- staging/control-plane/
 ```
-**UNVERIFIED:** image `4fc3828` dengan compose plan 05 (worker uid 950/951 + mount + env `INFRA_JOBS_*`) belum pernah diuji —
-langkah 2 hanya sementara; bila worker tidak healthy, lakukan langkah 3. Rollback 6d94d2b → 4fc3828 tidak dijalankan dry-run di
-plan 05. Pulihkan DB dari backup hanya bila data rusak (migrasi tidak perlu dibalik).
+**Diuji di staging 2026-09-25 16:50 WIB:** `CONTROL_PLANE_TAG=4fc3828 docker compose up -d` dengan compose plan 05 (worker uid 951 +
+mount + env `INFRA_JOBS_*`) → migrate no-op (4 migrasi tetap), web + worker healthy, `/login` 200, worker hanya queue `noop` (env
+`INFRA_JOBS_*` diabaikan image lama); maju lagi ke `6d94d2b` → healthy, "jembatan infra-job aktif". Langkah 3 hanya bila langkah 2 gagal.
+Pulihkan DB dari backup hanya bila data rusak (migrasi tidak perlu dibalik).
 
 ## Router Traefik (`dynamic/platform/cp.yml`)
 
