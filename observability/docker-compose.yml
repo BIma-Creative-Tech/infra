@@ -184,9 +184,13 @@ services:
 
   uptime-kuma:
     <<: *base
-    # Varian rootless, ADR 0001. Dijalankan sebagai uid 10101 (bukan uid 1000 `node` image) karena
-    # uid 1000 di host = user `admin` → data Kuma tidak dimiliki user login host.
-    image: louislam/uptime-kuma:2.5.5-rootless@sha256:c4e17ce033deb811aff8a61a5f8f736f35b1bd937458ddeec46c59ca190f0e03
+    # Varian slim-rootless (QA-T17B-04, keputusan user 2026-09-25; sebelumnya 2.5.5-rootless, ADR 0001). Dijalankan
+    # sebagai uid 10101 (bukan uid 1000 `node` image) karena uid 1000 di host = user `admin`.
+    # slim = base `base2-slim` TANPA chromium, fonts, mariadb-server & env UPTIME_KUMA_ENABLE_EMBEDDED_MARIADB
+    # (docker/debian-base.dockerfile tag 2.5.5). Dampak: monitor "Real Browser" (Chromium lokal) tidak bisa dipakai —
+    # per 2026-09-25 tidak ada (8 monitor: 6 http, 2 port; remote_browser 0). MariaDB embedded tidak dipakai (sqlite).
+    # Digest index multi-arch diverifikasi `docker buildx imagetools inspect` 2026-09-25.
+    image: louislam/uptime-kuma:2.5.5-slim-rootless@sha256:a292237a108fa8843d09bb4066e738f02e913ef893542740f80c26556601ab77
     container_name: uptime-kuma
     user: "10101:10101"
     environment:
