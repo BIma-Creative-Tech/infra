@@ -8,6 +8,10 @@ file `VERSION`.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-25
+
+Rilis bertag pertama repo `infra`: mencakup semua perubahan sejak bootstrap (FASE 0/1, T01–T16, H1–H7, plan 03 web client template). `VERSION` 0.1.0 sebelumnya tidak pernah di-tag.
+
 ### Plan 03 W5 — dokumentasi & versi web client template (2026-09-25, branch `docs/docs-versioning-w5`)
 
 #### Added
@@ -147,4 +151,5 @@ file `VERSION`.
 - `docs/discovery/2026-09-23.md`: fakta environment VPS nyata (OS, jaringan, keamanan host,
   software terpasang) sebelum bootstrap apa pun.
 
-[Unreleased]: docs/plans/00-gate1-summary.md
+[Unreleased]: https://github.com/bctech-adm/infra/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/bctech-adm/infra/releases/tag/v0.2.0
