@@ -28,6 +28,9 @@
   **≈ 2 312 → ≈ 1 672 MiB** (≈ 1 096 setelah DRMS prod) karena drms-pk-stg + web-starter-staging belum tercatat di
   § Decision; usul T07 cadangan host 1 152 MiB **dibatalkan**; runway disk ≈ 1,3–2 hari akibat build lokal (risiko
   utama); target 3–5 tenant Odoo kecil dipertahankan (+3–4), website Next.js ≤ 3–4. Angka lama tidak diubah.
+- 2026-09-25 (T19 follow-up #1, infra): **§ T19 §8.1** batas GC BuildKit di `daemon.json` (`builder.gc`: max 10 GiB,
+  reserved 2 GiB, min-free 56 GiB Bfree); kunci diverifikasi dari source moby `docker-v29.8.1`. Belum diterapkan (butuh
+  restart dockerd, dijadwalkan Lead).
 - 2026-09-25 (grafana/kuma, sebelum T19): grafana 256 → 384 MiB, uptime-kuma 192 → 320 MiB (tabel § Decision).
 
 > **SEMUA ANGKA DI § "Decision" DI BAWAH INI = ESTIMASI** kecuali yang diberi sumber resmi.
@@ -370,6 +373,66 @@ besar (§ Decision poin 5 dan `00-server-environment.md` §1 "Skala lanjut").
   limit boleh sampai RAM − cadangan + 1 GiB selama p95 nyata < 50% RAM. Untuk keduanya perlu **riwayat memori per
   container** (sekarang tidak ada): usul collector ringan (mis. timer yang menulis `docker stats` ke textfile
   node-exporter — desain/verifikasi opsi flag di tugas terpisah) sebagai prasyarat.
+
+### 8. Tindak lanjut T19 yang disetujui user (2026-09-25)
+
+#### 8.1 Batas GC BuildKit (R1 bagian "cegah berulang") — `ansible/roles/docker` → `/etc/docker/daemon.json`
+
+**Kunci [NYATA, diverifikasi dari source/docs versi pin Docker Engine 29.8.1, build `464cd50` = tag `docker-v29.8.1`]:**
+`builder.gc.{enabled, defaultReservedSpace, defaultMaxUsedSpace, defaultMinFreeSpace}` — struct `BuilderGCConfig` di
+moby `daemon/config/builder.go` (tag `docker-v29.8.1`) dan contoh `daemon.json` di docker/cli `docs/reference/dockerd.md`
+(tag `v29.8.1`). `defaultKeepStorage` = alias **usang** untuk `defaultReservedSpace` (lantai, bukan plafon) → tidak
+dipakai. Nilai diparse `units.RAMInBytes` (go-units v0.5.0): `GB` = GiB (1024³), **persen tidak didukung** di
+`daemon.json`. Tanpa `policy` custom → dockerd memakai 4 aturan bawaan (`daemon/internal/builder-next/worker/gc.go`
+`DefaultGCPolicy`, BuildKit v0.33.0) dengan tiga ambang ini.
+
+| Kunci | Nilai | Arti (BuildKit v0.33.0 `cache/manager.go` `calculateKeepBytes`) |
+|---|---|---|
+| `enabled` | `true` | GC aktif (default juga `true`; ditulis eksplisit) |
+| `defaultMaxUsedSpace` | `10GB` | plafon build cache (tidak-shared) ±10 GiB |
+| `defaultReservedSpace` | `2GB` | lantai: cache tidak dipangkas di bawah 2 GiB |
+| `defaultMinFreeSpace` | `56GB` | pangkas cache selama statfs **Bfree** < 56 GiB. Bfree ≈ `df` Avail + ±15,6 GiB (blok reserved + overhead ext4; NYATA `df -B1 /` 2026-09-25) → setara `df` Avail ≥ ±40 GiB ≈ ≥ 20% dari 193G (Use% ≤ ±79%) |
+
+Sebelumnya (default dihitung dari ukuran disk, `docker buildx inspect default` [NYATA]): reserved **18,63 GiB**, max
+144,4 GiB, min-free 36,32 GiB — lantai 18,6 GiB itu sebabnya build cache sempat 30 GB. Catatan: `minFreeSpace` hanya
+memangkas **build cache**; image, volume, dan worktree `/opt/src` tetap harus dibersihkan manual (R1, destruktif →
+konfirmasi user).
+
+**`dockerd --validate` TIDAK memeriksa isi `builder`** [NYATA]: file dengan `"defaultMaxUsedSpace": "10XB"` maupun kunci
+salah ketik tetap `configuration OK`. Nilai salah → dockerd **gagal start** (`error creating buildkit instance`,
+`daemon/command/daemon.go`); kunci salah ketik → diabaikan diam-diam. Karena itu verifikasi wajib lewat
+`docker buildx inspect default` setelah restart.
+
+**Dampak penerapan:** `builder` tidak ada di daftar opsi reload (SIGHUP) `dockerd.md` §"Configuration reload behavior"
+maupun `daemon/reload.go` → **restart dockerd wajib**; handler role `Restart docker` (`systemctl restart docker`)
+otomatis terpicu saat `daemon.json` berubah. `live-restore: true` (terpasang) → container tetap berjalan (opsi
+bridge/storage driver tidak berubah, syarat live-restore docs.docker.com "Live restore upon restart"). Selama jendela
+restart (± detik): Docker API/`docker compose`/`infra-job`/`infra-deploy` tidak tersedia, healthcheck & restart policy
+container tidak dievaluasi, log container tertahan di FIFO 64K (proses bisa tertahan menulis log bila jendela lama).
+GC berjalan ±1 s setelah start (throttle 1 menit) dan setelah tiap build (BuildKit `control/control.go`).
+
+**Langkah terapkan (Lead, jendela terjadwal, tidak ada build berjalan):**
+```bash
+# 0. pra-cek & snapshot
+pgrep -af 'buildx|docker build|compose.*build' || echo "tidak ada build"
+cp -a /etc/docker/daemon.json /etc/docker/daemon.json.bak-t19
+docker ps --format '{{.Names}}' | sort | xargs docker inspect -f '{{.Name}} {{.State.StartedAt}}' > /root/t19-before.txt
+docker buildx inspect default | sed -n '/GC Policy/,$p' > /root/t19-gc-before.txt
+# 1. terapkan (handler me-restart docker)
+cd /opt/infra/ansible && /opt/ansible-venv/bin/ansible-playbook site.yml --tags docker --check --diff   # diff hanya blok "builder"
+/opt/ansible-venv/bin/ansible-playbook site.yml --tags docker --diff
+# 2. verifikasi
+systemctl is-active docker && docker info --format 'live-restore={{.LiveRestoreEnabled}}'
+docker buildx inspect default | sed -n '/GC Policy/,$p'
+#   harapan: rule#0 Max Used Space 488.3MiB (512 MB minimum); rule#1–3 Reserved Space 2GiB, Max Used Space 10GiB,
+#   Min Free Space 56GiB; rule#1 Keep Duration 1440h0m0s; rule#3 All: true
+docker ps --format '{{.Names}}' | sort | xargs docker inspect -f '{{.Name}} {{.State.StartedAt}}' | diff /root/t19-before.txt - && echo "StartedAt tidak berubah"
+docker system df   # Build Cache ≤ ±10 GB setelah GC berikutnya
+systemctl start infra-healthcheck.service && systemctl status infra-healthcheck.service --no-pager | tail -5
+```
+**Rollback:** `cp -a /etc/docker/daemon.json.bak-t19 /etc/docker/daemon.json && systemctl restart docker` (container
+tetap berjalan, live-restore), lalu `git revert` commit role agar Ansible tidak menulis ulang. Bila dockerd gagal start:
+`journalctl -u docker -n 50 --no-pager` → rollback yang sama.
 
 Status ADR tetap **accepted**; angka § Decision yang berubah tidak ditimpa, dibaca bersama bagian ini.
 

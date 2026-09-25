@@ -94,7 +94,8 @@ bootstrap; item **[CLAUDE]** dikerjakan agent setelah discovery.
 6. Swap file 4 GB, timezone `Asia/Jakarta`, locale `en_US.UTF-8`.
 7. Docker daemon.json: `log-driver json-file`, `max-size 10m`, `max-file 3`,
    `live-restore true`, `userland-proxy false`, `no-new-privileges true`, `icc false`
-   (isolasi antar network default).
+   (isolasi antar network default); sejak T19 (2026-09-25) juga `builder.gc` (build cache ≤ 10 GiB,
+   lantai 2 GiB, pangkas bila Bfree < 56 GiB — `docs/adr/0004-capacity.md` § "Pengukuran ulang T19" §8.1).
 8. Struktur `/opt/infra` (owner `root:admin`, 750; `*/data` 700 owner service).
    > UPDATED 2026-09-23: owner **`deploy:docker`** yang diusulkan sebelumnya **ditolak** —
    > anggota grup `docker` setara root di host, dan `deploy` yang bisa menulis skrip yang

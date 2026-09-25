@@ -16,3 +16,22 @@ docker_daemon_json:
   userland-proxy: false
   no-new-privileges: true
   icc: false
+  # T19 follow-up (ADR 0004 §"Pengukuran ulang T19" R1; keputusan user 2026-09-25): batasi build cache BuildKit
+  # builder bawaan (driver `docker`). Kunci diverifikasi dari moby docker-v29.8.1 daemon/config/builder.go
+  # (BuilderGCConfig: Enabled, DefaultReservedSpace, DefaultMaxUsedSpace, DefaultMinFreeSpace) + docker/cli
+  # v29.8.1 docs/reference/dockerd.md. Nilai diparse `units.RAMInBytes` → "GB" = GiB (1024³), TANPA persen.
+  # Tanpa `policy` → dipakai 4 aturan bawaan (daemon/internal/builder-next/worker/gc.go DefaultGCPolicy)
+  # dengan tiga ambang di bawah. TIDAK memakai `defaultKeepStorage` (usang; di v29 = alias reservedSpace/lantai)
+  # dan tidak memakai `keepDuration` di `policy` custom (bukan field BuilderGCRule v29.8.1 → diabaikan diam-diam).
+  # `builder` TIDAK termasuk opsi reload (SIGHUP) → berlaku setelah restart dockerd (live-restore menjaga container).
+  builder:
+    gc:
+      enabled: true
+      # Plafon build cache (tidak-shared) ±10 GiB.
+      defaultMaxUsedSpace: 10GB
+      # Lantai: GC tidak memangkas cache di bawah ini.
+      defaultReservedSpace: 2GB
+      # Pangkas cache bila statfs Bfree < 56 GiB. Bfree termasuk ±15,6 GiB blok reserved/overhead ext4 yang tidak
+      # terlihat di `df` Avail → 56 GiB Bfree ≈ 40 GiB Avail ≈ ≥ 20% dari 193G (df Use% ≤ ±79%).
+      # Hanya memangkas BUILD CACHE, bukan image/volume/worktree.
+      defaultMinFreeSpace: 56GB
