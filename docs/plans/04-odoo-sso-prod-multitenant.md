@@ -1,7 +1,7 @@
 # Plan 04 — SSO Odoo prod multi-tenant (`odoo-pool-a`, Keycloak realm `platform`, `sh_auth_oidc`)
 
-- Status: **APPROVED GATE 1 (user, 2026-09-25): semua rekomendasi §8** — 1 satu realm, 2 file per DB (B), 3 onboarding ops+undangan+TOTP admin tenant+Forgot password+admin break-glass, 4 role `odoo_access`, 5 recreate kapan saja setelah QA staging lulus; CLAUDE.md §3.2 diperbarui.
-- Tanggal: 2026-09-25 · Penulis: Analyst · ADR: `docs/adr/0008-odoo-sso-multitenant.md` (proposed)
+- Status: **EXECUTED (2026-09-25)** — S1–S8 selesai, hasil di §9. Sebelumnya: APPROVED GATE 1 (user, 2026-09-25): semua rekomendasi §8 — 1 satu realm, 2 file per DB (B), 3 onboarding ops+undangan+TOTP admin tenant+Forgot password+admin break-glass, 4 role `odoo_access`, 5 recreate kapan saja setelah QA staging lulus; CLAUDE.md §3.2 diperbarui.
+- Tanggal: 2026-09-25 · Penulis: Analyst · ADR: `docs/adr/0008-odoo-sso-multitenant.md` (accepted)
 - Terkait: CLAUDE.md §3.2 (Login, dbfilter header), §3.4 (control plane), §3.6; ADR 0003 D1/D2; T15 (`docs/03-operations/odoo.md`
   §SSO); `docs/03-operations/keycloak.md`; `docs/03-operations/crowdsec.md`; repo `odoo-addons-shared` (`/opt/src/odoo-addons-shared`).
 
@@ -145,7 +145,10 @@ Rate-limit: F10 (token back-channel satu bucket) + `/sh_auth_oidc/` belum dibata
 - AC-S7 `/sh_auth_oidc/authorize` > limit dari 1 IP → 429; alur normal 1 user = 200/303 semua.
 
 **QA lintas tenant (S5 staging, S7 prod smoke)** — `demo_staging` + `ssotest_staging`, user `u_a` hanya tertaut di A:
-- AC-Q1 `u_a` login SSO di host A → `get_session_info.db = demo_staging`; di host B → `/web/login?oauth_error=3`, tanpa sesi.
+- AC-Q1 `u_a` login SSO di host A → `get_session_info.db = demo_staging`; di host B → ditolak tanpa sesi: dengan role gate (Q4) aktif
+  dan `u_a` tanpa role `odoo_access` di client B → `/web/login?oauth_error=2` (role gate, sebelum lookup user); bila `u_a` punya role
+  client B tetapi tidak tertaut di DB B → `oauth_error=3`. *(Teks dikoreksi S8 2026-09-25: versi awal hanya menyebut `oauth_error=3`,
+  ditulis sebelum Q4 disetujui — catatan QA S5.)*
 - AC-Q2 Code/ID token client A disuntik ke callback B → ditolak (`oauth_error=2`; log "missing, unknown or already used state" atau `invalid_grant`/audience).
 - AC-Q3 Authorize ke Keycloak `client_id=odoo-a` + `redirect_uri` host B → Keycloak "Invalid parameter: redirect_uri".
 - AC-Q4 Header `X-Odoo-Database: demo_staging` / `X-Sh-Odoo-Db` palsu / `X-Forwarded-Host` palsu pada `/sh_auth_oidc/*` host B → tetap DB B, redirect_uri host B.
@@ -220,3 +223,64 @@ Router Traefik baru dihapus = hot-reload.
    **Rekomendasi: ya** (kecil, opsional per provider; wajib diverifikasi di staging).
 5. **Jendela restart** — satu recreate `odoo-pool-a` (±10–30 s, saat ini hanya tenant demo) + satu `odoo-staging`; Keycloak tidak restart.
    **Rekomendasi: boleh kapan saja setelah QA staging lulus, tanpa pemberitahuan (belum ada client nyata).**
+
+## 9. Hasil eksekusi (2026-09-25)
+
+Sumber: git log `main` infra (sejak `9069772`), addons `main` `35e6a99`, QA `docs/qa/2026-09-25-plan04-staging.md` (S5) dan
+`docs/qa/2026-09-25-plan04-prod.md` (S7), fakta Lead. Waktu WIB kecuali disebut UTC.
+
+### 9.1 Task
+
+| ID | Hasil | Commit / bukti |
+|---|---|---|
+| S1 | `sh_auth_oidc` 19.0.1.2.0: sumber secret `file` (`<SH_OIDC_SECRET_DIR>/<cr.dbname>`), role gate `sh_oidc_required_client_role`, migrasi `post-migrate`, sumber ICP dihapus; README | addons `ed7feaf`, `35e6a99` |
+| S2 | `provision-odoo-sso.sh`, `odoo-sso-user.sh`, `lib/keycloak-admin.sh`, `lib/odoo_sso_kc.py`, `lib/odoo-exec.sh`; compose kedua pool (env `SH_OIDC_SECRET_DIR=/run/sh-oidc`, `SH_OIDC_TRUSTED_ISSUERS`, mount ro `secrets/oidc`) | `129a195`, `08739f4`, merge `1606e2a` |
+| S3 | router `auth-oidc-backchannel` + `ratelimit-oidc-backchannel` (300/menit, burst 100); router tenant `<r>-oidc` + `ratelimit-oidc` (20/menit, burst 20) | `d26790a`, merge `4af5bbb` |
+| S4 | staging: submodule `35e6a99`, recreate `odoo-staging` 10:07 (±11 s; + satu restart staging tambahan ±10 s oleh Lead), `demo_staging` → sumber file + role gate, tenant `ssotest_staging` (route + SSO) | `18d0b5d`, `b966958`; backup `demo_staging-20260925-100640-pre-plan04` |
+| S5 | QA staging 11/11 PASS setelah BUG-S5-01 diperbaiki | `169d8c4`, `8d83ca8`, merge `6f8762d` |
+| BUG-S5-01 | AppSec CRS SQLi (942100) FP pada back-channel token (±1/22 login) → exclusion sempit `local/oidc-backchannel-exclusions`; recreate crowdsec 10:50:07–10:50:54 (±47 s, semua host ber-CrowdSec 403) | `1c2a528` |
+| S6 | prod: backup `demo_demo-20260925-110513-pre-plan04`, submodule pool-a `35e6a99`, recreate `odoo-pool-a` 11:05:47–11:05:55 (±8 s), client `odoo-demo-demo` (realm `platform`), provider 4 sumber file + role gate, b2b, Odoo.com OFF | `e169add` |
+| S7 | QA prod smoke PASS, 0 temuan | `0721171`, merge `2240251` |
+| S8 | docs, runbook, ADR 0008 hasil, ADR 0003 revisi, CHANGELOG, CHANGELOG + tag addons `v19.0.1.2.0` (lokal) | branch `docs/docs-versioning-plan04` |
+
+Backup: `/opt/infra/backups/odoo/demo_staging-20260925-100640-pre-plan04.{dump,filestore.tgz}`,
+`/opt/infra/backups/odoo/demo_demo-20260925-110513-pre-plan04.{dump,filestore.tgz}`.
+
+### 9.2 Acceptance
+
+| AC | Hasil | Bukti |
+|---|---|---|
+| AC-M1 | PASS | test baru di addons `ed7feaf` (secret file per DB, client_id tenant lain, dbname invalid, issuer tak terpercaya, rotasi, role gate); diverifikasi Lead di S1 — log test tidak disimpan di repo, tidak dijalankan ulang di S8 |
+| AC-M2 | PASS | `__manifest__` `19.0.1.2.0`; README §Configuration/§Client secret/§Role gate (`35e6a99`); `grep bimacreative` modul (non-test) hanya `author` (dicek S8) |
+| AC-S1 | PASS | diverifikasi Lead di S4 (QA S5 §header); file secret `440 root:messagebus` (gid 101), byte terakhir bukan `0a` (dicek S8 untuk `demo_staging`, `ssotest_staging`, `demo_demo`) |
+| AC-S2 | PASS | diverifikasi Lead di S4 (QA S5 §header); `shellcheck` tidak terpasang di host saat S8 → tidak diulang |
+| AC-S3 | PASS | tenant kedua `ssotest_staging` tanpa recreate pool — diverifikasi Lead di S4 (QA S5 §header) |
+| AC-S4 | PASS | install modul one-off → link provider tanpa restart — diverifikasi Lead di S4 (QA S5 §header) |
+| AC-S5 | PASS | recreate staging ±11 s (10:07); prod ±8 s (11:05:47–11:05:55) |
+| AC-S6 | PASS | diverifikasi live di S4 (commit `18d0b5d`) |
+| AC-S7 | PASS | diverifikasi live di S4 (commit `18d0b5d`) |
+| AC-Q1 | PASS | QA S5 §AC-Q1: host A `db=demo_staging`; host B `oauth_error=2` (role gate); suplemen role B tanpa tautan → `oauth_error=3` |
+| AC-Q2 | PASS | QA S5 §AC-Q2 (state asing → `oauth_error=2`; code client A + state B → token endpoint 400 → `oauth_error=2`) |
+| AC-Q3 | PASS | QA S5 §AC-Q3 (Keycloak 400 `Invalid parameter: redirect_uri`) |
+| AC-Q4 | PASS | QA S5 §AC-Q4; QA S7 §Q4 (prod tetap `demo_demo`) |
+| AC-Q5 | PASS | QA S5 §AC-Q5 (cookie A di B → `db=None`; sesi A ikut ter-logout) |
+| AC-Q6 | PASS | QA S5 §AC-Q6 (redirect_uri ditolak; secret dari file DB B; revert fingerprint MATCH) |
+| AC-Q7 | PASS | QA S5 §AC-Q7 (`res_users` 6 → 6, `oauth_error=3`) |
+| AC-Q8 | PASS | QA S5 §AC-Q8; QA S7 §Q8 (prod) |
+| AC-Q9 | PASS | run pertama FAIL (BUG-S5-01) → regresi setelah `1c2a528`: 42/42 login, 0× 403 back-channel, tanpa alert baru; SQLi dari IP lain tetap 403 (QA S5 §Regresi); prod 12/12 (QA S7) |
+| AC-Q10 | PASS | QA S5 §AC-Q10; QA S7 §Q10 (role dicabut → `oauth_error=2`, dipulihkan) |
+| AC-P1 | PASS | QA S7 §AC-P1 (`db=demo_demo`, klaim `resource_access` benar; user uji dihapus 204→404) |
+| AC-P2 | PASS | QA S7 §AC-P2 (traefik/keycloak/odoo-pool-a/crowdsec healthy, `infra-healthcheck` exit 0, Kuma monitor 3 UP) |
+
+Tambahan QA: klaim role `resource_access.<client>.roles` muncul di ID token walau `fullScopeAllowed=false` (risiko §7 UNVERIFIED
+tertutup); `/web/signup` prod → 404.
+
+### 9.3 Open items
+
+| # | Item | Pemilik |
+|---|---|---|
+| 1 | Aktifkan "Forgot password" (`resetPasswordAllowed`) realm `platform` via console (GATE 1 #3; `automation` tanpa `manage-realm`) | **user** |
+| 2 | S9 — integrasi control plane (job `odoo_sso_provision` / `odoo_sso_user` memanggil skrip via wrapper root, kontrak §3.4) | plan terpisah |
+| 3 | `staging/odoo/.env` (dan env container `odoo-staging`) masih memuat `SH_OIDC_ODOO_DEMO_STAGING_SECRET` dari T15 walau provider `demo_staging` sudah sumber `file` — hapus pada recreate staging berikutnya (ditemukan S8, `cut -d= -f1 .env`) | Lead / infra |
+| 4 | Realm-export git belum memuat client `odoo-*` (butuh `manage-realm` / partial export console) | user / Lead |
+| 5 | Backlog tetap: RP-initiated logout; rate-limit login kantor di balik NAT (§7) | backlog |

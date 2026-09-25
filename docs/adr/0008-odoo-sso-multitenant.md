@@ -87,11 +87,36 @@ Fakta (diverifikasi 2026-09-25, perintah di plan 04 §2):
   melihat user semua client → delegasi admin ke client hanya lewat control plane, tidak lewat console Keycloak.
 - (−) Satu recreate pool prod (≈10–30 s, estimasi — diukur di staging) untuk mount direktori secret + env baru.
 
+### Hasil (plan 04 dieksekusi 2026-09-25)
+
+- Modul `sh_auth_oidc` **19.0.1.2.0** (addons `ed7feaf`/`35e6a99`) di kedua pool. Nama final: field provider
+  `sh_oidc_secret_source` (`file` default | `env` legacy) dan `sh_oidc_required_client_role`; env pool `SH_OIDC_SECRET_DIR=/run/sh-oidc`
+  + `SH_OIDC_TRUSTED_ISSUERS` (wajib untuk semua sumber); sumber ICP `sh_auth_oidc.client_secret.<id>` **dihapus**. File dibaca
+  setiap token exchange, tanpa cache.
+- Decision #3 role gate **diaktifkan** (GATE 1 Q4): client role `odoo_access` + mapper klaim literal; role gate dievaluasi sebelum
+  lookup user → user tanpa role ditolak `oauth_error=2`; user dengan role tetapi tanpa tautan → `oauth_error=3` (QA S5 AC-Q1/Q7/Q10).
+  Klaim role muncul di ID token walau `fullScopeAllowed=false` (QA S5, `generate-example-id-token`).
+- Owner file secret: `root:101` (gid `odoo` di container; di host bernama `messagebus`, tanpa anggota) — file `0440`, dir `0750`.
+- Downtime nyata (satu kali): `odoo-staging` ±11 s (10:07 WIB; + satu restart staging tambahan ±10 s), `odoo-pool-a` ±8 s
+  (11:05:47–11:05:55 WIB) — di bawah estimasi 10–30 s. Onboarding tenant kedua (`ssotest_staging`) tanpa recreate (AC-S3).
+- Edge Decision #6 berlaku, plus satu konsekuensi yang tidak diperkirakan: **BUG-S5-01** — CRS inband (rule 942100, SQLi)
+  kadang memblok POST token back-channel (authorization_code acak cocok pola SQLi, ±1/22 login). Ditutup dengan exclusion sempit
+  `local/oidc-backchannel-exclusions` (`security/crowdsec/appsec-configs/oidc-backchannel-exclusions.yaml`, commit `1c2a528`,
+  disetujui user): hanya tag `attack-sqli`, hanya in-band POST ke token endpoint realm `platform`/`platform-staging` dari
+  `10.100.0.1`. Regresi 42/42 (staging) dan 12/12 (prod) login tanpa 403; SQLi dari IP lain tetap 403 (`crowdsec.md`).
+- QA: staging 11/11 PASS (`docs/qa/2026-09-25-plan04-staging.md`), prod smoke PASS (`docs/qa/2026-09-25-plan04-prod.md`).
+  Tenant SSO aktif: `demo_demo` (prod pool, client `odoo-demo-demo`), `demo_staging`, `ssotest_staging` (tenant regresi permanen).
+- Belum: "Forgot password" realm `platform` (aksi user via console); integrasi control plane (S9, plan terpisah); env lama
+  `SH_OIDC_ODOO_DEMO_STAGING_SECRET` masih ada di `.env` staging (tidak dipakai). Operasional: `docs/03-operations/odoo.md` §SSO,
+  `docs/runbooks/odoo-sso-tenant.md`.
+
 ## Security implications
 
 - File secret: host `/opt/infra/<pool>/secrets/oidc/<db>` `0440 root:101`, direktori `0750 root:101`, di luar git,
   ditulis `printf '%s'` (tanpa newline — lesson 2026-09-23). Catatan: gid 101 di host = `messagebus` (tanpa anggota);
-  alternatif owner `100` (host `dhcpcd`) — infra-engineer memilih dan mencatat.
+  alternatif owner `100` (host `dhcpcd`) — **dipilih gid 101** (`ODOO_GID=101`, `scripts/lib/odoo-pools.sh`, plan 04 S2).
+- Exclusion WAF back-channel (BUG-S5-01): CRS SQLi tidak diperiksa pada POST token endpoint realm `platform(-staging)` dari
+  `10.100.0.1` saja; kompensasi = autentikasi client + code sekali pakai + PKCE di endpoint itu; SQLi dari sumber lain tetap diblok.
 - `dbname` dari cursor, bukan input; regex menolak path traversal. Issuer tetap harus terpercaya (mencegah admin tenant
   mengarahkan token endpoint ke server sendiri untuk mengekstrak secret tenant-nya).
 - Admin tenant (`base.group_system`) masih bisa mengubah provider/tautan di DB-nya sendiri (bukan batas keamanan terhadap
@@ -101,7 +126,7 @@ Fakta (diverifikasi 2026-09-25, perintah di plan 04 §2):
 
 ## Rollback
 
-- Modul: provider kembali ke sumber env (`sh_oidc_client_secret_env`) atau ICP; submodule kembali ke `5fa8b70`
+- Modul: provider kembali ke sumber env (`sh_oidc_client_secret_env`; sumber ICP sudah dihapus di 19.0.1.2.0); submodule kembali ke `5fa8b70`
   + `-u sh_auth_oidc` per DB terdampak; recreate pool.
 - Per tenant: provider *Allowed* OFF, lalu `sh_auth_oidc.password_login_policy=allow` atau hapus tautan user
   (`odoo.md` §Rollback). Client Keycloak di-*disable* (bukan dihapus) oleh `provision-odoo-sso.sh --disable`.
@@ -111,3 +136,8 @@ Fakta (diverifikasi 2026-09-25, perintah di plan 04 §2):
 
 - §3.2 Login: tambahkan "satu client Keycloak `odoo-<slug>-<env>` per tenant-env di realm `platform`/`platform-staging`;
   secret client per DB dari file platform (`SH_OIDC_SECRET_DIR/<db>`), bukan env per tenant (ADR 0008)".
+
+## Riwayat revisi
+
+- 2026-09-25 (S8 docs-versioning): §Consequences → Hasil (plan 04 EXECUTED), gid 101 dicatat, BUG-S5-01 exclusion dirujuk.
+  Perubahan CLAUDE.md §3.2 di atas sudah diterapkan (`9069772`).

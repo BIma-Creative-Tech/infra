@@ -181,3 +181,10 @@ image). Dependensi pihak ketiga baru hanya lewat ADR + audit (§3.6 "audit modul
   belum dimigrasi/portal tidak terkunci); saklar rollback per DB `sh_auth_oidc.password_login_policy = allow`
   (nilai lain/kosong = aktif). Install `auth_oauth` menarik `auth_signup` (default `invitation_scope=b2c`) →
   per tenant SSO di-set `b2b` dan provider bawaan *Odoo.com Accounts* (implicit) dinonaktifkan.
+- 2026-09-25 (plan 04, ADR 0008 accepted — **menggantikan sebagian** revisi 2026-09-23 T09/T10 di atas): untuk tenant, secret
+  client OIDC **tidak lagi** dari env `SH_OIDC_<CLIENT>_SECRET` per tenant, melainkan file platform per DB
+  `<SH_OIDC_SECRET_DIR>/<cr.dbname>` (`sh_auth_oidc` 19.0.1.2.0, `sh_oidc_secret_source=file`); env pool yang diperlukan hanya
+  `SH_OIDC_SECRET_DIR` + `SH_OIDC_TRUSTED_ISSUERS`. Sumber ICP `sh_auth_oidc.client_secret.<id>` dihapus dari modul (tetap
+  "bukan ICP di DB"). Sumber env masih didukung modul hanya untuk kompatibilitas. Prinsip lain (tanpa auto-create, `oauth_uid`=`sub`,
+  kebijakan password lokal T15) tidak berubah; ditambah role gate `odoo_access` per client. Lihat
+  `docs/adr/0008-odoo-sso-multitenant.md`.

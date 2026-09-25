@@ -52,6 +52,10 @@ SAMEORIGIN` + CSP `frame-ancestors 'self'`; admin console memakai iframe same-or
 | `master` | hanya admin platform. Brute force ON (5 gagal, tunggu 60 s naik s/d 15 m), password policy `length(16) and maxLength(128) and upperCase(1) and lowerCase(1) and digits(1) and specialChars(1) and notUsername and notEmail and passwordHistory(5)`, event login+admin ON (7 hari), `frontendUrl` :8443 |
 | `platform`, `platform-staging` | `sslRequired=external`, `registrationAllowed=false`, brute force ON (sama), password policy sama dengan `length(12)`, `resetPasswordAllowed=false` & `verifyEmail=false` (mail belum ada, T11), event login+admin ON (7 hari) |
 
+SMTP realm `platform`/`platform-staging` aktif sejak 2026-09-23 (`auth-noreply@bimacreative.tech`) — dipakai undangan
+`execute-actions-email` plan 04. **"Forgot password" (`resetPasswordAllowed`) realm `platform` masih OFF — menunggu user
+mengaktifkan via console** (plan 04 GATE 1 #3; `automation` tidak punya `manage-realm`).
+
 Export (tanpa secret) di `identity/keycloak/realm-export/{platform,platform-staging}.json` — dibuat dengan
 Admin REST **partial export** (`POST /admin/realms/<r>/partial-export?exportClients=true&exportGroupsAndRoles=true`):
 tanpa user, key provider tanpa `privateKey`/`secret`, client tanpa field `secret`. Cek sebelum commit:
@@ -123,6 +127,36 @@ docker compose down                 # stop; data di Postgres
   → `docker compose up -d`.
 - Upgrade: ubah tag+digest di `Containerfile` → `docker compose up -d --build`; baca upgrading guide dulu.
 
+## Client Odoo per tenant (plan 04, ADR 0008)
+
+Satu client OIDC **per tenant-env** `odoo-<slug>-<env>` di realm `platform` (env `prod`/`demo`) atau `platform-staging`
+(env `staging`); tidak ada realm per client. Client dibuat/diperbarui **hanya** oleh `scripts/provision-odoo-sso.sh`
+(idempoten; representasi di `scripts/lib/odoo_sso_kc.py`), user oleh `scripts/odoo-sso-user.sh` — keduanya lewat
+`scripts/lib/keycloak-admin.sh` (client `automation`, Admin REST via `:8443`). Prosedur: `docs/runbooks/odoo-sso-tenant.md`;
+sisi Odoo: `odoo.md` §SSO.
+
+| Aspek | Nilai |
+|---|---|
+| Representasi | confidential, standard flow saja, PKCE `S256`, ID token RS256, `fullScopeAllowed=false`, default scopes `basic profile email acr`, optional kosong, web origins kosong |
+| Redirect URI | eksak `https://<host>/sh_auth_oidc/callback` untuk **setiap** host tenant-env; host baru → jalankan ulang skrip dengan daftar `--host` lengkap (PUT) |
+| Role gate | client role `odoo_access` (deskripsi `Login Odoo <db> (sh_auth_oidc role gate)`); user tenant diberi role oleh `odoo-sso-user.sh --grant`, dicabut `--revoke` |
+| Mapper | *User Client Role* (`oidc-usermodel-client-role-mapper`), multivalued, klaim **literal** `resource_access.odoo-<slug>-<env>.roles` di ID/access token, userinfo, introspection. Jangan pakai placeholder `${client_id}` — body berisi `${` diblok CRS 932130 (403) dan `keycloak-admin.sh` menolaknya sebelum dikirim |
+| Secret | diambil skrip (`GET/POST …/clients/<uuid>/client-secret`) langsung ke file `<pool>/secrets/oidc/<db>`; tidak dicetak, tidak di realm-export git, tidak di `identity/keycloak/secrets/` |
+| User | username = email; dibuat `--create-kc` (`emailVerified=false`, required actions `UPDATE_PASSWORD` [+ `CONFIGURE_TOTP` admin tenant]) + `execute-actions-email` (tautan kembali ke client tenant) |
+
+Verifikasi klaim role (tanpa login): `GET /admin/realms/<realm>/clients/<uuid>/evaluate-scopes/generate-example-id-token?userId=<id>`
+→ `aud`=`azp`=`odoo-<slug>-<env>`, `resource_access={"odoo-<slug>-<env>":{"roles":["odoo_access"]}}` (QA S5/S7; user tanpa role →
+`resource_access` absen). Ini menutup risiko plan 04 §7 "role klaim tidak muncul dengan `fullScopeAllowed=false`".
+
+Client aktif (2026-09-25): `odoo-demo-demo` (`platform`, redirect `https://demo.erp.bimacreative.tech/sh_auth_oidc/callback`),
+`odoo-demo-staging`, `odoo-ssotest-staging` (`platform-staging`). Realm-export git **belum** memuat client ini (`partial-export`
+butuh `manage-realm`); representasi dapat dibaca dengan `GET /clients?clientId=…` (tanpa field `secret`).
+
+Isolasi user antar tenant **tidak** di Keycloak (user realm bisa mengautentikasi ke client tenant mana pun): Odoo menolak
+lewat role gate (`oauth_error=2`) lalu tautan `res.users` (`oauth_error=3`). Back-channel token/JWKS pool → router
+`auth-oidc-backchannel` (tabel §Paparan path; `traefik.md` §Rate limit SSO Odoo) + exclusion WAF
+`local/oidc-backchannel-exclusions` (`crowdsec.md`, BUG-S5-01).
+
 ## Info untuk T12 (Next.js/Auth.js) & T15 (Odoo `sh_auth_oidc`)
 
 - Issuer: `https://auth.bimacreative.tech/realms/platform` (prod), `https://auth.bimacreative.tech/realms/platform-staging` (staging).
@@ -130,7 +164,7 @@ docker compose down                 # stop; data di Postgres
 - Buat client (admin console via tunnel → realm → Clients → Create): OpenID Connect, **Client authentication
   ON** (confidential, server-side), Standard flow saja (matikan Direct access grants & Implicit), advanced:
   **PKCE method S256**, redirect URI **eksak** (tanpa wildcard), web origins eksak. Secret client disimpan di
-  `.env` 600 aplikasi — tidak di realm-export git. Setelah membuat client: partial export ulang realm
+  `.env` 600 aplikasi — tidak di realm-export git (client Odoo tenant: file per DB, §Client Odoo per tenant). Setelah membuat client: partial export ulang realm
   (Realm settings → Action → Partial export, tanpa secret) → commit.
 - Aplikasi di VPS memanggil Keycloak via **URL publik** (issuer harus cocok). Catatan: `ratelimit-login`
   (10/menit, burst 10 per IP) juga berlaku untuk `/protocol/openid-connect/token`; panggilan token

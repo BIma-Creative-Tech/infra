@@ -35,7 +35,7 @@
 | `traefik.yaml` | `/var/log/traefik/access.log` (= `traefik/logs/`, ro) | `type: traefik` | `crowdsecurity/traefik-logs` |
 | `sshd.yaml` | `/var/log/host/auth.log` (= `/var/log` host, ro) | `type: syslog` | `syslog-logs` → `sshd-logs` |
 | `mail.yaml` (T11) | `/var/log/host/mailserver/dms/mail.log` (log docker-mailserver) | `type: syslog` | `syslog-logs` → `postfix-logs`/`postscreen-logs`/`dovecot-logs` — lihat `mail.md` §CrowdSec |
-| `appsec.yaml` | listener AppSec `0.0.0.0:7422` | `type: appsec` | configs `appsec-default` + `crs-inband` + `local/odoo-crs-exclusions` (T10) + `local/keycloak-admin-exclusions` (H4) + `local/controlplane-crs-exclusions` (H6) + `local/drms-payload-crs-exclusions` (H7(a)) |
+| `appsec.yaml` | listener AppSec `0.0.0.0:7422` | `type: appsec` | configs `appsec-default` + `crs-inband` + `local/odoo-crs-exclusions` (T10) + `local/keycloak-admin-exclusions` (H4) + `local/controlplane-crs-exclusions` (H6) + `local/drms-payload-crs-exclusions` (H7(a)) + `local/oidc-backchannel-exclusions` (plan 04 BUG-S5-01) |
 
 - sshd → **`/var/log/auth.log`** (rsyslog aktif di host; journald tidak dipakai karena image alpine tanpa `journalctl`).
 - Permission: container jalan sebagai root **tanpa capability** (tidak bisa bypass DAC). Membaca log lewat
@@ -196,6 +196,32 @@ Uji H4 (2026-09-23, dari host = 10.100.0.1, `--resolve …:443:127.0.0.1`, token
 
 Alert uji (`waf`, 10.100.0.1) tidak menghasilkan decision (parser whitelist IP privat) — `cscli decisions list -i 10.100.0.1`
 → `No active decisions`.
+
+### Pengecualian CRS `attack-sqli` untuk back-channel token OIDC (plan 04 BUG-S5-01, disetujui user 2026-09-25)
+
+Pemicu: QA S5 (`docs/qa/2026-09-25-plan04-staging.md` §BUG-S5-01, High) — 1 dari 22 login SSO Odoo gagal
+(`oauth_error=2`, log Odoo `token endpoint: HTTP 403`): POST token endpoint dari pool (hairpin `10.100.0.1`, router
+`auth-oidc-backchannel`) diblok AppSec, alert `anomaly score block: sql_injection: 5, anomaly: 5` (rule 942100, libinjection
+SQLi) — `authorization_code` acak Keycloak kadang cocok pola SQLi. Non-deterministik, berlaku untuk semua tenant.
+- `appsec-configs/oidc-backchannel-exclusions.yaml` (mount ro, nama `local/oidc-backchannel-exclusions`, commit `1c2a528`):
+  `pre_eval` → `RemoveInBandRuleByTag("attack-sqli")` hanya bila: in-band, `POST`, `req.Host == auth.bimacreative.tech`, path
+  **eksak** `/realms/platform/protocol/openid-connect/token` atau `/realms/platform-staging/protocol/openid-connect/token`,
+  `req.RemoteAddr == 10.100.0.1`. Realm `drms*`/`master`, `/auth`, `/login-actions` tidak tercakup; XSS/RCE/LFI/protocol,
+  virtual patching & generic rules tetap aktif di path itu. Endpoint tetap mewajibkan autentikasi client + code sekali pakai + PKCE.
+- Uji config di container sementara (`crowdsec -t`) sebelum recreate; recreate crowdsec 10:50:07–10:50:54 WIB (±47 s, semua host
+  ber-CrowdSec 403 fail-closed).
+- Verifikasi dimuat: `docker exec crowdsec cscli appsec-configs list` → `local/oidc-backchannel-exclusions  enabled,local`.
+- Rollback: hapus file + barisnya di `acquis.d/appsec.yaml` + mount di `docker-compose.yml` → `docker compose up -d`
+  (recreate, 403 ±40–50 s).
+
+Uji regresi (QA S5 03:52–04:04 UTC staging; QA S7 prod realm `platform`):
+
+| Request | Harapan | Hasil |
+|---|---|---|
+| 42 login SSO penuh `demo.staging` (paced 15 s) | 0 kegagalan WAF | 42/42 sukses; 0× 403 dari 47 request `auth-oidc-backchannel`; tanpa alert baru |
+| 12 login SSO penuh `demo.erp` (prod) | 0 kegagalan WAF | 12/12 sukses; `platform` 200 ×17, 0× 403; tanpa alert baru |
+| `POST …/platform-staging/…/token` `code=1' OR '1'='1 --` dari IP uji `10.100.0.251` (bukan hairpin) | 403 (SQLi tetap aktif) | 403 (router `auth-login`), alert 214 `sql_injection: 5` |
+| idem `code=abc` (kontrol benign) | bukan WAF | 401 dari Keycloak |
 
 ## Start / stop
 

@@ -15,9 +15,38 @@ file `VERSION`.
 - traefik (plan 04 S3, F9/AC-S7): router tenant `<r>-oidc` (`PathPrefix(/sh_auth_oidc/)`, prio 200) di
   `templates/traefik-client.yml` + middleware `ratelimit-oidc` (20/menit, burst 20 per IP). Router tenant yang sudah ada
   mendapatkannya setelah render ulang (`render-client-route.sh`).
+- scripts (plan 04 S2, `129a195`): `provision-odoo-sso.sh` (client Keycloak `odoo-<slug>-<env>`, role `odoo_access`, mapper klaim
+  literal, secret file per DB, modul/ICP/provider Odoo, smoke; `--rotate-secret`, `--disable`, `--dry-run`, `--skip-smoke`; baris
+  `RESULT`), `odoo-sso-user.sh` (user Keycloak + undangan, TOTP admin tenant, grant/revoke role, tautan `res.users` yang sudah ada),
+  `lib/keycloak-admin.sh`, `lib/odoo_sso_kc.py`, `lib/odoo-exec.sh`.
+- odoo (plan 04 S2, `08739f4`): kedua pool — env `SH_OIDC_SECRET_DIR=/run/sh-oidc`, `SH_OIDC_TRUSTED_ISSUERS`, bind ro
+  `./secrets/oidc` → `/run/sh-oidc` (`create_host_path: false`); `odoo-pool-bootstrap.sh` membuat `secrets/oidc`.
+- SSO Odoo prod aktif (plan 04 S6, `e169add`): tenant `demo_demo` (`demo.erp.bimacreative.tech`, client `odoo-demo-demo`, realm
+  `platform`); staging: tenant regresi permanen `ssotest_staging` (`b966958`).
+- docs: runbook `docs/runbooks/odoo-sso-tenant.md` (onboard, user, rotasi, offboard, troubleshooting); `keycloak.md` §Client Odoo
+  per tenant; laporan QA `docs/qa/2026-09-25-plan04-{staging,prod}.md`.
+
+### Changed
+- odoo: submodule `addons/shared` kedua pool → `35e6a99` (`sh_auth_oidc` 19.0.1.2.0: secret per DB dari file, role gate) —
+  staging `18d0b5d` (recreate 10:07 WIB ±11 s), prod `e169add` (recreate 11:05:47–11:05:55 WIB ±8 s). Backup
+  `demo_staging-20260925-100640-pre-plan04`, `demo_demo-20260925-110513-pre-plan04`.
+- odoo: provider `demo_staging` dimigrasi dari secret env ke sumber `file` + role gate `odoo_access` (S4).
+- traefik: route tenant `demo-demo`, `demo-staging` dirender ulang dengan router `<r>-oidc` (`18d0b5d`).
+- docs: `odoo.md` §SSO ditulis ulang untuk multi-tenant; plan 04 → EXECUTED (hasil + acceptance, AC-Q1 dikoreksi ke perilaku role
+  gate); ADR 0008 hasil; ADR 0003 catatan revisi (secret env per tenant digantikan ADR 0008).
 
 ### Fixed
+- crowdsec (plan 04 BUG-S5-01, `1c2a528`): false positive CRS SQLi (942100) pada POST token back-channel OIDC (±1/22 login SSO
+  gagal `oauth_error=2`) — exclusion sempit `local/oidc-backchannel-exclusions`; recreate crowdsec 10:50:07–10:50:54 WIB.
 - observability: `mem_limit` grafana 256m → 384m (GOMEMLIMIT 320MiB), uptime-kuma 192m → 320m (pemakaian 72–81%); ADR 0004 diperbarui.
+
+### Security
+- SSO Odoo multi-tenant (ADR 0008): satu client Keycloak per tenant-env dengan redirect URI eksak; secret client per DB di file
+  `0440 root:101` di luar git/env (tidak lagi terlihat di `docker inspect` pool prod); file dipilih dari `cr.dbname` sehingga tenant
+  tidak bisa merujuk secret tenant lain; role gate `odoo_access`; signup `b2b`, provider bawaan lain OFF. QA lintas tenant 11/11
+  PASS (staging) + prod smoke PASS.
+- WAF: exclusion `attack-sqli` hanya untuk POST token endpoint realm `platform(-staging)` dari `10.100.0.1`; SQLi dari sumber lain
+  tetap 403 (diuji).
 
 ## [0.2.0] - 2026-09-25
 
