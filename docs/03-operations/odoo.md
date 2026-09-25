@@ -286,6 +286,48 @@ sekali (`oauth_error=2`, ulangi). Rotasi tanpa restart diuji di test modul (19.0
   host ber-CrowdSec 403) untuk BUG-S5-01; prod `odoo-pool-a` recreate 11:05:47–11:05:55 WIB (±8 s), `demo_demo` SSO aktif.
   QA: `docs/qa/2026-09-25-plan04-staging.md` (11/11 PASS), `docs/qa/2026-09-25-plan04-prod.md` (PASS).
 
+## `sh_session_cookie` — cookie `session_id` Secure + SameSite=Lax (QA-T17B-06)
+
+Modul server-wide `odoo-addons-shared/sh_session_cookie` (19.0.1.0.0, commit addons `352e679` di branch
+`feat/odoo-developer-sh-session-cookie` — SHA bisa berubah bila di-squash saat merge; pakai SHA di `main` addons).
+Untuk cookie `session_id` saja: `SameSite=Lax` selalu, `Secure` bila request HTTPS (`httprequest.scheme` setelah
+ProxyFix — `proxy_mode` + `X-Forwarded-Host/Proto` dari Traefik — atau, dengan `proxy_mode`, nilai terakhir
+`X-Forwarded-Proto`). `HttpOnly`, `Max-Age`, `Path`, cookie lain tidak berubah. Detail: README modul.
+Tidak perlu install per DB / `-u`. Cookie browser yang sudah ada diganti atributnya saat Odoo mengirim
+`Set-Cookie` berikutnya (login, sesi berubah, rotasi 3 jam `SESSION_ROTATION_INTERVAL`); sesi tidak terputus.
+
+**Apply (staging dulu; butuh persetujuan Lead, jangan saat jam sibuk):**
+1. Addons: branch `feat/odoo-developer-sh-session-cookie` di-merge ke `main` `odoo-addons-shared`, CI hijau
+   (`test/run-tests.sh sh_session_cookie sh_dbfilter_header sh_auth_oidc` → `0 failed, 0 error(s)`).
+   `ADDONS_SHA=<sha main yang memuat sh_session_cookie>`.
+2. Infra: merge branch `feat/infra-odoo-session-cookie` (kedua `odoo.conf`: `server_wide_modules += sh_session_cookie`).
+   Merge saja tidak mengubah container yang berjalan. Bila pool yang submodule-nya belum dinaikkan ter-restart,
+   Odoo hanya mencatat `Failed to load server-wide module` untuk `sh_session_cookie` (non-fatal,
+   `odoo/service/server.py::load_server_wide_modules`) dan berjalan seperti sebelumnya.
+3. **Staging**:
+   ```bash
+   cd /opt/infra/staging/odoo/addons/shared && git fetch && git checkout "$ADDONS_SHA"
+   test -f sh_session_cookie/__manifest__.py
+   cd /opt/infra/staging/odoo && docker compose up -d --force-recreate && docker compose ps   # healthy
+   docker logs odoo-staging 2>&1 | grep -E 'sh_session_cookie active|sh_dbfilter_header active|Failed to load server-wide'
+   #  → baris "sh_session_cookie active" (master + gevent), TANPA "Failed to load"
+   curl -sD - -o /dev/null https://demo.staging.bimacreative.tech/web/login | grep -i set-cookie
+   #  → session_id=…; Expires=…; Max-Age=604800; Secure; HttpOnly; Path=/; SameSite=Lax
+   ```
+   Lalu QA (browser, bukan curl): login SSO Keycloak di `https://demo.staging.bimacreative.tech/web/login`
+   → kembali ke `/odoo` dalam keadaan login; DevTools → cookie `session_id` Secure + Lax; websocket/bus
+   (notifikasi, chatter) jalan; logout → login password admin teknis (break-glass) masih jalan.
+4. **Prod `pool-a`** (setelah QA staging OK): ulangi langkah 3 di `/opt/infra/odoo/pool-a`, container
+   `odoo-pool-a`, cek `curl -sD - -o /dev/null https://demo.erp.bimacreative.tech/web/login | grep -i set-cookie`
+   + login SSO satu tenant prod.
+5. Commit gitlink kedua submodule (`git -C /opt/infra add staging/odoo/addons/shared odoo/pool-a/addons/shared`)
+   + perbarui baris pin submodule di tabel §Pool.
+
+**Rollback** (tidak destruktif, tanpa perubahan DB): hapus `sh_session_cookie` dari `server_wide_modules`
+(`git revert` commit conf) di pool terdampak → `docker compose up -d --force-recreate` → `curl … | grep -i set-cookie`
+tanpa `SameSite`. Submodule boleh tetap di `$ADDONS_SHA` (modul tidak dimuat bila tidak server-wide dan tidak
+ter-install); kembali penuh: `git -C <pool>/addons/shared checkout 35e6a99` + recreate.
+
 ## Upgrade modul (staging dulu, backup sebelum `-u`)
 
 1. **Staging**: naikkan submodule staging saja:
@@ -323,6 +365,7 @@ sekali (`oauth_error=2`, ulangi). Rotasi tanpa restart diuji di test modul (19.0
 - **Image Odoo**: kembalikan tag+digest di compose → `docker compose up -d`.
 - **`sh_dbfilter_header`** (ADR 0003 Rollback): hapus dari `server_wide_modules` **hanya** bersama `dbfilter` eksak satu DB.
 - **Router tenant**: `render-client-route.sh <slug> <env> --remove`.
+- **`sh_session_cookie`**: hapus dari `server_wide_modules` → recreate (lihat §`sh_session_cookie`).
 
 ## Keamanan — catatan
 
@@ -345,9 +388,11 @@ sekali (`oauth_error=2`, ulangi). Rotasi tanpa restart diuji di test modul (19.0
   skema request, maupun `X-Forwarded-Proto`; tidak ada opsi `odoo.conf` untuk flag cookie (`odoo/tools/config.py`
   tanpa `samesite`/`secure`). Traefik v3.7 OSS juga tidak punya middleware penulis ulang atribut `Set-Cookie`
   (`customResponseHeaders` hanya set/hapus header utuh). Perbaikan = modul server-wide kecil di `odoo-addons-shared`
-  (tugas odoo-developer, spesifikasi di laporan fix B 2026-09-25): bungkus `odoo.http._Response.set_cookie` dan
-  `odoo.http.FutureResponse.set_cookie` → untuk key `session_id` bila `request.httprequest.scheme == 'https'`
-  paksa `secure=True`, `samesite='Lax'`. Mitigasi sementara: HSTS `max-age=604800` (`traefik.md` §HSTS bertahap) +
-  redirect HTTP→HTTPS.
+  **`sh_session_cookie`** (disiapkan 2026-09-25, belum diterapkan — lihat §`sh_session_cookie`): bungkus
+  `odoo.http._Response.set_cookie`, `odoo.http.Response.set_cookie` **dan** `odoo.http.FutureResponse.set_cookie` →
+  key `session_id`: `samesite='Lax'`, `secure=True` bila request HTTPS. `Response` (facade `Proxy`) wajib ikut
+  dibungkus: `ProxyFunc` (`odoo/tools/facade.py`) menangkap fungsi `_Response.set_cookie` *asli* saat kelas dibuat,
+  sehingga patch `_Response` saja tidak mencakup jalur session-expired. Mitigasi sampai diterapkan: HSTS
+  `max-age=604800` (`traefik.md` §HSTS bertahap) + redirect HTTP→HTTPS.
 - Semua modul di `addons/clients/*` terlihat oleh semua DB di pool (tenant admin bisa meng-install modul
   client lain). Prefix `cl_<slug>_` + review; pertimbangkan pool terpisah bila modul client sensitif.
