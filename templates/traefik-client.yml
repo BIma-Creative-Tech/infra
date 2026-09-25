@@ -9,7 +9,7 @@
 # Tenant: slug=__SLUG__ env=__ENV__ db=__DB__ pool=__POOL__ (dirender __GENERATED__)
 #
 # Urutan middleware (router ke Odoo): crowdsec (paling depan) [→ ipallowlist-admin] → odoo-security-headers →
-# ratelimit-default [→ ratelimit-login] → strip-odoo-db-headers → __ROUTE__-db (set header eksak).
+# ratelimit-default [→ ratelimit-login | ratelimit-oidc] → strip-odoo-db-headers → __ROUTE__-db (set header eksak).
 # Router deny (__ROUTE__-dbmanager-deny): crowdsec → deny-all → deny-sink.
 # Service: __POOL__-http (:8069) / __POOL__-ws (:8072), didefinisikan di dynamic/platform/odoo-pools.yml.
 http:
@@ -54,6 +54,17 @@ http:
       rule: "Host(`__HOST__`) && (Path(`/web/login`) || Path(`/web/session/authenticate`) || PathPrefix(`/web/reset_password`) || PathPrefix(`/web/signup`))"
       priority: 200
       middlewares: [crowdsec, odoo-security-headers, ratelimit-default, ratelimit-login, strip-odoo-db-headers, __ROUTE__-db]
+      service: __POOL__-http
+      tls:
+        certResolver: le-http
+    # SSO sh_auth_oidc (plan 04 S3, F9/AC-S7): /sh_auth_oidc/authorize (303 → Keycloak) & /sh_auth_oidc/callback
+    # (303 → /web; memicu 1 exchange token back-channel). Header DB sama dengan router utama; rate limit per IP
+    # tersendiri `ratelimit-oidc` (middlewares/ratelimit.yml) di samping ratelimit-default.
+    __ROUTE__-oidc:
+      entryPoints: [websecure]
+      rule: "Host(`__HOST__`) && PathPrefix(`/sh_auth_oidc/`)"
+      priority: 200
+      middlewares: [crowdsec, odoo-security-headers, ratelimit-default, ratelimit-oidc, strip-odoo-db-headers, __ROUTE__-db]
       service: __POOL__-http
       tls:
         certResolver: le-http

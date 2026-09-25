@@ -8,7 +8,7 @@
 | Path | Isi | Git |
 |---|---|---|
 | `traefik.yml` | static config: entrypoints `web` :80 (redirect → https) & `websecure` :443, **`admin` :8443 (H5, publish `127.0.0.1:8443` host saja)**, `traefik` 127.0.0.1:8080 di dalam container (hanya `/ping`), `metrics` :8082, file provider, resolver `le-http-staging` & `le-http`, access log JSON | ya |
-| `dynamic/middlewares/*.yml` | `security-headers`, `ratelimit-default`, `ratelimit-login`, `ipallowlist-admin`, `strip-odoo-db-headers`, `deny-all` + service `deny-sink` (H5) | ya |
+| `dynamic/middlewares/*.yml` | `security-headers`, `ratelimit-default`, `ratelimit-login`, `ratelimit-oidc`, `ratelimit-oidc-backchannel` (plan 04 S3), `ipallowlist-admin`, `strip-odoo-db-headers`, `deny-all` + service `deny-sink` (H5) | ya |
 | `dynamic/tls.yml` | TLS option `default` (min TLS 1.2) | ya |
 | `dynamic/platform/<svc>.yml` | router layanan platform (T06 `auth.yml`, T16a `cp.yml`, T16b `cp-staging.yml`, T14a `status.yml`/`grafana.yml`, T11 `mail.yml` = router dummy sertifikat `mail.bimacreative.tech` untuk docker-mailserver, `mail.md`, …) — satu file per task | ya |
 | `dynamic/platform/odoo-pools.yml` | service `odoo-pool-a-{http,ws}`, `odoo-staging-{http,ws}` + middleware `odoo-security-headers` (T10) | ya |
@@ -112,6 +112,29 @@ Dari host (skrip/automation): `curl --resolve auth.bimacreative.tech:8443:127.0.
 - Network internal = tanpa egress & tanpa DNS eksternal: app tetap butuh `drms-kas-edge` (ingress + egress) — alias
   `auth.bimacreative.tech` di network internal menang atas DNS publik untuk container yang join keduanya.
 - Runbook app: `docs/runbooks/proyekkas-drms-onboarding.md` §Network Admin API.
+
+## Rate limit SSO Odoo (plan 04 S3, F9/F10)
+
+Semua `rateLimit` = token bucket per IP koneksi (default `sourceCriterion` = remote address; `average`/`period` = laju isi
+ulang, `burst` = kapasitas; docs v3.7 `middlewares/ratelimit.md`), lewat batas → **429**. Definisi di
+`dynamic/middlewares/ratelimit.yml`. ESTIMASI — tuning dari access log (`RouterName`, `DownstreamStatus=429`).
+
+| Middleware | Nilai | Router | Alasan |
+|---|---|---|---|
+| `ratelimit-oidc-backchannel` | 300/1m, burst 100 | `auth-oidc-backchannel` (`platform/auth.yml`, prio 96, websecure) | Exchange token + JWKS pool Odoo via hairpin tiba sebagai **10.100.0.1** → satu bucket untuk semua tenant kedua pool. 30 exchange/60 s (AC-S6) ≤ 1/3 burst. Dulu ikut `ratelimit-login` 10/menit (F10). |
+| `ratelimit-oidc` | 20/1m, burst 20 | `<r>-oidc` per tenant (`templates/traefik-client.yml`, prio 200) | 1 login = authorize + callback (2 request); burst 20 = 10 login beruntun/IP (MAX_PENDING=5 tab, NAT kantor); ≥ laju `ratelimit-login` Keycloak `/auth` sehingga bukan hambatan pertama; membatasi amplifikasi callback → back-channel (F9). |
+
+- Rule `auth-oidc-backchannel`: `Host(auth) && ClientIP(10.100.0.1/32) && Path(...)` eksak untuk
+  `/realms/{platform,platform-staging}/protocol/openid-connect/{token,certs,userinfo}`. `/auth`, `/login-actions/*`, realm
+  lain dan IP lain tetap `auth-login` (`ratelimit-login`) / `auth-public`; `/realms/master/*` & `/admin*` tetap
+  `auth-admin-deny` (110) — H5 tidak berubah.
+- Catatan: 10.100.0.1 = **semua** proses host + hairpin container mana pun (bukan hanya pool Odoo) → siapa pun di host
+  memakai bucket 300/menit untuk 6 path tsb. Tidak membuka path baru (path yang sama sudah publik lewat `auth-login`/
+  `auth-public`); token endpoint tetap butuh code/secret sah. Uji ratelimit "publik" dari host tidak mewakili klien internet.
+- Validasi (2026-09-25, container `traefik:v3.7.13` sekali pakai, `--network none`/internal, salinan `dynamic/`): 0 error
+  konfigurasi, router 40 → 43 semua `enabled`; uji fungsi (ClientIP diganti IP uji): 45 request back-channel → 0×429,
+  130 beruntun → 115 lolos/15×429; `/login-actions` dari IP sama → 10 lolos lalu 429; `/sh_auth_oidc/authorize` ×25 →
+  20 lolos lalu 429; `/realms/master/.../token` & `/admin/...` → 403.
 
 ## Network `proxy`
 

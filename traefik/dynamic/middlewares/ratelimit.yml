@@ -1,6 +1,8 @@
 # Rate limit per IP sumber (default sourceCriterion = remote address; X-Forwarded-For
 # dari client TIDAK dipakai). Opsi: docs v3.7 .../middlewares/ratelimit.md
 # Nilai = ESTIMASI awal; tuning setelah ada trafik nyata (access log).
+# Pemakai: ratelimit-default/-login (semua router), ratelimit-oidc (tenant /sh_auth_oidc/), ratelimit-oidc-backchannel
+# (auth-oidc-backchannel) — plan 04 S3.
 http:
   middlewares:
     # Umum: rata-rata 50 req/s per IP, burst 100 (halaman Odoo memuat banyak aset).
@@ -17,3 +19,29 @@ http:
         average: 10
         period: 1m
         burst: 10
+    # Plan 04 S3 (F10, AC-S6) — back-channel OIDC pool Odoo → Keycloak (router `auth-oidc-backchannel`,
+    # platform/auth.yml: ClientIP 10.100.0.1/32 + token/certs/userinfo realm platform & platform-staging SAJA).
+    # Satu bucket untuk SEMUA tenant kedua pool (hairpin selalu tiba sebagai 10.100.0.1, gateway `proxy`).
+    # Per login SSO, sh_auth_oidc memanggil 1× POST token + JWKS (cache per worker; refetch bila kid tak dikenal)
+    # → ≈1–2 request/login. 300/menit (5/s) burst 100: 30 exchange/60 s (AC-S6) memakai ≤ 1/3 kapasitas walau
+    # semuanya serentak + JWKS dingin; ≈150–300 login/menit sustained pool-wide. Tetap terbatas (≪ ratelimit-default
+    # 50/s). Sengaja longgar dibanding ratelimit-oidc: penyerang yang memicu callback bogus (state valid + code palsu
+    # → 1 exchange 400) dibatasi ratelimit-oidc 20/menit/IP, jadi butuh ≥ 15 IP sekaligus untuk menguras bucket ini.
+    # ESTIMASI — tuning dari access log (RouterName=auth-oidc-backchannel@file, status 429).
+    ratelimit-oidc-backchannel:
+      rateLimit:
+        average: 300
+        period: 1m
+        burst: 100
+    # Plan 04 S3 (F9, AC-S7) — `/sh_auth_oidc/*` tenant Odoo (router `<route>-oidc`, templates/traefik-client.yml),
+    # per IP sumber. Satu login normal = 1× GET /sh_auth_oidc/authorize (303 → Keycloak) + 1× GET
+    # /sh_auth_oidc/callback (303 → /web). Burst 20 = 10 login beruntun dari satu IP, cukup untuk MAX_PENDING=5 tab
+    # (controllers/main.py) atau beberapa user di balik satu NAT kantor; sustained 20/menit = 10 login/menit/IP —
+    # setara ratelimit-login (10/menit) yang sudah membatasi GET /realms/*/protocol/openid-connect/auth di Keycloak,
+    # jadi limit ini tidak pernah menjadi hambatan pertama untuk trafik sah. > 20 request cepat dari 1 IP → 429.
+    # Membatasi amplifikasi: setiap callback dengan state valid memicu 1 exchange back-channel.
+    ratelimit-oidc:
+      rateLimit:
+        average: 20
+        period: 1m
+        burst: 20

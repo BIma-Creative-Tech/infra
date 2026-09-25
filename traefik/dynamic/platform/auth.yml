@@ -36,7 +36,7 @@ http:
 
     # ---- Entrypoint `websecure` (publik :443) --------------------------------------------------------
     # H5: /admin* & /realms/master/* DITOLAK untuk SEMUA IP di :443 (termasuk hairpin container yang tiba
-    # sebagai 10.100.0.1). Prioritas 110 > auth-drms-token (95) / auth-login (90) / auth-public (50) — tanpa
+    # sebagai 10.100.0.1). Prioritas 110 > auth-oidc-backchannel (96) / auth-drms-token (95) / auth-login (90) / auth-public (50) — tanpa
     # router ini /realms/master/ akan cocok dengan auth-public. Pengecualian SATU-SATUNYA: router
     # drms-kc-admin-* (prioritas 120, clients/drms-proyekkas-kc-admin.yml; ClientIP network internal DRMS).
     # Path di luar /realms/, /resources/, /.well-known/ tidak punya router di :443 → 404 Traefik.
@@ -46,6 +46,29 @@ http:
       priority: 110
       middlewares: [crowdsec, deny-all]
       service: deny-sink   # middlewares/deny-all.yml — backend tidak ada (502 bila deny-all terlepas)
+      tls:
+        certResolver: le-http
+    # Plan 04 S3 (F10, AC-S6): back-channel OIDC pool Odoo (sh_auth_oidc) → Keycloak. Pool di `odoo-edge`
+    # memanggil issuer publik via hairpin → tiba sebagai 10.100.0.1 (access log 2026-09-23..25:
+    # python-requests POST /realms/platform-staging/.../token dari 10.100.0.1, router auth-login) dan dulu berbagi
+    # bucket `ratelimit-login` (10/menit) dengan login manusia & uji host → 429 massal lintas tenant.
+    # Cakupan SEMPIT: hanya ClientIP 10.100.0.1/32 (semua proses host + hairpin container) DAN hanya Path EKSAK
+    # token/certs/userinfo realm platform & platform-staging. TIDAK mencakup /auth, /login-actions (tetap
+    # auth-login + ratelimit-login), realm lain, /realms/master/* (auth-admin-deny 110) atau /admin*.
+    # Prioritas 96 > auth-drms-token (95, realm drms — tidak tumpang tindih) > auth-login (90); < auth-admin-deny (110).
+    auth-oidc-backchannel:
+      entryPoints: [websecure]
+      rule: >-
+        Host(`auth.bimacreative.tech`) && ClientIP(`10.100.0.1/32`) && (
+        Path(`/realms/platform/protocol/openid-connect/token`) ||
+        Path(`/realms/platform/protocol/openid-connect/certs`) ||
+        Path(`/realms/platform/protocol/openid-connect/userinfo`) ||
+        Path(`/realms/platform-staging/protocol/openid-connect/token`) ||
+        Path(`/realms/platform-staging/protocol/openid-connect/certs`) ||
+        Path(`/realms/platform-staging/protocol/openid-connect/userinfo`))
+      priority: 96
+      middlewares: [crowdsec, auth-security-headers, ratelimit-oidc-backchannel]   # middlewares/ratelimit.yml
+      service: keycloak
       tls:
         certResolver: le-http
     # Alur login & token (brute force): rate limit ketat per IP.

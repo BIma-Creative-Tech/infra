@@ -33,6 +33,7 @@ Hardening container: `user 1000`, `read_only` + tmpfs `/tmp` & `/opt/keycloak/da
 | `drms-kc-admin-{stg,prod}` (120) | websecure | `ClientIP(10.100.{9,8}.0/24)` + `/admin/realms/drms{-staging,}/` | crowdsec, drms-kc-admin-strict-path, auth-security-headers, ratelimit-drms-kc-admin | tidak (network internal DRMS) |
 | `auth-admin-deny` (110) | websecure | `/admin*`, `/realms/master/*` | crowdsec, **deny-all** (403) | **ditolak** |
 | `auth-drms-token` (95) | websecure | token realm `drms`/`drms-staging` | crowdsec, …, ratelimit-drms-kc-token | ya |
+| `auth-oidc-backchannel` (96, plan 04 S3) | websecure | `ClientIP(10.100.0.1/32)` + `Path` eksak `/realms/{platform,platform-staging}/protocol/openid-connect/{token,certs,userinfo}` | crowdsec, auth-security-headers, **ratelimit-oidc-backchannel** (300/menit, burst 100) | hairpin host/pool Odoo saja |
 | `auth-login` (90) | websecure | `/realms/*/login-actions/*`, `/realms/*/protocol/openid-connect/(auth\|token)` | crowdsec, auth-security-headers, **ratelimit-login** | ya |
 | `auth-public` (50) | websecure | `/realms/*`, `/resources/*`, `/.well-known/*` | crowdsec, auth-security-headers, ratelimit-default | ya |
 
@@ -134,8 +135,11 @@ docker compose down                 # stop; data di Postgres
 - Aplikasi di VPS memanggil Keycloak via **URL publik** (issuer harus cocok). Catatan: `ratelimit-login`
   (10/menit, burst 10 per IP) juga berlaku untuk `/protocol/openid-connect/token`; panggilan token
   server-to-server dari container platform tiba dengan satu IP sumber (gateway/host) → bisa kena 429 saat
-  beban tinggi. Opsi (keputusan Lead): router token terpisah dengan limit lain, atau backchannel internal
-  `http://keycloak:8080` + `KC_HOSTNAME_BACKCHANNEL_DYNAMIC=true` (docs hostname.adoc) — belum diterapkan.
+  beban tinggi. **Plan 04 S3:** untuk realm `platform`/`platform-staging` dari hairpin `10.100.0.1` (pool Odoo) kini
+  lewat router `auth-oidc-backchannel` (token/certs/userinfo, `ratelimit-oidc-backchannel` 300/menit burst 100 —
+  `traefik.md` §Rate limit SSO Odoo); `/auth` & `/login-actions` tetap `ratelimit-login`. Control plane (tiba sebagai
+  IP container-nya di `proxy`, mis. 10.100.0.5) tetap `auth-login`. Backchannel internal `http://keycloak:8080` +
+  `KC_HOSTNAME_BACKCHANNEL_DYNAMIC=true` (docs hostname.adoc) — belum diterapkan.
 - **Admin REST lewat Traefik + CrowdSec AppSec (T16b):** body JSON yang memuat `${…}` (mis. mapper
   `claim.name: resource_access.${client_id}.roles`) diblokir AppSec (`anomaly score block: rce`, 403 kosong dari router
   `auth-admin`, alert `waf` untuk 10.100.0.1). Tulis nilai literal (`resource_access.<clientId>.roles`) — klaim identik.
