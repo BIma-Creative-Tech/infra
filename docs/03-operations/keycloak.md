@@ -42,8 +42,8 @@ H5 (keputusan user 2026-09-23): di :443 publik tidak ada router allowlist lagi �
 §Entrypoint `admin`.
 
 `auth-security-headers` = `security-headers` tanpa `frameDeny` (Keycloak sudah mengirim `X-Frame-Options:
-SAMEORIGIN` + CSP `frame-ancestors 'self'`; admin console memakai iframe same-origin). HSTS tetap `max-age=300`
-(Traefik menimpa default realm `max-age=31536000; includeSubDomains`) — dinaikkan Lead setelah QA.
+SAMEORIGIN` + CSP `frame-ancestors 'self'`; admin console memakai iframe same-origin). HSTS `max-age=604800`
+(Traefik menimpa default realm `max-age=31536000; includeSubDomains`) — bertahap ke 31536000 mulai 2026-10-09 (`traefik.md` §HSTS bertahap).
 
 ## Realm
 

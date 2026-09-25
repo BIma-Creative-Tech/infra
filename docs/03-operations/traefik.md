@@ -270,7 +270,30 @@ limit LE: 5 authorization failure / identifier / jam (ADR 0002).
    menganggap domain sudah tercakup sertifikat yang ada di TLS store (source v3.7 `getUncheckedDomains`),
    termasuk sertifikat staging (diuji: SIGHUP saja → tetap staging, tanpa log ACME).
 4. Verifikasi issuer tidak lagi `(STAGING)`: `openssl s_client … -verify_return_error` → `Verify return code: 0`.
-5. Naikkan HSTS di `security-headers.yml` & `auth-security-headers` (`stsSeconds: 31536000`) — keputusan Lead setelah QA.
+5. Naikkan HSTS — lihat §HSTS bertahap.
+
+## HSTS bertahap (QA-T17B-06 / F3, disetujui user 2026-09-25)
+
+`stsSeconds` didefinisikan di **tiga** middleware dan harus selalu sama: `security-headers`
+(`dynamic/middlewares/security-headers.yml`), `auth-security-headers` (`dynamic/platform/auth.yml`),
+`odoo-security-headers` (`dynamic/platform/odoo-pools.yml`). `stsIncludeSubdomains: false` dan `stsPreload: false`
+di ketiganya — **tidak** diubah (preload tidak direncanakan; includeSubDomains = keputusan terpisah: berlaku untuk
+semua subdomain host yang mengirimnya, mis. `*.staging.bimacreative.tech` dari host `staging.…` bila kelak ada).
+
+| Tahap | `max-age` | Tanggal | Syarat |
+|---|---|---|---|
+| 0 | 300 | s/d 2026-09-25 | fase ACME staging |
+| 1 | 604800 (1 minggu) | 2026-09-25 | semua host `le-http` (QA T17b F1) |
+| 2 | 31536000 (1 tahun) | **2026-10-09** | 2 minggu tahap 1 tanpa insiden TLS/sertifikat (cek `docker logs traefik` ACME, Uptime Kuma) |
+
+Terapkan (dynamic, subdirektori → HUP; tanpa restart):
+```bash
+docker exec traefik kill -HUP 1
+for h in cp auth status demo.erp; do curl -sI --resolve $h.bimacreative.tech:443:127.0.0.1 https://$h.bimacreative.tech/ \
+  | grep -i strict-transport; done     # max-age=<nilai baru>
+```
+Rollback: kembalikan `stsSeconds` di ketiga file → HUP. Catatan: browser yang sudah menerima `max-age` panjang tetap
+memaksa HTTPS sampai kedaluwarsa — rollback tidak menghapus cache HSTS di klien (itulah alasan bertahap).
 
 ## Rotasi / secret
 

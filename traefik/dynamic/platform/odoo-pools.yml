@@ -35,7 +35,7 @@ http:
     #    RTC), scan barcode kamera, hr_attendance (geolokasi). Lainnya tetap ditolak.
     odoo-security-headers:
       headers:
-        stsSeconds: 300              # sama dengan security-headers; dinaikkan Lead setelah QA
+        stsSeconds: 604800           # QA-T17B-06 staged: 1 minggu; 31536000 mulai 2026-10-09 (sama dgn security-headers)
         stsIncludeSubdomains: false
         stsPreload: false
         contentTypeNosniff: true

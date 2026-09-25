@@ -4,9 +4,12 @@ http:
   middlewares:
     security-headers:
       headers:
-        # HSTS: max-age PENDEK selama fase staging ACME (plan 02 §4 baris T). Naikkan ke
-        # 31536000 (+ includeSubdomains setelah semua subdomain HTTPS) setelah pindah ke le-http.
-        stsSeconds: 300
+        # HSTS bertahap (QA-T17B-06, disetujui user 2026-09-25): 300 → 604800 (1 minggu, semua host sudah
+        # le-http). Bila 2 minggu stabil → 31536000 mulai 2026-10-09 (docs/03-operations/traefik.md §HSTS).
+        # includeSubdomains & preload TETAP false (keputusan terpisah; preload tidak direncanakan).
+        # Nilai sama WAJIB dijaga di auth-security-headers (platform/auth.yml) & odoo-security-headers
+        # (platform/odoo-pools.yml).
+        stsSeconds: 604800
         stsIncludeSubdomains: false
         stsPreload: false
         contentTypeNosniff: true
