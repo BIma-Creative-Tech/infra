@@ -1,0 +1,184 @@
+---
+- name: Baca database passwd/group
+  ansible.builtin.getent:
+    database: "{{ item }}"
+  loop: [passwd, group]
+
+- name: uid/gid cpjob-* bebas atau sudah milik user/grup yang benar (tidak pernah mengambil alih id lain)
+  ansible.builtin.assert:
+    that:
+      - >-
+        (ansible_facts.getent_passwd | dict2items | selectattr('value.1', 'equalto', item.value.uid | string)
+         | map(attribute='key') | reject('equalto', item.value.user) | list | length) == 0
+      - >-
+        (ansible_facts.getent_group | dict2items | selectattr('value.1', 'equalto', item.value.gid | string)
+         | map(attribute='key') | reject('equalto', item.value.user) | list | length) == 0
+    fail_msg: "uid/gid {{ item.value.uid }}/{{ item.value.gid }} sudah dipakai nama lain — pilih id lain (dan samakan compose worker J3)"
+    quiet: true
+  loop: "{{ infra_jobs_instances | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+
+- name: Grup cpjob-* (system, gid tetap)
+  ansible.builtin.group:
+    name: "{{ item.value.user }}"
+    gid: "{{ item.value.gid }}"
+    system: true
+    state: present
+  loop: "{{ infra_jobs_instances | dict2items }}"
+  loop_control:
+    label: "{{ item.value.user }}"
+
+- name: User cpjob-* (system, nologin, tanpa home, tanpa grup tambahan, password terkunci)
+  ansible.builtin.user:
+    name: "{{ item.value.user }}"
+    uid: "{{ item.value.uid }}"
+    group: "{{ item.value.user }}"
+    groups: []
+    append: false
+    system: true
+    shell: /usr/sbin/nologin
+    home: /nonexistent
+    create_home: false
+    password: "!"
+    comment: "infra-job {{ item.key }} spool writer (control plane worker, ADR 0009)"
+    state: present
+  loop: "{{ infra_jobs_instances | dict2items }}"
+  loop_control:
+    label: "{{ item.value.user }}"
+
+- name: Anggota grup cpjob-* (harus kosong — deploy/admin tidak boleh bisa menulis spool)
+  ansible.builtin.command: getent group {{ item.value.user }}
+  register: infra_jobs_grp
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  loop: "{{ infra_jobs_instances | dict2items }}"
+  loop_control:
+    label: "{{ item.value.user }}"
+
+- name: Assert grup cpjob-* tanpa anggota tambahan
+  ansible.builtin.assert:
+    that: item.rc != 0 or (item.stdout.split(':')[3] | default('')) == ''
+    fail_msg: "grup {{ item.item.value.user }} punya anggota: {{ item.stdout }}"
+    quiet: true
+  loop: "{{ infra_jobs_grp.results }}"
+  loop_control:
+    label: "{{ item.item.value.user }}"
+
+- name: Direktori dasar (root, tidak writable group/other)
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "{{ item.mode }}"
+  loop:
+    - { path: "{{ infra_jobs_base_dir }}", mode: "0755" }
+    - { path: "{{ infra_jobs_log_dir }}", mode: "0750" }
+    - { path: "{{ infra_jobs_etc_dir }}", mode: "0755" }
+
+- name: Tata letak spool per instance (plan 05 §3.2, AC-J1)
+  ansible.builtin.file:
+    path: "{{ infra_jobs_base_dir }}/{{ item.0.key }}{{ item.1.rel }}"
+    state: directory
+    owner: "{{ item.0.value.uid if item.1.owner == 'job' else 0 }}"
+    group: "{{ item.0.value.gid if item.1.group == 'job' else 0 }}"
+    mode: "{{ item.1.mode }}"
+  loop: "{{ infra_jobs_instances | dict2items | product(infra_jobs_layout) | list }}"
+  loop_control:
+    label: "{{ item.0.key }}{{ item.1.rel }} {{ item.1.mode }}"
+  vars:
+    infra_jobs_layout:
+      - { rel: "", owner: root, group: root, mode: "0755" }
+      - { rel: "/spool", owner: root, group: job, mode: "0730" }
+      - { rel: "/spool/tmp", owner: job, group: job, mode: "0700" }
+      - { rel: "/spool/new", owner: root, group: job, mode: "0730" }
+      - { rel: "/work", owner: root, group: root, mode: "0700" }
+      - { rel: "/rejected", owner: root, group: root, mode: "0700" }
+      - { rel: "/results", owner: root, group: job, mode: "0750" }
+
+- name: Direktori log per instance (root 0700; log penuh memuat email — PII)
+  ansible.builtin.file:
+    path: "{{ infra_jobs_log_dir }}/{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+  loop: "{{ infra_jobs_instances.keys() | list }}"
+
+- name: tmpfiles.d (mode/owner saat boot + retensi results/rejected/log)
+  ansible.builtin.template:
+    src: infra-jobs.tmpfiles.j2
+    dest: /etc/tmpfiles.d/infra-jobs.conf
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Konfigurasi kuota/timeout per instance (JSON; dibaca dispatcher, invalid → fail-closed)
+  ansible.builtin.template:
+    src: instance.conf.j2
+    dest: "{{ infra_jobs_etc_dir }}/{{ item.key }}.conf"
+    owner: root
+    group: root
+    mode: "0644"
+  loop: "{{ infra_jobs_instances | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+
+- name: Kill switch file per instance (disabled → semua job ditolak error_code=disabled)
+  ansible.builtin.file:
+    path: "{{ infra_jobs_etc_dir }}/{{ item.key }}.disabled"
+    state: "{{ 'touch' if item.value.disabled else 'absent' }}"
+    owner: root
+    group: root
+    mode: "0644"
+    modification_time: preserve
+    access_time: preserve
+  loop: "{{ infra_jobs_instances | dict2items }}"
+  loop_control:
+    label: "{{ item.key }} disabled={{ item.value.disabled }}"
+
+- name: Dispatcher /usr/local/sbin/infra-job (root 0755, dari scripts/infra-job/infra_job.py)
+  ansible.builtin.copy:
+    src: "{{ infra_jobs_src }}"
+    dest: "{{ infra_jobs_sbin }}"
+    owner: root
+    group: root
+    mode: "0755"
+    validate: /usr/bin/python3 -I -c "import ast, sys; ast.parse(open(sys.argv[1]).read())" %s
+
+- name: Unit service template infra-job@.service
+  ansible.builtin.template:
+    src: infra-job@.service.j2
+    dest: /etc/systemd/system/infra-job@.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload systemd (infra_jobs)
+
+- name: Unit path per instance infra-job-<inst>.path
+  ansible.builtin.template:
+    src: infra-job.path.j2
+    dest: "/etc/systemd/system/infra-job-{{ item.key }}.path"
+    owner: root
+    group: root
+    mode: "0644"
+  loop: "{{ infra_jobs_instances | dict2items }}"
+  loop_control:
+    label: "infra-job-{{ item.key }}.path"
+  notify: Reload systemd (infra_jobs)
+
+- name: Terapkan daemon-reload sebelum enable/disable path unit
+  ansible.builtin.meta: flush_handlers
+
+- name: Path unit aktif/nonaktif sesuai path_enabled (kill switch)
+  ansible.builtin.systemd_service:
+    name: "infra-job-{{ item.key }}.path"
+    enabled: "{{ item.value.path_enabled }}"
+    state: "{{ 'started' if item.value.path_enabled else 'stopped' }}"
+  loop: "{{ infra_jobs_instances | dict2items }}"
+  loop_control:
+    label: "infra-job-{{ item.key }}.path enabled={{ item.value.path_enabled }}"
+  # --check pada run pertama: unit belum ada di host → modul gagal menemukan unit; tidak relevan untuk dry-run.
+  ignore_errors: "{{ ansible_check_mode }}"

@@ -5,7 +5,8 @@
 #   infra-healthcheck.sh --no-mail       cek saja (journal + stderr), tidak mengirim email, state tidak diubah
 #   infra-healthcheck.sh --selftest      cek + satu masalah PALSU `selftest-fake-problem` (uji jalur email; run
 #                                        normal berikutnya mengirim RESOLVED untuknya)
-#   infra-healthcheck.sh --unit-failed <unit>   dipanggil infra-unit-failure@<unit>.service (OnFailure= unit restic)
+#   infra-healthcheck.sh --unit-failed <unit>   dipanggil infra-unit-failure@<unit>.service (OnFailure= unit restic,
+#                                        infra-job@<inst>.service, infra-job-<inst>.path)
 #
 # Yang diperiksa:
 #   1. Setiap service long-running (restart ≠ "no") dari compose stack di $HC_STACKS (dibaca `docker compose config`)
@@ -61,7 +62,7 @@ case "${1:-}" in
   --no-mail) MAIL=no ;;
   --selftest) MODE=selftest ;;
   --unit-failed) [[ $# -eq 2 ]] || usage; MODE=unit; FAILED_UNIT="$2"
-                 [[ "$FAILED_UNIT" =~ ^[A-Za-z0-9@._:-]+\.(service|timer)$ ]] || { echo "nama unit tidak valid" >&2; exit 2; } ;;
+                 [[ "$FAILED_UNIT" =~ ^[A-Za-z0-9@._:-]+\.(service|timer|path)$ ]] || { echo "nama unit tidak valid" >&2; exit 2; } ;;
   *) usage ;;
 esac
 [[ $EUID -eq 0 ]] || { echo "harus root" >&2; exit 2; }

@@ -1,0 +1,3 @@
+{{ {'quota': infra_jobs_quota | combine((infra_jobs_overrides[item.key] | default({})).quota | default({})),
+    'timeouts': infra_jobs_timeouts | combine((infra_jobs_overrides[item.key] | default({})).timeouts | default({}))}
+   | to_nice_json(indent=2) }}

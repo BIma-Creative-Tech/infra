@@ -1,0 +1,36 @@
+---
+- name: Path unit stop + disable (abaikan bila belum ada)
+  ansible.builtin.systemd_service:
+    name: "infra-job-{{ item }}.path"
+    enabled: false
+    state: stopped
+  loop: "{{ infra_jobs_instances.keys() | list }}"
+  failed_when: false
+
+- name: Hapus unit, dispatcher, tmpfiles
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop: "{{ ['/etc/systemd/system/infra-job@.service', infra_jobs_sbin, '/etc/tmpfiles.d/infra-jobs.conf']
+            + (infra_jobs_instances.keys() | map('regex_replace', '^(.*)$', '/etc/systemd/system/infra-job-\\1.path') | list) }}"
+  notify: Reload systemd (infra_jobs)
+
+- name: Terapkan daemon-reload
+  ansible.builtin.meta: flush_handlers
+
+- name: Hapus user cpjob-* (file ber-uid itu di spool/log tetap, numerik)
+  ansible.builtin.user:
+    name: "{{ item.value.user }}"
+    state: absent
+    remove: false
+  loop: "{{ infra_jobs_instances | dict2items }}"
+  loop_control:
+    label: "{{ item.value.user }}"
+
+- name: Hapus grup cpjob-*
+  ansible.builtin.group:
+    name: "{{ item.value.user }}"
+    state: absent
+  loop: "{{ infra_jobs_instances | dict2items }}"
+  loop_control:
+    label: "{{ item.value.user }}"
