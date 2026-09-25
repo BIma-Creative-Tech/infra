@@ -3,7 +3,10 @@
 - **Publik:** `https://cp.bimacreative.tech` (router `traefik/dynamic/platform/cp.yml`, sertifikat LE production `le-http`).
 - **Stack:** `/opt/infra/web/control-plane/` (CLAUDE.md §3.1) · project compose `web-control-plane`.
 - **Image:** lokal `control-plane:<short-sha>` dibangun dari repo `/opt/src/control-plane` commit `main`
-  (saat ini **`control-plane:4fc3828`**, label `org.opencontainers.image.revision`). Tidak ada registry (GHCR menyusul CI).
+  (saat ini **`control-plane:6d94d2b`** = `v0.2.0`, prod + staging sejak 2026-09-25 plan 05; label
+  `org.opencontainers.image.revision`). **TEMPORARY:** image dibangun lokal di VPS, tidak ada registry — sama seperti image
+  platform lain; GHCR + deploy CI menyusul (CLAUDE.md §3.7).
+- **Jembatan job host:** `infra-job` (ADR 0009) — §Jembatan infra-job di bawah, `infra-jobs.md`.
 - **Auth:** Auth.js OIDC → Keycloak realm `platform`, client `control-plane` (confidential, PKCE S256), callback
   `https://cp.bimacreative.tech/api/auth/callback/keycloak`.
 - **Terkait:** repo control-plane `README.md` §Kebutuhan deploy T16, `keycloak.md`, `traefik.md`, `postgres.md`, ADR 0004.
@@ -21,9 +24,92 @@
 | `web` → `control-plane:3000` | `db`, `proxy` (Traefik + egress ke `auth.bimacreative.tech`) | 384m / 0.5 | `GET /api/health` |
 | `worker` | `db` saja | 256m / 0.25 | heartbeat file `/tmp/worker-heartbeat` (< 60 s) |
 
-Hardening semua service: `user 1001:1001`, `read_only` + tmpfs, `cap_drop: [ALL]`, `no-new-privileges`, log 10m×3,
+Hardening semua service: `user 1001:1001` (kecuali `worker` sejak plan 05: `950:950` prod / `951:951` staging — §Jembatan
+infra-job), `read_only` + tmpfs, `cap_drop: [ALL]`, `no-new-privileges`, log 10m×3,
 tanpa port publish. `web` & `worker` `depends_on: migrate (service_completed_successfully)` → setiap
 `docker compose up -d` menjalankan migrasi drizzle dulu; migrasi gagal = container lama tetap jalan (tidak di-recreate).
+
+## Jembatan infra-job (plan 05, ADR 0009)
+
+Ops/superadmin menjalankan langkah runbook `odoo-sso-tenant.md` (DB, route, SSO, user SSO) dari UI sebagai job antrean. Control
+plane menulis file job ke spool host; dispatcher root `infra-job` memvalidasi dan menjalankan skrip. Detail host (spool, unit,
+kuota, kode error, keterbatasan): `infra-jobs.md`. Langkah UI: `docs/runbooks/odoo-sso-tenant.md` §Jalur control plane.
+
+### Konfigurasi (compose, bukan `.env`)
+
+| Env | Service | prod | staging |
+|---|---|---|---|
+| `INFRA_JOBS_INSTANCE` | `web` + `worker` | `prod` (env tenant `prod`/`demo`) | `staging` |
+| `INFRA_JOBS_SPOOL_DIR` | `worker` | `/jobs/spool` | `/jobs/spool` |
+| `INFRA_JOBS_RESULTS_DIR` | `worker` | `/jobs/results` | `/jobs/results` |
+| `INFRA_JOBS_POLL_SECONDS` | `worker` | default 5 (tidak diset) | default 5 |
+| `INFRA_JOBS_QUEUE_GRACE_SECONDS` | `worker` | default 900 (tidak diset) | default 900 |
+
+Kosong `INFRA_JOBS_INSTANCE` = fitur job nonaktif. `SPOOL_DIR`/`RESULTS_DIR`/`INSTANCE` wajib diisi bersama (validasi Zod
+`src/env.ts`). Sumber: repo control-plane `README.md` §Job Odoo/SSO, `.env.example`.
+
+### Worker: uid dan mount
+
+| | prod (`web/control-plane/docker-compose.yml`) | staging (`staging/control-plane/docker-compose.yml`) |
+|---|---|---|
+| `user:` worker | `"950:950"` (`cpjob-prod`) | `"951:951"` (`cpjob-staging`) |
+| tmpfs `/tmp` | `uid=950,gid=950,mode=0700` | `uid=951,gid=951,mode=0700` |
+| bind rw | `/var/lib/infra-jobs/prod/spool` → `/jobs/spool` | `/var/lib/infra-jobs/staging/spool` → `/jobs/spool` |
+| bind ro | `/var/lib/infra-jobs/prod/results` → `/jobs/results` | `/var/lib/infra-jobs/staging/results` → `/jobs/results` |
+
+Kedua bind `create_host_path: false` (direktori dibuat role Ansible `infra_jobs`; tanpa itu worker gagal start). uid worker
+**bukan** 1001 (= user host `deploy`) agar `deploy` tidak bisa menulis job (QA J5 AC-J5). `web` tetap uid 1001 tanpa mount.
+Network tidak berubah (worker hanya `db`).
+
+### Status dan data
+
+- `provision_jobs.status`: `queued` → `dispatched` (file di spool) → `running` → `succeeded` | `failed` (+ `cancelled`
+  sebelum spool). `error_code`: kode dispatcher + tiga kode CP saja `no_result`, `spool_error`, `result_inconsistent`
+  (`infra-jobs.md` §Kode error). Satu job aktif per (environment, type) — partial unique index `provision_jobs_one_active_uq`.
+- `environments`: `host`, `db_status` (`absent|provisioned`), `route_status` (`absent|active|removed`), `sso_status`
+  (`none|active|disabled`), `sso_client_id`, `sso_provider_id`, `last_job_id` — diisi **dari hasil job**, bukan input form.
+- `tenant_user_access`: `pending|active|revoked|failed|inconsistent`; status diturunkan dari `RESULT action=` (grant → active,
+  revoke → revoked, resend_invite → tidak berubah). "Kirim ulang" hanya untuk baris `active` (UI + server, `6d94d2b`).
+- `audit_logs`: `job.enqueue.<type>` (success/rejected, email → `email_hash`), `job.finish` (`system:worker`),
+  `job.result_inconsistent`. Aktor = `user:<sub Keycloak>` + `actor_user_id` sejak `6d94d2b` (BUG-J5-02); sebelum itu aktor = UUID
+  acak per login (job/audit staging lama dari QA J5 tidak bisa ditelusuri).
+- `users` di-upsert saat login (keycloak_sub, email, role cache, `last_login_at`).
+- Mutasi dengan header `Origin` asing → `403` di `proxy.ts` (sejak `6d94d2b`; sebelumnya 500 dari Next.js).
+
+### Versi, migrasi, backup
+
+| Tag image | Commit repo control-plane | Isi | Migrasi | Dipakai |
+|---|---|---|---|---|
+| `6d94d2b` | `6d94d2b` (tag lokal `v0.2.0`) | jembatan + perbaikan QA J5 | 0001–0003 | staging `6845ea1`, prod `682e32b` (**sekarang**) |
+| `7b85a78` | `7b85a78` | jembatan J2/J2b | 0001–0002 | staging `84f8246` (J4, digantikan) |
+| `4fc3828` | `4fc3828` | sebelum plan 05 | 0000 | prod & staging sebelum plan 05 |
+
+Migrasi `0001_infra_jobs`, `0002_error_code_spool_error`, `0003_j5_inconsistent` **additive** (ADD TYPE/VALUE/COLUMN/TABLE/INDEX,
+CHECK yang diperlebar): image lama tetap berjalan di DB yang sudah dimigrasi (commit message `a727ddc`, `a0e8f09`). Image lokal
+lain yang ada: `dev-6d94d2b`, `dev-7b85a78`, `dev-013de24` (build uji), `0.1.0-scaffold`.
+
+Backup `pg_dump` sebelum migrasi (`/opt/infra/backups/control-plane/`, root 0700):
+`control_plane_staging-20260925-130346-pre-7b85a78.dump`, `control_plane_staging-20260925-134933-pre-6d94d2b.dump`,
+`control_plane-20260925-135715-pre-6d94d2b.dump`.
+
+Deploy prod J6 (2026-09-25): migrasi 0001–0003, recreate web+worker, CP tidak tersedia ±4 s (13:57:18–13:57:22 WIB);
+`odoo-pool-a`/`traefik`/`keycloak` tidak di-restart (StartedAt sebelum J6, dicek J7); `GET /` → 307 `/login`.
+
+### Rollback jembatan
+
+```bash
+# 1) hentikan eksekusi host dulu (job baru tertahan → no_result)
+systemctl disable --now infra-job-<prod|staging>.path
+# 2) image lama (aman: migrasi additive). 6d94d2b → 7b85a78 (tanpa perbaikan J5, JANGAN untuk prod: BUG-J5-01/02)
+#    atau → 4fc3828 (tanpa fitur job; kolom/enum baru diabaikan)
+cd /opt/infra/web/control-plane        # staging: /opt/infra/staging/control-plane
+CONTROL_PLANE_TAG=4fc3828 docker compose up -d
+# 3) permanen: kembalikan compose dari git (tanpa uid 950/951 dan mount), commit di repo infra
+git -C /opt/infra checkout 682e32b~1 -- web/control-plane/docker-compose.yml     # staging: 84f8246~1 -- staging/control-plane/
+```
+**UNVERIFIED:** image `4fc3828` dengan compose plan 05 (worker uid 950/951 + mount + env `INFRA_JOBS_*`) belum pernah diuji —
+langkah 2 hanya sementara; bila worker tidak healthy, lakukan langkah 3. Rollback 6d94d2b → 4fc3828 tidak dijalankan dry-run di
+plan 05. Pulihkan DB dari backup hanya bila data rusak (migrasi tidak perlu dibalik).
 
 ## Router Traefik (`dynamic/platform/cp.yml`)
 
@@ -135,7 +221,7 @@ Tag sebelumnya di host: `control-plane:0.1.0-scaffold` (build T12 dari `/opt/src
 - **Publik:** `https://cp.staging.bimacreative.tech` (router `traefik/dynamic/platform/cp-staging.yml`, LE production `le-http`;
   dicakup DNS wildcard `*.staging` — pre-check A = `31.97.50.221` @apollo/@athena.dns-parking.com, @1.1.1.1, @8.8.8.8, tanpa AAAA).
 - **Stack:** `/opt/infra/staging/control-plane/` · project compose `staging-control-plane` · image **sama** dengan prod
-  (`control-plane:4fc3828`, default `${CONTROL_PLANE_TAG:-…}`) — upgrade staging dulu, baru prod (ganti tag di kedua compose).
+  (`control-plane:6d94d2b` sejak 2026-09-25, default `${CONTROL_PLANE_TAG:-…}`) — upgrade staging dulu, baru prod (ganti tag di kedua compose).
 - **Auth:** realm `platform-staging`, client `control-plane` (issuer `https://auth.bimacreative.tech/realms/platform-staging`).
 - **DB:** `control_plane_staging` (role sama, `CONNECTION LIMIT 10`) — lihat `postgres.md`.
 
@@ -145,7 +231,7 @@ Tag sebelumnya di host: `control-plane:0.1.0-scaffold` (build T12 dari `/opt/src
 | `web` | `control-plane-staging:3000` | `db`, `proxy` | 192m / 0.15 | `GET /api/health` |
 | `worker` | `control-plane-staging-worker` | `db` | 128m / 0.10 | heartbeat `/tmp/worker-heartbeat` |
 
-Hardening identik prod (uid 1001, `read_only` + tmpfs, `cap_drop: [ALL]`, `no-new-privileges`, log 10m×3, tanpa port publish).
+Hardening identik prod (uid 1001; worker 951 sejak plan 05, `read_only` + tmpfs, `cap_drop: [ALL]`, `no-new-privileges`, log 10m×3, tanpa port publish).
 Terukur setelah start: web ±55 MiB, worker ±24 MiB.
 
 `.env` (600 root, di-ignore git): `NODE_ENV`, `LOG_LEVEL`, `DATABASE_URL=postgresql://control_plane_staging:<PG_CONTROL_PLANE_STAGING_PASSWORD>@postgres:5432/control_plane_staging`,
@@ -197,4 +283,5 @@ Rollback sama dengan prod (`CONTROL_PLANE_TAG=<tag-lama> docker compose up -d`).
 
 - ~~Staging `cp.staging.bimacreative.tech`~~ — selesai T16b (§Staging).
 - Realm export `platform-staging` (dan `platform`) memuat client `control-plane` — butuh admin (`manage-realm`).
-- Image di registry (GHCR) + `infra-deploy` wrapper untuk user `deploy` (CLAUDE.md §3.7).
+- Image di registry (GHCR) + `infra-deploy` wrapper untuk user `deploy` (CLAUDE.md §3.7) — image masih build lokal (TEMPORARY).
+- Plan 05 open items (backfill status environment tenant lama, CI AC-J13, dll.): `docs/plans/05-control-plane-odoo-sso-jobs.md` §9.4.

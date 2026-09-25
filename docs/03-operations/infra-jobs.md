@@ -1,7 +1,41 @@
-# infra-job — jembatan job control plane → skrip root (DRAFT J1)
+# infra-job — jembatan job control plane → skrip root
 
-Status: **draft J1** (plan 05, ADR 0009) — belum diterapkan di host. Diterapkan Lead di J4 (staging) / J6 (prod).
-Difinalkan docs-versioning di J7.
+- **Status:** **berjalan (prod + staging)** sejak 2026-09-25 — plan 05 EXECUTED (`docs/plans/05-control-plane-odoo-sso-jobs.md` §9),
+  ADR 0009 (accepted). Dispatcher `infra-job` **1.0.0** (`VERSION` di `scripts/infra-job/infra_job.py`); salinan host = repo
+  (`cmp scripts/infra-job/infra_job.py /usr/local/sbin/infra-job` → sama, dicek 2026-09-25 J7).
+- **Terkait:** `docs/03-operations/control-plane.md` §Jembatan infra-job, `docs/runbooks/odoo-sso-tenant.md` §Jalur control plane,
+  QA `docs/qa/2026-09-25-plan05-staging.md` (J5 + regresi J5R), repo `/opt/src/control-plane` (`src/lib/job-contract.ts`).
+
+## Arsitektur
+
+```mermaid
+flowchart LR
+  subgraph CP["control plane (container)"]
+    UI["web: Server Action<br/>(ops/superadmin, Zod, kuota, audit)"] -->|"INSERT provision_jobs + pg-boss"| DB[("control_plane(_staging)")]
+    W["worker uid 950/951<br/>spool writer + collector + watchdog"]
+    DB --> W
+  end
+  W -->|"tmp/&lt;id&gt;.json → rename → new/"| SP["/var/lib/infra-jobs/&lt;inst&gt;/spool/new<br/>root:cpjob-&lt;inst&gt; 0730"]
+  SP -->|"DirectoryNotEmpty="| PU["infra-job-&lt;inst&gt;.path"]
+  PU --> SV["infra-job@&lt;inst&gt;.service<br/>(oneshot root, hardened)"]
+  SV --> D["/usr/local/sbin/infra-job &lt;inst&gt;<br/>validasi, kuota, dry-run pendahulu"]
+  D -->|"argv tetap, env bersih"| S["/opt/infra/scripts/*.sh"]
+  D -->|"results/&lt;id&gt;.json (ro bagi worker)"| W
+  D --> J["journalctl -t infra-job<br/>/var/log/infra-jobs/&lt;inst&gt;/&lt;id&gt;.log"]
+```
+
+Batas keamanan = dispatcher. Control plane tidak memegang Docker API, SSH, sudo, maupun secret platform; yang sampai ke root hanya
+"tipe job allowlist + argumen tervalidasi untuk env instance ini, dalam kuota" (ADR 0009).
+
+## Status rollout (2026-09-25)
+
+| Instance | Path unit | Worker CP | Image CP | Bukti |
+|---|---|---|---|---|
+| staging | `infra-job-staging.path` enabled/active (J4, ±13:00 WIB) | `control-plane-staging-worker` uid **951** | `control-plane:6d94d2b` | infra `84f8246` (7b85a78), `6845ea1` (6d94d2b); QA J5/J5R |
+| prod | `infra-job-prod.path` enabled/active (J6, 13:58 WIB) | `control-plane-worker` uid **950** | `control-plane:6d94d2b` | infra `682e32b`; E2E dry-run `odoo_sso_provision demo demo` via spool → `succeeded` 3 438 ms (job `7f5cdba0`, `changed=0 blockers=0`) |
+
+Role Ansible `infra_jobs` + `auditd` diterapkan 2026-09-25 ±13:00 WIB (run ulang idempoten). User host `cpjob-prod` 950,
+`cpjob-staging` 951. `systemctl is-enabled/is-active infra-job-{prod,staging}.path` → `enabled`/`active` (dicek J7).
 
 ## Komponen
 
@@ -43,6 +77,12 @@ Tata letak (Ansible + tmpfiles; dicek ulang dispatcher setiap run — mode/owner
 /var/log/infra-jobs/                     root:root 0750
   <inst>/<job_id>.log                    root 0600 (stdout+stderr penuh, memuat email = PII; age 30d)
 ```
+
+### Mode file & direktori
+
+Dispatcher menolak file job yang bukan file reguler, bukan milik uid `cpjob-<inst>`, `nlink ≠ 1`, mode > 0644, atau > 8192 byte;
+file dipindah (`rename`) ke `work/` (root 0700) **sebelum** dibaca (`O_NOFOLLOW` + `fstat`). `fs.protected_hardlinks=1` mencegah
+uid job membuat hardlink ke file root (QA J5 H28/H29).
 
 ### Cara worker menulis job
 
@@ -95,6 +135,23 @@ Semua kunci top-level **wajib**, kunci lain ditolak; kunci JSON duplikat, float,
   `odoo_db_provision` 3/24 jam, `odoo_sso_user` 30/jam, `rotate_secret` 5/24 jam. Ubah di `/etc/infra-jobs/<inst>.conf`
   lewat var Ansible (`infra_jobs_quota`, `infra_jobs_overrides`).
 
+### Tipe job → argv (dispatcher `build_argv`)
+
+Semua skrip di `/opt/infra/scripts/`; argumen pertama selalu `<slug> <env>`; `--dry-run` ditambahkan bila `dry_run=true` atau
+fase dry-run pendahulu.
+
+| type | argv |
+|---|---|
+| `odoo_db_provision` | `provision-odoo-db.sh <slug> <env> [--host <h>]` |
+| `odoo_route` | `render-client-route.sh <slug> <env> [--host <h>]` · `remove=true` → `… --remove` |
+| `odoo_sso_provision` | `provision-odoo-sso.sh <slug> <env> --host <h>… [--rotate-secret] [--skip-smoke]` |
+| `odoo_sso_disable` | `provision-odoo-sso.sh <slug> <env> --host <h>… --disable` |
+| `odoo_sso_user` | `odoo-sso-user.sh <slug> <env> --email <e> [--login <l>] [--create-kc] [--admin] --grant\|--revoke\|--resend-invite` |
+
+`--grant`/`--revoke`/`--resend-invite` saling eksklusif sejak `3ca5501` (BUG-J5-01): `resend_invite` hanya mengirim ulang
+`execute-actions-email` dan **menolak** (blocker) user tanpa role `odoo_access` / tanpa tautan `res.users` aktif — tidak pernah
+memberi role, membuat user Keycloak, atau menautkan `res.users`.
+
 argv persis per tipe: lihat `valid[].argv` di `scripts/infra-job/contract/fixtures.json`. Fixture CP (J2) disalin ke
 `scripts/infra-job/tests/fixtures/control-plane/` (asal di `ORIGIN.txt`) dan diuji terhadap dispatcher. Environment skrip hanya
 `PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin`, `LANG=C.UTF-8`; cwd `/opt/infra`; stdin `/dev/null`.
@@ -112,14 +169,35 @@ argv persis per tipe: lihat `valid[].argv` di `scripts/infra-job/contract/fixtur
 
 - `state`: `running` → `succeeded` | `failed`. `succeeded` = exit 0 **dan** baris `RESULT` ada.
 - `phase`: `dry_run` | `apply` | `null` (ditolak sebelum eksekusi). Gagal di dry-run pendahulu → `phase=dry_run`.
-- `error_code`: `rejected_validation`, `rejected_quota`, `disabled`, `blocked_dry_run`, `locked`, `timeout_state_unknown`,
-  `script_exit` (`no_result` hanya CP). `error_detail` = teks tetap dispatcher (tidak menggemakan nilai dari file job).
+- `error_code` (lihat tabel §Kode error). `error_detail` = teks tetap dispatcher (tidak menggemakan nilai dari file job).
 - `type`/`dry_run` bisa `null` bila file tidak ter-parse.
 - `result`: baris `RESULT` terakhir fase terakhir, kunci allowlist `db realm client provider hosts changed kc_user odoo_user
-  action mode blockers route host created pool`, nilai `[A-Za-z0-9._,:@/=-]{0,512}`; `secret`, `secret_file` dibuang.
+  action invite mode blockers route host created pool`, nilai `[A-Za-z0-9._,:@/=-]{0,512}`; `secret`, `secret_file` dibuang.
+- `invite` (sejak `8226b7b`, OBS-J5-01): `odoo-sso-user.sh` menulis `invite=sent|none` — apakah email undangan
+  (`execute-actions-email`) terkirim pada run itu. Ditampilkan CP di detail job (redaksi `tail` tidak dilonggarkan, sehingga baris log
+  `UPDATE_PASSWORD` tetap `[redacted]`).
+- `action` (`odoo_sso_user`): `grant` | `revoke` | `resend_invite` (sebelum `3ca5501` resend melapor `grant`). CP merekonsiliasi
+  status `tenant_user_access` dari nilai ini.
 - Job `dry_run=true` dengan `blockers>0` tetap `succeeded` (rencana untuk ditampilkan; cek `result.blockers`).
 - `tail`: ≤ 40 baris / ≤ 8 KiB, baris ≤ 400 char; baris cocok `(?i)secret|token|password|passwd|bearer|authorization`
   → `[redacted]`; karakter non-printable (ESC, bidi override) → `?`.
+
+### Kode error
+
+| `error_code` | Ditulis oleh | Arti | Tindakan |
+|---|---|---|---|
+| `rejected_validation` | dispatcher | file/skema/regex/instance/host/uid/mode ditolak; tidak ada eksekusi | email alert; selidiki (bug atau kompromi) |
+| `rejected_quota` | dispatcher | kuota instance habis | email alert; tunggu jendela bergulir atau ubah kuota (Ansible) |
+| `disabled` | dispatcher | `/etc/infra-jobs/<inst>.disabled` ada, atau konfigurasi instance invalid (fail-closed) | cabut kill switch / perbaiki conf |
+| `blocked_dry_run` | dispatcher | dry-run pendahulu `blockers>0` → apply tidak dijalankan | baca `tail`/log; perbaiki prasyarat (mis. `res.users` belum ada) |
+| `locked` | dispatcher | lock skrip per DB/route sedang dipegang | boleh diulang |
+| `timeout_state_unknown` | dispatcher | timeout tipe job; grup proses host dibunuh | **cek dry-run dulu** (lihat §Keterbatasan AC-J8); ulang hanya superadmin |
+| `script_exit` | dispatcher | skrip exit ≠ 0, atau exit 0 tanpa `RESULT` | baca `tail`/log host |
+| `no_result` | **CP saja** (watchdog) | tidak ada hasil final sebelum deadline (path unit mati, kill switch `systemctl disable`, nama file ditolak, duplikat) | cek `systemctl status infra-job-<inst>.path`, `journalctl -t infra-job` |
+| `spool_error` | **CP saja** (worker) | worker gagal menulis file ke spool (migrasi `0002`) | cek mount/izin `/jobs/spool` di worker |
+| `result_inconsistent` | **CP saja** (collector) | `RESULT action` ≠ aksi `odoo_sso_user` yang diminta (atau hilang pada apply sukses); baris `tenant_user_access` → `inconsistent`, audit `job.result_inconsistent` (migrasi `0003`) | revoke atau grant eksplisit; selidiki |
+
+Dispatcher hanya menulis tujuh kode pertama; CP hanya mempercayai kode dispatcher dari file hasil (`7b85a78`).
 
 ## Operasi
 
@@ -133,8 +211,11 @@ argv persis per tipe: lihat `valid[].argv` di `scripts/infra-job/contract/fixtur
   `systemctl disable --now infra-job-<inst>.path` (job tertahan, CP `no_result`) · Ansible `path_enabled: false` /
   `disabled: true` · `infra_jobs_state: absent`.
 - Timeout per tipe (detik): `odoo_db_provision` 900, `odoo_sso_provision` 300, `odoo_sso_user` 180, `odoo_sso_disable` 120,
-  `odoo_route` 60, dry-run pendahulu 60. Timeout → SIGTERM grup proses, 30 s → SIGKILL, `timeout_state_unknown`.
-  **UNVERIFIED (AC-J8, J4):** apakah proses `odoo` di dalam container ikut berhenti.
+  `odoo_route` 60, dry-run pendahulu 60 (batas yang diterima dispatcher 5..7200 s). Timeout → SIGTERM grup proses, 30 s →
+  SIGKILL, `timeout_state_unknown`. Proses di **dalam** container tidak ikut berhenti — lihat §Keterbatasan.
+- Durasi nyata (staging, QA J5 OBS-J5-03): DB baru 28 s; DB idempoten ~5 s; route 6,7 s; SSO pertama (install modul) 23 s; SSO
+  idempoten 8–15 s (dry-run ~3 s); `odoo_sso_user` ~2–5 s; disable ~8 s. Prod: dry-run `odoo_sso_provision demo demo` 3,4 s.
+  Timeout default longgar; tidak diubah.
 - Tabrakan lock skrip (`… sedang berjalan (lock)`) → `locked` (boleh diulang).
 - Satu run: maks 100 file / 30 menit; sisanya diproses run berikutnya (path unit memicu ulang selama `new/` berisi).
 
@@ -148,9 +229,13 @@ CapabilityBoundingSet=CAP_CHOWN CAP_DAC_OVERRIDE CAP_DAC_READ_SEARCH CAP_FOWNER 
 Verifikasi: transient unit `systemd-run --wait --pipe -p <properti di atas>` menjalankan seluruh unit test dispatcher +
 `INFRA_JOB_LIVE_DRYRUN=1` (dispatcher → `provision-odoo-sso.sh` dry-run, `--disable --dry-run`, `odoo-sso-user.sh` grant
 dry-run terhadap container/Keycloak staging live) → 180 test OK (1 skip: fixture setuid diblok `RestrictSUIDSGID`).
-**Belum diverifikasi:** jalur apply (`install -o/-g`, `chown` file secret OIDC, `mv` route, `docker exec … odoo -i`) di bawah
+**Saat J1 belum diverifikasi:** jalur apply (`install -o/-g`, `chown` file secret OIDC, `mv` route, `docker exec … odoo -i`) di bawah
 `CapabilityBoundingSet`/`ProtectSystem=full` → AC-J6 di J4. Gagal karena hardening → hapus direktif yang terbukti menghalangi
 (bukan semuanya) dan catat di sini.
+
+**Jalur apply terverifikasi (QA J5 AC-J6, staging):** `install` file secret/admin-password, `chown` 440 `root:messagebus`, rename
+file route, `docker exec … odoo -i`/`odoo shell`, reload Traefik — tanpa error sandbox (`grep "Permission denied|Operation not
+permitted|Read-only file system"` di semua log job → 0; `systemctl --failed` kosong). Tidak ada direktif hardening yang dihapus.
 
 ## Test
 
@@ -160,7 +245,10 @@ INFRA_JOB_LIVE_DRYRUN=1 python3 -m unittest discover -s scripts/infra-job/tests 
                                                                                    #   wrapper menolak non --dry-run)
 ```
 
-## Apply (J4, Lead)
+## Apply / ubah konfigurasi (Ansible)
+
+Diterapkan 2026-09-25 (J4 staging, J6 prod mengubah `prod.path_enabled: true`, `682e32b`). Perubahan kuota/timeout/kill switch
+berikutnya lewat var Ansible, bukan edit file host:
 
 ```
 cd /opt/infra/ansible
@@ -169,5 +257,40 @@ cd /opt/infra/ansible
 /opt/ansible-venv/bin/ansible-playbook site.yml --tags infra_jobs,auditd      # run kedua: changed=0
 ```
 
-Rollback: `infra_jobs_instances.<inst>.path_enabled: false` (atau `systemctl disable --now infra-job-<inst>.path`);
-penuh: `-e infra_jobs_state=absent` (unit, `/usr/local/sbin/infra-job`, tmpfiles, user/grup dihapus; spool/log/etc tetap).
+Override sementara per instance (contoh AC-J8, staging):
+`-e '{"infra_jobs_overrides":{"staging":{"timeouts":{"odoo_sso_provision":5}}}}'` → hanya `/etc/infra-jobs/staging.conf` berubah;
+kembalikan dengan run tanpa override (`--check` → `changed=0`).
+
+## Rollback
+
+Urut dari paling ringan (plan 05 §8.3):
+
+1. Hentikan jembatan per instance: `touch /etc/infra-jobs/<inst>.disabled` (job → `disabled`) atau
+   `systemctl disable --now infra-job-<inst>.path` (job tertahan → CP `no_result`); permanen lewat Ansible
+   `infra_jobs_instances.<inst>.path_enabled: false` / `disabled: true`.
+2. Image CP lama (migrasi 0001–0003 additive): lihat `control-plane.md` §Jembatan infra-job → Rollback (`6d94d2b` → `7b85a78` →
+   `4fc3828`).
+3. Compose worker kembali dari git (tanpa mount, uid 1001): `git checkout <rev> -- web/control-plane/` (prod, sebelum `682e32b`) /
+   `staging/control-plane/` (sebelum `84f8246`).
+4. Penuh: `-e infra_jobs_state=absent` (unit, `/usr/local/sbin/infra-job`, tmpfiles, user/grup dihapus; `/var/lib/infra-jobs`,
+   `/var/log/infra-jobs`, `/etc/infra-jobs` tetap untuk audit).
+
+Perubahan tenant yang dibuat job di-rollback per runbook `odoo-sso-tenant.md` (C/E), sama seperti operasi manual.
+
+## Keterbatasan yang diketahui
+
+- **AC-J8 — timeout tidak menghentikan proses di dalam container.** Uji staging (QA J5 §AC-J8, job `5c2a1f3c`, timeout
+  sementara 5 s): skrip bash + klien `docker exec -i` di host hilang ≤ 0,8 s setelah timeout (SIGTERM grup cukup), tetapi
+  `odoo shell … -d qajob_staging` **di dalam container tetap hidup** ±14 s lagi dan baru berakhir karena statement-nya dibatalkan
+  Postgres (`canceling statement due to lock timeout`). Akibatnya `timeout_state_unknown` berarti state tenant **tidak diketahui**:
+  jalankan dry-run (UI "dry-run saja" atau skrip root `--dry-run`) dan pastikan tidak ada proses `odoo` one-off tersisa
+  (`docker top <odoo-pool-a|odoo-staging>`) sebelum mengulang. Tidak ada state setengah jadi pada uji itu (dry-run setelahnya
+  `changed=0 blockers=0`).
+- Kuota dihitung per instance dengan jendela bergulir dan mencakup job `dry_run`; uji QA dapat menghabiskan kuota
+  `odoo_db_provision` staging (3/24 jam) — rencanakan uji DB baru.
+- Host SSO/route iterasi 1 hanya subdomain platform (`*.erp.bimacreative.tech`, `*.staging.bimacreative.tech`); domain client
+  sendiri tetap runbook manual.
+- `res.users` tidak dibuat oleh job; harus ada sebelum `odoo_sso_user grant` (kalau tidak → `blocked_dry_run`, tanpa user Keycloak
+  / email undangan — QA J5 AC-J7).
+- Dispatcher tidak tahu role CP: pembatasan superadmin (disable/rotate/remove) hanya di CP; kompensasi = email alert untuk setiap
+  `odoo_sso_disable`, `rotate_secret`, `odoo_route remove` dan semua `rejected_*` (ADR 0009 §Security).

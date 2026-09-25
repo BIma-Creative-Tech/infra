@@ -9,6 +9,18 @@ file `VERSION`.
 ## [Unreleased]
 
 ### Added
+- infra-job (plan 05, ADR 0009, `8340a4d`): dispatcher root `/usr/local/sbin/infra-job <prod|staging>` 1.0.0 (Python stdlib) —
+  jembatan job control plane → skrip root lewat spool file: validasi ketat (uid/nlink/mode/ukuran, JSON ketat, allowlist 5 tipe
+  job, regex, binding instance→env, host SSO harus ada di file route tenant), kuota, dry-run pendahulu, argv tetap tanpa shell,
+  env bersih, timeout per tipe, hasil JSON (RESULT allowlist + tail teredaksi), journal tanpa email, email alert; 233 unit test.
+- ansible (plan 05, `c63201b`): role `infra_jobs` (user `cpjob-prod` 950 / `cpjob-staging` 951, `/var/lib/infra-jobs/<inst>`,
+  `/var/log/infra-jobs`, `infra-job@.service` hardened + `infra-job-<inst>.path`, tmpfiles retensi, `/etc/infra-jobs/<inst>.conf`,
+  kill switch, `infra_jobs_state=absent`); auditd watch dispatcher + `/etc/infra-jobs`. Diterapkan 2026-09-25 ±13:00 WIB.
+- control plane (plan 05): worker staging (`84f8246`) dan prod (`682e32b`) uid 951/950 + bind spool rw / results ro + env
+  `INFRA_JOBS_*`; web `INFRA_JOBS_INSTANCE`. `infra-job-staging.path` (J4) dan `infra-job-prod.path` (J6) enabled.
+- scripts (plan 05 OBS-J5-01, `8226b7b`): `odoo-sso-user.sh` `RESULT invite=<sent|none>`; dispatcher meng-allowlist kunci `invite`.
+- docs: `docs/03-operations/infra-jobs.md` (final), `control-plane.md` §Jembatan infra-job, runbook `odoo-sso-tenant.md` §CP (jalur
+  control plane), laporan QA `docs/qa/2026-09-25-plan05-staging.md` (J5 + regresi J5R).
 - traefik (plan 04 S3, F10/AC-S6): router `auth-oidc-backchannel` (prio 96, websecure) — `ClientIP(10.100.0.1/32)` + token/
   certs/userinfo realm `platform`/`platform-staging` → middleware baru `ratelimit-oidc-backchannel` (300/menit, burst 100);
   back-channel pool Odoo tidak lagi berbagi `ratelimit-login` dengan login manusia.
@@ -27,6 +39,12 @@ file `VERSION`.
   per tenant; laporan QA `docs/qa/2026-09-25-plan04-{staging,prod}.md`.
 
 ### Changed
+- control plane prod & staging: image `control-plane:4fc3828` → `6d94d2b` (repo control-plane `v0.2.0`; staging lewat `7b85a78`
+  di J4). Migrasi additive 0001–0003. Backup `control_plane_staging-20260925-130346-pre-7b85a78`,
+  `control_plane_staging-20260925-134933-pre-6d94d2b`, `control_plane-20260925-135715-pre-6d94d2b`. Prod tidak tersedia ±4 s
+  (13:57:18–13:57:22 WIB); pool Odoo/Traefik/Keycloak tidak di-restart. Image masih build lokal (TEMPORARY, tanpa GHCR).
+- scripts (plan 05, `c63201b`): `infra-healthcheck.sh --unit-failed` menerima unit `.path` (OnFailure unit path infra-job).
+- docs: plan 05 → EXECUTED (hasil, acceptance, open items); ADR 0009 §Hasil + riwayat revisi.
 - odoo: submodule `addons/shared` kedua pool → `35e6a99` (`sh_auth_oidc` 19.0.1.2.0: secret per DB dari file, role gate) —
   staging `18d0b5d` (recreate 10:07 WIB ±11 s), prod `e169add` (recreate 11:05:47–11:05:55 WIB ±8 s). Backup
   `demo_staging-20260925-100640-pre-plan04`, `demo_demo-20260925-110513-pre-plan04`.
@@ -36,11 +54,18 @@ file `VERSION`.
   gate); ADR 0008 hasil; ADR 0003 catatan revisi (secret env per tenant digantikan ADR 0008).
 
 ### Fixed
+- scripts (plan 05 BUG-J5-01 High, `3ca5501`): `odoo-sso-user.sh --resend-invite` menjadi aksi tersendiri yang tidak pernah memberi
+  role/membuat user/menautkan; saling eksklusif dengan `--grant`/`--revoke`, `--create-kc` ditolak; user tanpa role `odoo_access`
+  atau tautan aktif → blocker. Sebelumnya resend memulihkan akses user yang sudah dicabut. `RESULT action=resend_invite`.
 - crowdsec (plan 04 BUG-S5-01, `1c2a528`): false positive CRS SQLi (942100) pada POST token back-channel OIDC (±1/22 login SSO
   gagal `oauth_error=2`) — exclusion sempit `local/oidc-backchannel-exclusions`; recreate crowdsec 10:50:07–10:50:54 WIB.
 - observability: `mem_limit` grafana 256m → 384m (GOMEMLIMIT 320MiB), uptime-kuma 192m → 320m (pemakaian 72–81%); ADR 0004 diperbarui.
 
 ### Security
+- Orkestrasi host dari control plane tanpa Docker API/SSH/sudo/secret (ADR 0009): worker menulis job ke spool dengan uid khusus
+  (bukan 1001 = `deploy`); dispatcher root = batas keamanan. QA J5: 52 kasus negatif live ditolak, 0 kebocoran secret (AC-J10),
+  staging CP tidak bisa memicu job prod (AC-J9). Keterbatasan: timeout job tidak menghentikan proses `odoo` di dalam container
+  (AC-J8, `infra-jobs.md` §Keterbatasan).
 - SSO Odoo multi-tenant (ADR 0008): satu client Keycloak per tenant-env dengan redirect URI eksak; secret client per DB di file
   `0440 root:101` di luar git/env (tidak lagi terlihat di `docker inspect` pool prod); file dipilih dari `cr.dbname` sehingga tenant
   tidak bisa merujuk secret tenant lain; role gate `odoo_access`; signup `b2b`, provider bawaan lain OFF. QA lintas tenant 11/11

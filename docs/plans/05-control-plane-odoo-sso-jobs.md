@@ -1,8 +1,9 @@
 # Plan 05 — Control plane memicu job Odoo/SSO (DB, route, SSO tenant, user SSO) lewat jembatan root `infra-job`
 
-- **Status:** APPROVED GATE 1 (user, 2026-09-25): semua rekomendasi — 1 opsi (a) spool+dispatcher + CLAUDE.md §3/§3.4 & nextjs-developer.md diperbarui, 2 iterasi 1 ops/superadmin saja, 3 subdomain platform saja, 4 res.users manual, 5 kuota 60 job/jam · 3 DB/hari · 30 user-job/jam · 5 rotasi/hari + alert
+- **Status:** **EXECUTED (2026-09-25)** — J1–J7 selesai, hasil di §9 (AC-J13 NOT VERIFIED, AC-P1 sebagian; open items §9.4).
+  Sebelumnya: APPROVED GATE 1 (user, 2026-09-25): semua rekomendasi — 1 opsi (a) spool+dispatcher + CLAUDE.md §3/§3.4 & nextjs-developer.md diperbarui, 2 iterasi 1 ops/superadmin saja, 3 subdomain platform saja, 4 res.users manual, 5 kuota 60 job/jam · 3 DB/hari · 30 user-job/jam · 5 rotasi/hari + alert
 - **Tanggal:** 2026-09-25 · **Penulis:** Analyst (FASE 0/1, read-only)
-- **ADR:** `docs/adr/0009-control-plane-job-bridge.md` (proposed)
+- **ADR:** `docs/adr/0009-control-plane-job-bridge.md` (accepted)
 - **Asal:** task S9 plan 04 (`docs/plans/04-odoo-sso-prod-multitenant.md` §3.4 "Kontrak control plane", §9.3 open item 2)
 - **Terkait:** CLAUDE.md §0, §1, §3 (tabel "Docker API akses"), §3.4, §3.6, §3.7; ADR 0008; `docs/runbooks/odoo-sso-tenant.md`;
   `docs/03-operations/control-plane.md`; `.claude/agents/nextjs-developer.md` §Orkestrasi; repo `/opt/src/control-plane` (`main` = `0030d68`,
@@ -317,3 +318,68 @@ Tidak ada container baru; anggaran ADR 0004 tidak berubah.
 5. **Kuota dispatcher per instance**: 60 job/jam, `odoo_db_provision` 3/hari, `odoo_sso_user` 30/jam, `rotate_secret` 5/hari; lewat
    batas → ditolak + email alert; alert juga untuk setiap disable/rotate/remove. — **Rekomendasi: setujui angka ini** (bisa dinaikkan
    lewat konfigurasi root tanpa ubah CP).
+
+## 9. Hasil eksekusi (2026-09-25)
+
+Sumber: git log `main` infra sejak `2317d19` (s.d. `682e32b`), repo control-plane `main` `0030d68` → `6d94d2b`, QA
+`docs/qa/2026-09-25-plan05-staging.md` (J5 + regresi J5R), fakta Lead (J4/J6), cek read-only J7. Waktu WIB kecuali disebut UTC.
+
+### 9.1 Task
+
+| ID | Hasil | Commit / bukti |
+|---|---|---|
+| J1 | Dispatcher `/usr/local/sbin/infra-job` 1.0.0 (Python stdlib) + 233 test; role Ansible `infra_jobs` (user `cpjob-prod` 950 / `cpjob-staging` 951, spool/results/log, `infra-job@.service` hardened, `infra-job-<inst>.path`, tmpfiles, conf kuota/timeout, kill switch, `state=absent`); watch auditd; draft `infra-jobs.md` | infra `8340a4d`, `c63201b`, `1bcfe0a`, merge `ad4143f` |
+| J2 | CP: migrasi `0001` (additive), `src/lib/job-contract.ts`, worker bridge (spool writer, collector, watchdog, pg-boss `retryLimit 0`), UI `/clients/<slug>`, `/environments/<id>`, `/jobs`, audit, upsert `users`; J2b menyelaraskan regex dengan dispatcher + `spool_error` (migrasi `0002`) | CP `a727ddc`, `1c61472`, `013de24`, `7b85a78` |
+| J3/J4 | Staging: role `infra_jobs`+`auditd` diterapkan ±13:00 (run ulang idempoten; path staging enabled, prod disabled); compose worker uid 951 + spool rw/results ro; CP staging `7b85a78` (migrasi 0001/0002); E2E dry-run `ssotest` via spool → succeeded | infra `84f8246`; backup `control_plane_staging-20260925-130346-pre-7b85a78.dump` |
+| J5 | QA staging: AC-J1..J12 PASS, 52 negatif live ditolak; BUG-J5-01 (High), BUG-J5-02 (Medium), OBS-J5-01/02 | `f96df2f`, merge `5fff6c6` |
+| J5 fix | BUG-J5-01 skrip (`--resend-invite` aksi tersendiri) + CP; BUG-J5-02 CP; OBS-J5-01 `RESULT invite=`; OBS-J5-02 Origin asing → 403; migrasi `0003` (`inconsistent`, `result_inconsistent`); staging CP `6d94d2b` | infra `3ca5501`/merge `7611e5e`, `8226b7b`, `6845ea1`; CP `a0e8f09`, `6d94d2b`; backup `control_plane_staging-20260925-134933-pre-6d94d2b.dump` |
+| J5R | Regresi R1–R13 PASS; sign-off J6 | `785d682`, merge `fc7c7d4` |
+| J6 | Prod: backup `control_plane-20260925-135715-pre-6d94d2b.dump`, migrasi 0001–0003, CP `6d94d2b`, worker uid 950 + mount, `infra-job-prod.path` enabled; CP tidak tersedia ±4 s (13:57:18–13:57:22); E2E dry-run `odoo_sso_provision demo demo` via spool → succeeded 3 438 ms (`changed=0 blockers=0`, job `7f5cdba0`) | infra `682e32b` |
+| J7 | Docs: `infra-jobs.md` final, `control-plane.md` §Jembatan infra-job, runbook §CP, plan/ADR hasil, CHANGELOG infra; CP `CHANGELOG.md` + `package.json` 0.2.0 + tag lokal `v0.2.0` | branch infra `docs/docs-versioning-plan05`; CP `docs/docs-versioning-v0.2.0` |
+
+CLAUDE.md §3/§3.4 dan `nextjs-developer.md` §Orkestrasi sudah diperbarui saat GATE 1 (`2317d19`); tidak diubah lagi di J7.
+
+### 9.2 Acceptance
+
+| AC | Hasil | Bukti |
+|---|---|---|
+| AC-J1 | PASS | QA J5 §AC-J1 (`infra-job root root 755`; `spool/new root cpjob-<inst> 730`) |
+| AC-J2 | PASS | QA J5: staging enabled/active; prod enabled/active sejak J6 (`682e32b`; `systemctl is-enabled/is-active` dicek J7) |
+| AC-J3 | PASS | QA J5 `Ran 233 tests … OK (skipped=3)`; matriks negatif 106 kontrak + 40 CP (commit `8340a4d`) |
+| AC-J4 | PASS | staging QA J5 (uid 951, `results spool`, `Read-only file system`); prod dicek J7: `uid=950`, `touch /jobs/results/x` → `Read-only file system`, web uid 1001 tanpa mount |
+| AC-J5 | PASS | QA J5 §AC-J5, P1–P5 |
+| AC-J6 | PASS | QA J5 alur #1–#4 (tenant uji `qajob`, bukan `cpjob`): DB 28,0 s, route 6,7 s, SSO `changed=9` lalu `changed=0`; jalur apply di bawah hardening tanpa error sandbox |
+| AC-J7 | PASS | QA J5 #5–#10 + J5R R3–R9 (run pertama menemukan BUG-J5-01; setelah fix resend tidak memulihkan akses) |
+| AC-J8 | PASS (fakta dicatat) | QA J5 §AC-J8: `timeout_state_unknown`; proses `odoo shell` di container tetap hidup ±14 s setelah klien `docker exec` dibunuh → keterbatasan di ADR 0009 §Hasil, `infra-jobs.md` §Keterbatasan |
+| AC-J9 | PASS | QA J5 §AC-J9, J5R R12 |
+| AC-J10 | PASS | QA J5 §AC-J10 (6 secret, 0 hit), J5R R13 |
+| AC-J11 | PASS | QA J5 §AC-J11 (`?r=duplicate`, 1 baris job) |
+| AC-J12 | PASS | QA J5 N-A1..N-A6 |
+| AC-J13 | **NOT VERIFIED** | CI control-plane (lint/typecheck/vitest/Semgrep/Trivy) dan Semgrep python dispatcher tidak dijalankan/diperiksa di J5/J6/J7; workflow `security.yml` ada (CP `0030d68`), hasil run tidak dilihat |
+| AC-P1 | SEBAGIAN | dry-run `odoo_sso_provision demo demo` via spool (aktor `system:lead-j6-smoke`) → succeeded 3 438 ms, `blockers=0 changed=0`. **Belum:** backfill client/environment `demo` di CP prod (CP prod 0 client, 0 environment — dicek J7), job lewat UI, grant/login E2E/revoke user uji prod |
+| AC-P2 | PASS | dicek J7: `odoo-pool-a` StartedAt 05:18:44Z, `traefik` 2026-09-23, `keycloak` 2026-09-24 (sebelum J6 06:57Z); `cp.bimacreative.tech` → 307 `/login` |
+
+### 9.3 Bug & temuan
+
+| ID | Sev | Ringkas | Status |
+|---|---|---|---|
+| BUG-J5-01 | High | `odoo_sso_user resend_invite` memberi ulang role `odoo_access` ke user yang sudah dicabut; CP tetap menampilkan `revoked` | FIXED: skrip `3ca5501` (aksi tersendiri, blocker untuk user tanpa role/tautan), CP `6d94d2b` (tombol hanya `active`, server `precondition`, status dari `RESULT action`, `result_inconsistent`); J5R R4–R9 PASS |
+| BUG-J5-02 | Medium | aktor CP = UUID acak per login (Auth.js `token.sub`), `actor_user_id` NULL | FIXED CP `6d94d2b` (`sub` Keycloak, `actor_user_id` terisi); J5R R1–R2 PASS. Job/audit staging sebelum fix tetap beraktor acak |
+| OBS-J5-01 | Low | redaksi `tail` menyembunyikan sinyal undangan | FIXED `8226b7b` (`RESULT invite=sent\|none`) + CP `6d94d2b`; J5R R11 |
+| OBS-J5-02 | Low | Origin asing → 500 | FIXED CP `6d94d2b` (403 di `proxy.ts`); J5R R10 |
+| OBS-J5-03 | Info | kuota DB staging habis oleh uji; durasi nyata | dicatat `infra-jobs.md` |
+| OBS-J5R-01 | Low | CRS `rce` FP pada nama client bertanda baca (`;`, kurung) → 403 | terbuka (§9.4 #2) |
+
+### 9.4 Open items
+
+| # | Item | Pemilik |
+|---|---|---|
+| 1 | Backfill data CP tenant lama (§1.5): prod `demo`/`demo` (belum ada client/environment di CP prod); staging `demo`/`staging` (belum ada); staging `ssotest`/`staging` (dibuat QA J5R, kolom status masih default `absent/absent/none`). Selesaikan juga AC-P1 (job via UI + grant/login/revoke user uji prod) | Lead |
+| 2 | OBS-J5R-01: tuning `controlplane-crs-exclusions` untuk nama client bertanda baca — hanya bila dibutuhkan | Lead / infra-engineer |
+| 3 | AC-J13: jalankan/periksa CI control-plane (lint, typecheck, vitest, Semgrep, Trivy) dan Semgrep python dispatcher | Lead / qa-security |
+| 4 | Backlog: `resend_invite` yang `blocked_dry_run` pada baris `active` (akses di Keycloak/Odoo sudah tidak cocok dengan CP) → tandai baris `inconsistent`? | nextjs-developer (backlog) |
+| 5 | Backlog: perketat CHECK DB `tenant_user_access.email` / slug ke regex dispatcher (migrasi non-additive → perlu backup + rencana rollback) | nextjs-developer (backlog) |
+| 6 | Client CP staging `qajob` dibiarkan sebagai jejak uji TERMINATED (baris job/audit/tenant_user_access dipertahankan) | — (info) |
+| 7 | Image control plane masih dibangun lokal di VPS (TEMPORARY, sama dengan image platform lain); GHCR + deploy CI menyusul | Lead |
+| 8 | Jalur `result_inconsistent` hanya diuji unit/integrasi, belum live (QA J5R) | qa-security (opsional) |
+

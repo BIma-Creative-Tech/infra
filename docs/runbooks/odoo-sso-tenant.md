@@ -13,8 +13,44 @@
   - Secret client `automation` realm terkait ada di `/opt/infra/identity/keycloak/secrets/automation-<realm>.secret`.
   - Realm: env `prod`/`demo` → `platform`; `staging` → `platform-staging`. Client = `odoo-<slug>-<env>`, DB = `<slug dengan - → _>_<env>`.
 
+**Dua jalur, skrip yang sama.** Sejak 2026-09-25 (plan 05, ADR 0009) langkah A–E bisa dijalankan dari control plane
+(`cp.bimacreative.tech` untuk env `prod`/`demo`, `cp.staging.bimacreative.tech` untuk `staging`) — §CP di bawah. Control plane
+hanya menulis job; dispatcher root `infra-job` menjalankan skrip di bawah ini dengan argumen tervalidasi, jadi hasil dan
+idempotensi sama dengan jalur manual. Jalur manual (root) tetap berlaku untuk: domain client sendiri, `--first-name/--last-name`,
+troubleshooting, dan saat jembatan dimatikan. **`res.users` tetap dibuat manual di Odoo** di kedua jalur.
+
 Semua skrip: idempoten, baris terakhir `RESULT …`, exit ≠ 0 bila gagal, `--dry-run` hanya membaca. **Jangan** jalankan dengan
 `bash -x` (token Admin REST ada di variabel). Jangan menampilkan isi file secret (`cat`) — cek dengan `stat`/hash saja.
+
+## CP. Jalur control plane (ops/superadmin)
+
+- **Prasyarat:** akun Keycloak dengan client role `control-plane` `ops` atau `superadmin` (realm `platform` / `platform-staging`);
+  client + environment ada di CP (superadmin: `/clients` → "Tambah client" → `/clients/<slug>` → "Tambah environment"; `demo` wajib
+  host). Iterasi 1: hanya host subdomain platform (`<label>.erp.bimacreative.tech`, `<label>.staging.bimacreative.tech`).
+- Semua tombol ada di `/environments/<id>`; setiap klik = satu job (antre, bukan langsung). Hasil di "Job terbaru" dan `/jobs/<id>`
+  (status, `error_code`, `RESULT`, `tail` teredaksi). Tombol ganda saat job sejenis aktif → `?r=duplicate` tanpa job baru.
+
+| Langkah manual | Tombol CP (`/environments/<id>`) | Role | Catatan |
+|---|---|---|---|
+| A1 DB | "1. Provision DB" (host, wajib untuk demo) | ops, superadmin | tanpa dry-run; kuota 3 DB/24 jam per instance |
+| A2 SSO sebelum route | "3. Aktifkan SSO" + centang "skip smoke (host default, sebelum route)" | ops, superadmin | hanya host default `<slug>.<erp\|staging>.bimacreative.tech` |
+| A3 route | "2. Render route" (host) | ops, superadmin | DNS pre-check di skrip |
+| A4 SSO + smoke | "3. Aktifkan SSO" (opsional "dry-run saja" dulu) | ops, superadmin | host SSO = host route aktif environment; dispatcher menjalankan dry-run pendahulu, `blockers>0` → `blocked_dry_run` tanpa perubahan |
+| B tambah user | form "Pengguna SSO": email, login Odoo (opsional), "admin tenant (TOTP)", "buat user Keycloak + undangan", "dry-run" → "Undang" | ops, superadmin | `res.users` harus sudah ada; kalau belum → `blocked_dry_run`, tanpa user Keycloak/email |
+| B undangan ulang | baris user → "Kirim ulang" | ops, superadmin | hanya baris `active`; `RESULT invite=sent\|none` di detail job |
+| C cabut | baris user → "Cabut" | ops, superadmin | status baris → `revoked`; tombol "Kirim ulang"/"Cabut" hilang |
+| D rotasi | "Rotasi secret SSO" (ketik slug) | superadmin | email alert; kuota 5/24 jam |
+| E nonaktifkan | "Nonaktifkan SSO" (ketik slug) | superadmin | email alert |
+| E hapus route | "Hapus route" (ketik slug) | superadmin | email alert |
+
+- **Verifikasi:** job `succeeded`; `environments` `db/route/sso` status berubah (diisi dari hasil job); `RESULT changed=0` saat
+  diulang (idempoten). Verifikasi teknis tambahan = bagian G (root).
+- **Gagal:** `blocked_dry_run`/`locked` → perbaiki prasyarat lalu "Ulangi (job baru)" di `/jobs/<id>`. `timeout_state_unknown` →
+  **jangan langsung ulang**: jalankan "dry-run saja" / skrip `--dry-run` dan cek `docker top <pool>` (proses `odoo` di container
+  bisa masih hidup, `infra-jobs.md` §Keterbatasan), ulang hanya superadmin. `no_result` → cek `systemctl status
+  infra-job-<inst>.path` dan `journalctl -t infra-job`. `rejected_*` → sudah ada email alert; laporkan ke Lead.
+  `inconsistent` pada baris user → cabut atau undang ulang secara eksplisit.
+- **Rollback:** sama dengan jalur manual (C/E), lewat tombol atau skrip root. Mematikan jembatan: `infra-jobs.md` §Rollback.
 
 ## A. Onboard SSO tenant baru
 
@@ -75,8 +111,8 @@ membuat `res.users` dan tidak menautkan `admin` tenant (break-glass).
 /opt/infra/scripts/odoo-sso-user.sh <slug> <env> --email <email> --create-kc --admin
 # orang yang sudah punya akun Keycloak (tenant lain / portal): cukup grant + tautan
 /opt/infra/scripts/odoo-sso-user.sh <slug> <env> --email <email> [--login <odoo login>]
-# undangan hilang / kedaluwarsa (hanya bila required action masih tertunda)
-/opt/infra/scripts/odoo-sso-user.sh <slug> <env> --email <email> --resend-invite
+# undangan hilang / kedaluwarsa (hanya bila required action masih tertunda; user harus masih punya akses — lihat Catatan)
+/opt/infra/scripts/odoo-sso-user.sh <slug> <env> --email <email> [--login <odoo login>] --resend-invite
 ```
 - Undangan = email Keycloak `execute-actions-email` (set password [+ TOTP]); user tanpa `--first-name/--last-name` mengisi nama
   sendiri saat login pertama.
@@ -165,7 +201,10 @@ Klaim role tanpa login: Admin REST `GET /admin/realms/<realm>/clients/<uuid>/eva
 
 - Logout Odoo tidak mengakhiri sesi Keycloak: di komputer bersama, klik SSO bisa masuk lagi tanpa password (RP-initiated logout
   = backlog).
-- Integrasi control plane (job `odoo_sso_provision` / `odoo_sso_user` memanggil skrip ini via wrapper root) = plan terpisah (S9);
-  kontrak: plan 04 §3.4.
+- Integrasi control plane: **selesai** di plan 05 (§CP di atas; `docs/03-operations/infra-jobs.md`,
+  `docs/03-operations/control-plane.md` §Jembatan infra-job).
+- `--resend-invite` sejak `3ca5501` (BUG-J5-01) adalah aksi tersendiri (tidak bisa digabung `--grant`/`--create-kc`): hanya
+  mengirim ulang email bila user masih punya role `odoo_access` + tautan aktif; user yang sudah dicabut → blocker (pulihkan hanya
+  lewat `--grant`). `RESULT` memuat `invite=sent|none` (`8226b7b`).
 - Realm-export git tidak memuat client `odoo-*` (`automation` tanpa `manage-realm`).
 - Perintah `password_login_policy` via `odoo shell` belum dijalankan di plan 04 (hanya semantiknya diuji di test modul T15).
