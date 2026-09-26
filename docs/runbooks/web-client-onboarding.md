@@ -100,6 +100,12 @@ docker stats --no-stream web-<slug>-<env>
    [--smtp-port 587]`. Opsional `--lead-webhook <https-url>` → `LEAD_WEBHOOK_URL` di `.env` (600 root, tidak di git — URL webhook bisa memuat token); tanpa flag = kosong/nonaktif (2026-09-26, permintaan bct). Skrip set owner `1001:1001` mode `0400`, menambah `docker-compose.contact.yml` ke `COMPOSE_FILE`
    (secret `/run/secrets/smtp_password`, `SMTP_PASSWORD_FILE`, `CONTACT_ENABLED=true`) dan me-recreate container.
 4. Mematikan: provision ulang tanpa `--contact` (secret tidak lagi di-mount; hapus file password bila mailbox dicabut).
+5. Opsional **Cloudflare Turnstile** (bct G-43, default OFF): buat widget untuk host di dashboard Cloudflare, taruh
+   *secret key* di `secrets/turnstile_secret.secret` (cara sama dengan langkah 2), lalu provision ulang dengan
+   `--contact … --turnstile-site-key <site-key>`. Skrip menambah `docker-compose.turnstile.yml` ke `COMPOSE_FILE`
+   (`TURNSTILE_SITE_KEY` di `.env`, `TURNSTILE_SECRET_FILE=/run/secrets/turnstile_secret`, owner `1001:1001` `0400`).
+   Keduanya atau tidak sama sekali: flag tanpa file secret → skrip menolak; aplikasi exit 1 bila hanya satu diset.
+   Mematikan: provision ulang tanpa `--turnstile-site-key` (file secret boleh tetap ada; tidak di-mount).
 
 ## 4. Upgrade tag image
 

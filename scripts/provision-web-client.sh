@@ -2,7 +2,8 @@
 # Provision website Next.js client (plan 03 W2) — satu perintah: stack compose + router Traefik. IDEMPOTEN.
 #
 #   scripts/provision-web-client.sh <slug> <prod|staging> --host <fqdn> --image <ref> [--www]
-#       [--contact --smtp-host <fqdn> --smtp-user <email> --smtp-from <email> [--smtp-port <port>]]
+#       [--contact --smtp-host <fqdn> --smtp-user <email> --smtp-from <email> [--smtp-port <port>]
+#        [--turnstile-site-key <key>]]
 #   scripts/provision-web-client.sh <slug> <prod|staging> --remove
 #
 # Urutan provision:
@@ -19,6 +20,8 @@
 # --remove: hapus route + HUP, `docker compose down` (TANPA -v), direktori render dipertahankan + penanda `.removed`.
 # Form kontak (--contact): password SMTP TIDAK lewat argumen — taruh dulu di <dir>/secrets/smtp_password.secret
 # (runbook docs/runbooks/web-client-onboarding.md §Form kontak); skrip men-set owner 1001:1001 mode 0400.
+# Turnstile (--turnstile-site-key, hanya bersama --contact): secret key di <dir>/secrets/turnstile_secret.secret
+# (sama perlakuannya); site key publik → .env. Tanpa flag → override turnstile tidak dimuat (OFF).
 # Output baris terakhir: RESULT host=<fqdn|-> container=<nama> route=<file> changed=<yes|no|removed>
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -42,7 +45,8 @@ EMAIL_RE='^[A-Za-z0-9._%+-]{1,64}@([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2
 usage() {
   cat >&2 <<EOF
 pemakaian: $0 <slug> <prod|staging> --host <fqdn> --image <ref> [--www]
-             [--contact --smtp-host <fqdn> --smtp-user <email> --smtp-from <email> [--smtp-port <port>]]
+             [--contact --smtp-host <fqdn> --smtp-user <email> --smtp-from <email> [--smtp-port <port>]
+              [--turnstile-site-key <key>]]
              [--lead-webhook <https-url>]
            $0 <slug> <prod|staging> --remove
 EOF
@@ -57,6 +61,7 @@ SLUG="$1"; WEB_ENV="$2"; shift 2
 
 HOST=""; IMAGE=""; WWW=no; CONTACT=no; REMOVE=no
 SMTP_HOST=""; SMTP_PORT=587; SMTP_USER=""; SMTP_FROM=""
+TURNSTILE_SITE_KEY=""   # opsional (bct G-43): Cloudflare Turnstile, butuh --contact + secrets/turnstile_secret.secret
 LEAD_WEBHOOK=""   # opsional (bct 2026-09-26): URL webhook lead tambahan; .env 600 root, tidak di git (URL bisa memuat token)
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -69,6 +74,7 @@ while [[ $# -gt 0 ]]; do
     --smtp-user) [[ $# -ge 2 ]] || usage; SMTP_USER="$2"; shift 2 ;;
     --smtp-from) [[ $# -ge 2 ]] || usage; SMTP_FROM="$2"; shift 2 ;;
     --lead-webhook) [[ $# -ge 2 ]] || usage; LEAD_WEBHOOK="$2"; shift 2 ;;
+    --turnstile-site-key) [[ $# -ge 2 ]] || usage; TURNSTILE_SITE_KEY="$2"; shift 2 ;;
     --remove) REMOVE=yes; shift ;;
     *) usage ;;
   esac
@@ -158,8 +164,18 @@ if [[ "$CONTACT" == yes ]]; then
 elif [[ -n "$SMTP_HOST$SMTP_USER$SMTP_FROM" ]]; then
   die "--smtp-* hanya bersama --contact"
 fi
+TURNSTILE_SECRET="$STACK_DIR/secrets/turnstile_secret.secret"
+if [[ -n "$TURNSTILE_SITE_KEY" ]]; then
+  [[ "$CONTACT" == yes ]] || die "--turnstile-site-key hanya bersama --contact"
+  [[ "$TURNSTILE_SITE_KEY" =~ ^[A-Za-z0-9_-]{8,128}$ ]] || die "--turnstile-site-key tidak valid"
+  # Keduanya atau tidak sama sekali (aplikasi exit 1 bila hanya satu): secret wajib ada bila site key diberikan.
+  [[ -s "$TURNSTILE_SECRET" ]] || die "--turnstile-site-key: file secret belum ada: ${TURNSTILE_SECRET} (lihat runbook)"
+elif [[ -s "$TURNSTILE_SECRET" ]]; then
+  echo "catatan: ${TURNSTILE_SECRET} ada tapi --turnstile-site-key tidak diberikan → Turnstile OFF (secret tidak di-mount)" >&2
+fi
 
 for f in "$COMPOSE_TEMPLATE_DIR/docker-compose.yml" "$COMPOSE_TEMPLATE_DIR/docker-compose.contact.yml" \
+         "$COMPOSE_TEMPLATE_DIR/docker-compose.turnstile.yml" \
          "$COMPOSE_TEMPLATE_DIR/.gitignore" "$ROUTE_TEMPLATE"; do
   [[ -f "$f" ]] || die "template tidak ada: $f"
 done
@@ -206,6 +222,7 @@ trap 'rm -rf "$tmpdir"' EXIT
 
 compose_files="docker-compose.yml"
 [[ "$CONTACT" == no ]] || compose_files="docker-compose.yml:docker-compose.contact.yml"
+[[ -z "$TURNSTILE_SITE_KEY" ]] || compose_files="${compose_files}:docker-compose.turnstile.yml"
 {
   echo "${MARKER} — jangan edit manual (render ulang). Tidak ada secret."
   echo "COMPOSE_PROJECT_NAME=${ROUTE}"
@@ -221,16 +238,19 @@ compose_files="docker-compose.yml"
     echo "SMTP_FROM_ADDRESS=${SMTP_FROM}"
   fi
   [[ -z "$LEAD_WEBHOOK" ]] || echo "LEAD_WEBHOOK_URL=${LEAD_WEBHOOK}"
+  [[ -z "$TURNSTILE_SITE_KEY" ]] || echo "TURNSTILE_SITE_KEY=${TURNSTILE_SITE_KEY}"
 } > "$tmpdir/env"
 
 install_if_changed "$COMPOSE_TEMPLATE_DIR/docker-compose.yml" "$STACK_DIR/docker-compose.yml" 0644
 install_if_changed "$COMPOSE_TEMPLATE_DIR/docker-compose.contact.yml" "$STACK_DIR/docker-compose.contact.yml" 0644
+install_if_changed "$COMPOSE_TEMPLATE_DIR/docker-compose.turnstile.yml" "$STACK_DIR/docker-compose.turnstile.yml" 0644
 install_if_changed "$COMPOSE_TEMPLATE_DIR/.gitignore" "$STACK_DIR/.gitignore" 0644
 install_if_changed "$tmpdir/env" "$STACK_DIR/.env" 0600
 if [[ "$CONTACT" == yes ]]; then
   chmod 0700 "$STACK_DIR/secrets"
   # Compose non-swarm mem-bind file apa adanya → owner harus uid container (1001).
   chown 1001:1001 "$SECRET_FILE"; chmod 0400 "$SECRET_FILE"
+  if [[ -n "$TURNSTILE_SITE_KEY" ]]; then chown 1001:1001 "$TURNSTILE_SECRET"; chmod 0400 "$TURNSTILE_SECRET"; fi
 fi
 if [[ -e "$STACK_DIR/.removed" ]]; then rm -f -- "$STACK_DIR/.removed"; stack_changed=yes; fi
 
