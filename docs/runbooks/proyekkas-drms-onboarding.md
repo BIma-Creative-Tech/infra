@@ -38,7 +38,8 @@ tetap dikirim (tanpa efek tambahan).
 | Var `.env` postgres | `PG_PK_DRMS_{OWNER,APP,RO}_PASSWORD` | `PG_PK_DRMS_STG_{OWNER,APP,RO}_PASSWORD` | dibangkitkan `postgres/scripts/bootstrap.sh` |
 | Realm Keycloak | `drms` | `drms-staging` | `identity/keycloak/realm-export/drms*.json` |
 | Router Traefik | (menyusul) | `drms-pk-stg-{auth,api-v1,api-rest,web}` | arsitektur: `pk-auth/pk-api-v1/pk-web`; `api-rest` ditambah (buffering hanya di route upload); prefix env agar unik |
-| Network edge | `drms-kas-edge` `10.100.7.0/24` gw `10.100.7.1` | sama | dibuat infra Lead (Langkah 0) |
+| Network edge | `drms-kas-edge-prod` `10.100.14.0/24` (**cadangan**, ADR 0010 #4 — belum dibuat) | `drms-kas-edge` `10.100.7.0/24` gw `10.100.7.1` | staging dibuat infra Lead (Langkah 0); prod & staging tidak berbagi edge (plan 06) |
+| Network DB (ADR 0010) | `db-drms` `10.100.25.0/24` `--internal` (**cadangan**, baris pg_hba sudah ada) | `db-drms-stg` `10.100.26.0/24` `--internal` (aktif sejak plan 06 S6) | network `db` bersama dihapus 2026-09-26; pg_hba role DRMS hanya dari subnet ini |
 
 Realm export dibuat dari `platform-staging.json` (Keycloak 26.7.4 partial export) — nama realm diganti, **semua UUID
 diganti** (uuid5 deterministik per realm; tidak ada tabrakan PK dengan realm lain, dicek) — lalu ditambah: role
@@ -79,11 +80,11 @@ Sejak H5, Admin REST Keycloak **tidak bisa** dicapai lewat IP publik :443 (hairp
   container app nama itu me-resolve ke IP Traefik di network tsb (mis. `10.100.9.2`), jadi **URL app tidak berubah**:
   issuer/token/JWKS/Admin REST tetap `https://auth.bimacreative.tech/...` (sertifikat LE valid, tanpa `--resolve`).
 - Compose app (web + worker, milik ProyekKas) menambahkan network external itu **selain** `drms-kas-edge` (ingress + egress;
-  network internal tidak punya egress/DNS publik) dan `db`:
+  network internal tidak punya egress/DNS publik) dan network DB per konsumen (ADR 0010; `db` lama sudah dihapus):
   ```yaml
   services:
-    web:            # juga worker
-      networks: [drms-kas-edge, db, drms-kc-admin-stg]   # prod: drms-kc-admin
+    web:            # juga worker; migrate/seed hanya [db-drms-stg]
+      networks: [drms-kas-edge, db-drms-stg, drms-kc-admin-stg]   # prod: [drms-kas-edge-prod, db-drms, drms-kc-admin]
   networks:
     drms-kc-admin-stg:
       external: true
@@ -131,6 +132,9 @@ docker exec postgres psql -U postgres -AtX -c "select line_number,database,user_
 #   → 2 baris pk_drms / pk_drms_stg, kolom error kosong
 docker exec postgres psql -U postgres -AtX -c "select r,d,has_database_privilege(r,d,'CONNECT') from unnest(array['pk_drms_app','pk_drms_stg_app','odoo_pool_a','odoo_staging','control_plane','keycloak','datamart']) r, unnest(array['pk_drms','pk_drms_stg']) d"
 #   → t hanya untuk pk_drms_app@pk_drms dan pk_drms_stg_app@pk_drms_stg
+# Catatan plan 06 (2026-09-26): network `db` sudah dihapus — perintah `--network db` di bawah = log eksekusi 2026-09-23.
+# Sekarang pakai `--network db-drms-stg` (staging) / `db-drms` (prod, setelah dibuat); role lain dari subnet ini ditolak
+# pg_hba sebelum autentikasi (uji silang QA N7, docs/qa/2026-09-26-plan06-prod.md §pg_hba).
 IMG=postgres:16.15-bookworm@sha256:efedf3595f1d6f415c08568ba171029bf54052e754cc9f030e3f2412b21f3d67
 pw() { printf 'PGPASSWORD=%s\n' "$(grep "^$1=" /opt/infra/postgres/.env | cut -d= -f2-)"; }
 docker run --rm --network db --env-file <(pw PG_PK_DRMS_STG_APP_PASSWORD) $IMG psql -h postgres -U pk_drms_stg_app -d pk_drms_stg -AtX -c 'select current_user'   # → pk_drms_stg_app

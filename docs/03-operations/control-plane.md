@@ -9,7 +9,8 @@
 - **Jembatan job host:** `infra-job` (ADR 0009) — §Jembatan infra-job di bawah, `infra-jobs.md`.
 - **Auth:** Auth.js OIDC → Keycloak realm `platform`, client `control-plane` (confidential, PKCE S256), callback
   `https://cp.bimacreative.tech/api/auth/callback/keycloak`.
-- **Terkait:** repo control-plane `README.md` §Kebutuhan deploy T16, `keycloak.md`, `traefik.md`, `postgres.md`, ADR 0004.
+- **Terkait:** repo control-plane `README.md` §Kebutuhan deploy T16, `keycloak.md`, `traefik.md`, `postgres.md`, ADR 0004,
+  ADR 0010 (network DB per konsumen, plan 06).
 
 ## Isi stack
 
@@ -20,9 +21,14 @@
 
 | Service | Network | Limit (ADR 0004) | Healthcheck |
 |---|---|---|---|
-| `migrate` | `db` | 256m / 0.25 | — (one-shot, `restart: "no"`) |
-| `web` → `control-plane:3000` | `db`, `proxy` (Traefik + egress ke `auth.bimacreative.tech`) | 384m / 0.5 | `GET /api/health` |
-| `worker` | `db` saja | 256m / 0.25 | heartbeat file `/tmp/worker-heartbeat` (< 60 s) |
+| `migrate` | `db-cp` | 256m / 0.25 | — (one-shot, `restart: "no"`) |
+| `web` → `control-plane:3000` | `db-cp`, `proxy` (Traefik + egress ke `auth.bimacreative.tech`) | 384m / 0.5 | `GET /api/health` |
+| `worker` | `db-cp` saja | 256m / 0.25 | heartbeat file `/tmp/worker-heartbeat` (< 60 s) |
+
+Network (ADR 0010, plan 06 S7 2026-09-25 22:02:31–35 WIB, recreate ±4 s): `db-cp` = 10.100.23.0/24 `--internal`, anggota
+hanya `postgres` + service stack ini; pg_hba `control_plane` hanya dari subnet ini (network `db` bersama sudah dihapus, S10).
+`proxy` tetap (issuer tiba sebagai IP container → router `auth-login`/`auth-public`); residual R1: CP, CP-staging, Grafana,
+Uptime Kuma saling menjangkau `:3000/:3001` lewat `proxy` — pemisahan = **plan 10** (usulan, belum ditulis).
 
 Hardening semua service: `user 1001:1001` (kecuali `worker` sejak plan 05: `950:950` prod / `951:951` staging — §Jembatan
 infra-job), `read_only` + tmpfs, `cap_drop: [ALL]`, `no-new-privileges`, log 10m×3,
@@ -59,7 +65,7 @@ Kosong `INFRA_JOBS_INSTANCE` = fitur job nonaktif. `SPOOL_DIR`/`RESULTS_DIR`/`IN
 
 Kedua bind `create_host_path: false` (direktori dibuat role Ansible `infra_jobs`; tanpa itu worker gagal start). uid worker
 **bukan** 1001 (= user host `deploy`) agar `deploy` tidak bisa menulis job (QA J5 AC-J5). `web` tetap uid 1001 tanpa mount.
-Network tidak berubah (worker hanya `db`).
+Network tidak berubah oleh plan 05 (worker hanya network DB; sejak plan 06: `db-cp` / `db-cp-stg`).
 
 ### Status dan data
 
@@ -228,9 +234,11 @@ Tag sebelumnya di host: `control-plane:0.1.0-scaffold` (build T12 dari `/opt/src
 
 | Service | Container | Network | Limit (ADR 0004: staging web+worker 320 MiB / 0.25) | Healthcheck |
 |---|---|---|---|---|
-| `migrate` | `staging-control-plane-migrate-1` (one-shot) | `db` | 192m / 0.25 (transien) | — |
-| `web` | `control-plane-staging:3000` | `db`, `proxy` | 192m / 0.15 | `GET /api/health` |
-| `worker` | `control-plane-staging-worker` | `db` | 128m / 0.10 | heartbeat `/tmp/worker-heartbeat` |
+| `migrate` | `staging-control-plane-migrate-1` (one-shot) | `db-cp-stg` | 192m / 0.25 (transien) | — |
+| `web` | `control-plane-staging:3000` | `db-cp-stg`, `proxy` | 192m / 0.15 | `GET /api/health` |
+| `worker` | `control-plane-staging-worker` | `db-cp-stg` | 128m / 0.10 | heartbeat `/tmp/worker-heartbeat` |
+
+`db-cp-stg` = 10.100.24.0/24 `--internal` (ADR 0010, plan 06 S5); pg_hba `control_plane_staging` hanya dari subnet ini.
 
 Hardening identik prod (uid 1001; worker 951 sejak plan 05, `read_only` + tmpfs, `cap_drop: [ALL]`, `no-new-privileges`, log 10m×3, tanpa port publish).
 Terukur setelah start: web ±55 MiB, worker ±24 MiB.

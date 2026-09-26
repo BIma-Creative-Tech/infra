@@ -1,5 +1,29 @@
 # Runbook eksekusi — Plan 06 segmentasi network (ADR 0010, QA-T17B-01)
 
+> **STATUS: SELESAI (2026-09-26) — dokumen ini dipertahankan sebagai referensi** (pola migrasi network live, rollback
+> setelah S10, alat `net-matrix.sh`/`pg-hba-validate.sh`). Jangan dijalankan ulang apa adanya: network `db` sudah dihapus,
+> branch `$WT` (`/opt/infra-wt/n1`) sudah di-merge dan file `pg_hba.conf.s10-final` sudah dihapus (0ccfce2). Keadaan final: `postgres.md` §Network per
+> konsumen, `traefik.md` §Network `kc-edge`, `odoo.md`, `keycloak.md`. Hasil & waktu terukur: plan 06 §15, QA
+> `docs/qa/2026-09-25-plan06-staging.md` (N4) dan `docs/qa/2026-09-26-plan06-prod.md` (N7, AC-06-01..16 PASS).
+>
+> | Langkah | Waktu (WIB) | Terukur | Commit |
+> |---|---|---|---|
+> | S2 pg_hba transisi di tempat (26 aturan) | 2026-09-25 (commit 18:41) | 0 (reload) | 09c9045 |
+> | merge N1, S1 network baru, S3 attach live | 2026-09-25 | 0 (desain; tidak diukur terpisah) | d74e00e |
+> | S4 staging Odoo | 2026-09-25 18:42:18–21 | ±3 s | 2cc5f9e |
+> | S5 staging control plane | 2026-09-25 | tidak dicatat | — |
+> | S6 staging DRMS | 2026-09-25 | ±33 s | — |
+> | BUG-N4-01 fix `net-matrix.sh` | 2026-09-25 | — | e90fd9a (merge f39c794) |
+> | S7 prod control plane | 2026-09-25 22:02:31–35 | ±4 s | — |
+> | recreate Traefik | 2026-09-25 22:03:36–41 | ±5 s | — |
+> | S8 Keycloak | 2026-09-25 22:06:09–36 | ±27 s discovery down | — |
+> | S9 prod Odoo pool-a | 2026-09-25 22:09:24–31 | ±7 s | dc993ce |
+> | S10 pg_hba final (16 aturan), `db` dihapus, recreate postgres + Traefik (email ACME) | 2026-09-26 16:08 | — | 0ccfce2 |
+>
+> S10 dijalankan **lebih awal** dari rencana 24 jam soak (keputusan user: belum ada client). Rekomendasi "recreate Postgres
+> + Traefik" di §S10 yang dipakai. Traefik di-recreate dengan `--force-recreate` setelah email ACME `le-http` dipasang
+> (insiden CAA, `traefik.md` §CAA).
+
 - **Plan:** `docs/plans/06-network-isolation.md` (§3 desain, §6 S0–S11, §8 verifikasi, §9 AC) · **ADR:** `docs/adr/0010-network-segmentation.md`
 - **Disiapkan:** N1 infra-engineer, branch `feat/infra-network-segmentation` (2026-09-25). Langkah live dijalankan Lead (N3/N5/N6).
 - **Alat (read-only, di branch ini):**

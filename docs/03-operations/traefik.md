@@ -1,7 +1,8 @@
 # Operasional — Traefik (edge, T03)
 
 - **Stack:** `/opt/infra/traefik/` · image `traefik:v3.7.13` (pin tag + digest, ADR 0001)
-- **Terkait:** ADR 0002 (HTTP-01 per hostname, tanpa wildcard), plan 02 §3–§4, CLAUDE.md §3.5.1
+- **Terkait:** ADR 0002 (HTTP-01 per hostname, tanpa wildcard), ADR 0010 (segmentasi network, plan 06), plan 02 §3–§4,
+  CLAUDE.md §3.5, §3.5.1
 
 ## Struktur
 
@@ -21,7 +22,7 @@
 | `dynamic/middlewares/crowdsec.yml` | middleware plugin bouncer CrowdSec + AppSec (T05) — lihat `crowdsec.md` | ya |
 | `logs/access.log` | access log JSON (dibaca CrowdSec T05, Alloy T14). Dir `65532:adm` 750 | **tidak** |
 | `logrotate/traefik` | dipasang ke `/etc/logrotate.d/traefik` oleh bootstrap | ya |
-| `scripts/bootstrap.sh` | idempoten: network `proxy`, `odoo-edge`, `drms-kas-edge`, `drms-kc-admin{,-stg}` (H5, `--internal`), dir/file acme & logs, logrotate | ya |
+| `scripts/bootstrap.sh` | idempoten: network `proxy`, `odoo-edge`, `odoo-edge-stg` + `kc-edge` (ADR 0010), `drms-kas-edge`, `drms-kc-admin{,-stg}` (H5, `--internal`), `web-edge`, `webmail-edge`, dir/file acme & logs, logrotate (`drms-kas-edge-prod` 10.100.14.0/24 = cadangan, belum dibuat) | ya |
 
 ## Keputusan
 
@@ -52,8 +53,10 @@
   `docker exec prometheus wget -qO- http://traefik:8082/metrics | head -1` → metrik; Prometheus target `traefik` = up.
 - `forwardedHeaders` tidak diset → `X-Forwarded-For`/`X-Real-Ip` dari client **ditimpa** (diuji:
   kirim `X-Forwarded-For: 1.2.3.4` → backend menerima IP koneksi sebenarnya).
-- Email ACME: **kosong** (LE menerima akun tanpa email; notifikasi kedaluwarsa LE sudah dihentikan).
-  Isi `certificatesResolvers.*.acme.email` bila Lead menetapkan alamat.
+- Email ACME: `le-http` = **`postmaster@bimacreative.tech`** sejak 2026-09-26 16:08 WIB (commit 0ccfce2, ADR 0002 #15b).
+  **Wajib:** tanpa `email` Traefik mendaftarkan akun ACME baru setelah restart/recreate (insiden CAA 2026-09-25/26, §CAA).
+  Dengan email, akun `acct/3793253016` terbukti stabil melewati `--force-recreate` Traefik. `le-http-staging` tanpa email
+  (tidak dipakai router production). Jangan menghapus/mengubah email tanpa memperbarui CAA bila `accounturi` dipasang lagi.
 
 ## Entrypoint `admin` — panel admin hanya lewat loopback host (H5, keputusan user 2026-09-23)
 
@@ -153,7 +156,7 @@ ulang, `burst` = kapasitas; docs v3.7 `middlewares/ratelimit.md`), lewat batas �
   ```yaml
   services:
     app:
-      networks: [proxy]          # + network internal stack sendiri (mis. db)
+      networks: [proxy]          # + network internal stack sendiri (mis. db-<konsumen>, ADR 0010)
   networks:
     proxy:
       external: true
@@ -181,14 +184,37 @@ ulang, `burst` = kapasitas; docs v3.7 `middlewares/ratelimit.md`), lewat batas �
 - **Sebelum menulis router hostname baru**: `dig +short A <fqdn> @1.1.1.1` dan `@8.8.8.8` harus
   `31.97.50.221`, `dig +short AAAA <fqdn>` kosong (ADR 0002 #5).
 
-## Network `odoo-edge` (H1)
+## Network `odoo-edge` (H1) dan `odoo-edge-stg` (ADR 0010)
 
-- Bridge **`10.100.3.0/24`, gateway `10.100.3.1`**, dibuat `scripts/bootstrap.sh` (fungsi `ensure_network`),
-  bukan `--internal` (Odoo butuh egress). Anggota **hanya** `traefik` + pool Odoo (`odoo-pool-a`, `odoo-staging`);
-  service `odoo-*-{http,ws}` di `dynamic/platform/odoo-pools.yml` di-resolve lewat DNS Docker network ini.
-- Traefik join `odoo-edge` **tanpa** `gw_priority` (default 0) — `proxy` tetap `gw_priority: 1` sehingga koneksi
-  dari host tetap tiba sebagai `10.100.0.1` (diverifikasi di access log setelah perubahan, 2026-09-23).
-- Jangan menambahkan service lain ke `odoo-edge`; jangan menambahkan pool Odoo ke `proxy`.
+- `odoo-edge`: bridge **`10.100.3.0/24`, gateway `10.100.3.1`**, dibuat `scripts/bootstrap.sh` (fungsi `ensure_network`),
+  bukan `--internal` (Odoo butuh egress). Anggota **hanya** `traefik` + `odoo-pool-a` (prod).
+- `odoo-edge-stg` (plan 06 S1/S4, 2026-09-25): bridge **`10.100.13.0/24`, gateway `10.100.13.1`**, bukan `--internal`
+  (egress/hairpin OIDC pool staging). Anggota **hanya** `traefik` + `odoo-staging`. Prod dan staging tidak berbagi edge.
+- Service `odoo-*-{http,ws}` di `dynamic/platform/odoo-pools.yml` di-resolve lewat DNS Docker network ini (nama container
+  tidak berubah → tidak ada perubahan file dynamic).
+- `SH_DBFILTER_TRUSTED_PROXIES` pool = subnet edge-nya (`10.100.3.0/24` / `10.100.13.0/24`) — `odoo.md` §Cek
+  `sh_dbfilter_header`. Karena itu **subnet edge pool jangan diubah** tanpa mengubah env pool.
+- Traefik join keduanya **tanpa** `gw_priority` (default 0) — `proxy` tetap `gw_priority: 1` sehingga koneksi
+  dari host tetap tiba sebagai `10.100.0.1` (diverifikasi access log 2026-09-23, dan QA N7 AC-06-13 2026-09-26).
+- Jangan menambahkan service lain ke `odoo-edge*`; jangan menambahkan pool Odoo ke `proxy`. Pool/dedicated baru = edge
+  sendiri per env.
+
+## Network `kc-edge` (Keycloak, ADR 0010 #3)
+
+- Bridge **`10.100.12.0/24`, gateway `10.100.12.1`**, dibuat `scripts/bootstrap.sh`, bukan `--internal` (Keycloak butuh
+  egress SMTP `mail.bimacreative.tech:587`). Anggota **hanya** `traefik` + `keycloak`. Keycloak tidak lagi di `proxy`
+  (plan 06 S8, 2026-09-25 22:06 WIB) → service `keycloak:8080` di `dynamic/platform/auth.yml` di-resolve ke IP `kc-edge`.
+- Traefik join tanpa `gw_priority`; Keycloak memakai `gw_priority: 1` di `kc-edge` (default route 10.100.12.1).
+- IP sumber Traefik ke Keycloak = 10.100.12.x = `KC_PROXY_TRUSTED_ADDRESSES` (`keycloak.md`). Jangan menambah anggota.
+
+## Recreate Traefik plan 06 (2026-09-25)
+
+Setelah `kc-edge`/`odoo-edge-stg` di-connect live (S3), compose Traefik ditandai Recreate (config-hash memuat `networks:`,
+runbook plan 06 fakta 2). Recreate di jendela prod: **22:03:36–41 WIB (±5 s tanpa respons)**. Efek samping yang diharapkan:
+perubahan static QA-T17B-03 (`manualRouting`) ikut aktif → `traefik:8082/metrics` **403** dari semua network kecuali
+`metrics` (QA N7: container uji di `web-edge`, `proxy`, `drms-kas-edge`, `odoo-edge` → 403; Prometheus `up{job="traefik"}=1`).
+Efek samping yang **tidak** diharapkan: akun ACME `le-http` berganti (tanpa `email`) → insiden CAA (§CAA). Traefik di-recreate
+lagi 2026-09-26 16:08 WIB (S10, `--force-recreate` dengan email ACME).
 
 ## Network `drms-kas-edge` (ProyekKas DRMS)
 
@@ -277,6 +303,14 @@ limit LE: 5 authorization failure / identifier / jam (ADR 0002).
 > `le-http` tidak punya `email` → Traefik mendaftarkan akun ACME baru setelah restart (acme.json 3788309616 → 3790657356 pada
 > 2026-09-25 15:12Z) → sertifikat baru gagal CAA 403. Pin ulang hanya setelah email ACME dikonfigurasi dan akun terbukti
 > stabil melewati restart (ADR 0002 #15b). Catatan di bawah = konteks saat CAA masih terkunci.
+>
+> **Pembaruan 2026-09-26 16:10 WIB:** email `le-http` dipasang (§Keputusan, commit 0ccfce2); akun baru `acct/3793253016` stabil
+> melewati `--force-recreate` Traefik (ADR 0002 #15b). Pin ulang CAA ke akun ini = **opsional, keputusan user** (belum dilakukan).
+> `issuewild ";"` tidak bisa dipasang: DNS Hostinger menolak nilai `;` (ADR 0002 #16).
+>
+> **Kronologi insiden:** CAA `accounturi` dipasang 2026-09-25 (sesi Expomedia, abd4a39) ke akun `acct/3788309616`; recreate
+> Traefik plan 06 malam itu (§Recreate Traefik plan 06) mendaftarkan akun baru karena `le-http` tanpa email → penerbitan
+> sertifikat baru gagal CAA 403; user melepas `accounturi` ±00:20 WIB 2026-09-26; perbaikan akar = email ACME (S10).
 
 Semula: `0 issue "letsencrypt.org; accounturi=https://acme-v02.api.letsencrypt.org/acme/acct/3788309616"` (ADR 0002 #15b).
 - `acme.json` = satu-satunya akun yang boleh menerbitkan sertifikat hostname platform → **wajib ikut backup** dan jangan dihapus.

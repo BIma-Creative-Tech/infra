@@ -24,9 +24,9 @@ Isi tiap direktori pool:
 
 | Path | Isi | Git |
 |---|---|---|
-| `docker-compose.yml` | service `odoo`, network `db` + `odoo-edge` (H1), tanpa port publish | ya |
+| `docker-compose.yml` | service `odoo`, network `db-odoo-pool-a` + `odoo-edge` (prod) / `db-odoo-staging` + `odoo-edge-stg` (staging) — ADR 0010, tanpa port publish | ya |
 | `odoo.conf` | opsi server — **tanpa secret** (lihat §Secret) | ya |
-| `addons/shared` | **git submodule** `odoo-addons-shared` ter-pin (prod & staging `35e6a99` sejak plan 04, 2026-09-25) | gitlink |
+| `addons/shared` | **git submodule** `odoo-addons-shared` ter-pin (prod & staging `4bd278a` sejak plan 06 S4/S9, 2026-09-25: `sh_dbfilter_header` 19.0.1.1.0 trusted proxy; sebelumnya `35e6a99` plan 04) | gitlink |
 | `addons/clients/<slug>` | repo addons client (`odoo-addons-<slug>`) — kosong saat ini | ya (per client) |
 | `.env` | `PGHOST/PGPORT/PGUSER/PGPASSWORD`, `ODOO_ADMIN_PASSWD` (hash) — 600 root | **tidak** |
 | `secrets/master-password` | master password plaintext (48 char) — 600 root | **tidak** |
@@ -91,6 +91,17 @@ docker logs odoo-pool-a 2>&1 | grep 'sh_dbfilter_header active'
 ```
 Baris ini muncul di proses master **dan** proses gevent (websocket). Tidak ada baris / ada warning
 "proxy_mode" → **jangan buka trafik**: modul tidak aktif = pemilihan DB tidak terkunci.
+
+**Trusted proxy (19.0.1.1.0, ADR 0010 #5a, plan 06):** env compose `SH_DBFILTER_TRUSTED_PROXIES` = `10.100.3.0/24`
+(`odoo/pool-a`, subnet `odoo-edge`) / `10.100.13.0/24` (`staging/odoo`, subnet `odoo-edge-stg`). Header `X-Sh-Odoo-Db`
+hanya dipakai bila peer TCP (sebelum ProxyFix) ada di daftar; selain itu fail-closed (tanpa DB) + WARNING:
+```bash
+docker logs odoo-pool-a 2>&1 | grep 'accepted only from'          # … 10.100.3.0/24
+docker logs odoo-pool-a 2>&1 | grep 'untrusted peer'              # WARNING … from untrusted peer <ip> ignored … (fail-closed)
+```
+Diuji QA: container di `db-odoo-staging` (N4, 10.100.22.4) dan `db-odoo-pool-a` (N7, 10.100.21.4) dengan header palsu →
+`/web/login` 303 `/web/database/selector` (tanpa DB) + WARNING. Env salah (mis. subnet edge berubah) → semua tenant 303 ke
+selector; rollback = hapus env + `up -d` (perilaku lama + WARNING saat load).
 
 ## Provisioning tenant
 
@@ -369,17 +380,23 @@ ter-install); kembali penuh: `git -C <pool>/addons/shared checkout 35e6a99` + re
 
 ## Keamanan — catatan
 
-- Odoo di network `db` (internal) + **`odoo-edge`** (H1, 2026-09-23); **tidak ada port di-publish**
-  (`ss -tlnp` tanpa 8069/8072).
+- Network (ADR 0010, plan 06 selesai 2026-09-26): prod `odoo-pool-a` = `db-odoo-pool-a` (10.100.21.0/24, internal) +
+  `odoo-edge` (10.100.3.0/24); staging `odoo-staging` = `db-odoo-staging` (10.100.22.0/24, internal) + `odoo-edge-stg`
+  (10.100.13.0/24). Network `db` bersama sudah dihapus. **Tidak ada port di-publish** (`ss -tlnp` tanpa 8069/8072).
+  Recreate terukur plan 06: staging S4 18:42:18–21 WIB (±3 s), prod S9 22:09:24–31 WIB (±7 s).
 - `user 100:101`, `read_only: true` + tmpfs `/tmp` (512m; wkhtmltopdf/report diuji OK), `cap_drop: [ALL]`,
   `no-new-privileges`, tanpa `cap_add`. Writable hanya volume data `/var/lib/odoo`.
 - **Network `odoo-edge`** (`10.100.3.0/24`, dibuat `traefik/scripts/bootstrap.sh`, bukan `--internal`):
-  anggota **hanya** `traefik`, `odoo-pool-a`, `odoo-staging`. Pool Odoo **tidak** lagi di `proxy`, jadi
+  anggota **hanya** `traefik` + `odoo-pool-a` (prod). Sejak plan 06 S4 pool staging ada di **`odoo-edge-stg`**
+  (`10.100.13.0/24`, non-internal karena egress/hairpin OIDC, anggota `traefik` + `odoo-staging`) — pool staging tidak bisa
+  membuka `odoo-pool-a:8069` (QA N4 §1c). Riwayat H1 (sebelum plan 06: kedua pool di `odoo-edge`): pool Odoo **tidak** lagi di `proxy`, jadi
   container lain di `proxy` (keycloak, control-plane, whoami, …) tidak bisa me-resolve/menghubungi
   `odoo-pool-a:8069`/`:8072` langsung dan memasang `X-Sh-Odoo-Db` sendiri (melewati CrowdSec/ratelimit).
   Diuji: container uji di `proxy` (`10.100.0.250`) → `nslookup odoo-pool-a` SERVFAIL, `curl http://odoo-pool-a:8069`
   dan `http://10.100.3.4:8069` → timeout. Egress Odoo tetap ada (OIDC ke `auth.bimacreative.tech` via hairpin
-  IP publik → 200). **Pool/dedicated Odoo baru wajib join `odoo-edge`, bukan `proxy`.** Cek anggota:
+  IP publik → 200). **Pool/dedicated Odoo baru wajib punya edge per env sendiri (pola `odoo-edge`/`odoo-edge-stg`) +
+  `db-<pool>` sendiri (`postgres.md` §Network per konsumen), bukan `proxy`, dan `SH_DBFILTER_TRUSTED_PROXIES` = subnet
+  edge-nya.** Cek anggota:
   `docker network inspect odoo-edge --format '{{range .Containers}}{{.Name}} {{end}}'`.
 - Cookie `session_id` dari core Odoo 19 tanpa `Secure`/`SameSite` (QA-T17B-06). **Akar masalah** (source image
   `odoo:19.0-20260908`, `odoo/http.py`): `Request._save_session` (`future_response.set_cookie('session_id', sid,

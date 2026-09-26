@@ -1,8 +1,11 @@
 # Plan 06 — Isolasi network: DB per konsumen, Keycloak `kc-edge`, edge Odoo per env (QA-T17B-01)
 
-- **Status:** APPROVED GATE 1 (user 2026-09-25 "lanjutkan" = semua rekomendasi §13: 1 recreate prod 22:00–23:00 WIB, staging siang; 2 pisah odoo-edge prod/staging; 3 kedua D-i-D; 4 pecah proxy → plan 07; 5 hapus `db` setelah 24 jam soak + QA hijau); CLAUDE.md §3.5/§3.2 diperbarui
+- **Status:** **EXECUTED** (S0–S10 selesai 2026-09-25/26; QA N7 AC-06-01..16 PASS, sign-off penutupan — §15). Semula: APPROVED
+  GATE 1 (user 2026-09-25 "lanjutkan" = semua rekomendasi §13: 1 recreate prod 22:00–23:00 WIB, staging siang; 2 pisah
+  odoo-edge prod/staging; 3 kedua D-i-D; 4 pecah proxy → plan terpisah, kini **plan 10** (nomor 07/08/09 sudah dipakai plan
+  Expomedia/webmail/tambang); 5 hapus `db` setelah 24 jam soak + QA hijau — dieksekusi lebih awal, §15.1); CLAUDE.md §3.5/§3.2 diperbarui
 - **Tanggal:** 2026-09-25 · **Penulis:** Analyst (FASE 0/1, read-only)
-- **ADR:** `docs/adr/0010-network-segmentation.md` (proposed)
+- **ADR:** `docs/adr/0010-network-segmentation.md` (accepted, hasil di §Results ADR)
 - **Asal:** QA-T17B-01 (High), `docs/qa/2026-09-25-t17b-platform-full.md` §Ringkasan #1 + B15. Diverifikasi ulang oleh Lead dari
   `drms-pk-stg` dan oleh Analyst (probe §2.3).
 - **Terkait:**
@@ -441,15 +444,91 @@ Gelombang: [N0] → [N1 ‖ N2] → [N3] → [N4] → [N5] → (24 jam) → [N6]
    pool staging → pool prod. Biayanya hanya bagian dari recreate staging.
 3. **D-i-D:** kerjakan `sh_dbfilter_header` trusted-proxy (odoo-developer, paralel) dan `proxy-trusted-addresses` Keycloak
    (bila runtime)? **Rekomendasi: ya untuk keduanya.** Odoo `http_interface` per IP tidak dikerjakan.
-4. **`proxy` (CP, CP-staging, Grafana, Uptime Kuma saling menjangkau langsung):** plan 07 terpisah atau masuk sekarang?
-   **Rekomendasi: plan 07.** Memindahkan CP keluar dari `proxy` mengubah IP sumber ke issuer menjadi `10.100.0.1` (router
+4. **`proxy` (CP, CP-staging, Grafana, Uptime Kuma saling menjangkau langsung):** plan terpisah (kini **plan 10**; semula
+   ditulis "plan 07") atau masuk sekarang? **Rekomendasi: plan terpisah (plan 10).** Memindahkan CP keluar dari `proxy` mengubah IP sumber ke issuer menjadi `10.100.0.1` (router
    back-channel/rate limit bersama), jadi perlu desain sendiri.
 5. **Network `db` lama:** hapus setelah 24 jam soak + QA hijau (fail-loud bila ada compose yang masih merujuk), atau simpan
    kosong 7 hari? **Rekomendasi: hapus setelah 24 jam.**
 
 ## 14. Follow-up (di luar scope)
 
-- Plan 07: pecah `proxy` → `cp-edge`, `cp-edge-stg`, `admin-edge` (grafana, kuma), dengan evaluasi rute issuer CP.
+- **Plan 10** (semula ditulis "plan 07"; 07/08/09 dipakai plan Expomedia/webmail/tambang): pecah `proxy` → `cp-edge`,
+  `cp-edge-stg`, `admin-edge` (grafana, kuma), dengan evaluasi rute issuer CP. Belum ditulis.
 - `web-edge` per klien (`traefik.md` §web-edge "opsi masa depan").
 - Keycloak `http-host` di `kc-edge` (menutup `:8080` dari `metrics`).
 - QA checklist permanen: B15 (probe §8.1) dijalankan setiap onboarding konsumen/stack baru.
+
+## 15. Hasil eksekusi (N3–N7, 2026-09-25/26)
+
+Sumber: git `main` (09c9045 … 7c61645), QA `docs/qa/2026-09-25-plan06-staging.md` (N4) dan
+`docs/qa/2026-09-26-plan06-prod.md` (N7), runbook `docs/03-operations/network-segmentation-runbook.md`, laporan Lead.
+
+### 15.1 Langkah dan waktu terukur
+
+| Step | Waktu (WIB) | Downtime terukur | Rencana §6 | Commit / catatan |
+|---|---|---|---|---|
+| S1 network baru, S3 attach live Postgres/Traefik | 2026-09-25 | 0 (desain; tidak diukur terpisah) | 0 | merge N1 d74e00e |
+| S2 pg_hba transisi di tempat (26 aturan, 0 error) | 2026-09-25 (commit 18:41) | 0 (reload) | 0 | 09c9045 |
+| S4 staging Odoo + `sh_dbfilter_header` 19.0.1.1.0 | 18:42:18–21 | ±3 s | ±11 s | 2cc5f9e (addons 4bd278a, trusted 10.100.13.0/24) |
+| S5 staging control plane | 2026-09-25 | tidak dicatat | ±5–10 s | — |
+| S6 staging DRMS | 2026-09-25 | ±33 s | ≤ 40 s (estimasi) | — |
+| Gerbang QA staging N4 | 18:46–19:05 | — | — | 8/8 PASS, BUG-N4-01 (42c7c2a, merge b7b35e7) |
+| S7 prod control plane | 22:02:31–35 | ±4 s | ±4 s | — |
+| Recreate Traefik (drift `networks:`, runbook fakta 2) | 22:03:36–41 | ±5 s | +5 s bila perlu | metrics `:8082` kini 403 kecuali dari `metrics` (Prometheus) |
+| S8 Keycloak (`kc-edge`, `db-keycloak`, `metrics`, `KC_PROXY_TRUSTED_ADDRESSES`) | 22:06:09–36 | ±27 s discovery tidak tersedia | ±30–60 s | — |
+| S9 prod Odoo pool-a + `sh_dbfilter_header` 19.0.1.1.0 | 22:09:24–31 | ±7 s | ±8 s | dc993ce (addons 4bd278a, trusted 10.100.3.0/24) |
+| S10 pg_hba final (16 aturan), postgres lepas `db`, `docker network rm db`, recreate postgres; Traefik `--force-recreate` dengan email ACME `le-http` | 2026-09-26 16:08 | recreate postgres (error koneksi transien di Odoo/cp-worker, pulih sendiri — N7 AC-06-16) | 0 / +6 s | 0ccfce2 |
+| S11 QA penuh N7 | 2026-09-26 16:13–16:35 | — | — | 1f35ac2, merge 7c61645 |
+
+Penyimpangan dari rencana:
+- **S10 lebih awal** dari 24 jam soak (§6 S10, GATE Q5): disetujui user karena belum ada client. Soak 24 jam log (AC-06-16)
+  dinilai N7 atas jendela 24 jam sebelum uji — PASS.
+- Recreate Traefik dilakukan dua kali (prod window S3-drift, dan S10 untuk email ACME), bukan nol.
+- Total downtime prod: CP ±4 s, Traefik ±5 s (+ recreate S10), Keycloak ±27 s (login baru saja), Odoo prod ±7 s.
+
+### 15.2 Acceptance criteria
+
+| AC | N4 staging (`2026-09-25-plan06-staging.md`) | N7 penuh (`2026-09-26-plan06-prod.md`) |
+|---|---|---|
+| AC-06-01 Odoo hanya via Traefik | PASS (probe independen §1b/§1c; `--check` tidak dipakai karena BUG-N4-01) | PASS (`net-matrix.sh --check` → `RESULT: OK`, probe per-IP) |
+| AC-06-02 Keycloak hanya via Traefik (+Prometheus) | selisih diharapkan `control-plane-staging → keycloak` (sebelum S8) | PASS |
+| AC-06-03 Anggota network | PASS (staging) | PASS (`db` tidak ada) |
+| AC-06-04 pg_hba per subnet | PASS (26 aturan transisi, uji silang 6×7) | PASS (16 aturan, uji silang 6×10) |
+| AC-06-05 Keycloak via edge | — | PASS |
+| AC-06-06 Odoo via edge | — | PASS (`/websocket` 101) |
+| AC-06-07 SSO Odoo + back-channel | PASS (demo.staging, ssotest.staging) | PASS (demo.erp, `10.100.0.1 auth-oidc-backchannel@file`) |
+| AC-06-08 Login CP & DRMS | PASS (cp.staging, DRMS) | PASS (cp, cp.staging, DRMS Admin REST) |
+| AC-06-09 Egress SMTP | tidak diuji | PASS |
+| AC-06-10 Scrape Prometheus | tidak diuji | PASS |
+| AC-06-11 Uptime Kuma | tidak diuji | PASS (8/8 UP) |
+| AC-06-12 Backup | tidak diuji | PASS (`restic-backup.service` `dbs_ok=10`) |
+| AC-06-13 Gateway & IP sumber | — | PASS (traefik gw 10.100.0.1, keycloak 10.100.12.1) |
+| AC-06-14 D-i-D Odoo | PASS | PASS* (*unit test modul tidak dijalankan ulang di N7) |
+| AC-06-15 Tanpa drift compose | tidak diuji | PASS (12 stack `--dry-run`) |
+| AC-06-16 Tanpa error baru | PASS (log Postgres staging) | PASS |
+
+Sign-off: N4 "jendela prod S7–S9: YA, bersyarat BUG-N4-01"; N7 "**penutupan plan 06: YA**", 0 Critical/High/Medium baru.
+
+### 15.3 Bug dan insiden
+
+- **BUG-N4-01 (Medium, ditemukan N4, diperbaiki):** `scripts/net-matrix.sh` false negative di network internal (lookup nama
+  tak ada menggantung ±10 s; timeout TCP menghitung DNS; threadpool libuv 4). Perbaikan e90fd9a (merge f39c794): resolve DNS
+  dulu per nama (3 s), TCP 2 s ke IP, `n`/`?` terpisah, mode per-IP `NET_MATRIX_TARGETS`. N7 memakai versi ini (`RESULT: OK`).
+- **Insiden CAA/ACME (2026-09-25/26):** sesi Expomedia memasang CAA `accounturi` ke akun ACME `le-http` (abd4a39). Recreate
+  Traefik plan 06 mendaftarkan akun ACME baru karena `le-http` tanpa `email` → penerbitan sertifikat baru gagal CAA 403.
+  User melepas `accounturi` ±00:20 WIB 2026-09-26 (569c1b1, 3a93354). Perbaikan akar di S10: `le-http` `email:
+  postmaster@bimacreative.tech` (0ccfce2) → akun `acct/3793253016` stabil melewati `--force-recreate` (ac70310, ADR 0002 #15b).
+  `issuewild ";"` tetap tidak bisa (Hostinger menolak nilai `;`, ADR 0002 #16). Pin ulang CAA = opsional, keputusan user.
+
+### 15.4 Item terbuka
+
+1. **Entri bouncer CrowdSec usang** `traefik-bouncer` (10.100.2.3, last_pull 2026-09-23; QA N7 Low). **Jangan dihapus
+   buta:** mungkin berbagi API key dengan bouncer aktif `traefik-bouncer@10.100.2.2` — investigasi dulu (`crowdsec.md`).
+2. **Plan 10** — pecah `proxy` (R1: CP, CP-staging, Grafana, Uptime Kuma saling menjangkau `:3000/:3001`). Belum ditulis.
+3. Residual R2: anggota `metrics` → `keycloak:8080` (opsi Keycloak `http-host`, §14).
+4. Backup **remote/offsite** restic belum dikonfigurasi (`remote=not-configured`, ADR 0006) — syarat go-live DRMS (G1-6).
+5. **OBS-N4-01 (Low):** `postgresql.conf` vs argumen command line compose (`max_connections`/`shared_buffers`) → log reload
+   berisik (`postgres.md`).
+6. DRMS prod: `db-drms` (10.100.25.0/24) dan `drms-kas-edge-prod` (10.100.14.0/24) masih cadangan (baris pg_hba sudah ada).
+7. AC-06-14: unit test `sh_dbfilter_header` tidak dijalankan ulang di N7 (catatan QA; jalankan saat upgrade image Odoo, `odoo.md` §Upgrade).
+8. QA checklist permanen B15 (`scripts/net-matrix.sh --check`) untuk setiap konsumen/stack baru (§14).

@@ -9,6 +9,17 @@ file `VERSION`.
 ## [Unreleased]
 
 ### Added
+- network (plan 06, ADR 0010, QA-T17B-01): network Postgres per konsumen `db-keycloak`, `db-odoo-pool-a`, `db-odoo-staging`,
+  `db-cp`, `db-cp-stg`, `db-drms-stg` (`--internal`, 10.100.20–26.0/24; `db-drms`/`db-datamart` cadangan) via
+  `postgres/scripts/bootstrap.sh` (`da68a83`); edge `kc-edge` (10.100.12.0/24, Traefik + Keycloak) dan `odoo-edge-stg`
+  (10.100.13.0/24, Traefik + odoo-staging) via `traefik/scripts/bootstrap.sh`; `drms-kas-edge-prod` (10.100.14.0/24) cadangan.
+- scripts (plan 06, `3a66cb8`, `d8417b2`): `scripts/net-matrix.sh [--check]` (matriks jangkauan TCP read-only, target plan 06 §8.2)
+  dan `scripts/pg-hba-validate.sh <file> transition|final` (Postgres sementara `--network none`).
+- odoo (plan 06 N2, D-i-D ADR 0010 #5a): submodule `addons/shared` kedua pool → `4bd278a` (`sh_dbfilter_header` 19.0.1.1.0,
+  `X-Sh-Odoo-Db` hanya dari peer tepercaya); env `SH_DBFILTER_TRUSTED_PROXIES` = `10.100.3.0/24` (prod) / `10.100.13.0/24`
+  (staging). Staging `2cc5f9e` (S4), prod `dc993ce` (S9).
+- docs (plan 06): runbook `docs/03-operations/network-segmentation-runbook.md` (S0–S10, kini SELESAI/referensi); laporan QA
+  `docs/qa/2026-09-25-plan06-staging.md` (N4) dan `docs/qa/2026-09-26-plan06-prod.md` (N7).
 - webmail (ADR 0012, plan 08, keputusan user 2026-09-25): Roundcube 1.7.4 `apache-nonroot` (digest ter-pin) di
   `https://webmail.expomedia.id` — stack `webmail/` (SQLite, uid 33, rootfs ro + tmpfs, cap_drop ALL, 256m, tanpa egress),
   login hanya `@expomedia.id` (`login_username_filter` + `username_domain_forced`), IMAP/SMTP ke `mail.expomedia.id`
@@ -61,6 +72,23 @@ file `VERSION`.
   per tenant; laporan QA `docs/qa/2026-09-25-plan04-{staging,prod}.md`.
 
 ### Changed
+- network (plan 06, ADR 0010, `06f0f6b`): compose 8 stack pindah dari network `db` bersama ke `db-*` per konsumen; Keycloak
+  keluar dari `proxy`/`db` → `kc-edge` (gw_priority 1) + `db-keycloak` + `metrics`; odoo-staging → `odoo-edge-stg`. Downtime
+  terukur: staging Odoo ±3 s (18:42:18–21 WIB), staging DRMS ±33 s, prod CP ±4 s (22:02:31–35), Traefik ±5 s (22:03:36–41),
+  Keycloak ±27 s discovery tidak tersedia (22:06:09–36), prod Odoo ±7 s (22:09:24–31), 2026-09-25.
+- postgres (plan 06): `pg_hba.conf` per subnet konsumen — transisi 26 aturan (S2 `09c9045`, ditulis di tempat), final **16
+  aturan** tanpa `10.100.1.0/24` (S10 `0ccfce2`, 2026-09-26 16:08 WIB, recreate postgres). Network `db` (10.100.1.0/24)
+  **dihapus**, subnet pensiun; bootstrap tidak lagi membuatnya. S10 dijalankan sebelum 24 jam soak (keputusan user, belum ada client).
+- traefik (plan 06): recreate di jendela prod (drift `networks:`) mengaktifkan `metrics.prometheus.manualRouting` QA-T17B-03 —
+  `traefik:8082/metrics` 403 dari semua network kecuali `metrics`.
+- traefik (`0ccfce2`): resolver `le-http` kini memakai `email: postmaster@bimacreative.tech`; akun ACME `acct/3793253016`
+  stabil melewati `--force-recreate` (ADR 0002 #15b, `ac70310`).
+- docs: plan 06 → EXECUTED (§15 hasil, AC, bug/insiden, item terbuka); ADR 0010 §Results + riwayat revisi; `traefik.md`,
+  `postgres.md`, `keycloak.md`, `odoo.md`, `control-plane.md`, `observability.md`, runbook `proyekkas-drms-onboarding.md`
+  (prod: `db-drms`, `drms-kas-edge-prod`) diperbarui ke topologi final (tanpa `db`).
+  Follow-up pemecahan `proxy` dinomori ulang **plan 10** (07–09 terpakai).
+- docs (ADR 0002 #15b, `569c1b1`, `3a93354`): CAA `accounturi` dilepas (2026-09-26 ±00:20 WIB) — zona kembali
+  `0 issue "letsencrypt.org"`; pin ulang ke akun baru = opsional, keputusan user.
 - control plane prod & staging: image `control-plane:4fc3828` → `6d94d2b` (kode = repo control-plane `v0.2.0`, tag lokal `31411f0`; staging lewat `7b85a78`
   di J4). Migrasi additive 0001–0003. Backup `control_plane_staging-20260925-130346-pre-7b85a78`,
   `control_plane_staging-20260925-134933-pre-6d94d2b`, `control_plane-20260925-135715-pre-6d94d2b`. Prod tidak tersedia ±4 s
@@ -76,6 +104,13 @@ file `VERSION`.
   gate); ADR 0008 hasil; ADR 0003 catatan revisi (secret env per tenant digantikan ADR 0008).
 
 ### Fixed
+- scripts (plan 06 BUG-N4-01 Medium, `e90fd9a`, merge `f39c794`): `net-matrix.sh` melaporkan target TERBUKA sebagai tertutup
+  pada container Node di network internal (lookup menggantung ±10 s memakan timeout TCP, threadpool libuv 4). Kini DNS
+  di-resolve dulu per nama (3 s), TCP 2 s ke IP, kegagalan DNS (`n`) dan probe (`?`) dilaporkan terpisah, mode per-IP
+  `NET_MATRIX_TARGETS`.
+- traefik (insiden CAA 2026-09-25/26): resolver `le-http` tanpa `email` mendaftarkan akun ACME baru setelah recreate Traefik
+  plan 06 → CAA `accounturi` (akun lama) memblok penerbitan sertifikat baru (403). Akar diperbaiki dengan email ACME
+  (`0ccfce2`); CAA sementara tanpa `accounturi`.
 - scripts (plan 05 BUG-J5-01 High, `3ca5501`): `odoo-sso-user.sh --resend-invite` menjadi aksi tersendiri yang tidak pernah memberi
   role/membuat user/menautkan; saling eksklusif dengan `--grant`/`--revoke`, `--create-kc` ditolak; user tanpa role `odoo_access`
   atau tautan aktif → blocker. Sebelumnya resend memulihkan akses user yang sudah dicabut. `RESULT action=resend_invite`.
@@ -84,6 +119,13 @@ file `VERSION`.
 - observability: `mem_limit` grafana 256m → 384m (GOMEMLIMIT 320MiB), uptime-kuma 192m → 320m (pemakaian 72–81%); ADR 0004 diperbarui.
 
 ### Security
+- Segmentasi network (ADR 0010, menutup QA-T17B-01 High): tidak ada container selain Traefik yang menjangkau Odoo
+  `:8069/:8072` atau Keycloak `:8080/:9000` (kecuali Prometheus → `keycloak:9000`); role Postgres hanya bisa login dari network
+  konsumennya sendiri (uji silang 6 network × 10 role@db); prod dan staging tidak berbagi edge. D-i-D: `sh_dbfilter_header`
+  trusted proxy (header palsu dari peer lain → tanpa DB + WARNING) dan Keycloak `KC_PROXY_TRUSTED_ADDRESSES=10.100.12.0/24`
+  (opsi runtime; `X-Forwarded-For` palsu dari `metrics` diabaikan). QA N7: AC-06-01..16 PASS, 0 Critical/High/Medium baru.
+  Residual: `proxy` (R1, plan 10), `metrics` → `keycloak:8080` (R2), entri bouncer CrowdSec usang `traefik-bouncer`
+  10.100.2.3 (Low, investigasi sebelum hapus — mungkin berbagi API key dengan bouncer aktif).
 - Orkestrasi host dari control plane tanpa Docker API/SSH/sudo/secret (ADR 0009): worker menulis job ke spool dengan uid khusus
   (bukan 1001 = `deploy`); dispatcher root = batas keamanan. QA J5: 52 kasus negatif live ditolak, 0 kebocoran secret (AC-J10),
   staging CP tidak bisa memicu job prod (AC-J9). Keterbatasan: timeout job tidak menghentikan proses `odoo` di dalam container

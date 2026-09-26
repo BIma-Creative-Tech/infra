@@ -49,6 +49,18 @@ tanpa shell/wget, tanpa flag health) → dipantau lewat `up{job="loki"}` dan `GE
 Dibuat `scripts/bootstrap.sh` (idempoten; subnet & `internal` diverifikasi). Network internal tidak punya gateway →
 tidak mengubah gateway traefik/crowdsec/keycloak (diverifikasi `ip route` di crowdsec: default via 10.100.2.1).
 
+**Plan 06 / ADR 0010 (selesai 2026-09-26) — dampak ke observability:**
+- `metrics` **tidak berubah** (prometheus, traefik, crowdsec, keycloak). Keycloak kini hanya di `kc-edge` + `db-keycloak` +
+  `metrics`; Prometheus tetap scrape `keycloak:9000` lewat `metrics` (QA N7 AC-06-10: `up` = 1 untuk keycloak, traefik,
+  crowdsec, alloy, grafana, loki, node, prometheus). Default route Keycloak = 10.100.12.1 (`kc-edge`), bukan network ini.
+- Residual yang diterima: anggota `metrics` (prometheus, crowdsec, traefik) masih bisa membuka `keycloak:8080` (R2, plan 06
+  §4.1 d/§14); `X-Forwarded-*` dari peer di `metrics` diabaikan Keycloak (`KC_PROXY_TRUSTED_ADDRESSES`, `keycloak.md`).
+- `proxy`: Keycloak sudah keluar, sehingga Grafana dan Uptime Kuma **tidak** lagi menjangkau `keycloak:8080/9000`. Grafana,
+  Uptime Kuma, control-plane, control-plane-staging masih saling menjangkau `:3000/:3001` lewat `proxy` (R1) — pemisahan
+  `proxy` = **plan 10** (usulan follow-up, belum ditulis).
+- Uptime Kuma memonitor URL publik → tidak terpengaruh (QA N7 AC-06-11: 8/8 monitor UP, 0 heartbeat DOWN 24 jam).
+- `traefik:8082/metrics` = 403 dari network selain `metrics` sejak recreate Traefik plan 06 (`traefik.md` §Recreate Traefik plan 06).
+
 ## Target Prometheus (`prometheus/prometheus.yml`, interval 30 s)
 
 | Job | Target | Sumber |

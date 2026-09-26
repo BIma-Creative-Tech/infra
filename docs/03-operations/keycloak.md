@@ -4,8 +4,9 @@
   `Containerfile` (`FROM quay.io/keycloak/keycloak:26.7.4@sha256:82a778…`, `kc.sh build` dengan
   `KC_DB=postgres`, `KC_HEALTH_ENABLED=true`, `KC_METRICS_ENABLED=true`). Jalan: `start --optimized` (mode produksi).
 - **Publik:** `https://auth.bimacreative.tech` (router `traefik/dynamic/platform/auth.yml`, sertifikat LE production).
-- **DB:** `keycloak` @ Postgres shared (`postgres:5432`, network `db`), pool maks 20 (limit role 30).
-- **Terkait:** ADR 0001/0002/0004, plan 02 T06, docs Keycloak 26.7.4 `guides/server/{hostname,reverseproxy,
+- **DB:** `keycloak` @ Postgres shared (`postgres:5432`, network `db-keycloak` 10.100.20.0/24 — ADR 0010; pg_hba role
+  `keycloak` hanya dari subnet ini), pool maks 20 (limit role 30).
+- **Terkait:** ADR 0001/0002/0004/0010, plan 02 T06, plan 06 (network), docs Keycloak 26.7.4 `guides/server/{hostname,reverseproxy,
   containers,management-interface,bootstrap-admin-recovery}.adoc`.
 
 ## Konfigurasi utama (`docker-compose.yml`)
@@ -15,8 +16,9 @@
 | `KC_HOSTNAME` | `https://auth.bimacreative.tech` | URL publik tetap → issuer token |
 | `KC_HOSTNAME_ADMIN` | `https://auth.bimacreative.tech:8443` | admin console hanya lewat SSH tunnel (lokal :8443 → entrypoint Traefik `admin` `127.0.0.1:8443` di VPS, H5) |
 | realm `master` atribut `frontendUrl` | `https://auth.bimacreative.tech:8443` | login realm master (form + token) juga lewat :8443; tanpa ini form login admin mem-POST ke :443 publik → 403 |
-| `KC_HTTP_ENABLED` | `true` | TLS di-terminate Traefik; 8080 hanya di network `proxy` |
+| `KC_HTTP_ENABLED` | `true` | TLS di-terminate Traefik; 8080 hanya dijangkau Traefik lewat `kc-edge` (ADR 0010) |
 | `KC_PROXY_HEADERS` | `xforwarded` | Traefik menimpa `X-Forwarded-*` (forwardedHeaders tidak dipercaya dari klien) |
+| `KC_PROXY_TRUSTED_ADDRESSES` | `10.100.12.0/24` | D-i-D ADR 0010 #5b: `X-Forwarded-*` hanya dipercaya dari subnet `kc-edge`. Opsi **runtime** (diverifikasi 26.7.4: tidak di `kc.sh build --help-all`, `show-config` → `(ENV)`), tanpa rebuild. QA N7: XFF palsu dari anggota `metrics` diabaikan (event `ipAddress` = IP peer asli) |
 | `KC_CACHE` | `local` | satu node, tanpa JGroups |
 | health/metrics | management port **9000**, tidak di-route | docs management-interface |
 
@@ -119,7 +121,8 @@ Setelah akses pulih: hapus user `tmp-recovery` di realm master.
 cd /opt/infra/identity/keycloak
 ./scripts/bootstrap.sh              # sekali / idempoten: .env (KC_DB_PASSWORD dari postgres/.env)
 docker compose up -d --build        # build image teroptimasi + start
-docker compose ps                   # keycloak: (healthy)  (start ±30–60 s)
+docker compose ps                   # keycloak: (healthy)  (start ±30–60 s; recreate plan 06 S8 2026-09-25: discovery
+                                    #  tidak tersedia ±27 s, 22:06:09–36 WIB)
 docker logs --tail 50 keycloak
 docker compose down                 # stop; data di Postgres
 ```
@@ -173,7 +176,9 @@ lewat role gate (`oauth_error=2`) lalu tautan `res.users` (`oauth_error=3`). Bac
   lewat router `auth-oidc-backchannel` (token/certs/userinfo, `ratelimit-oidc-backchannel` 300/menit burst 100 —
   `traefik.md` §Rate limit SSO Odoo); `/auth` & `/login-actions` tetap `ratelimit-login`. Control plane (tiba sebagai
   IP container-nya di `proxy`, mis. 10.100.0.5) tetap `auth-login`. Backchannel internal `http://keycloak:8080` +
-  `KC_HOSTNAME_BACKCHANNEL_DYNAMIC=true` (docs hostname.adoc) — belum diterapkan.
+  `KC_HOSTNAME_BACKCHANNEL_DYNAMIC=true` (docs hostname.adoc) — belum diterapkan, dan sejak ADR 0010 tidak
+  mungkin tanpa desain baru (hanya Traefik yang menjangkau `keycloak:8080`). Jalur back-channel pool Odoo setelah plan 06
+  tetap hairpin → `10.100.0.1` → `auth-oidc-backchannel` (QA N4/N7 AC-06-07).
 - **Admin REST lewat Traefik + CrowdSec AppSec (T16b):** body JSON yang memuat `${…}` (mis. mapper
   `claim.name: resource_access.${client_id}.roles`) diblokir AppSec (`anomaly score block: rce`, 403 kosong dari router
   `auth-admin`, alert `waf` untuk 10.100.0.1). Tulis nilai literal (`resource_access.<clientId>.roles`) — klaim identik.
@@ -195,6 +200,11 @@ lewat role gate (`oauth_error=2`) lalu tautan `res.users` (`oauth_error=3`). Bac
   ```
   H5 diuji: `PUT`/`DELETE` ke user id acak via :8443 → 404 `{"error":"User not found"}` dari Keycloak (bukan 403 WAF).
   User uji T15 `t15-sso-test` (realm `platform-staging`) **dihapus** 2026-09-23 dengan cara ini (204, GET → 404).
-- Network: Keycloak di `proxy` (dan `db`, serta `metrics` internal sejak T14a — Prometheus scrape `keycloak:9000/metrics`).
+- Network (ADR 0010, plan 06 S8 2026-09-25): Keycloak **hanya** di `kc-edge` (10.100.12.0/24, non-internal,
+  `gw_priority: 1` → default route via 10.100.12.1, egress SMTP `mail.bimacreative.tech:587`), `db-keycloak` (internal, DB) dan
+  `metrics` (internal sejak T14a — Prometheus scrape `keycloak:9000/metrics`). **Tidak** lagi di `proxy`/`db`: container
+  lain (control plane, Grafana, Uptime Kuma, Odoo, DRMS) tidak bisa membuka `keycloak:8080/9000` langsung (QA N7 AC-06-02).
+  `kc-edge` hanya berisi Traefik + Keycloak; jangan menambah anggota. Residual: anggota `metrics` (prometheus, crowdsec,
+  traefik) masih bisa membuka `keycloak:8080` (plan 06 §14, opsi `http-host`).
   Jangan menambah router/path admin publik. Keycloak **tidak** join `drms-kc-admin{,-stg}` (H5): app ProyekKas mencapai
   Admin REST realm `drms`/`drms-staging` saja lewat Traefik (router `drms-kc-admin-*`, `traefik.md` §Network drms-kc-admin).
