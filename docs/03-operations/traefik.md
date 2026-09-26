@@ -272,8 +272,13 @@ docker logs traefik 2>&1 | grep -i -E 'acme|lego|certificate' | tail
 Jangan me-restart berulang bila ACME gagal: baca log, perbaiki (DNS/port 80), baru ulang —
 limit LE: 5 authorization failure / identifier / jam (ADR 0002).
 
-## CAA terkunci ke akun ACME (2026-09-25)
-Zona `bimacreative.tech`: `0 issue "letsencrypt.org; accounturi=https://acme-v02.api.letsencrypt.org/acme/acct/3788309616"` (ADR 0002 #15b).
+## CAA — kunci akun ACME DILEPAS (2026-09-26)
+> **Status sekarang:** zona `bimacreative.tech` = `0 issue "letsencrypt.org"` tanpa `accounturi` (TTL 300). Kunci akun dilepas karena
+> `le-http` tidak punya `email` → Traefik mendaftarkan akun ACME baru setelah restart (acme.json 3788309616 → 3790657356 pada
+> 2026-09-25 15:12Z) → sertifikat baru gagal CAA 403. Pin ulang hanya setelah email ACME dikonfigurasi dan akun terbukti
+> stabil melewati restart (ADR 0002 #15b). Catatan di bawah = konteks saat CAA masih terkunci.
+
+Semula: `0 issue "letsencrypt.org; accounturi=https://acme-v02.api.letsencrypt.org/acme/acct/3788309616"` (ADR 0002 #15b).
 - `acme.json` = satu-satunya akun yang boleh menerbitkan sertifikat hostname platform → **wajib ikut backup** dan jangan dihapus.
 - Restore/ganti akun: ambil URI baru (`python3 -c 'import json;print(json.load(open("acme/acme.json"))["le-http"]["Account"]["Registration"]["uri"])'`
   sebagai root), perbarui CAA di DNS Hostinger SEBELUM Traefik meminta sertifikat baru.
