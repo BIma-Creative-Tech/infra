@@ -44,8 +44,6 @@ services:
       - /tmp:uid=999,gid=999,mode=1777
     shm_size: 256mb
     networks:
-      # TRANSISI plan 06: `db` lama dipertahankan sampai S10 (lalu dihapus dari sini + `docker network rm db`).
-      - db
       - db-keycloak       # 10.100.20.0/24 — keycloak
       - db-odoo-pool-a    # 10.100.21.0/24 — odoo-pool-a
       - db-odoo-staging   # 10.100.22.0/24 — odoo-staging
@@ -76,10 +74,6 @@ volumes:
 
 networks:
   # Semua dibuat oleh scripts/bootstrap.sh: bridge --internal (tanpa egress), subnet tetap (plan 06 §3.2).
-  db:
-    # LAMA (10.100.1.0/24, dipakai bersama) — pensiun di plan 06 S10.
-    external: true
-    name: db
   db-keycloak:
     external: true
     name: db-keycloak

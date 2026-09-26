@@ -39,7 +39,7 @@ ensure_internal_network() {
 # 1. network
 # `db` — LAMA, dipakai bersama semua konsumen (QA-T17B-01). Dipertahankan selama transisi plan 06 (S1–S9); dihapus di S10
 # (baris ini dihapus, `docker network rm db`). Subnet 10.100.1.0/24 TIDAK dipakai ulang.
-ensure_internal_network db 10.100.1.0/24 10.100.1.1
+# (S10 2026-09-26: `db` DIHAPUS — subnet 10.100.1.0/24 pensiun, jangan dipakai ulang.)
 # ADR 0010 / plan 06 §3.2 — satu network --internal per konsumen (app + env; worker/migrate/seed app yang sama boleh
 # berbagi). Blok 10.100.20.0/24–10.100.39.0/24 dicadangkan untuk db-*. Baris pg_hba (conf/pg_hba.conf) memakai subnet ini.
 ensure_internal_network db-keycloak     10.100.20.0/24 10.100.20.1   # keycloak

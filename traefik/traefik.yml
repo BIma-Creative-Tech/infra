@@ -115,6 +115,8 @@ certificatesResolvers:
   # Production — DISIAPKAN, belum dipakai router mana pun (keputusan Lead setelah staging lolos).
   le-http:
     acme:
+      # 2026-09-26 (insiden CAA, ADR 0002 #15b): email WAJIB — tanpa email Traefik mendaftar akun ACME baru setelah restart.
+      email: postmaster@bimacreative.tech
       caServer: https://acme-v02.api.letsencrypt.org/directory
       storage: /etc/traefik/acme/acme.json
       keyType: EC256

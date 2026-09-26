@@ -8,6 +8,6 @@ done
 echo "## network"
 # plan 06 (ADR 0010): network per konsumen; `docker network inspect` untuk network yang belum/tidak ada lagi (db setelah S10)
 # mencetak error ke stderr lalu lanjut (tanpa set -e).
-for n in proxy db odoo-edge odoo-edge-stg kc-edge crowdsec db-keycloak db-odoo-pool-a db-odoo-staging db-cp db-cp-stg db-drms-stg; do
+for n in proxy odoo-edge odoo-edge-stg kc-edge crowdsec db-keycloak db-odoo-pool-a db-odoo-staging db-cp db-cp-stg db-drms-stg; do
   docker network inspect "$n" --format '{{.Name}} internal={{.Internal}} members={{range .Containers}}{{.Name}} {{end}}'
 done
