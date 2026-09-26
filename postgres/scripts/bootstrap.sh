@@ -49,9 +49,11 @@ ensure_internal_network db-odoo-staging 10.100.22.0/24 10.100.22.1   # odoo-stag
 ensure_internal_network db-cp           10.100.23.0/24 10.100.23.1   # control-plane (+worker, migrate)
 ensure_internal_network db-cp-stg       10.100.24.0/24 10.100.24.1   # control-plane-staging (+worker, migrate)
 ensure_internal_network db-drms-stg     10.100.26.0/24 10.100.26.1   # drms-pk-stg (+worker, migrate, seed)
+# E10 ProyekKas DRMS prod (runbook docs/runbooks/proyekkas-drms-prod.md): baris pg_hba 10.100.25.0/24 sudah aktif sejak
+# plan 06 S2 — tidak ada perubahan pg_hba. Setelah dibuat: `docker network connect db-drms postgres` (tanpa recreate).
+ensure_internal_network db-drms         10.100.25.0/24 10.100.25.1   # drms-pk-web (+worker, migrate, seed) — PROD
 ensure_internal_network db-umami        10.100.28.0/24 10.100.28.1   # umami (plan 11, ADR 0013)
 # CADANGAN — belum dibuat (tidak ada konsumen; baris pg_hba-nya sudah ada, subnet tanpa anggota):
-#   db-drms      10.100.25.0/24  drms-pk-web(-worker, migrate, seed) — saat onboarding ProyekKas DRMS prod
 #   db-datamart  10.100.27.0/24  dbt cron datamart — saat stack datamart dibuat
 #   10.100.29.0/24–10.100.39.0/24  db-* berikutnya (pool/dedicated Odoo, klien baru) — 10.100.28.0/24 = db-umami (plan 11)
 # Untuk mengaktifkan: tambahkan baris ensure_internal_network di atas + `docker network connect <net> postgres` + compose.

@@ -63,6 +63,9 @@ services:
       # ProyekKas DRMS: backend drms-pk-{web,stg}:3000 HANYA di network ini (bukan `proxy`).
       # Tanpa gw_priority (default 0): gateway tetap `proxy`.
       drms-kas-edge: {}
+      # E10 ProyekKas DRMS PROD: drms-pk-web:3000 HANYA di network ini (edge prod terpisah dari staging, ADR 0010 #4).
+      # Tanpa gw_priority: gateway tetap `proxy`. Live: `docker network connect drms-kas-edge-prod traefik`.
+      drms-kas-edge-prod: {}
       # W2b: website client web-<slug>-<env>:3000 HANYA di network ini (bukan `proxy`). Tanpa gw_priority
       # (default 0): gateway tetap `proxy`.
       web-edge: {}
@@ -127,6 +130,10 @@ networks:
     # Dibuat scripts/bootstrap.sh: 10.100.7.0/24 gw 10.100.7.1 — anggota: traefik + web ProyekKas DRMS staging saja.
     external: true
     name: drms-kas-edge
+  drms-kas-edge-prod:
+    # Dibuat scripts/bootstrap.sh: 10.100.14.0/24 gw 10.100.14.1 — anggota: traefik + web/worker ProyekKas DRMS prod saja.
+    external: true
+    name: drms-kas-edge-prod
   metrics:
     # Dibuat observability/scripts/bootstrap.sh: 10.100.5.0/24 --internal (T14a) — anggota:
     # prometheus + target scrape (traefik, crowdsec, keycloak).

@@ -3,7 +3,7 @@
 #  1. network docker `proxy` (bridge, subnet tetap) — dipakai bersama semua service HTTP
 #     + network `odoo-edge` (H1): HANYA traefik + pool Odoo, agar container lain di `proxy`
 #     tidak bisa menghubungi Odoo :8069/:8072 langsung (melewati CrowdSec/ratelimit/header DB)
-#     + network `drms-kas-edge` (ProyekKas client DRMS): HANYA traefik + container web ProyekKas
+#     + network `drms-kas-edge` / `drms-kas-edge-prod` (ProyekKas DRMS staging / prod): HANYA traefik + app ProyekKas env itu
 #     + network `drms-kc-admin{,-stg}` (H5, --internal): traefik + app ProyekKas → Admin REST realm drms*
 #     + network `web-edge` (W2b): HANYA traefik + website client web-<slug>-<env>
 #     + network `webmail-edge` (ADR 0012, --internal): HANYA traefik + webmail (Roundcube)
@@ -54,10 +54,12 @@ ensure_network odoo-edge-stg 10.100.13.0/24 10.100.13.1
 # Keycloak butuh egress SMTP mail.bimacreative.tech:587 (realm_smtp_config) — di sisi Keycloak gw_priority 1; Traefik
 # join tanpa gw_priority (`proxy` tetap gateway Traefik). KC_PROXY_TRUSTED_ADDRESSES Keycloak = subnet ini.
 ensure_network kc-edge 10.100.12.0/24 10.100.12.1
-# CADANGAN — belum dibuat: drms-kas-edge-prod 10.100.14.0/24 gw 10.100.14.1 (traefik + drms-pk-web(-worker)), saat
-# onboarding ProyekKas DRMS prod (plan 06 §3.2; `drms-kas-edge` tetap untuk staging).
-# drms-kas-edge: traefik + container web ProyekKas DRMS STAGING (drms-pk-stg) saja (pola odoo-edge). Prod kelak memakai
-# `drms-kas-edge-prod` (cadangan di bawah, ADR 0010 #4) — prod & staging tidak berbagi network edge.
+# drms-kas-edge-prod (ADR 0010 #4, plan 06 §3.2, E10 ProyekKas): traefik + drms-pk-web / drms-pk-worker PROD saja —
+# prod & staging tidak berbagi edge (`drms-kas-edge` tetap staging). Bukan --internal: app butuh egress (issuer
+# publik Keycloak, SMTP :587 hairpin, FCM kelak). Live: `docker network connect drms-kas-edge-prod traefik`.
+ensure_network drms-kas-edge-prod 10.100.14.0/24 10.100.14.1
+# drms-kas-edge: traefik + container web ProyekKas DRMS STAGING (drms-pk-stg) saja (pola odoo-edge). Prod memakai
+# `drms-kas-edge-prod` (di atas, ADR 0010 #4) — prod & staging tidak berbagi network edge.
 # Bukan --internal: app butuh egress (FCM, issuer publik Keycloak via hairpin). Runbook
 # docs/runbooks/proyekkas-drms-onboarding.md §Langkah 0.
 ensure_network drms-kas-edge 10.100.7.0/24 10.100.7.1
