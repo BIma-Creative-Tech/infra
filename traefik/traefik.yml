@@ -112,7 +112,7 @@ certificatesResolvers:
       keyType: EC256
       httpChallenge:
         entryPoint: web
-  # Production — DISIAPKAN, belum dipakai router mana pun (keputusan Lead setelah staging lolos).
+  # Production — resolver utama SEMUA router (sejak T03/T06); akun ACME stabil via `email` (2026-09-26, ADR 0002 #15b).
   le-http:
     acme:
       # 2026-09-26 (insiden CAA, ADR 0002 #15b): email WAJIB — tanpa email Traefik mendaftar akun ACME baru setelah restart.
