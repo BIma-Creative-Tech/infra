@@ -1,4 +1,4 @@
-# ProyekKas (client DRMS, Payload CMS) — middleware bersama router staging & prod (prod menyusul).
+# ProyekKas (client DRMS, Payload CMS) — middleware bersama router staging & prod (router prod: drms-proyekkas-prod.yml, E10).
 # BUKAN hasil render-client-route.sh (bukan tenant Odoo) — edit manual, lalu HUP (subdirektori
 # dynamic/ tidak di-watch: docs/03-operations/traefik.md §Start/stop/reload).
 # Desain: /opt/src/proyekkas/docs/proyekkas/architecture.md §3.3, §6.5; ADR ProyekKas 0003/0004.
