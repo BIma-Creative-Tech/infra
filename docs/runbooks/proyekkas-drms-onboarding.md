@@ -30,7 +30,7 @@ tetap dikirim (tanpa efek tambahan).
 
 | Objek | Prod | Staging | Catatan |
 |---|---|---|---|
-| Hostname | `drms-kas.bimacreative.tech` | `drms-kas.staging.bimacreative.tech` | prod: record A **belum ada** → router prod belum dibuat |
+| Hostname | `drms-kas.bimacreative.tech` | `drms-kas.staging.bimacreative.tech` | prod: go-live infra (E10) → `proyekkas-drms-prod.md` |
 | Container web | `drms-pk-web:3000` | `drms-pk-stg:3000` | dibuat kelak oleh compose app (`web/clients/drms-proyekkas/`, `staging/drms-proyekkas/`) |
 | Volume media | `drms_pk_media_prod` | `drms_pk_media_stg` | mount `/data/media` (ADR 0004) |
 | DB | `pk_drms` | `pk_drms_stg` | tidak cocok regex pg_hba pool Odoo |
