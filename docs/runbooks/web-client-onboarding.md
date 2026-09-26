@@ -97,7 +97,7 @@ docker stats --no-stream web-<slug>-<env>
    sudo install -m 400 /dev/stdin /opt/infra/<...>/<slug>/secrets/smtp_password.secret   # ketik password, Ctrl+D
    ```
 3. Provision ulang dengan `--contact --smtp-host mail.bimacreative.tech --smtp-user <mailbox> --smtp-from <mailbox>
-   [--smtp-port 587]`. Skrip set owner `1001:1001` mode `0400`, menambah `docker-compose.contact.yml` ke `COMPOSE_FILE`
+   [--smtp-port 587]`. Opsional `--lead-webhook <https-url>` → `LEAD_WEBHOOK_URL` di `.env` (600 root, tidak di git — URL webhook bisa memuat token); tanpa flag = kosong/nonaktif (2026-09-26, permintaan bct). Skrip set owner `1001:1001` mode `0400`, menambah `docker-compose.contact.yml` ke `COMPOSE_FILE`
    (secret `/run/secrets/smtp_password`, `SMTP_PASSWORD_FILE`, `CONTACT_ENABLED=true`) dan me-recreate container.
 4. Mematikan: provision ulang tanpa `--contact` (secret tidak lagi di-mount; hapus file password bila mailbox dicabut).
 

@@ -43,6 +43,7 @@ usage() {
   cat >&2 <<EOF
 pemakaian: $0 <slug> <prod|staging> --host <fqdn> --image <ref> [--www]
              [--contact --smtp-host <fqdn> --smtp-user <email> --smtp-from <email> [--smtp-port <port>]]
+             [--lead-webhook <https-url>]
            $0 <slug> <prod|staging> --remove
 EOF
   exit 2
@@ -56,6 +57,7 @@ SLUG="$1"; WEB_ENV="$2"; shift 2
 
 HOST=""; IMAGE=""; WWW=no; CONTACT=no; REMOVE=no
 SMTP_HOST=""; SMTP_PORT=587; SMTP_USER=""; SMTP_FROM=""
+LEAD_WEBHOOK=""   # opsional (bct 2026-09-26): URL webhook lead tambahan; .env 600 root, tidak di git (URL bisa memuat token)
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --host) [[ $# -ge 2 ]] || usage; HOST="$2"; shift 2 ;;
@@ -66,10 +68,16 @@ while [[ $# -gt 0 ]]; do
     --smtp-port) [[ $# -ge 2 ]] || usage; SMTP_PORT="$2"; shift 2 ;;
     --smtp-user) [[ $# -ge 2 ]] || usage; SMTP_USER="$2"; shift 2 ;;
     --smtp-from) [[ $# -ge 2 ]] || usage; SMTP_FROM="$2"; shift 2 ;;
+    --lead-webhook) [[ $# -ge 2 ]] || usage; LEAD_WEBHOOK="$2"; shift 2 ;;
     --remove) REMOVE=yes; shift ;;
     *) usage ;;
   esac
 done
+
+if [[ -n "$LEAD_WEBHOOK" ]]; then
+  [[ "$LEAD_WEBHOOK" =~ ^https://[A-Za-z0-9.-]+(:[0-9]{1,5})?(/[A-Za-z0-9._~%/+@:-]*)?(\?[A-Za-z0-9._~%&=+/:@-]*)?$ ]] \
+    || die "--lead-webhook harus URL https tanpa spasi/karakter khusus"
+fi
 
 ROUTE="web-${SLUG}-${WEB_ENV}"          # nama router/service Traefik = container_name = project compose
 case "$WEB_ENV" in
@@ -212,6 +220,7 @@ compose_files="docker-compose.yml"
     echo "SMTP_USER=${SMTP_USER}"
     echo "SMTP_FROM_ADDRESS=${SMTP_FROM}"
   fi
+  [[ -z "$LEAD_WEBHOOK" ]] || echo "LEAD_WEBHOOK_URL=${LEAD_WEBHOOK}"
 } > "$tmpdir/env"
 
 install_if_changed "$COMPOSE_TEMPLATE_DIR/docker-compose.yml" "$STACK_DIR/docker-compose.yml" 0644
