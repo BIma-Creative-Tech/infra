@@ -34,6 +34,8 @@ services:
     environment:
       SITE_URL: ${SITE_URL:?SITE_URL wajib (https://<host kanonik>)}
       CONTACT_ENABLED: ${CONTACT_ENABLED:-false}
+      # Opsional (--lead-webhook): webhook lead tambahan selain email; kosong = nonaktif.
+      LEAD_WEBHOOK_URL: ${LEAD_WEBHOOK_URL:-}
     tmpfs:
       # tmpfs dihitung ke mem_limit (cgroup shmem) → ukuran dibatasi. Cache Next penuh → tulis cache gagal
       # (halaman tetap dilayani, cache tidak bertambah).
