@@ -5,6 +5,11 @@
 - **Terkait:** CLAUDE.md §3.5, §4; `docs/discovery/2026-09-23.md` §2; keputusan user #4, #8
 
 **Riwayat revisi:**
+- 2026-09-27 (plan 11 Umami, GATE 1 user Q1): aturan perencanaan (RAM − Σ`mem_limit` − dbt 384 − cadangan host 2 048)
+  sudah **−376 MiB** sebelum plan 11 (Σ limit 13 936 MiB); Umami `mem_limit` 256m → −632 MiB; DRMS prod (384+192) → ±−1 208 MiB.
+  **Keputusan user: overcommit terkendali sekarang** (pemakaian NYATA ±5,3 GiB dari 15,6 GiB), evaluasi setelah 7 hari data
+  (turunkan limit yang longgar). Umami NYATA 181 MiB idle (plan ESTIMASI 100–150) → pantau; opsi naik ke 320m.
+  Postgres Σ`CONNECTION LIMIT` = 196 dari 197 slot pakai → DB berikutnya butuh `max_connections` naik (plan 11 R4).
 - 2026-09-23 (GATE 1, `accepted`): versi awal, seluruh angka ESTIMASI (Docker belum terpasang).
 - 2026-09-23 (T07, analyst): ditambahkan **§"Pengukuran T07"** dengan angka NYATA (`docker stats`,
   `free`, `vmstat`, dll.) untuk service yang sudah bring-up (T03–T06: traefik, crowdsec, postgres,

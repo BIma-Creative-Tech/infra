@@ -159,6 +159,7 @@ Laporan format §1.3 + path semua file yang diubah
 | IaC | Ansible (playbook bootstrap host) | Idempotent; dijalankan dari laptop/CI |
 | Backup | restic → repo lokal (sementara) → S3-compatible offsite (placeholder) | pg_dump per DB sebelum snapshot; lihat `docs/adr/0006-backup.md` |
 | Observability | Uptime Kuma; Grafana + Loki + Grafana Alloy + Prometheus + node-exporter + cAdvisor | Alert via email/Telegram |
+| Web analytics | Umami 3.x (MIT, image resmi pin digest) | Self-hosted `analytics.bimacreative.tech`; DB `umami` di Postgres shared; publik hanya tracker `/insight.js` + `POST /api/send`; UI admin hanya via :8443 (SSH tunnel) + 2FA; tanpa cookie; image di-refresh ≥ bulanan (GeoLite EULA §6) — ADR 0013 |
 | Orkestrasi host dari control plane | Spool job + systemd path + dispatcher root `/usr/local/sbin/infra-job` (ADR 0009) | Control plane TANPA Docker API/SSH/sudo/secret; allowlist tipe job + regex argumen; socket-proxy tidak dipakai (dihapus H3) |
 | Secrets | `.env` mode 600 (host) + GitHub Secrets (CI) + SOPS/age untuk yang di-commit | |
 
@@ -187,6 +188,7 @@ Lisensi semua di atas: Apache-2/MIT/AGPL/LGPL — tercatat di `docs/adr/0001-sta
   web/
     control-plane/         # Next.js control plane + portal + dashboard
     clients/<slug>/        # website Next.js client (jika ada)
+  analytics/umami/         # Umami web analytics (ADR 0013)
   datamart/                # dbt project + scheduler
   templates/               # template compose/env/odoo.conf/DNS instruction
   scripts/                 # provision-client.sh, suspend-client.sh, backup.sh, restore.sh
