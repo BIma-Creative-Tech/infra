@@ -1,0 +1,11 @@
+# Override web analytics Umami (plan 11 §3.7, ADR 0013; default OFF) — hanya dimuat bila `.env` berisi COMPOSE_FILE yang
+# menyertakan docker-compose.umami.yml (ditulis provision-web-client.sh --umami-script-url <url> --umami-website-id <uuid>).
+# Env RUNTIME (dibaca server app per request, bukan NEXT_PUBLIC_* build-time) → satu image untuk staging & prod.
+# Keduanya atau tidak sama sekali (skrip DAN app menolak bila hanya satu). Bukan secret (terlihat di HTML), tetapi tetap
+# hanya di .env render (tidak di git). CSP (script-src/connect-src origin analytics + nonce) diatur aplikasi, bukan Traefik.
+# Tanpa file ini dimuat → config-hash container tidak berubah → website lain tidak di-recreate (backward compatible).
+services:
+  web:
+    environment:
+      UMAMI_SCRIPT_URL: ${UMAMI_SCRIPT_URL:?UMAMI_SCRIPT_URL wajib bila analytics aktif}
+      UMAMI_WEBSITE_ID: ${UMAMI_WEBSITE_ID:?UMAMI_WEBSITE_ID wajib bila analytics aktif}

@@ -4,6 +4,7 @@
 #   scripts/provision-web-client.sh <slug> <prod|staging> --host <fqdn> --image <ref> [--www]
 #       [--contact --smtp-host <fqdn> --smtp-user <email> --smtp-from <email> [--smtp-port <port>]
 #        [--turnstile-site-key <key>]]
+#       [--umami-script-url <https-url> --umami-website-id <uuid>]
 #   scripts/provision-web-client.sh <slug> <prod|staging> --remove
 #
 # Urutan provision:
@@ -22,6 +23,9 @@
 # (runbook docs/runbooks/web-client-onboarding.md §Form kontak); skrip men-set owner 1001:1001 mode 0400.
 # Turnstile (--turnstile-site-key, hanya bersama --contact): secret key di <dir>/secrets/turnstile_secret.secret
 # (sama perlakuannya); site key publik → .env. Tanpa flag → override turnstile tidak dimuat (OFF).
+# Analytics Umami (plan 11 §3.7, ADR 0013; default OFF): --umami-script-url + --umami-website-id BERPASANGAN → .env
+# UMAMI_SCRIPT_URL/UMAMI_WEBSITE_ID (bukan secret) + override docker-compose.umami.yml di COMPOSE_FILE. Tanpa flag → .env &
+# COMPOSE_FILE identik dengan sebelumnya (website tidak di-recreate).
 # Output baris terakhir: RESULT host=<fqdn|-> container=<nama> route=<file> changed=<yes|no|removed>
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -48,6 +52,7 @@ pemakaian: $0 <slug> <prod|staging> --host <fqdn> --image <ref> [--www]
              [--contact --smtp-host <fqdn> --smtp-user <email> --smtp-from <email> [--smtp-port <port>]
               [--turnstile-site-key <key>]]
              [--lead-webhook <https-url>]
+             [--umami-script-url <https-url> --umami-website-id <uuid>]
            $0 <slug> <prod|staging> --remove
 EOF
   exit 2
@@ -62,6 +67,7 @@ SLUG="$1"; WEB_ENV="$2"; shift 2
 HOST=""; IMAGE=""; WWW=no; CONTACT=no; REMOVE=no
 SMTP_HOST=""; SMTP_PORT=587; SMTP_USER=""; SMTP_FROM=""
 TURNSTILE_SITE_KEY=""   # opsional (bct G-43): Cloudflare Turnstile, butuh --contact + secrets/turnstile_secret.secret
+UMAMI_SCRIPT_URL=""; UMAMI_WEBSITE_ID=""   # opsional (plan 11): web analytics Umami, berpasangan
 LEAD_WEBHOOK=""   # opsional (bct 2026-09-26): URL webhook lead tambahan; .env 600 root, tidak di git (URL bisa memuat token)
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -75,6 +81,8 @@ while [[ $# -gt 0 ]]; do
     --smtp-from) [[ $# -ge 2 ]] || usage; SMTP_FROM="$2"; shift 2 ;;
     --lead-webhook) [[ $# -ge 2 ]] || usage; LEAD_WEBHOOK="$2"; shift 2 ;;
     --turnstile-site-key) [[ $# -ge 2 ]] || usage; TURNSTILE_SITE_KEY="$2"; shift 2 ;;
+    --umami-script-url) [[ $# -ge 2 ]] || usage; UMAMI_SCRIPT_URL="$2"; shift 2 ;;
+    --umami-website-id) [[ $# -ge 2 ]] || usage; UMAMI_WEBSITE_ID="$2"; shift 2 ;;
     --remove) REMOVE=yes; shift ;;
     *) usage ;;
   esac
@@ -115,7 +123,7 @@ container_state() {   # → "<status> <health>" atau "absent"
 
 # ------------------------------------------------------------------------------------------------ remove
 if [[ "$REMOVE" == yes ]]; then
-  [[ -z "$HOST$IMAGE" && "$WWW$CONTACT" == nono ]] || die "--remove tidak menerima opsi lain"
+  [[ -z "$HOST$IMAGE$UMAMI_SCRIPT_URL$UMAMI_WEBSITE_ID" && "$WWW$CONTACT" == nono ]] || die "--remove tidak menerima opsi lain"
   changed=no
   if [[ -e "$OUT" ]]; then
     rm -f -- "$OUT"; traefik_hup "$ROUTE"; changed=removed
@@ -174,8 +182,18 @@ elif [[ -s "$TURNSTILE_SECRET" ]]; then
   echo "catatan: ${TURNSTILE_SECRET} ada tapi --turnstile-site-key tidak diberikan → Turnstile OFF (secret tidak di-mount)" >&2
 fi
 
+# Umami (plan 11 §3.7): keduanya atau tidak sama sekali; regex = kontrak env app (Zod) — URL https ke file .js, UUID huruf kecil.
+if [[ -n "$UMAMI_SCRIPT_URL$UMAMI_WEBSITE_ID" ]]; then
+  [[ -n "$UMAMI_SCRIPT_URL" && -n "$UMAMI_WEBSITE_ID" ]] \
+    || die "--umami-script-url dan --umami-website-id harus diberikan berpasangan"
+  [[ ${#UMAMI_SCRIPT_URL} -le 255 && "$UMAMI_SCRIPT_URL" =~ ^https://[a-z0-9.-]+(:[0-9]{1,5})?/[A-Za-z0-9._-]+\.js$ ]] \
+    || die "--umami-script-url harus https://<host>[:port]/<nama>.js (mis. https://analytics.bimacreative.tech/insight.js)"
+  [[ "$UMAMI_WEBSITE_ID" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]] \
+    || die "--umami-website-id harus UUID huruf kecil (Website ID dari UI Umami)"
+fi
+
 for f in "$COMPOSE_TEMPLATE_DIR/docker-compose.yml" "$COMPOSE_TEMPLATE_DIR/docker-compose.contact.yml" \
-         "$COMPOSE_TEMPLATE_DIR/docker-compose.turnstile.yml" \
+         "$COMPOSE_TEMPLATE_DIR/docker-compose.turnstile.yml" "$COMPOSE_TEMPLATE_DIR/docker-compose.umami.yml" \
          "$COMPOSE_TEMPLATE_DIR/.gitignore" "$ROUTE_TEMPLATE"; do
   [[ -f "$f" ]] || die "template tidak ada: $f"
 done
@@ -223,6 +241,7 @@ trap 'rm -rf "$tmpdir"' EXIT
 compose_files="docker-compose.yml"
 [[ "$CONTACT" == no ]] || compose_files="docker-compose.yml:docker-compose.contact.yml"
 [[ -z "$TURNSTILE_SITE_KEY" ]] || compose_files="${compose_files}:docker-compose.turnstile.yml"
+[[ -z "$UMAMI_WEBSITE_ID" ]] || compose_files="${compose_files}:docker-compose.umami.yml"
 {
   echo "${MARKER} — jangan edit manual (render ulang). Tidak ada secret."
   echo "COMPOSE_PROJECT_NAME=${ROUTE}"
@@ -239,11 +258,16 @@ compose_files="docker-compose.yml"
   fi
   [[ -z "$LEAD_WEBHOOK" ]] || echo "LEAD_WEBHOOK_URL=${LEAD_WEBHOOK}"
   [[ -z "$TURNSTILE_SITE_KEY" ]] || echo "TURNSTILE_SITE_KEY=${TURNSTILE_SITE_KEY}"
+  if [[ -n "$UMAMI_WEBSITE_ID" ]]; then
+    echo "UMAMI_SCRIPT_URL=${UMAMI_SCRIPT_URL}"
+    echo "UMAMI_WEBSITE_ID=${UMAMI_WEBSITE_ID}"
+  fi
 } > "$tmpdir/env"
 
 install_if_changed "$COMPOSE_TEMPLATE_DIR/docker-compose.yml" "$STACK_DIR/docker-compose.yml" 0644
 install_if_changed "$COMPOSE_TEMPLATE_DIR/docker-compose.contact.yml" "$STACK_DIR/docker-compose.contact.yml" 0644
 install_if_changed "$COMPOSE_TEMPLATE_DIR/docker-compose.turnstile.yml" "$STACK_DIR/docker-compose.turnstile.yml" 0644
+install_if_changed "$COMPOSE_TEMPLATE_DIR/docker-compose.umami.yml" "$STACK_DIR/docker-compose.umami.yml" 0644
 install_if_changed "$COMPOSE_TEMPLATE_DIR/.gitignore" "$STACK_DIR/.gitignore" 0644
 install_if_changed "$tmpdir/env" "$STACK_DIR/.env" 0600
 if [[ "$CONTACT" == yes ]]; then

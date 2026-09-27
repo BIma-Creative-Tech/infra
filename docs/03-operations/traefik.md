@@ -22,7 +22,7 @@
 | `dynamic/middlewares/crowdsec.yml` | middleware plugin bouncer CrowdSec + AppSec (T05) — lihat `crowdsec.md` | ya |
 | `logs/access.log` | access log JSON (dibaca CrowdSec T05, Alloy T14). Dir `65532:adm` 750 | **tidak** |
 | `logrotate/traefik` | dipasang ke `/etc/logrotate.d/traefik` oleh bootstrap | ya |
-| `scripts/bootstrap.sh` | idempoten: network `proxy`, `odoo-edge`, `odoo-edge-stg` + `kc-edge` (ADR 0010), `drms-kas-edge`, `drms-kc-admin{,-stg}` (H5, `--internal`), `web-edge`, `webmail-edge`, dir/file acme & logs, logrotate (`drms-kas-edge-prod` 10.100.14.0/24 = cadangan, belum dibuat) | ya |
+| `scripts/bootstrap.sh` | idempoten: network `proxy`, `odoo-edge`, `odoo-edge-stg` + `kc-edge` (ADR 0010), `drms-kas-edge`, `drms-kc-admin{,-stg}` (H5, `--internal`), `web-edge`, `webmail-edge`, `analytics-edge` (plan 11, `--internal`), dir/file acme & logs, logrotate (`drms-kas-edge-prod` 10.100.14.0/24 = cadangan, belum dibuat) | ya |
 
 ## Keputusan
 
@@ -255,6 +255,15 @@ lagi 2026-09-26 16:08 WIB (S10, `--force-recreate` dengan email ACME).
   `security-headers` / `auth-security-headers` / `odoo-security-headers` (§HSTS bertahap).
 - Regresi → hapus file router + `kill -HUP 1`, `docker network disconnect webmail-edge traefik`.
 
+## Network `analytics-edge` (Umami, ADR 0013 — 2026-09-27)
+
+- `10.100.17.0/24` `--internal`, dibuat `scripts/bootstrap.sh`; anggota HANYA `traefik` + `umami` (`umami:3000`). Diterapkan
+  live: `ensure_network` lalu `docker network connect analytics-edge traefik` (tanpa recreate; Traefik 10.100.17.2, default
+  gateway tetap `proxy` 10.100.0.1). Compose memuat network ini → `--dry-run` = Recreate (drift) sampai recreate terjadwal.
+- Router `dynamic/platform/analytics.yml`: publik hanya `/insight.js` + `/api/send`; admin :8443. Middleware
+  `analytics-headers` — **`stsSeconds` wajib ikut dinaikkan** bersama `security-headers` (§HSTS). Detail: `analytics.md`.
+- Regresi → hapus file router + `kill -HUP 1`, `docker network disconnect analytics-edge traefik`.
+
 ## Start / stop / reload
 
 ```bash
@@ -334,10 +343,10 @@ Semula: `0 issue "letsencrypt.org; accounturi=https://acme-v02.api.letsencrypt.o
 
 ## HSTS bertahap (QA-T17B-06 / F3, disetujui user 2026-09-25)
 
-`stsSeconds` didefinisikan di **empat** middleware dan harus selalu sama: `security-headers`
+`stsSeconds` didefinisikan di **lima** middleware dan harus selalu sama: `security-headers`
 (`dynamic/middlewares/security-headers.yml`), `auth-security-headers` (`dynamic/platform/auth.yml`),
 `odoo-security-headers` (`dynamic/platform/odoo-pools.yml`), `webmail-security-headers`
-(`dynamic/clients/webmail-expomedia.yml`, ADR 0012). `stsIncludeSubdomains: false` dan `stsPreload: false`
+(`dynamic/clients/webmail-expomedia.yml`, ADR 0012), `analytics-headers` (`dynamic/platform/analytics.yml`, ADR 0013). `stsIncludeSubdomains: false` dan `stsPreload: false`
 di ketiganya — **tidak** diubah (preload tidak direncanakan; includeSubDomains = keputusan terpisah: berlaku untuk
 semua subdomain host yang mengirimnya, mis. `*.staging.bimacreative.tech` dari host `staging.…` bila kelak ada).
 

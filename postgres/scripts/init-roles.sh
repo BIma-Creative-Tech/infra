@@ -19,6 +19,9 @@ APPS=(
   "datamart:datamart:PG_DATAMART_PASSWORD:10"
   # T16b — control plane STAGING (cp.staging, realm platform-staging). Limit kecil (ESTIMASI).
   "control_plane_staging:control_plane_staging:PG_CONTROL_PLANE_STAGING_PASSWORD:10"
+  # Plan 11 / ADR 0013 — Umami web analytics. Role `umami` = OWNER DB (Umami menjalankan `prisma migrate deploy` sendiri
+  # saat start: DDL + `CREATE EXTENSION pgcrypto` — trusted extension sejak PG13, boleh dibuat owner DB). Limit 10 → total 196.
+  "umami:umami:PG_UMAMI_PASSWORD:10"
 )
 
 get_var() { grep -E "^$1=" "$ENV_FILE" | head -n1 | cut -d= -f2-; }

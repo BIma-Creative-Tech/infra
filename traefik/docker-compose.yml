@@ -69,6 +69,8 @@ services:
       # ADR 0012 (plan 08): webmail Roundcube (webmail:8000) HANYA di network ini. --internal → tanpa gateway, tidak
       # memengaruhi gateway Traefik (proxy tetap gw_priority 1).
       webmail-edge: {}
+      # ADR 0013 (plan 11): Umami (umami:3000) HANYA di network ini. --internal → tanpa gateway (proxy tetap gw_priority 1).
+      analytics-edge: {}
       # T14a: network internal (--internal, 10.100.5.0/24) — Prometheus scrape :8082. Internal network
       # tidak punya gateway → tidak memengaruhi pemilihan gateway (proxy tetap gw_priority 1).
       metrics: {}
@@ -147,3 +149,7 @@ networks:
     # Dibuat scripts/bootstrap.sh: 10.100.15.0/24 --internal (ADR 0012) — anggota: traefik + webmail saja.
     external: true
     name: webmail-edge
+  analytics-edge:
+    # Dibuat scripts/bootstrap.sh: 10.100.17.0/24 --internal (ADR 0013, plan 11) — anggota: traefik + umami saja.
+    external: true
+    name: analytics-edge

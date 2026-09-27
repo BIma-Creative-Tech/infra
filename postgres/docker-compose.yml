@@ -50,6 +50,7 @@ services:
       - db-cp             # 10.100.23.0/24 — control-plane (+worker, migrate)
       - db-cp-stg         # 10.100.24.0/24 — control-plane-staging (+worker, migrate)
       - db-drms-stg       # 10.100.26.0/24 — drms-pk-stg (+worker, migrate, seed)
+      - db-umami          # 10.100.28.0/24 — umami (plan 11, ADR 0013)
     healthcheck:
       test: ["CMD", "pg_isready", "-U", "postgres", "-h", "/var/run/postgresql"]
       interval: 10s
@@ -92,4 +93,7 @@ networks:
   db-drms-stg:
     external: true
     name: db-drms-stg
+  db-umami:
+    external: true
+    name: db-umami
   # CADANGAN (belum dibuat): db-drms 10.100.25.0/24 (ProyekKas DRMS prod), db-datamart 10.100.27.0/24.

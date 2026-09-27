@@ -60,6 +60,9 @@
   masuk path `files` (diverifikasi `restic backup --dry-run`, replika logika `backup.sh`); `drms_pk_media_prod` belum ada.
   Catatan retensi: `forget` mengelompokkan per host+paths → setiap perubahan daftar path (volume media muncul/hilang)
   membuat grup snapshot baru; grup lama tetap menyimpan snapshot terakhirnya sesuai kebijakan keep.
+- Umami (plan 11, 2026-09-27): DB `umami` masuk dump dinamis tanpa perubahan skrip; `analytics/umami/.env` (`APP_SECRET`,
+  `TWO_FACTOR_ENCRYPTION_KEY`) + `secrets/` ikut `files` (diverifikasi `restic ls`). Drill `restore.sh umami umami_restoretest`
+  → jumlah baris sama → DB uji di-DROP (`analytics.md`).
 - Data mail DMS (T11): bind mount `/opt/infra/mail/data/{mail,state,config}` + `mail/secrets/` → ikut snapshot `files` tanpa
   perubahan skrip (diverifikasi `restic backup --dry-run` 2026-09-23; `mail.md` §Backup). Log `/var/log/mailserver` tidak.
   Tidak di-backup: TSDB Prometheus/Loki, image Docker, sesi Odoo.

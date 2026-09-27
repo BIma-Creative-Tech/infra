@@ -8,7 +8,8 @@ http:
         # le-http). Bila 2 minggu stabil → 31536000 mulai 2026-10-09 (docs/03-operations/traefik.md §HSTS).
         # includeSubdomains & preload TETAP false (keputusan terpisah; preload tidak direncanakan).
         # Nilai sama WAJIB dijaga di auth-security-headers (platform/auth.yml), odoo-security-headers
-        # (platform/odoo-pools.yml) & webmail-security-headers (clients/webmail-expomedia.yml, ADR 0012).
+        # (platform/odoo-pools.yml), webmail-security-headers (clients/webmail-expomedia.yml, ADR 0012) &
+        # analytics-headers (platform/analytics.yml, ADR 0013).
         stsSeconds: 604800
         stsIncludeSubdomains: false
         stsPreload: false

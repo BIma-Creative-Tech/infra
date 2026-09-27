@@ -31,6 +31,9 @@ const MONITORS = [
   // ProyekKas DRMS staging (2026-09-23). GET saja: endpoint health app tidak menjawab HEAD (404).
   // public:false → tidak ditampilkan di status page publik `platform` (nama client), hanya di dashboard admin.
   { name: "ProyekKas DRMS staging (drms-kas.staging)", url: "https://drms-kas.staging.bimacreative.tech/api/v1/health", public: false },
+  // Plan 11 U10 (ADR 0013) — Umami: skrip tracker publik (satu-satunya GET publik host ini; /api/heartbeat hanya :8443).
+  // public:false → hanya dashboard admin (bukan layanan untuk status page publik).
+  { name: "Umami analytics tracker (analytics)", url: "https://analytics.bimacreative.tech/insight.js", public: false },
 ];
 
 const monitorDefaults = {
