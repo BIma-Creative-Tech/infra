@@ -323,6 +323,7 @@ media ProyekKas pakai `restic restore --include` seperti di atas. Nama tabel `pa
 |---|---|---|---|---|
 | 2026-09-27 14:30 | 0.3.0 (go-live) | `093e35e3…` / `187dfdd2…` | — (DB baru) | — |
 | 2026-09-27 17:01 | 0.4.0 (navigasi admin gaya Odoo, ADR PK 0014; tanpa migrasi skema) | `dcffa2af…` / `33e1b94c…` | `backups/proyekkas/pk_drms-20260927-165938-pre-0.4.0.dump` | `.env.pre-0.4.0` → `docker compose up -d` |
+| 2026-09-27 22:32 | 0.4.1 (breadcrumb + 390px overflow; tanpa migrasi) + `ANDROID_APP_CERT_SHA256` prod `E3:09:…:02:53` (App Links, APK mobile-v0.2.0) — dijalankan OWNER (Lead diblokir classifier) | `42682f7f…` / `139ab67a…` | `backups/proyekkas/pk_drms-20260927-222959-pre-0.4.1.dump` | `.env.pre-0.4.1` → `docker compose up -d` |
 
 ## 11. CI/CD — desain GHCR + deploy prod
 
