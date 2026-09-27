@@ -11,6 +11,26 @@
 # Urutan middleware konvensi platform: crowdsec (paling depan, termasuk AppSec) → [allowlist] → headers → ratelimit.
 http:
   routers:
+    # ---------------------------------------------------------------- publik (:443)
+    # Beacon tracker: `fetch` POST JSON + header x-umami-* → preflight CORS (OPTIONS). Tanpa header CORS dari Traefik.
+    analytics-collect:
+      entryPoints: [websecure]
+      rule: "Host(`analytics.bimacreative.tech`) && Path(`/api/send`) && (Method(`POST`) || Method(`OPTIONS`))"
+      priority: 50
+      middlewares: [crowdsec, analytics-headers, ratelimit-analytics-collect]
+      service: umami
+      tls:
+        certResolver: le-http
+    # Skrip tracker (TRACKER_SCRIPT_NAME=insight.js di compose). `/script.js` bawaan sengaja TIDAK dirouting (daftar adblock).
+    analytics-script:
+      entryPoints: [websecure]
+      rule: "Host(`analytics.bimacreative.tech`) && Path(`/insight.js`) && (Method(`GET`) || Method(`HEAD`))"
+      priority: 50
+      middlewares: [crowdsec, analytics-headers, ratelimit-default]
+      service: umami
+      tls:
+        certResolver: le-http
+
     # ---------------------------------------------------------------- admin (:8443)
     # Login (password) + verifikasi TOTP 2FA lebih ketat (CLAUDE.md §3.6). Nama route dari app-paths-manifest image 3.4.0:
     # /api/auth/login, /api/2fa/verify.
