@@ -12,7 +12,7 @@
 
 | Item | Path |
 |---|---|
-| Template (git) | `templates/web-client/` (`docker-compose.yml`, `docker-compose.contact.yml`, `.env.example`, `.gitignore`), `templates/traefik-web-client.yml` |
+| Template (git) | `templates/web-client/` (`docker-compose.yml`, `docker-compose.contact.yml`, `docker-compose.turnstile.yml`, `docker-compose.umami.yml`, `.env.example`, `.gitignore`), `templates/traefik-web-client.yml` |
 | Skrip | `scripts/provision-web-client.sh`, `scripts/lib/traefik-route.sh` |
 | Stack prod | `web/clients/<slug>/` |
 | Stack staging | `staging/web-clients/<slug>/` |
@@ -45,6 +45,18 @@ sudo /opt/infra/scripts/provision-web-client.sh <slug> <env> --host <fqdn> \
 - Catat tag baru di pesan commit infra / `provision_job` (`.env` tidak di git).
 - Verifikasi: baris `RESULT … changed=yes`, lalu `curl -sI https://<fqdn>/ | grep -iE '^(HTTP|content-security|strict-transport)'`
   dan `docker stats --no-stream web-<slug>-<env>`.
+
+## Analytics Umami (opsional, plan 11 / ADR 0013)
+
+- Flag berpasangan `--umami-script-url https://analytics.bimacreative.tech/insight.js --umami-website-id <uuid>` → `.env`
+  `UMAMI_SCRIPT_URL`, `UMAMI_WEBSITE_ID` (bukan secret) + `docker-compose.umami.yml` di `COMPOSE_FILE` → container di-recreate.
+  Hanya satu flag / URL bukan `https://…/<nama>.js` / UUID bukan huruf kecil → skrip menolak sebelum menulis apa pun.
+- Tanpa flag → `.env` dan `COMPOSE_FILE` identik dengan sebelumnya (website lain tidak di-recreate; diuji: salinan stack
+  `bct` staging + file override baru → `docker compose --dry-run up -d` = Running). Semua opsi lain tetap harus diulang.
+- Aplikasi membaca env runtime (bukan `NEXT_PUBLIC_*`), merender `<script defer src=… data-website-id=… data-domains=<host>
+  data-do-not-track="true" data-exclude-search="true" nonce=…>` dan menambah origin analytics ke `script-src`/`connect-src`
+  (ADR 0007 §5). Image yang belum mendukung env ini mengabaikannya.
+- Website ID per host/env di UI Umami (`analytics.md` §Akses admin). Mematikan: provision ulang tanpa kedua flag.
 
 ## Rollback
 

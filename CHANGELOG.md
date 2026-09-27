@@ -9,6 +9,12 @@ file `VERSION`.
 ## [Unreleased]
 
 ### Added
+- analytics (ADR 0013, plan 11 U1–U6/U10, 2026-09-27): Umami 3.4.0 (MIT, digest ter-pin) di `analytics.bimacreative.tech` —
+  stack `analytics/umami/` (uid 1001, rootfs ro, tanpa egress, 256m), DB/role `umami` di Postgres shared (limit 10, total 196),
+  network `db-umami` 10.100.28.0/24 + `analytics-edge` 10.100.17.0/24 (`--internal`, attach live), router
+  `traefik/dynamic/platform/analytics.yml` (publik hanya `/insight.js` + `/api/send`, admin :8443), template
+  `docker-compose.umami.yml` + flag `provision-web-client.sh --umami-script-url/--umami-website-id`, monitor Kuma (kode),
+  ops `docs/03-operations/analytics.md`.
 - network (plan 06, ADR 0010, QA-T17B-01): network Postgres per konsumen `db-keycloak`, `db-odoo-pool-a`, `db-odoo-staging`,
   `db-cp`, `db-cp-stg`, `db-drms-stg` (`--internal`, 10.100.20–26.0/24; `db-drms`/`db-datamart` cadangan) via
   `postgres/scripts/bootstrap.sh` (`da68a83`); edge `kc-edge` (10.100.12.0/24, Traefik + Keycloak) dan `odoo-edge-stg`

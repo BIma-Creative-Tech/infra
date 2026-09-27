@@ -106,6 +106,12 @@ docker stats --no-stream web-<slug>-<env>
    (`TURNSTILE_SITE_KEY` di `.env`, `TURNSTILE_SECRET_FILE=/run/secrets/turnstile_secret`, owner `1001:1001` `0400`).
    Keduanya atau tidak sama sekali: flag tanpa file secret → skrip menolak; aplikasi exit 1 bila hanya satu diset.
    Mematikan: provision ulang tanpa `--turnstile-site-key` (file secret boleh tetap ada; tidak di-mount).
+6. Opsional **analytics Umami** (plan 11, default OFF): buat website di UI Umami (:8443, `docs/03-operations/analytics.md`),
+   catat Website ID, lalu provision ulang dengan semua opsi sebelumnya + `--umami-script-url
+   https://analytics.bimacreative.tech/insight.js --umami-website-id <uuid>` (keduanya wajib). Skrip menambah
+   `docker-compose.umami.yml` ke `COMPOSE_FILE` (env runtime `UMAMI_SCRIPT_URL`, `UMAMI_WEBSITE_ID`). Butuh image app yang
+   merender skrip ber-nonce (bct-website ≥ v0.2.0). Verifikasi: HTML memuat `insight.js` + `data-website-id`, header CSP memuat
+   origin analytics, event muncul di UI. Mematikan: provision ulang tanpa kedua flag.
 
 ## 4. Upgrade tag image
 

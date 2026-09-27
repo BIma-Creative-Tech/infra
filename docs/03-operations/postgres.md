@@ -31,8 +31,9 @@
   sisanya `reject`. Keadaan final plan 06 S10 (2026-09-26): `pg_hba_file_rules` **16 aturan**, kolom `error` kosong,
   tanpa `10.100.1.0/24` (QA `docs/qa/2026-09-26-plan06-prod.md` AC-06-04).
 - Connection limit role: keycloak 30, control_plane 20, control_plane_staging 10 (T16b), datamart 10, odoo_pool_a 48,
-  odoo_staging 24, `pk_drms_{owner,app,ro}` 2/25/3, `pk_drms_stg_{owner,app,ro}` 2/10/2 (ESTIMASI) — total **186** ≤
-  `max_connections` 200 (`SELECT sum(rolconnlimit) FROM pg_roles WHERE rolconnlimit > 0`; sisa 14 − 3 slot superuser reserved).
+  odoo_staging 24, `pk_drms_{owner,app,ro}` 2/25/3, `pk_drms_stg_{owner,app,ro}` 2/10/2, umami 10 (plan 11) (ESTIMASI) — total
+  **196** ≤ `max_connections` 200 (`SELECT sum(rolconnlimit) FROM pg_roles WHERE rolconnlimit > 0`; sisa 4 − 3 slot superuser
+  reserved = **1 slot** — konsumen DB berikutnya butuh `max_connections` naik, recreate ±6 s; plan 11 R4).
 - **Control plane staging (T16b, 2026-09-23):** DB/role `control_plane_staging` (pola `control_plane`, limit 10), baris hba
   eksplisit. Diterapkan tanpa recreate: `bootstrap.sh` → `init-roles.sh` → `cat pg_hba.new > conf/pg_hba.conf` (inode tetap) →
   `pg_reload_conf()` → `pg_hba_file_rules` baris 19. Isolasi diuji (container `--network db`, network lama — sejak plan 06
@@ -40,6 +41,11 @@
   `control_plane_staging` OK; → `control_plane`/`postgres` dan `control_plane` → `control_plane_staging` = `pg_hba.conf rejects connection`.
 - **ProyekKas DRMS (2026-09-23):** DB `pk_drms`, `pk_drms_stg` (owner `*_owner`, CONNECT hanya role DB itu, PUBLIC
   dicabut); baris hba eksplisit per DB. Runbook `docs/runbooks/proyekkas-drms-onboarding.md` §Langkah 1.
+- **Umami (plan 11, 2026-09-27):** DB/role `umami` (owner, pola `keycloak`; Umami menjalankan `prisma migrate deploy` sendiri
+  → butuh DDL + `CREATE EXTENSION pgcrypto`), network `db-umami` 10.100.28.0/24. Diterapkan tanpa recreate: `bootstrap.sh` →
+  `docker network connect db-umami postgres` → pg_hba ditulis di tempat (inode 855055 tetap) + `pg_reload_conf()` →
+  `pg_hba_file_rules` 17 baris / 0 error → `init-roles.sh`. Uji silang lulus (`analytics.md`). Compose sudah memuat `db-umami`
+  → `--dry-run` = Recreate (drift) sampai recreate terjadwal berikutnya.
 - **Role pool Odoo (T10)**: `odoo_pool_a`, `odoo_staging` — `LOGIN CREATEDB NOSUPERUSER NOCREATEROLE`, tanpa DB
   sendiri, `GRANT CONNECT ON DATABASE postgres`. `pg_hba` memakai **regex nama DB (PG16)**:
   `/^[a-z0-9_]+_(prod|demo)$` hanya untuk `odoo_pool_a`, `/^[a-z0-9_]+_staging$` hanya untuk `odoo_staging`.
@@ -64,7 +70,8 @@ app yang sama boleh berbagi) punya bridge **`--internal`** sendiri, anggota hany
 | `db-drms` | 10.100.25.0/24 | **cadangan** (DRMS prod, belum dibuat) | `pk_drms_{owner,app,ro}` → `pk_drms` |
 | `db-drms-stg` | 10.100.26.0/24 | drms-pk-stg(-worker), migrate, seed | `pk_drms_stg_{owner,app,ro}` → `pk_drms_stg` |
 | `db-datamart` | 10.100.27.0/24 | **cadangan** (dbt cron, belum dibuat) | `datamart` → `datamart` |
-| — | 10.100.28–39.0/24 | cadangan `db-*` berikutnya | — |
+| `db-umami` | 10.100.28.0/24 | umami (plan 11, 2026-09-27) | `umami` → `umami` |
+| — | 10.100.29–39.0/24 | cadangan `db-*` berikutnya | — |
 
 Sumber: `postgres/scripts/bootstrap.sh`, `postgres/docker-compose.yml`, `postgres/conf/pg_hba.conf`. Uji silang QA N7
 (container sekali pakai per `db-*`, password salah): hanya pasangan role konsumen sendiri lolos pg_hba, sisanya
