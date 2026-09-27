@@ -1,0 +1,16 @@
+# Override Cloudflare Turnstile untuk form kontak (bct G-43, default OFF) — hanya dimuat bila `.env` berisi
+#   COMPOSE_FILE=docker-compose.yml:docker-compose.contact.yml:docker-compose.turnstile.yml
+# (ditulis provision-web-client.sh --contact --turnstile-site-key <key>). Site key publik → env biasa;
+# secret key: file ./secrets/turnstile_secret.secret (TIDAK di git), owner 1001:1001 mode 0400 (sama dengan SMTP).
+# Keduanya atau tidak sama sekali: aplikasi exit 1 bila hanya satu yang diset; tanpa file ini Turnstile OFF.
+# CSP (challenges.cloudflare.com) diatur aplikasi, bukan Traefik.
+services:
+  web:
+    environment:
+      TURNSTILE_SITE_KEY: ${TURNSTILE_SITE_KEY:?TURNSTILE_SITE_KEY wajib bila Turnstile aktif}
+      TURNSTILE_SECRET_FILE: /run/secrets/turnstile_secret
+    secrets: [turnstile_secret]
+
+secrets:
+  turnstile_secret:
+    file: ./secrets/turnstile_secret.secret
