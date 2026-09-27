@@ -34,7 +34,7 @@ http:
       middlewares: [crowdsec, security-headers, ratelimit-login]
       service: drms-pk-web
       tls:
-        certResolver: le-http-staging
+        certResolver: le-http
     # Kontrak API v1 (APK, Bearer + X-Device-Id). Authorization DITERUSKAN (hanya di sini dan /auth).
     drms-pk-api-v1:
       entryPoints: [websecure]
@@ -43,7 +43,7 @@ http:
       middlewares: [crowdsec, security-headers, ratelimit-pk-api, buffering-pk]
       service: drms-pk-web
       tls:
-        certResolver: le-http-staging
+        certResolver: le-http
     # REST generik Payload /api/<slug> (admin UI saja): Authorization DIHAPUS, upload admin → buffering-pk (10 MiB).
     drms-pk-api-rest:
       entryPoints: [websecure]
@@ -52,7 +52,7 @@ http:
       middlewares: [crowdsec, security-headers, ratelimit-default, strip-authorization, buffering-pk]
       service: drms-pk-web
       tls:
-        certResolver: le-http-staging
+        certResolver: le-http
     # Catch-all: Payload admin (/admin), aset Next.js, /.well-known/assetlinks.json. Authorization dihapus, tanpa buffering.
     drms-pk-web:
       entryPoints: [websecure]
@@ -61,7 +61,7 @@ http:
       middlewares: [crowdsec, security-headers, ratelimit-default, strip-authorization]
       service: drms-pk-web
       tls:
-        certResolver: le-http-staging
+        certResolver: le-http
 
   services:
     # Container dari web/clients/drms-proyekkas/docker-compose.yml (container_name drms-pk-web, port 3000),
