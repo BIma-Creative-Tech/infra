@@ -291,7 +291,7 @@ media ProyekKas pakai `restic restore --include` seperti di atas. Nama tabel `pa
 1. **DNS A** `drms-kas.bimacreative.tech` → `31.97.50.221`: **terlihat sudah dibuat** (NS otoritatif, 2026-09-26). Konfirmasi
    memang disengaja; jangan tambah AAAA.
 2. **GHCR:** (a) PAT **classic** scope `read:packages` saja (akun mesin bila ada), berkedaluwarsa, serahkan ke Lead lewat
-   kanal aman untuk `docker login` §6; (b) di repo `bctech-adm/drms`: environment `production` dengan *required reviewers*
+   kanal aman untuk `docker login` §6; (b) di repo `bctech-adm/drms`: environment `infra-deploy` dengan *required reviewers*
    + secret `DEPLOY_SSH_KEY`/`DEPLOY_KNOWN_HOSTS` (setelah wrapper §6 CI siap); (c) izinkan Actions menulis packages.
 3. **Backup offsite (G1-6):** buat akun **Backblaze B2** (kartu pembayaran), bucket **private** (nama mis.
    `bct-vps-restic`, pilih region), *Application Key* dibatasi ke bucket itu → berikan `keyID`, `applicationKey`, endpoint S3
@@ -330,7 +330,7 @@ dan `deploy` tidak bisa menulis `.env` (dir 750 root) — sengaja.
    `ghcr.io` dengan `GITHUB_TOKEN`; tag `ghcr.io/bctech-adm/proyekkas-{web,migrate}:<semver>` (tag git `vX.Y.Z` = prod;
    `X.Y.Z-stg-<sha7>` dari `develop` = staging); Trivy CRITICAL sebelum push (sudah ada); keluarkan **digest** ke summary job.
    Tag tidak pernah ditimpa (tag lama = jalur rollback).
-2. *Deploy prod* (job `deploy-prod`, `environment: production` + required reviewers, hanya dari tag di `main`):
+2. *Deploy prod* (job `deploy-prod`, `environment: infra-deploy` + required reviewers, hanya dari tag di `main`):
    `ssh -p 2221 deploy@31.97.50.221 sudo /usr/local/sbin/infra-deploy web/clients/drms-proyekkas --set PK_WEB_IMAGE=<ref@digest> --set PK_MIGRATE_IMAGE=<ref@digest>`.
 3. *infra-deploy v2* (Ansible template, root-owned): `--set KEY=VAL` hanya bila KEY ada di allowlist per stack
    `/etc/infra-deploy/allow/<stack-dengan-_>.conf` (root 644) beserta regex nilai, mis.
