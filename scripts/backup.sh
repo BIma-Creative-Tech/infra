@@ -100,7 +100,8 @@ remote_configured() {
   [[ -n "$v" && "$v" != *"<"* ]]
 }
 
-# copy_to_remote — BELUM PERNAH DIUJI (remote belum ada). Aktivasi: backup.md §Remote S3.
+# copy_to_remote — aktif sejak 2026-09-27 (Backblaze B2, bucket bckt-bimacreative prefix restic/vps; salinan pertama +
+# restore uji umami.dump dari B2: sha256 identik dengan repo lokal). Aktivasi: backup.md §Remote S3.
 # restic 0.19.1 doc/045_working_with_repos.rst: repo tujuan = RESTIC_REPOSITORY, repo sumber =
 # RESTIC_FROM_REPOSITORY + RESTIC_FROM_PASSWORD_FILE.
 copy_to_remote() (
@@ -116,8 +117,25 @@ copy_to_remote() (
 cmd_prune() {
   restic forget --host "$RESTIC_HOST_TAG" --keep-daily 7 --keep-weekly 4 --keep-monthly 3 --prune
   restic check
-  log "RESULT status=ok action=prune+check"
+  local remote=not-configured
+  if remote_configured; then
+    if prune_remote; then remote=ok; else warn "prune/check remote GAGAL"; remote=failed; fi
+  fi
+  log "RESULT status=ok action=prune+check remote=$remote"
 }
+
+# prune_remote — retensi offsite lebih panjang dari lokal (kehilangan host terdeteksi terlambat / ransomware):
+# 7 harian, 8 mingguan, 12 bulanan. Objek yang dihapus prune masih bisa dipulihkan 30 hari (lifecycle B2
+# daysFromHidingToDeleting=30 pada prefix restic/, diset 2026-09-27).
+prune_remote() (
+  set -a
+  # shellcheck disable=SC1090
+  . "$RESTIC_REMOTE_ENV"
+  set +a
+  export RESTIC_REPOSITORY="$RESTIC_REPOSITORY_REMOTE" RESTIC_PASSWORD_FILE="$RESTIC_PASSWORD_FILE_REMOTE"
+  restic forget --host "$RESTIC_HOST_TAG" --keep-daily 7 --keep-weekly 8 --keep-monthly 12 --prune --quiet
+  restic check --quiet
+)
 
 cmd_check() {
   restic check

@@ -32,7 +32,7 @@
 | L1 restic lokal | dump DB + filestore + config/secrets + mail | harian | `/opt/infra/backups/restic` (disk sama) | salah hapus, korupsi logis, rollback deploy |
 | L2 Hostinger automated backup | seluruh VPS | mingguan (daily jika add-on diaktifkan — **dianjurkan**) | infrastruktur Hostinger, terpisah dari server | disk/VPS hilang (RPO s.d. 7 hari, atau 1 hari dengan add-on) |
 | L3 Hostinger snapshot | seluruh VPS | manual, **sebelum perubahan berisiko** (bootstrap Ansible, upgrade major) | Hostinger, kedaluwarsa 1 hari | gagal perubahan (rollback cepat) |
-| L4 restic S3 (placeholder) | `restic copy` dari L1 | harian setelah L1 | S3-compatible (TBD) | kehilangan host + akun Hostinger |
+| L4 restic S3 — **AKTIF 2026-09-27** | `restic copy` dari L1 | harian setelah L1 | Backblaze B2 `bckt-bimacreative/restic/vps` (us-east-005) | kehilangan host + akun Hostinger |
 
 **Risiko eksplisit:** L1 berada di disk yang sama → **bukan backup** terhadap kegagalan disk, kompromi
 root, atau penghapusan VPS. Sampai L4 aktif, satu-satunya salinan off-host adalah L2 (mingguan,

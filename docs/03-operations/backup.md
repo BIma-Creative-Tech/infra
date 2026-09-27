@@ -15,11 +15,17 @@
 > `sudo cat /etc/restic/password` (jalankan di terminal sendiri, jangan tempel ke chat/log/issue).
 > File ini sengaja **tidak** ikut di-backup ke repo yang sama (tidak berguna bila repo tak terbaca).
 
-> ### RISIKO — repo lokal = disk yang sama
-> Repo `/opt/infra/backups/restic` ada di disk yang sama dengan data. Ini **bukan** backup terhadap
-> kegagalan disk, kompromi root, atau VPS terhapus. Sampai remote S3 (L4) aktif, satu-satunya salinan
-> off-host adalah backup otomatis Hostinger (L2, mingguan). Setiap run mencatat
-> `WARNING: REMOTE NOT CONFIGURED …` ke journal sampai remote diisi.
+> ### Offsite L4 AKTIF sejak 2026-09-27 (Backblaze B2)
+> Repo lokal `/opt/infra/backups/restic` tetap di disk yang sama; setiap `backup.sh run` sekarang juga
+> `restic copy` ke **B2** `s3:https://s3.us-east-005.backblazeb2.com/bckt-bimacreative/restic/vps` (bucket private,
+> SSE-B2, application key terbatas bucket `bckt-bimacreative` — master key TIDAK dipakai; S3 API menolaknya).
+> Password repo remote: `/etc/restic/password-remote` (600 root) — **salinan wajib di password manager owner**
+> (tanpa itu backup B2 tidak bisa dibuka bila VPS hilang). Retensi remote (`backup.sh prune`): 7 harian, 8 mingguan,
+> 12 bulanan; objek yang di-prune masih bisa dipulihkan 30 hari (lifecycle B2 `restic/` daysFromHidingToDeleting=30).
+> Uji 2026-09-27: `init --from-repo --copy-chunker-params`, run pertama `RESULT … remote=ok` (98 s, 89 snapshot, 85,9 MiB),
+> restore `umami.dump` dari B2 → sha256 identik dengan repo lokal; `prune` → `remote=ok`, `check` tanpa error.
+> Restore dari B2: `set -a; . /etc/restic/remote.env; set +a; restic -r "$RESTIC_REPOSITORY_REMOTE"
+> --password-file "$RESTIC_PASSWORD_FILE_REMOTE" snapshots|restore …` (ID snapshot remote BERBEDA dari lokal).
 
 ## Lokasi
 
@@ -28,7 +34,7 @@
 | `/usr/local/bin/restic` | binary 0.19.1 | 755 root | — |
 | `/etc/restic/password` | password repo lokal (acak, dibangkitkan role sekali) | 600 root | **tidak** |
 | `/etc/restic/local.env` | `RESTIC_REPOSITORY`, `RESTIC_PASSWORD_FILE`, `RESTIC_CACHE_DIR` (tanpa secret) | 600 root | template role |
-| `/etc/restic/remote.env` | placeholder remote S3 (kosong) — dari `scripts/restic-remote.env.example`, tidak ditimpa role | 600 root | **tidak** |
+| `/etc/restic/remote.env` | remote B2 (aktif 2026-09-27; awalnya dari `scripts/restic-remote.env.example`, tidak ditimpa role) | 600 root | **tidak** |
 | `/opt/infra/backups/restic` | repo restic lokal | 700 root | **tidak** (`backups/` di-ignore) |
 | `/var/cache/restic` | cache restic | 700 root | — |
 | `scripts/backup.sh` | `run` (default) · `prune` · `check` | 755 | ya |
