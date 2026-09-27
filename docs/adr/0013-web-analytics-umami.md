@@ -1,6 +1,6 @@
 # ADR 0013 — Web analytics self-hosted: Umami di `analytics.bimacreative.tech`
 
-- **Status:** proposed (menunggu GATE 1 — `docs/plans/11-umami-analytics.md` §11)
+- **Status:** accepted (GATE 1 plan 11, 2026-09-27)
 - **Tanggal:** 2026-09-27
 - **Penulis:** Analyst
 - **Terkait:** ADR 0001 (stack/lisensi), ADR 0002 (TLS HTTP-01, DNS manual), ADR 0004 (kapasitas), ADR 0006 (backup),

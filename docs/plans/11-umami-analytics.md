@@ -1,6 +1,6 @@
 # Plan 11 — Web analytics self-hosted Umami (`analytics.bimacreative.tech`) untuk website client
 
-- Status: **DRAFT — menunggu GATE 1** (belum ada eksekusi; tidak ada service/config berjalan yang diubah).
+- Status: **APPROVED — GATE 1 2026-09-27** (user: "Setuju" semua rekomendasi §11; Q8 DNS A `analytics` → 31.97.50.221 sudah ada, tanpa AAAA; Q11 teks privasi disusun Lead untuk bct-website). Eksekusi U1–U11 dimulai.
 - Tanggal: 2026-09-27 · Penulis: Analyst (untuk Lead) · Permintaan owner (via Lead): "Ya, buat plan dulu".
 - ADR: `docs/adr/0013-web-analytics-umami.md` (**proposed**). Plan 10 dicadangkan untuk pemecahan network `proxy`.
 - Terkait: ADR 0002 (HTTP-01, DNS pre-check, tanpa AAAA, CAA), ADR 0004 (kapasitas), ADR 0006 (backup), ADR 0007 (stack
