@@ -26,7 +26,7 @@
 | Router Traefik | `drms-pk-{auth,api-v1,api-rest,web}` → `drms-pk-web:3000` | template `web/clients/drms-proyekkas/traefik/drms-proyekkas-prod.yml` (di luar `traefik/dynamic/` → belum dimuat) |
 | Token/Admin REST | `auth-drms-token` (Path token realm `drms`, 60/menit/IP burst 30), `drms-kc-admin-prod` | **ada, sudah mencakup prod** |
 | CrowdSec AppSec | pengecualian 920420 (Server Action) & 911100 (PATCH/DELETE `/api/`) host `drms-kas.bimacreative.tech`; 911100 Admin REST 10.100.8.0/24 × `/admin/realms/drms/` | **ada, sudah mencakup host prod** (`appsec-configs/drms-payload-crs-exclusions.yaml`, `appsec-rules/drms-payload-server-action.yaml` regex `^drms-kas(?:\.staging)?\.bimacreative\.tech$`, `keycloak-admin-exclusions.yaml`) — tidak perlu diubah |
-| Realm Keycloak | `drms`, client `proyekkas-web` / `proyekkas-mobile` / `proyekkas-admin-api` | ada; **DAG `proyekkas-mobile` masih OFF** di live (export di branch ini sudah `true` = target §4) |
+| Realm Keycloak | `drms`, client `proyekkas-web` / `proyekkas-mobile` / `proyekkas-admin-api` | ada; DAG `proyekkas-mobile` **ON** di live (G1-3, diverifikasi 2026-09-28 via Admin REST: directAccessGrantsEnabled=true; token probe → invalid_grant) |
 | Secret client | `identity/keycloak/secrets/drms-proyekkas-{web,admin-api}.secret` | ada |
 
 ## 1. Prasyarat (STOP bila salah satu belum)
