@@ -51,3 +51,14 @@ pre_eval:
       )
     apply:
       - RemoveInBandRuleByID(911100)
+  # 2026-09-27 (keputusan user, sesi Lead): assign client role lewat admin console (SSH tunnel) → body JSON berisi
+  # deskripsi role bawaan Keycloak "${role_manage-users}" → CRS 932130 (RCE, matched ARGS.json.N.description) → 403
+  # "cannot update role". HANYA 932130, HANYA path role-mappings user/group, HANYA host+IP admin (sama hook pertama).
+  # Rollback: hapus entri ini → `docker exec crowdsec kill -HUP 1`.
+  - filter: >-
+      IsInBand &&
+      req.Host in ["auth.bimacreative.tech", "auth.bimacreative.tech:8443"] &&
+      req.URL.Path matches "^/admin/realms/[A-Za-z0-9_-]+/(users|groups)/[0-9a-f-]{36}/role-mappings/" &&
+      req.RemoteAddr in ["127.0.0.1", "10.100.0.1"]
+    apply:
+      - RemoveInBandRuleByID(932130)
