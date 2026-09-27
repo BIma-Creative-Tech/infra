@@ -14,7 +14,8 @@ VARS=(POSTGRES_PASSWORD PG_KEYCLOAK_PASSWORD PG_CONTROL_PLANE_PASSWORD PG_DATAMA
       PG_CONTROL_PLANE_STAGING_PASSWORD                   # T16b: control plane staging
       # ProyekKas client DRMS (ProyekKas ADR 0006 §1): role owner/app/ro per DB pk_drms, pk_drms_stg
       PG_PK_DRMS_OWNER_PASSWORD PG_PK_DRMS_APP_PASSWORD PG_PK_DRMS_RO_PASSWORD
-      PG_PK_DRMS_STG_OWNER_PASSWORD PG_PK_DRMS_STG_APP_PASSWORD PG_PK_DRMS_STG_RO_PASSWORD)
+      PG_PK_DRMS_STG_OWNER_PASSWORD PG_PK_DRMS_STG_APP_PASSWORD PG_PK_DRMS_STG_RO_PASSWORD
+      PG_UMAMI_PASSWORD)                                  # plan 11 / ADR 0013: web analytics Umami (owner DB umami)
 
 [[ $EUID -eq 0 ]] || { echo "harus root" >&2; exit 1; }
 
@@ -48,10 +49,11 @@ ensure_internal_network db-odoo-staging 10.100.22.0/24 10.100.22.1   # odoo-stag
 ensure_internal_network db-cp           10.100.23.0/24 10.100.23.1   # control-plane (+worker, migrate)
 ensure_internal_network db-cp-stg       10.100.24.0/24 10.100.24.1   # control-plane-staging (+worker, migrate)
 ensure_internal_network db-drms-stg     10.100.26.0/24 10.100.26.1   # drms-pk-stg (+worker, migrate, seed)
+ensure_internal_network db-umami        10.100.28.0/24 10.100.28.1   # umami (plan 11, ADR 0013)
 # CADANGAN — belum dibuat (tidak ada konsumen; baris pg_hba-nya sudah ada, subnet tanpa anggota):
 #   db-drms      10.100.25.0/24  drms-pk-web(-worker, migrate, seed) — saat onboarding ProyekKas DRMS prod
 #   db-datamart  10.100.27.0/24  dbt cron datamart — saat stack datamart dibuat
-#   10.100.28.0/24–10.100.39.0/24  db-* berikutnya (pool/dedicated Odoo, klien baru)
+#   10.100.29.0/24–10.100.39.0/24  db-* berikutnya (pool/dedicated Odoo, klien baru) — 10.100.28.0/24 = db-umami (plan 11)
 # Untuk mengaktifkan: tambahkan baris ensure_internal_network di atas + `docker network connect <net> postgres` + compose.
 
 # 2. .env
