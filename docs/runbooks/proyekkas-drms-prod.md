@@ -317,6 +317,13 @@ media ProyekKas pakai `restic restore --include` seperti di atas. Nama tabel `pa
 | §7 offsite + drill | BELUM | | |
 | §8 Kuma | BELUM | | |
 
+### 10.1 Riwayat deploy prod
+
+| Waktu (WIB) | Versi | Digest web / migrate | Backup pra-deploy | Rollback |
+|---|---|---|---|---|
+| 2026-09-27 14:30 | 0.3.0 (go-live) | `093e35e3…` / `187dfdd2…` | — (DB baru) | — |
+| 2026-09-27 17:01 | 0.4.0 (navigasi admin gaya Odoo, ADR PK 0014; tanpa migrasi skema) | `dcffa2af…` / `33e1b94c…` | `backups/proyekkas/pk_drms-20260927-165938-pre-0.4.0.dump` | `.env.pre-0.4.0` → `docker compose up -d` |
+
 ## 11. CI/CD — desain GHCR + deploy prod
 
 **Kondisi sekarang:** `.github/workflows/ci.yml` repo app (`bctech-adm/drms`) membangun `proyekkas-web:ci` /
