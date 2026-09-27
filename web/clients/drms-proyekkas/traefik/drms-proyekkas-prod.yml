@@ -1,0 +1,72 @@
+# ProyekKas PRODUCTION (client DRMS) — drms-kas.bimacreative.tech → container `drms-pk-web:3000`.
+# TEMPLATE, BELUM AKTIF: file ini SENGAJA di luar traefik/dynamic/ (Traefik tidak memuatnya). Saat go-live (runbook
+# docs/runbooks/proyekkas-drms-prod.md §5) Lead memindahkannya:
+#   git mv web/clients/drms-proyekkas/traefik/drms-proyekkas-prod.yml traefik/dynamic/clients/drms-proyekkas-prod.yml
+# lalu `docker exec traefik kill -HUP 1` (subdirektori dynamic/ tidak di-watch; H7: bukan `docker kill`).
+# BUKAN hasil render-client-route.sh (bukan tenant Odoo) — edit manual.
+#
+# Cermin PERSIS router staging (traefik/dynamic/clients/drms-proyekkas-staging.yml): prioritas, urutan middleware,
+# pemisahan auth/api-v1/api-rest/web, strip Authorization di luar /api/v1 & /auth, buffering-pk hanya di route upload.
+# Yang berbeda hanya: Host, prefix nama router (`drms-pk-` tanpa `-stg`), service `drms-pk-web`, certResolver.
+# Middleware ratelimit-pk-api / buffering-pk / strip-authorization: clients/drms-proyekkas-middlewares.yml (bersama).
+# crowdsec / security-headers / ratelimit-login / ratelimit-default: dynamic/middlewares/*.yml (platform).
+#
+# Pendukung yang SUDAH ada dan sudah mencakup prod (diverifikasi 2026-09-26, tidak perlu diubah):
+#   - router auth-drms-token (clients/drms-proyekkas-kc-token.yml): Path /realms/drms/protocol/openid-connect/token,
+#     60/menit/IP burst 30 — token/refresh APK + password grant (G1-3) realm drms.
+#   - router drms-kc-admin-prod (clients/drms-proyekkas-kc-admin.yml): ClientIP 10.100.8.0/24 × /admin/realms/drms/.
+#   - CrowdSec AppSec: appsec-configs/drms-payload-crs-exclusions.yaml (req.Host in [...staging, drms-kas.bimacreative.tech])
+#     + appsec-rules/drms-payload-server-action.yaml (regex ^drms-kas(?:\.staging)?\.bimacreative\.tech$) +
+#     appsec-configs/keycloak-admin-exclusions.yaml (10.100.8.0/24 × /admin/realms/drms/).
+#
+# DNS pre-check (ADR 0002 #5) WAJIB diulang tepat sebelum HUP. 2026-09-26: A = 31.97.50.221 di NS otoritatif
+# apollo.dns-parking.com dan @8.8.8.8/@1.1.1.1, AAAA kosong, tanpa wildcard *.bimacreative.tech.
+# Sertifikat: le-http-staging DULU (CLAUDE.md §3.5.1) → setelah issuer "(STAGING)" terverifikasi, ganti keempat
+# `certResolver` ke `le-http` (prosedur docs/03-operations/traefik.md §Pindah staging → production).
+# CSP TIDAK diset di sini: aplikasi mengirim CSP sendiri (nonce).
+http:
+  routers:
+    # OIDC web interaktif (/auth/*) + /api/v1/auth/*: ratelimit-login (10/menit/IP).
+    drms-pk-auth:
+      entryPoints: [websecure]
+      rule: "Host(`drms-kas.bimacreative.tech`) && (PathPrefix(`/auth/`) || PathPrefix(`/api/v1/auth/`))"
+      priority: 100
+      middlewares: [crowdsec, security-headers, ratelimit-login]
+      service: drms-pk-web
+      tls:
+        certResolver: le-http-staging
+    # Kontrak API v1 (APK, Bearer + X-Device-Id). Authorization DITERUSKAN (hanya di sini dan /auth).
+    drms-pk-api-v1:
+      entryPoints: [websecure]
+      rule: "Host(`drms-kas.bimacreative.tech`) && PathPrefix(`/api/v1/`)"
+      priority: 90
+      middlewares: [crowdsec, security-headers, ratelimit-pk-api, buffering-pk]
+      service: drms-pk-web
+      tls:
+        certResolver: le-http-staging
+    # REST generik Payload /api/<slug> (admin UI saja): Authorization DIHAPUS, upload admin → buffering-pk (10 MiB).
+    drms-pk-api-rest:
+      entryPoints: [websecure]
+      rule: "Host(`drms-kas.bimacreative.tech`) && PathPrefix(`/api/`) && !PathPrefix(`/api/v1/`)"
+      priority: 50
+      middlewares: [crowdsec, security-headers, ratelimit-default, strip-authorization, buffering-pk]
+      service: drms-pk-web
+      tls:
+        certResolver: le-http-staging
+    # Catch-all: Payload admin (/admin), aset Next.js, /.well-known/assetlinks.json. Authorization dihapus, tanpa buffering.
+    drms-pk-web:
+      entryPoints: [websecure]
+      rule: "Host(`drms-kas.bimacreative.tech`)"
+      priority: 1
+      middlewares: [crowdsec, security-headers, ratelimit-default, strip-authorization]
+      service: drms-pk-web
+      tls:
+        certResolver: le-http-staging
+
+  services:
+    # Container dari web/clients/drms-proyekkas/docker-compose.yml (container_name drms-pk-web, port 3000),
+    # network drms-kas-edge-prod (10.100.14.0/24) bersama traefik. Container belum ada → 502.
+    drms-pk-web:
+      loadBalancer:
+        servers:
+          - url: "http://drms-pk-web:3000"

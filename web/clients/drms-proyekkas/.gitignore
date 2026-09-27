@@ -1,0 +1,3 @@
+# State & secret ProyekKas PROD — jangan di-commit (CLAUDE.md §0.9). .env.example BOLEH (tanpa secret).
+.env
+secrets/

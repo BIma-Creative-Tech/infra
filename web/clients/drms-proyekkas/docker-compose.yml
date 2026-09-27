@@ -1,0 +1,223 @@
+# ProyekKas PRODUCTION (client DRMS) — DISIAPKAN (E10, plan app fase1-golive §E10/§6), BELUM DITERAPKAN.
+# Host: drms-kas.bimacreative.tech → router file web/clients/drms-proyekkas/traefik/drms-proyekkas-prod.yml
+# (dipindah ke traefik/dynamic/clients/ saat go-live) → container `drms-pk-web:3000`.
+# Runbook: docs/runbooks/proyekkas-drms-prod.md. Staging (sumber pola): staging/drms-proyekkas/docker-compose.yml.
+#
+# Sumber kebenaran jangka panjang = repo app `deploy/prod/docker-compose.yml` (E10 sisi app, belum ada per
+# 2026-09-26). File ini = versi infra yang direview: bila repo app menerbitkan deploy/prod, diff harus kosong
+# kecuali komentar; nama container/network/volume/limit di bawah MENGIKAT (router Traefik, pg_hba, backup, T19).
+#
+# Hardening per /opt/infra/CLAUDE.md §3.5: read_only + tmpfs, cap_drop ALL, no-new-privileges, uid 1001,
+# mem_limit/cpus, healthcheck, json-file 10m×3, tanpa port ke host.
+# Limit: infra ADR 0004 T19 (reservasi DRMS prod) = web 384m + worker 192m (+ migrate 384m sementara saat deploy);
+# NODE_OPTIONS 256/128 sama dengan staging (plan app §6). Naik ke 512 hanya dengan persetujuan user (§6 aturan 80%).
+# Koneksi DB: role pk_drms_app CONNECTION LIMIT 25 (plafon) → pool web 5 + worker 3 (+ seed 2) — target ≤ 15 aktual.
+# Secret: file di ./secrets/ (TIDAK di git, .gitignore), milik 1001:1001 mode 0400, tanpa newline — Compose non-swarm
+# mengabaikan uid/gid/mode secret file (diverifikasi staging, Compose v5.5.1) sehingga kepemilikan host harus cocok.
+#
+# Image: HANYA dari GHCR, ditulis dengan digest: ghcr.io/bctech-adm/proyekkas-{web,migrate}:<semver>@sha256:<digest>
+# (build di runner GitHub, bukan di VPS — plan §6 disk). Pull butuh `docker login ghcr.io` root (token read:packages).
+#
+# Urutan: migrate (one-shot, role OWNER) jalan otomatis lewat depends_on; web + worker memakai role APP.
+# Seed (idempoten, profile `seed`, TIDAK jalan otomatis): `docker compose --profile seed run --rm drms-pk-seed`.
+name: drms-proyekkas-prod
+
+x-hardening: &hardening
+  restart: unless-stopped
+  user: "1001:1001"
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  logging:
+    driver: json-file
+    options: { max-size: "10m", max-file: "3" }
+
+x-app-env: &app-env
+  NODE_ENV: production
+  TZ: Asia/Makassar
+  APP_URL: ${APP_URL:?}
+  OIDC_ISSUER: ${OIDC_ISSUER:?}
+  OIDC_WEB_CLIENT_ID: ${OIDC_WEB_CLIENT_ID:-proyekkas-web}
+  OIDC_MOBILE_CLIENT_ID: ${OIDC_MOBILE_CLIENT_ID:-proyekkas-mobile}
+  # Admin REST via network internal drms-kc-admin (alias auth.bimacreative.tech → Traefik, router drms-kc-admin-prod:
+  # ClientIP 10.100.8.0/24 × /admin/realms/drms/). Terpisah dari OIDC_ISSUER (keputusan infra 2026-09-23).
+  KC_ADMIN_BASE_URL: ${KC_ADMIN_BASE_URL:?}
+  KC_REALM: ${KC_REALM:-drms}
+  KC_ADMIN_CLIENT_ID: ${KC_ADMIN_CLIENT_ID:-proyekkas-admin-api}
+  MEDIA_DIR: /data/media
+  LOG_LEVEL: ${LOG_LEVEL:-info}
+  # Android App Links (/.well-known/assetlinks.json): fingerprint SHA-256 kunci rilis PROD (E3-c), dipisah koma.
+  ANDROID_APP_PACKAGE: ${ANDROID_APP_PACKAGE:-id.co.drms.proyekkas}
+  ANDROID_APP_CERT_SHA256: ${ANDROID_APP_CERT_SHA256:-}
+  EXPORT_XLSX_ENABLED: ${EXPORT_XLSX_ENABLED:-true}
+  # FCM (ADR app 0011): false sampai Firebase klien + dispatcher siap (true ditolak skema env di versi saat ini).
+  PUSH_FCM_ENABLED: ${PUSH_FCM_ENABLED:-false}
+  DATABASE_URL_FILE: /run/secrets/database_url_app
+  PAYLOAD_SECRET_FILE: /run/secrets/payload_secret
+  OIDC_WEB_CLIENT_SECRET_FILE: /run/secrets/oidc_web_client_secret
+  KC_ADMIN_CLIENT_SECRET_FILE: /run/secrets/kc_admin_client_secret
+  # SMTP keluar (sama dengan staging: no-reply@bimacreative.tech, :587 STARTTLS, From = SMTP_USER).
+  # Kuota server 30/jam per mailbox DIBAGI dengan staging bila mailbox sama → pertimbangkan mailbox prod terpisah.
+  SMTP_HOST: ${SMTP_HOST:?}
+  SMTP_PORT: ${SMTP_PORT:-587}
+  SMTP_USER: ${SMTP_USER:?}
+  SMTP_FROM_ADDRESS: ${SMTP_FROM_ADDRESS:?}
+  SMTP_FROM_NAME: ${SMTP_FROM_NAME:-ProyekKas}
+  SMTP_PASSWORD_FILE: /run/secrets/smtp_password
+
+x-app-secrets: &app-secrets
+  - database_url_app
+  - payload_secret
+  - oidc_web_client_secret
+  - kc_admin_client_secret
+  - smtp_password
+
+services:
+  # Migrasi one-shot sebagai role OWNER (ADR app 0006 §6). DSN owner HANYA di sini.
+  drms-pk-migrate:
+    <<: *hardening
+    image: ${PK_MIGRATE_IMAGE:?}
+    container_name: drms-pk-migrate
+    restart: "no"
+    environment:
+      NODE_ENV: production
+      TZ: Asia/Makassar
+      SERVICE_NAME: drms-pk-migrate
+      PK_SKIP_ENV_CHECK: "true"
+      DATABASE_POOL_MAX: "2"
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      DATABASE_URL_FILE: /run/secrets/database_url_owner
+      PAYLOAD_SECRET_FILE: /run/secrets/payload_secret
+    secrets: [database_url_owner, payload_secret]
+    tmpfs:
+      - /tmp:uid=1001,gid=1001,mode=0700
+    networks: [db-drms]   # ADR 0010: 10.100.25.0/24 --internal; pg_hba pk_drms_* hanya dari subnet ini
+    mem_limit: 384m
+    cpus: 0.5
+
+  # Web + admin + /api/v1 (Next standalone). container_name DIKUNCI oleh service Traefik (drms-pk-web:3000).
+  drms-pk-web:
+    <<: *hardening
+    image: ${PK_WEB_IMAGE:?}
+    container_name: drms-pk-web
+    depends_on:
+      drms-pk-migrate:
+        condition: service_completed_successfully
+    environment:
+      <<: *app-env
+      SERVICE_NAME: drms-pk-web
+      DATABASE_POOL_MAX: "5"
+      NODE_OPTIONS: --max-old-space-size=256
+    secrets: *app-secrets
+    tmpfs:
+      - /tmp:uid=1001,gid=1001,mode=0700
+      - /app/apps/web/.next/cache:uid=1001,gid=1001,mode=0700
+    volumes:
+      - media:/data/media
+    # drms-kas-edge-prod: ingress Traefik + egress (issuer publik, SMTP hairpin); db-drms; drms-kc-admin (Admin REST).
+    networks: [drms-kas-edge-prod, db-drms, drms-kc-admin]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+    mem_limit: 384m
+    cpus: 0.75
+
+  # Payload Jobs worker (cron dievaluasi di TZ proses → Asia/Makassar). Mengirim email (SMTP) & job terjadwal.
+  drms-pk-worker:
+    <<: *hardening
+    image: ${PK_WEB_IMAGE:?}
+    container_name: drms-pk-worker
+    command: ["node", "apps/web/dist/worker.mjs"]
+    depends_on:
+      drms-pk-migrate:
+        condition: service_completed_successfully
+    environment:
+      <<: *app-env
+      SERVICE_NAME: drms-pk-worker
+      DATABASE_POOL_MAX: "3"
+      NODE_OPTIONS: --max-old-space-size=128
+      WORKER_HEARTBEAT_FILE: /tmp/worker-heartbeat
+      WORKER_INTERVAL_MS: "30000"
+    secrets: *app-secrets
+    tmpfs:
+      - /tmp:uid=1001,gid=1001,mode=0700
+    volumes:
+      - media:/data/media
+    # drms-kas-edge-prod dipakai untuk EGRESS (SMTP :587, FCM kelak) — Traefik tidak merutekan ke worker.
+    networks: [drms-kas-edge-prod, db-drms, drms-kc-admin]
+    healthcheck:
+      test: ["CMD", "node", "-e", "const t=+require('fs').readFileSync('/tmp/worker-heartbeat','utf8');process.exit(Date.now()-t<90000?0:1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    mem_limit: 192m
+    cpus: 0.25
+
+  # Seed idempoten (role APP, audit source=system). Bootstrap admin opsional via SEED_ADMIN_EMAIL +
+  # SEED_ADMIN_KEYCLOAK_SUB (user realm `drms` yang sudah ada). Data master nyata (E11) TIDAK lewat seed ini —
+  # skrip impor E11. Seed data file: pola sama dengan staging (secret seed_data, lihat komentar staging).
+  drms-pk-seed:
+    <<: *hardening
+    image: ${PK_MIGRATE_IMAGE:?}
+    container_name: drms-pk-seed
+    restart: "no"
+    command: ["node", "/app/node_modules/payload/bin.js", "run", "src/seed/index.ts"]
+    profiles: ["seed"]
+    environment:
+      NODE_ENV: production
+      TZ: Asia/Makassar
+      SERVICE_NAME: drms-pk-seed
+      PK_SKIP_ENV_CHECK: "true"
+      DATABASE_POOL_MAX: "2"
+      MEDIA_DIR: /data/media
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-}
+      SEED_ADMIN_KEYCLOAK_SUB: ${SEED_ADMIN_KEYCLOAK_SUB:-}
+      SEED_DATA_FILE: ${SEED_DATA_FILE:-}
+      DATABASE_URL_FILE: /run/secrets/database_url_app
+      PAYLOAD_SECRET_FILE: /run/secrets/payload_secret
+    secrets: [database_url_app, payload_secret]
+    tmpfs:
+      - /tmp:uid=1001,gid=1001,mode=0700
+    volumes:
+      - media:/data/media
+    networks: [db-drms]
+    mem_limit: 384m
+    cpus: 0.5
+
+secrets:
+  database_url_owner:
+    file: ./secrets/database_url_owner.secret
+  database_url_app:
+    file: ./secrets/database_url_app.secret
+  payload_secret:
+    file: ./secrets/payload_secret.secret
+  oidc_web_client_secret:
+    file: ./secrets/oidc_web_client_secret.secret
+  kc_admin_client_secret:
+    file: ./secrets/kc_admin_client_secret.secret
+  smtp_password:
+    file: ./secrets/smtp_password.secret
+
+volumes:
+  media:
+    # nama persis = scripts/lib/restic-common.sh MEDIA_VOLUMES (backup harian, path `files`)
+    name: drms_pk_media_prod
+
+networks:
+  drms-kas-edge-prod:
+    # traefik/scripts/bootstrap.sh: 10.100.14.0/24 gw .1, BUKAN --internal (egress) — anggota: traefik + web/worker prod.
+    external: true
+    name: drms-kas-edge-prod
+  db-drms:
+    # postgres/scripts/bootstrap.sh: 10.100.25.0/24 --internal — anggota: postgres + stack ini saja (ADR 0010).
+    external: true
+    name: db-drms
+  drms-kc-admin:
+    # traefik/scripts/bootstrap.sh: 10.100.8.0/24 --internal (H5, SUDAH ADA) — traefik (alias auth.bimacreative.tech) + app.
+    external: true
+    name: drms-kc-admin
