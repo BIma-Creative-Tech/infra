@@ -1,0 +1,64 @@
+# Umami web analytics — https://analytics.bimacreative.tech (ADR 0013, plan 11, ops: docs/03-operations/analytics.md).
+# Jalankan scripts/bootstrap.sh (root) sebelum `docker compose up -d`: membuat .env (600 root) dari postgres/.env.
+# Prasyarat: network `db-umami` (postgres/scripts/bootstrap.sh) + `analytics-edge` (traefik/scripts/bootstrap.sh), role/DB
+# `umami` (postgres/scripts/init-roles.sh), baris pg_hba 10.100.28.0/24.
+# Perilaku image diverifikasi dari image 3.4.0 (dibaca 2026-09-27): scripts/start-docker.sh = check-db.js (prisma migrate
+# deploy) → update-tracker.js (menulis public/script.js HANYA bila COLLECT_API_ENDPOINT diset — tidak diset) → node server.js.
+name: umami
+
+services:
+  umami:
+    # Umami 3.4.0 (MIT, rilis 2026-09-17). Digest = OCI index multi-arch (docker buildx imagetools inspect, 2026-09-27).
+    image: ghcr.io/umami-software/umami:3.4.0@sha256:85909afc45bdcda1917394594a087421fdbb05610fded0fa9f6fb861abb2f367
+    container_name: umami
+    restart: unless-stopped
+    init: true
+    # uid `nextjs` di image = 1001 (gid image 65533 nogroup; tidak ada file yang butuh gid tertentu).
+    user: "1001:65533"
+    # .env (600 root, TIDAK di git): DATABASE_URL (password role umami), APP_SECRET, TWO_FACTOR_ENCRYPTION_KEY.
+    env_file: .env
+    environment:
+      # Proxy Umami (src/proxy.ts → chunk server) mencocokkan path PERSIS `/<nilai>` → nilai WAJIB berakhiran `.js`.
+      # Tracker: https://analytics.bimacreative.tech/insight.js (`/script.js` bawaan tetap ada tetapi tidak dirouting publik).
+      TRACKER_SCRIPT_NAME: insight.js
+      # Traefik menimpa X-Real-Ip dengan IP koneksi (tanpa trustedIPs); header IP lain dihapus middleware analytics-headers.
+      CLIENT_IP_HEADER: x-real-ip
+      # Flag dibaca sebagai `!!process.env.X` (string tidak kosong = aktif).
+      DISABLE_TELEMETRY: "1"
+      DISABLE_UPDATES: "1"
+      PRIVATE_MODE: "1"
+    networks:
+      analytics-edge: {}   # Traefik → umami:3000 (--internal, 10.100.17.0/24)
+      db-umami: {}         # → postgres:5432 DB umami (--internal, 10.100.28.0/24)
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,uid=1001,gid=65533,mode=0700
+      - /app/.next/cache:size=64m,uid=1001,gid=65533,mode=0700
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://127.0.0.1:3000/api/heartbeat"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    mem_limit: 256m
+    cpus: 0.5
+    pids_limit: 128
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  analytics-edge:
+    # Dibuat traefik/scripts/bootstrap.sh: 10.100.17.0/24 --internal — anggota: traefik + umami saja.
+    external: true
+    name: analytics-edge
+  db-umami:
+    # Dibuat postgres/scripts/bootstrap.sh: 10.100.28.0/24 --internal — anggota: postgres + umami saja.
+    external: true
+    name: db-umami

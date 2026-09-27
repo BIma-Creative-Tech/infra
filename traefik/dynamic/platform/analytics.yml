@@ -1,0 +1,113 @@
+# ADR 0013 / plan 11 — Umami web analytics: analytics.bimacreative.tech → container `umami:3000`
+# (network --internal `analytics-edge`, 10.100.17.0/24). Operasional: docs/03-operations/analytics.md.
+# DNS pre-check (ADR 0002 #5) lulus 2026-09-27: A = 31.97.50.221 @1.1.1.1 & @8.8.8.8, AAAA kosong; CAA hanya
+# `0 issue "letsencrypt.org"` (tanpa perubahan).
+# File di subdirektori → setelah mengubah: `docker exec traefik kill -HUP 1` (H7; JANGAN `docker kill`).
+#
+# Paparan (plan 11 §3.3, pola H5 Grafana/Uptime Kuma):
+#   :443 (websecure) — HANYA tracker `GET|HEAD /insight.js` dan beacon `POST|OPTIONS /api/send`. Path lain (/, /login,
+#                      /api/auth/*, /api/websites*, /api/heartbeat, /share/*, /script.js, …) tanpa router → 404 Traefik.
+#   :8443 (admin, publish 127.0.0.1 host saja, SSH tunnel) — seluruh UI/API admin + ipallowlist-admin.
+# Urutan middleware konvensi platform: crowdsec (paling depan, termasuk AppSec) → [allowlist] → headers → ratelimit.
+http:
+  routers:
+    # ---------------------------------------------------------------- publik (:443)
+    # Beacon tracker: `fetch` POST JSON + header x-umami-* → preflight CORS (OPTIONS). Tanpa header CORS dari Traefik.
+    analytics-collect:
+      entryPoints: [websecure]
+      rule: "Host(`analytics.bimacreative.tech`) && Path(`/api/send`) && (Method(`POST`) || Method(`OPTIONS`))"
+      priority: 50
+      middlewares: [crowdsec, analytics-headers, ratelimit-analytics-collect]
+      service: umami
+      tls:
+        certResolver: le-http
+    # Skrip tracker (TRACKER_SCRIPT_NAME=insight.js di compose). `/script.js` bawaan sengaja TIDAK dirouting (daftar adblock).
+    analytics-script:
+      entryPoints: [websecure]
+      rule: "Host(`analytics.bimacreative.tech`) && Path(`/insight.js`) && (Method(`GET`) || Method(`HEAD`))"
+      priority: 50
+      middlewares: [crowdsec, analytics-headers, ratelimit-default]
+      service: umami
+      tls:
+        certResolver: le-http
+
+    # ---------------------------------------------------------------- admin (:8443)
+    # Login (password) + verifikasi TOTP 2FA lebih ketat (CLAUDE.md §3.6). Nama route dari app-paths-manifest image 3.4.0:
+    # /api/auth/login, /api/2fa/verify.
+    analytics-admin-login:
+      entryPoints: [admin]
+      rule: "Host(`analytics.bimacreative.tech`) && Method(`POST`) && (Path(`/api/auth/login`) || Path(`/api/2fa/verify`))"
+      priority: 100
+      middlewares: [crowdsec, ipallowlist-admin, analytics-headers, ratelimit-login]
+      service: umami
+      tls:
+        certResolver: le-http
+    analytics-admin:
+      entryPoints: [admin]
+      rule: "Host(`analytics.bimacreative.tech`)"
+      priority: 1
+      middlewares: [crowdsec, ipallowlist-admin, analytics-headers, ratelimit-default]
+      service: umami
+      tls:
+        certResolver: le-http
+
+  middlewares:
+    # Salinan `security-headers` (middlewares/security-headers.yml) + penghapusan header request yang bisa dipalsukan klien
+    # untuk IP/geo. Umami 3.4.0 (getClientInfo, dibaca dari chunk server image): IP = header CLIENT_IP_HEADER (x-real-ip —
+    # SELALU ditimpa Traefik dengan IP koneksi) lalu daftar true-client-ip, cf-connecting-ip, fastly-client-ip,
+    # x-nf-client-connection-ip, do-connecting-ip, x-appengine-user-ip, x-forwarded-for, forwarded, x-client-ip,
+    # x-cluster-client-ip, x-forwarded; lokasi dibaca DULU dari header CDN (cf-ipcountry/-region-code/-ipcity,
+    # x-vercel-ip-*, cloudfront-viewer-*, eo-*) sebelum GeoLite2 → semua dihapus agar geo = IP koneksi.
+    # stsSeconds WAJIB sama dengan security-headers (nilai platform, lihat komentar di file itu).
+    # Tanpa header CORS di sini: Umami sendiri mengirim Access-Control-Allow-Origin: * (plan 11 §3.3).
+    # Opsi: docs v3.7 reference/routing-configuration/http/middlewares/headers.md ("" = hapus).
+    analytics-headers:
+      headers:
+        stsSeconds: 604800
+        stsIncludeSubdomains: false
+        stsPreload: false
+        contentTypeNosniff: true
+        frameDeny: true
+        referrerPolicy: "strict-origin-when-cross-origin"
+        permissionsPolicy: "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+        customResponseHeaders:
+          X-Powered-By: ""
+          Server: ""
+        customRequestHeaders:
+          True-Client-IP: ""
+          CF-Connecting-IP: ""
+          Fastly-Client-IP: ""
+          X-NF-Client-Connection-IP: ""
+          DO-Connecting-IP: ""
+          X-AppEngine-User-IP: ""
+          X-Client-IP: ""
+          X-Cluster-Client-IP: ""
+          X-Forwarded: ""
+          Forwarded: ""
+          X-Umami-Client-IP: ""
+          CF-IPCountry: ""
+          CF-Region-Code: ""
+          CF-IPCity: ""
+          X-Vercel-IP-Country: ""
+          X-Vercel-IP-Country-Region: ""
+          X-Vercel-IP-City: ""
+          CloudFront-Viewer-Country: ""
+          CloudFront-Viewer-Country-Region: ""
+          CloudFront-Viewer-City: ""
+          EO-IPCountry: ""
+          EO-Region-Code: ""
+          EO-IPCity: ""
+    # Beacon per IP sumber (default sourceCriterion = IP koneksi). Satu pageview = 1 preflight (di-cache CORS_MAX_AGE
+    # 86400 s) + 1 POST; event tambahan (klik/scroll) = POST tambahan. ESTIMASI plan 11 §3.3 — tuning dari access log
+    # (RouterName=analytics-collect@file, status 429).
+    ratelimit-analytics-collect:
+      rateLimit:
+        average: 120
+        period: 1m
+        burst: 60
+
+  services:
+    umami:
+      loadBalancer:
+        servers:
+          - url: "http://umami:3000"
