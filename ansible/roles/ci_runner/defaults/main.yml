@@ -68,7 +68,7 @@ ci_runner_build_dir: /usr/local/lib/ci-runner/image
 # --- Kapasitas (ADR 0004 revisi, GATE Q4) ---------------------------------------------------------------------------
 ci_runner_cpus: "2.0"
 ci_runner_cpu_shares: 256
-ci_runner_memory: 4g
+ci_runner_memory: 5g
 ci_runner_pids_limit: 4096
 ci_runner_oom_score_adj: 800
 # io.max absolut (mq-deadline → io.weight tidak berlaku). Diterapkan ke device loop /srv/ci DAN device rootfs host.
