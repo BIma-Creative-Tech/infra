@@ -213,10 +213,10 @@ cleanup_offline_runners() { # hanya runner milik supervisor ini (prefix nama), o
 remove_job_containers() { # hanya container berlabel ci-runner.role=job; gagal hapus → reaper container macet
   local ids
   ids="$(timeout 30 docker ps -aq --filter label=ci-runner.role=job)"
-  [[ -n "$ids" ]] || return 0
+  [[ -n "$ids" ]] || { STUCK_UNRESOLVED=0; return 0; }
   log "removing leftover job container(s): $(echo $ids)"
   # shellcheck disable=SC2086
-  timeout 60 docker rm -f $ids >/dev/null && return 0
+  timeout 60 docker rm -f $ids >/dev/null && { STUCK_UNRESOLVED=0; return 0; }
   [[ "${1:-}" == noreap ]] && return 1
   log "WARN: docker rm -f failed for job container(s) $(echo $ids)"
   reap_stuck "leftover container cannot be removed"
@@ -240,7 +240,9 @@ other_sysbox_containers() { # container sysbox-runc BERJALAN selain job runner (
 # reap_stuck <alasan>: stop → kill → restart sysbox-fs (bila aman) → rm -f. Return 0 bila container hilang.
 reap_stuck() {
   local why=$1 others
-  STUCK_TOTAL=$((STUCK_TOTAL + 1)); LAST_STUCK="$(date +%s)"; STUCK_UNRESOLVED=1
+  # Insiden yang sama (belum teratasi) tidak dihitung ulang tiap percobaan.
+  (( STUCK_UNRESOLVED == 0 )) && { STUCK_TOTAL=$((STUCK_TOTAL + 1)); LAST_STUCK="$(date +%s)"; }
+  STUCK_UNRESOLVED=1
   log "WARN: job container STUCK ($why) — watchdog: docker stop"
   save_state; write_metrics
   timeout 60 docker stop -t 30 "$CONTAINER_NAME" >/dev/null 2>&1
@@ -424,6 +426,12 @@ run() {
   remove_job_containers
   while :; do
     exit_if_pat_changed
+    # Container macet belum bisa dibuang (mis. ada container sysbox lain) → jangan registrasi runner (docker run akan
+    # bentrok nama); coba lagi tiap 5 menit sampai operator/percobaan berikut berhasil.
+    if (( STUCK_UNRESOLVED == 1 )) && ! remove_job_containers; then
+      log "stuck job container still present — not registering; retry in 300s"
+      sleep_backoff 300; continue
+    fi
     check_releases
     cleanup_offline_runners
     name="$CI_NAME_PREFIX-$(date +%s)"
