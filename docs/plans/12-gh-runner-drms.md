@@ -1,6 +1,6 @@
 # Plan 12 — Self-hosted GitHub Actions runner untuk `bctech-adm/drms`
 
-- **Status:** APPROVED (owner GATE 1 2026-09-28: Q1–Q6 all recommendations)
+- **Status:** EXECUTED 2026-09-29 (runner live; sisa: Release APK drms = sisi app, laporan bug sysbox upstream, monitor Kuma push = owner). GATE 1 owner 2026-09-28: Q1–Q6 all recommendations.
 - **Eksekusi (2026-09-28, branch `feat/infra-ci-runner`):** R0 ✓, R0b daftar ✓ (belum ada yang dihapus), R1 ✓, R2 ✓ (tanpa restart
   dockerd), R3 ✓, R4 ✓, R6 ✓, R5 terpasang & menunggu PAT owner, R7 kode ✓ (healthcheck berlaku setelah merge; monitor Kuma = Lead).
   Bukti: `docs/qa/2026-09-28-plan12-r0-sysbox-postinst.md`, `docs/qa/2026-09-28-plan12-r1-r7.md`, `docs/qa/r0b-image-cleanup-candidates.md`.

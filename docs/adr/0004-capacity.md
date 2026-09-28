@@ -463,6 +463,18 @@ observability.md` §"Metrik per container". **RAM [ESTIMASI]:** proses oneshot �
 
 Status ADR tetap **accepted**; angka § Decision yang berubah tidak ditimpa, dibaca bersama bagian ini.
 
+### 9. Revisi plan 12 — anggaran build/CI (disetujui owner, GATE 1 plan 12 Q4, 2026-09-28; RAM 5 GiB 2026-09-29)
+
+- **Kategori baru "anggaran build/CI" = 5 GiB** (awal 4 GiB; dinaikkan owner setelah R10 F1 OOM APK), dicatat **terpisah** dari
+  Σ limit layanan: runner self-hosted `bctech-adm/drms` (ADR 0014) — 1 job sekaligus, `cpus 2`, `cpu_shares 256`, tanpa swap,
+  `oom_score_adj 800` (korban OOM pertama), io.max 60/120 MB/s. Aturan batas atas § Decision tidak "memuat" CI (Σ ≈ −6 GiB);
+  anggaran ini **menggantikan** build ad-hoc di dockerd host (puncak T19 10,7 GiB + swap 1,2 GiB).
+- **Build image ProyekKas di dockerd host oleh sesi agent dihentikan** — build lewat CI; pengecualian darurat dicatat di PR/commit.
+- **Disk:** `/srv/ci` = alokasi tetap 40 GiB (file loop teralokasi penuh sejak R12). Alert `/` > 70% tetap.
+- **Pemicu evaluasi** (7 hari data `container-metrics` sejak 2026-09-29): RAM available p05 < 3 GiB atau swap > 1 GiB berulang
+  saat job CI, atau p95 latensi prod > 2× baseline → turunkan ke 4 GiB + APK malam hari, atau pindahkan CI ke VPS terpisah (§6).
+- Bukti: `docs/qa/2026-09-28-plan12-r10.md` (min MemAvailable 7,1 GiB, p95 prod ≤ 1,9×), operasi `docs/03-operations/ci-runner.md`.
+
 ## Alternatives
 
 | Alternatif | Ditolak karena |

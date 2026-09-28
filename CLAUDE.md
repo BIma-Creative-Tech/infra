@@ -155,7 +155,7 @@ Laporan format §1.3 + path semua file yang diubah
 | Data mart | Postgres DB `datamart` + dbt-core (dbt-postgres) + cron container | Next.js hanya baca role read-only |
 | Mail | docker-mailserver | IPv4-only (tanpa AAAA); satu server `mail.<platform-domain>` (HELO/PTR/MX) melayani beberapa domain (DKIM per domain); hostname klien `mail.<domain-client>` opsional via SNI (ADR 0011); SPF/DKIM/DMARC/rDNS wajib; rspamd; rate-limit; fail2ban terintegrasi |
 | Webmail | Roundcube 1.7.x (`roundcube/roundcubemail:*-apache-nonroot`, GPL-3, dijalankan apa adanya) | Per domain client (`webmail.<domain-client>`), network `webmail-edge` + `webmail-mail`; IMAP/SMTP ke DMS dengan verifikasi sertifikat; ganti password via helper `pwhelper` di dalam DMS (token, allowlist, rate-limit) — ADR 0012 |
-| CI/CD | GitHub Actions + GHCR; deploy via SSH ke VPS | Semgrep, gitleaks, Trivy, Hadolint, ZAP baseline |
+| CI/CD | GitHub Actions + GHCR; deploy via SSH ke VPS; runner self-hosted `drms` (sysbox, ephemeral JIT, 2 vCPU/5 GiB/40 GiB, prioritas terendah) — ADR 0014 | Semgrep, gitleaks, Trivy, Hadolint, ZAP baseline; deploy prod **tidak** di runner self-hosted; build image di dockerd host oleh agent dihentikan (ADR 0004 §9) |
 | IaC | Ansible (playbook bootstrap host) | Idempotent; dijalankan dari laptop/CI |
 | Backup | restic → repo lokal (sementara) → S3-compatible offsite (placeholder) | pg_dump per DB sebelum snapshot; lihat `docs/adr/0006-backup.md` |
 | Observability | Uptime Kuma; Grafana + Loki + Grafana Alloy + Prometheus + node-exporter + cAdvisor | Alert via email/Telegram |
