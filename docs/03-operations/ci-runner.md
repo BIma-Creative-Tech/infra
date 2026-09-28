@@ -116,6 +116,14 @@ dan saat job dibatalkan container job macet di exit dengan tanda yang sama. Bug 
 
 ## 6. Reset cache
 
+**Kepemilikan cache (R12b, image build 3):** container dalam berjalan sebagai root (mis. Trivy
+`-v ${TRIVY_CACHE_DIR:-$RUNNER_TEMP/trivy-cache}:/root/.cache/trivy`, di self-hosted `TRIVY_CACHE_DIR=/cache/trivy`). Root
+dalam bisa menulis ke `/srv/ci/cache/trivy` (deploy(1001) 750), tetapi uid 1001 tidak bisa menghapus subdir milik root
+(teruji 2026-09-29 dengan container sysbox sekali pakai). Karena itu entrypoint men-chown semua sisa milik root di `/cache` ke
+1001 saat start dan saat keluar (`find -P … -exec chown -h`, ±4 s), dan hook job-completed meminta janitor root
+(`/run/ci-runner-janitor`) merapikan `_work/_temp` + `/cache` sebelum runner membersihkan temp — menghilangkan
+"Access to the path '…/_temp/trivy-cache/fanal' is denied". Cek host: `find /srv/ci/cache -xdev -uid 0 | head` harus kosong.
+
 Cache bisa dibuang kapan saja **saat idle** (job berikut lebih lambat; Android SDK di-bootstrap ulang oleh role):
 
 ```bash

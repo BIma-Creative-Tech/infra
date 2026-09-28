@@ -31,7 +31,35 @@ if ! docker info >/dev/null 2>&1; then
 fi
 log "inner dockerd up: $(docker version --format '{{.Server.Version}}') storage=$(docker info --format '{{.Driver}}')"
 
+# Sisa milik root (container dalam, mis. Trivy `-v /cache/trivy:/root/.cache/trivy` atau `$RUNNER_TEMP/trivy-cache`) tidak
+# bisa dihapus uid 1001 (runner/hook) → di-chown ke 1001. find -P (tanpa ikut symlink) + chown -h. Cache persisten /cache
+# dicek penuh (±4 s); _work/_temp hanya ada selama job.
+fix_owner() {
+  local d
+  for d in "$@"; do
+    [[ -d "$d" ]] && { find "$d" -xdev \( -uid 0 -o -gid 0 \) -exec chown -h 1001:1001 {} + 2>/dev/null || true; }
+  done
+  return 0
+}
+fix_owner /cache
 /opt/ci-runner/hooks/cleanup.sh pre-run || true
+
+# Janitor root untuk hook job (hook jalan sebagai uid 1001): hook membuat $JANITOR/request, janitor merapikan kepemilikan
+# /home/runner/_work/_temp + /cache lalu menulis $JANITOR/done. Hanya path tetap di atas yang disentuh.
+JANITOR=/run/ci-runner-janitor
+install -d -m 0770 -o 0 -g 1001 "$JANITOR"
+(
+  trap - TERM INT
+  while :; do
+    if [[ -e "$JANITOR/request" ]]; then
+      rm -f "$JANITOR/request" "$JANITOR/done"
+      fix_owner /home/runner/_work/_temp /cache
+      : > "$JANITOR/done"
+    fi
+    sleep 1
+  done
+) &
+JANITOR_PID=$!
 
 RUNNER_PID=""
 forward() { [[ -n "$RUNNER_PID" ]] && kill -TERM "$RUNNER_PID" 2>/dev/null || true; }
@@ -82,6 +110,8 @@ esac
 log "job result=$RESULT runner_rc=$RC exit_code=$CODE"
 set -e
 
+kill "$JANITOR_PID" 2>/dev/null || true
+fix_owner /cache
 /opt/ci-runner/hooks/cleanup.sh post-run || true
 kill -TERM "$DOCKERD_PID" 2>/dev/null || true
 for _ in $(seq 1 20); do kill -0 "$DOCKERD_PID" 2>/dev/null || break; sleep 1; done
