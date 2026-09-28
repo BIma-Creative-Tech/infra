@@ -13,7 +13,12 @@
   `ci_runner_jobs_total{result}`; image `2.337.0-2`); race PAT (`PathChanged` + preflight credential tidak kosong + reload aman
   saat PAT/config berubah, handler tidak me-restart paksa); `disk.img` diisi penuh 40 GiB (`mkfs -E nodiscard`, fstrim.timer
   terbukti tidak menyentuh `/srv/ci`). Live 2026-09-29 01:49–01:50 WIB (runner idle). Ops: `docs/03-operations/ci-runner.md`.
-  Terbuka: job 47ac6cd image-publish (docker-container di sysbox) & APK release macet sampai timeout pada 4 GiB — ulang pada 5 GiB.
+  Akar masalah hang image-publish (terbukti live 02:05 WIB): buildkit (driver docker-container) membuat pid ns bersarang; sysbox-fs
+  meninggalkan helper zombie di dalamnya → init ns macet di `zap_pid_ns_processes` (bug sysbox 0.7.1). Watchdog terbukti live
+  02:14–02:17 WIB (stuck → restart sysbox-fs → registrasi ulang ±6 mnt). drms `197226b`: buildkitd
+  `--oci-worker-no-process-sandbox` → image job develop push **Succeeded** (push-by-digest + SBOM/provenance step sukses, tanpa
+  zombie); APK @5 GiB puncak anon 3,0 GiB tanpa OOM, tapi step Release APK gagal exit 1 (deterministik, bukan runner — sesi app).
+  Revisi R8: driver `docker` tidak bisa push-by-digest; `docker-container` hanya dengan `--oci-worker-no-process-sandbox` di sysbox.
 - **Tanggal:** 2026-09-28 · **Penulis:** Analyst (untuk Lead) · **Permintaan:** sesi app ProyekKas, keputusan owner
   2026-09-28: "self-hosted runner", karena akun GitHub Free kehabisan menit Actions dan job CI drms gagal dalam 2 s.
 - **ADR:** `docs/adr/0014-self-hosted-ci-runner.md` (**proposed**)

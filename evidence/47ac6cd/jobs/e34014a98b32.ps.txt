@@ -1,0 +1,33 @@
+=== 2026-09-29T02:50:54+0700 e34014a98b32 procs=14 io=8:0 rbytes=3747840 wbytes=809701376 rios=490 wios=51511 dbytes=0 dios=0 7:0 rbytes=2871296 wbytes=143360 rios=683 wios=56 dbytes=0 dios=0 
+    PID    PPID STAT ELAPSED   RSS %CPU WCHAN                    COMMAND
+1324423 1324368 Ss        72  3540  0.0 do_wait                  /bin/bash /opt/ci-runner/entrypoint.sh
+1324561 1324423 Sl        72 84428  0.9 futex_wait_queue         dockerd --host=unix:///var/run/docker.sock --group=docker
+1324604 1324561 Ssl       72 48204  0.5 futex_wait_queue         containerd --config /var/run/docker/containerd/containerd.toml
+1325154 1324423 S         69  3800  0.0 do_wait                  /bin/bash /home/runner/run.sh
+1325155 1325154 S         69  1540  0.0 pipe_read                tee -a /run/ci-runner/runner.out
+1325159 1325154 S         69  3868  0.0 do_wait                  /bin/bash /home/runner/run-helper.sh
+1325163 1325159 Sl        69 108828 4.0 futex_wait_queue         /home/runner/bin/Runner.Listener run
+1325910 1325163 Sl        60 130364 8.2 futex_wait_queue         /home/runner/bin/Runner.Worker spawnclient 150 153
+1337938 1325910 S          2  3556  0.0 do_wait                  /usr/bin/bash -e /home/runner/_work/_temp/3c3f3ac7-f79c-4fc3-92d1-3233b9d2f540.sh
+1337939 1337938 Sl         2 68976  5.3 ep_poll                  npm run typecheck
+1337951 1337939 S          2  1980  0.0 do_wait                  sh -c npm run typecheck -w apps/web
+1337952 1337951 Sl         2 70832  6.8 ep_poll                  npm run typecheck
+1337963 1337952 S          2  1828  0.0 do_wait                  sh -c tsc --noEmit
+1337964 1337963 Rl         2 418332 158 -                        node /home/runner/_work/drms/drms/node_modules/.bin/tsc --noEmit
+=== 2026-09-29T02:51:55+0700 e34014a98b32 procs=15 io=8:0 rbytes=3760128 wbytes=996855808 rios=493 wios=60924 dbytes=0 dios=0 7:0 rbytes=2879488 wbytes=176128 rios=685 wios=64 dbytes=0 dios=0 
+    PID    PPID STAT ELAPSED   RSS %CPU WCHAN                    COMMAND
+1324423 1324368 Ss       132  3540  0.0 do_wait                  /bin/bash /opt/ci-runner/entrypoint.sh
+1324561 1324423 Sl       132 82368  0.5 futex_wait_queue         dockerd --host=unix:///var/run/docker.sock --group=docker
+1324604 1324561 Ssl      132 40188  0.3 futex_wait_queue         containerd --config /var/run/docker/containerd/containerd.toml
+1325154 1324423 S        129  3800  0.0 do_wait                  /bin/bash /home/runner/run.sh
+1325155 1325154 S        129  1540  0.0 pipe_read                tee -a /run/ci-runner/runner.out
+1325159 1325154 S        129  3868  0.0 do_wait                  /bin/bash /home/runner/run-helper.sh
+1325163 1325159 Sl       129 109264 2.2 futex_wait_queue         /home/runner/bin/Runner.Listener run
+1325910 1325163 Sl       120 131472 4.5 futex_wait_queue         /home/runner/bin/Runner.Worker spawnclient 150 153
+1339689 1325910 S         44  3772  0.0 do_wait                  /usr/bin/bash -e /home/runner/_work/_temp/2b105dc9-b1c2-4308-9f46-43c351492626.sh
+1339696 1339689 Sl        44 68884  0.3 ep_poll                  npm run test:coverage
+1339803 1339696 S         44  1840  0.0 do_wait                  sh -c npm run test:coverage -w apps/web
+1339805 1339803 Sl        44 70560  0.4 ep_poll                  npm run test:coverage
+1339941 1339805 S         44  1844  0.0 do_wait                  sh -c vitest run --coverage
+1339943 1339941 Sl        44 363972 11.1 ep_poll                 node /home/runner/_work/drms/drms/node_modules/.bin/vitest run --coverage
+1346930 1339943 Rl         0 173804 120 -                        /cache/toolcache/node/24.21.0/x64/bin/node --experimental-import-meta-resolve --require /home/runner/_work/drms/drms/node_modules/vitest/suppress-warnings.

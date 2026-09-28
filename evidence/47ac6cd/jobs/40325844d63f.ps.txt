@@ -1,0 +1,16 @@
+=== 2026-09-29T02:53:55+0700 40325844d63f procs=14 io=8:0 rbytes=252751872 wbytes=30916608 rios=4609 wios=1184 dbytes=0 dios=0 7:0 rbytes=218374144 wbytes=3559424 rios=2814 wios=584 dbytes=0 dios=0 
+    PID    PPID STAT ELAPSED   RSS %CPU WCHAN                    COMMAND
+1358828 1358786 Ss        51  3472  0.1 do_wait                  /bin/bash /opt/ci-runner/entrypoint.sh
+1359008 1358828 Sl        51 87524  1.7 futex_wait_queue         dockerd --host=unix:///var/run/docker.sock --group=docker
+1359057 1359008 Ssl       51 49644  1.0 futex_wait_queue         containerd --config /var/run/docker/containerd/containerd.toml
+1359626 1358828 S         48  3732  0.0 do_wait                  /bin/bash /home/runner/run.sh
+1359627 1359626 S         48  1648  0.0 pipe_read                tee -a /run/ci-runner/runner.out
+1359631 1359626 S         48  3860  0.0 do_wait                  /bin/bash /home/runner/run-helper.sh
+1359635 1359631 Sl        48 104072 5.6 futex_wait_queue         /home/runner/bin/Runner.Listener run
+1362750 1359635 Sl        39 122328 8.5 futex_wait_queue         /home/runner/bin/Runner.Worker spawnclient 150 153
+1363993 1362750 S         22  3648  0.0 do_wait                  /usr/bin/bash -e /home/runner/_work/_temp/93686eb6-6ecd-4127-a1cd-167dbda957dd.sh
+1363994 1363993 Sl        22 26100  0.0 futex_wait_queue         docker run --rm -v /home/runner/_work/drms/drms:/src -w /src semgrep/semgrep:1.177.0@sha256:acaac22ffc7b7cc5926de0751b223bce0b2491c33d18422fa72f632c78d8119
+1364036 1358828 Sl        21 10964  0.0 futex_wait_queue         /usr/bin/containerd-shim-runc-v2 -namespace moby -id 9d14e9c7a26ab2ce49b1de41b8d42c2699f262930415c3dce77b20b78733e048 -address /var/run/docker/containerd/c
+1364059 1364036 Ss        21 114428 14.7 ep_poll                 /usr/bin/python3 /usr/bin/pysemgrep scan --error --metrics=off --config p/owasp-top-ten --config p/typescript --config .semgrep/proyekkas.yml --exclude nod
+1367545 1364059 S         11 157312 1.4 pipe_read                /usr/lib/python3.12/site-packages/semgrep/bin/semgrep-core-proprietary -rpc
+1367593 1364059 Sl        10 309380 189 do_poll.constprop.0      /usr/lib/python3.12/site-packages/semgrep/bin/semgrep-core -json -rules /tmp/tmp2drkxsla.json -targets /tmp/tmpmsdjb_jd -timeout 5 -timeout_threshold 3 -ma

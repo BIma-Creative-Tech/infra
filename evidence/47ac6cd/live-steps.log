@@ -1,0 +1,4 @@
+2026-09-29T01:48:33+07:00 STOP supervisor (idle)
+2026-09-29T01:49:22+07:00 ansible apply disk(fill holes)+image+supervisor
+2026-09-29T01:50:41+07:00 START supervisor
+2026-09-29T01:57:48+07:00 ansible apply supervisor (stuck-unresolved fix) — self-reload test

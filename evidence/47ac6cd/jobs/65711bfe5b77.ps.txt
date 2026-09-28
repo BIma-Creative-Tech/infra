@@ -1,0 +1,217 @@
+=== 2026-09-29T03:32:59+0700 65711bfe5b77 procs=17 io=8:0 rbytes=105865216 wbytes=88449024 rios=2529 wios=1853 dbytes=0 dios=0 7:0 rbytes=84250624 wbytes=21164032 rios=2071 wios=1847 dbytes=0 dios=0 
+    PID    PPID STAT ELAPSED   RSS %CPU WCHAN                    COMMAND
+1766898 1766867 Ss        53  3632  0.1 do_wait                  /bin/bash /opt/ci-runner/entrypoint.sh
+1767038 1766898 Sl        53 90416  2.9 futex_wait_queue         dockerd --host=unix:///var/run/docker.sock --group=docker
+1767080 1767038 Ssl       53 50012  1.8 futex_wait_queue         containerd --config /var/run/docker/containerd/containerd.toml
+1767680 1766898 S         50  3880  0.0 do_wait                  /bin/bash /home/runner/run.sh
+1767681 1767680 S         50  1680  0.2 pipe_read                tee -a /run/ci-runner/runner.out
+1767686 1767680 S         50  3628  0.0 do_wait                  /bin/bash /home/runner/run-helper.sh
+1767690 1767686 Sl        50 106952 6.0 futex_wait_queue         /home/runner/bin/Runner.Listener run
+1768114 1767690 Sl        41 131692 12.6 futex_wait_queue        /home/runner/bin/Runner.Worker spawnclient 150 153
+1772791 1766898 Sl        17 11836  0.4 futex_wait_queue         /usr/bin/containerd-shim-runc-v2 -namespace moby -id 1280c2e9e3e1affc47cf0c5277a13668bf5370fe205be4ff5a6ade1f96ecc777 -address /var/run/docker/containerd/c
+1772814 1772791 Ss        17   688  0.2 do_sigtimedwait.isra.0   /sbin/docker-init -- /usr/bin/buildkitd-entrypoint --oci-worker-no-process-sandbox --allow-insecure-entitlement=network.host
+1773085 1772814 Sl        16 55828  4.0 futex_wait_queue         /usr/bin/buildkitd --oci-worker-no-process-sandbox --allow-insecure-entitlement=network.host
+1775276 1768114 Sl        13 105612 3.2 ep_poll                  /home/runner/externals/node24/bin/node /home/runner/_work/_actions/docker/build-push-action/c3c9e263c25d99ce0380d002d59b67737d91b0dc/dist/index.cjs
+1776345 1775276 Sl        12 22672  0.0 futex_wait_queue         /usr/bin/docker buildx build --file apps/web/Dockerfile --iidfile /home/runner/_work/_temp/docker-actions-toolkit-bs0uWO/build-iidfile-7a160592b5.txt --lab
+1776405 1776345 Sl        12 57352  1.2 futex_wait_queue         /usr/local/lib/docker/cli-plugins/docker-buildx buildx build --file apps/web/Dockerfile --iidfile /home/runner/_work/_temp/docker-actions-toolkit-bs0uWO/bu
+1776500 1772791 Ssl       11 19188  0.4 futex_wait_queue         buildctl dial-stdio
+1777106 1773085 Sl         1 11792  3.0 futex_wait_queue         buildkit-runc --log /var/lib/buildkit/runc-overlayfs/executor/runc-log.json --log-format json run --bundle /var/lib/buildkit/runc-overlayfs/executor/107gvd
+1777123 1777106 Ssl        1 20324  6.7 futex_wait_queue         /bin/dockerfile-frontend
+=== 2026-09-29T03:34:00+0700 65711bfe5b77 procs=15 io=8:0 rbytes=113324032 wbytes=1727676416 rios=2757 wios=7882 dbytes=0 dios=0 7:0 rbytes=88145920 wbytes=1647247360 rios=2983 wios=77828 dbytes=0 dios=0 
+    PID    PPID STAT ELAPSED   RSS %CPU WCHAN                    COMMAND
+1766898 1766867 Ss       114  3632  0.0 do_wait                  /bin/bash /opt/ci-runner/entrypoint.sh
+1767038 1766898 Sl       113 90480  1.5 futex_wait_queue         dockerd --host=unix:///var/run/docker.sock --group=docker
+1767080 1767038 Ssl      113 50040  0.8 futex_wait_queue         containerd --config /var/run/docker/containerd/containerd.toml
+1767680 1766898 S        110  3880  0.0 do_wait                  /bin/bash /home/runner/run.sh
+1767681 1767680 S        110  1680  0.0 pipe_read                tee -a /run/ci-runner/runner.out
+1767686 1767680 S        110  3628  0.0 do_wait                  /bin/bash /home/runner/run-helper.sh
+1767690 1767686 Sl       110 107900 2.8 futex_wait_queue         /home/runner/bin/Runner.Listener run
+1768114 1767690 Sl       101 132360 5.6 futex_wait_queue         /home/runner/bin/Runner.Worker spawnclient 150 153
+1772791 1766898 Sl        77 11372  0.2 futex_wait_queue         /usr/bin/containerd-shim-runc-v2 -namespace moby -id 1280c2e9e3e1affc47cf0c5277a13668bf5370fe205be4ff5a6ade1f96ecc777 -address /var/run/docker/containerd/c
+1772814 1772791 Ss        77   688  0.0 do_sigtimedwait.isra.0   /sbin/docker-init -- /usr/bin/buildkitd-entrypoint --oci-worker-no-process-sandbox --allow-insecure-entitlement=network.host
+1773085 1772814 Sl        76 196384 15.0 futex_wait_queue        /usr/bin/buildkitd --oci-worker-no-process-sandbox --allow-insecure-entitlement=network.host
+1775276 1768114 Sl        73 105612 0.6 ep_poll                  /home/runner/externals/node24/bin/node /home/runner/_work/_actions/docker/build-push-action/c3c9e263c25d99ce0380d002d59b67737d91b0dc/dist/index.cjs
+1776345 1775276 Sl        72 22672  0.0 futex_wait_queue         /usr/bin/docker buildx build --file apps/web/Dockerfile --iidfile /home/runner/_work/_temp/docker-actions-toolkit-bs0uWO/build-iidfile-7a160592b5.txt --lab
+1776405 1776345 Sl        72 68168  0.8 futex_wait_queue         /usr/local/lib/docker/cli-plugins/docker-buildx buildx build --file apps/web/Dockerfile --iidfile /home/runner/_work/_temp/docker-actions-toolkit-bs0uWO/bu
+1776500 1772791 Ssl       72 19244  0.4 futex_wait_queue         buildctl dial-stdio
+=== 2026-09-29T03:35:00+0700 65711bfe5b77 procs=19 io=8:0 rbytes=217227264 wbytes=2777944064 rios=8509 wios=9936 dbytes=0 dios=0 7:0 rbytes=370810880 wbytes=2643730432 rios=22224 wios=144402 dbytes=0 dios=0 
+    PID    PPID STAT ELAPSED   RSS %CPU WCHAN                    COMMAND
+1766898 1766867 Ss       174  3632  0.0 do_wait                  /bin/bash /opt/ci-runner/entrypoint.sh
+1767038 1766898 Sl       173 87984  1.0 futex_wait_queue         dockerd --host=unix:///var/run/docker.sock --group=docker
+1767080 1767038 Ssl      173 42476  0.6 futex_wait_queue         containerd --config /var/run/docker/containerd/containerd.toml
+1767680 1766898 S        170  3880  0.0 do_wait                  /bin/bash /home/runner/run.sh
+1767681 1767680 S        170  1680  0.0 pipe_read                tee -a /run/ci-runner/runner.out
+1767686 1767680 S        170  3628  0.0 do_wait                  /bin/bash /home/runner/run-helper.sh
+1767690 1767686 Sl       170 109636 1.8 futex_wait_queue         /home/runner/bin/Runner.Listener run
+1768114 1767690 Sl       161 132248 3.7 futex_wait_queue         /home/runner/bin/Runner.Worker spawnclient 150 153
+1772791 1766898 Sl       137 11372  0.1 futex_wait_queue         /usr/bin/containerd-shim-runc-v2 -namespace moby -id 1280c2e9e3e1affc47cf0c5277a13668bf5370fe205be4ff5a6ade1f96ecc777 -address /var/run/docker/containerd/c
+1772814 1772791 Ss       137   688  0.0 do_sigtimedwait.isra.0   /sbin/docker-init -- /usr/bin/buildkitd-entrypoint --oci-worker-no-process-sandbox --allow-insecure-entitlement=network.host
+1773085 1772814 Sl       136 178500 22.5 futex_wait_queue        /usr/bin/buildkitd --oci-worker-no-process-sandbox --allow-insecure-entitlement=network.host
+1775276 1768114 Sl       133 105676 0.3 ep_poll                  /home/runner/externals/node24/bin/node /home/runner/_work/_actions/docker/build-push-action/c3c9e263c25d99ce0380d002d59b67737d91b0dc/dist/index.cjs
+1776345 1775276 Sl       132 22672  0.0 futex_wait_queue         /usr/bin/docker buildx build --file apps/web/Dockerfile --iidfile /home/runner/_work/_temp/docker-actions-toolkit-bs0uWO/build-iidfile-7a160592b5.txt --lab
+1776405 1776345 Sl       132 68256  0.5 futex_wait_queue         /usr/local/lib/docker/cli-plugins/docker-buildx buildx build --file apps/web/Dockerfile --iidfile /home/runner/_work/_temp/docker-actions-toolkit-bs0uWO/bu
+1776500 1772791 Ssl      132 19248  0.2 futex_wait_queue         buildctl dial-stdio
+1793651 1773085 Sl        26 11668  0.1 futex_wait_queue         buildkit-runc --log /var/lib/buildkit/runc-overlayfs/executor/runc-log.json --log-format json run --bundle /var/lib/buildkit/runc-overlayfs/executor/mo58jg
+1793684 1793651 Ssl       26 210152 6.9 ep_poll                  npm run build
+1793777 1793684 S         25   992  0.0 do_wait                  sh -c npm run gen:openapi && next build --webpack && npm run build:worker
+1793827 1793777 Rl        24 875184 168 -                        next-build (v16.3.6)
+=== 2026-09-29T03:36:00+0700 65711bfe5b77 procs=22 io=8:0 rbytes=226177024 wbytes=3191422976 rios=8729 wios=10568 dbytes=0 dios=0 7:0 rbytes=380719104 wbytes=3109363712 rios=22462 wios=153239 dbytes=0 dios=0 
+    PID    PPID STAT ELAPSED   RSS %CPU WCHAN                    COMMAND
+1766898 1766867 Ss       234  3632  0.0 do_wait                  /bin/bash /opt/ci-runner/entrypoint.sh
+1767038 1766898 Sl       234 87984  0.7 futex_wait_queue         dockerd --host=unix:///var/run/docker.sock --group=docker
+1767080 1767038 Ssl      233 42464  0.4 futex_wait_queue         containerd --config /var/run/docker/containerd/containerd.toml
+1767680 1766898 S        230  3880  0.0 do_wait                  /bin/bash /home/runner/run.sh
+1767681 1767680 S        230  1680  0.0 pipe_read                tee -a /run/ci-runner/runner.out
+1767686 1767680 S        230  3628  0.0 do_wait                  /bin/bash /home/runner/run-helper.sh
+1767690 1767686 Sl       230 109772 1.4 futex_wait_queue         /home/runner/bin/Runner.Listener run
+1768114 1767690 Sl       221 132252 2.9 futex_wait_queue         /home/runner/bin/Runner.Worker spawnclient 150 153
+1772791 1766898 Sl       197 11376  0.1 futex_wait_queue         /usr/bin/containerd-shim-runc-v2 -namespace moby -id 1280c2e9e3e1affc47cf0c5277a13668bf5370fe205be4ff5a6ade1f96ecc777 -address /var/run/docker/containerd/c
+1772814 1772791 Ss       197   688  0.0 do_sigtimedwait.isra.0   /sbin/docker-init -- /usr/bin/buildkitd-entrypoint --oci-worker-no-process-sandbox --allow-insecure-entitlement=network.host
+1773085 1772814 Sl       197 178356 15.6 futex_wait_queue        /usr/bin/buildkitd --oci-worker-no-process-sandbox --allow-insecure-entitlement=network.host
+1775276 1768114 Sl       194 105676 0.2 ep_poll                  /home/runner/externals/node24/bin/node /home/runner/_work/_actions/docker/build-push-action/c3c9e263c25d99ce0380d002d59b67737d91b0dc/dist/index.cjs
+1776345 1775276 Sl       192 22672  0.0 futex_wait_queue         /usr/bin/docker buildx build --file apps/web/Dockerfile --iidfile /home/runner/_work/_temp/docker-actions-toolkit-bs0uWO/build-iidfile-7a160592b5.txt --lab
+1776405 1776345 Sl       192 56964  0.4 futex_wait_queue         /usr/local/lib/docker/cli-plugins/docker-buildx buildx build --file apps/web/Dockerfile --iidfile /home/runner/_work/_temp/docker-actions-toolkit-bs0uWO/bu
+1776500 1772791 Ssl      192 19248  0.1 futex_wait_queue         buildctl dial-stdio
+1793651 1773085 Sl        86 11672  0.0 futex_wait_queue         buildkit-runc --log /var/lib/buildkit/runc-overlayfs/executor/runc-log.json --log-format json run --bundle /var/lib/buildkit/runc-overlayfs/executor/mo58jg
+1793684 1793651 Ssl       86 209988 2.0 ep_poll                  npm run build
+1793777 1793684 S         85   992  0.0 do_wait                  sh -c npm run gen:openapi && next build --webpack && npm run build:worker
+1793827 1793777 Sl        84 1438920 118 ep_poll                 next-build (v16.3.6)
+1806367 1793827 Rl         2 168784 65.6 -                       /usr/local/bin/node /app/node_modules/next/dist/compiled/jest-worker/processChild.js
+1806373 1793827 Rl         2 159520 67.4 -                       /usr/local/bin/node /app/node_modules/next/dist/compiled/jest-worker/processChild.js
+1806380 1793827 Rl         2 168740 67.6 -                       /usr/local/bin/node /app/node_modules/next/dist/compiled/jest-worker/processChild.js
+=== 2026-09-29T03:37:00+0700 65711bfe5b77 procs=15 io=8:0 rbytes=476078080 wbytes=3491917824 rios=12156 wios=13085 dbytes=0 dios=0 7:0 rbytes=613920768 wbytes=3345862656 rios=26287 wios=163322 dbytes=0 dios=0 
+    PID    PPID STAT ELAPSED   RSS %CPU WCHAN                    COMMAND
+1766898 1766867 Ss       294  3632  0.0 do_wait                  /bin/bash /opt/ci-runner/entrypoint.sh
+1767038 1766898 Sl       294 86768  0.6 futex_wait_queue         dockerd --host=unix:///var/run/docker.sock --group=docker
+1767080 1767038 Ssl      294 42508  0.4 futex_wait_queue         containerd --config /var/run/docker/containerd/containerd.toml
+1767680 1766898 S        291  3880  0.0 do_wait                  /bin/bash /home/runner/run.sh
+1767681 1767680 S        291  1680  0.0 pipe_read                tee -a /run/ci-runner/runner.out
+1767686 1767680 S        291  3628  0.0 do_wait                  /bin/bash /home/runner/run-helper.sh
+1767690 1767686 Sl       291 110996 1.1 futex_wait_queue         /home/runner/bin/Runner.Listener run
+1768114 1767690 Sl       282 132280 2.4 futex_wait_queue         /home/runner/bin/Runner.Worker spawnclient 150 153
+1772791 1766898 Sl       257 11376  0.1 futex_wait_queue         /usr/bin/containerd-shim-runc-v2 -namespace moby -id 1280c2e9e3e1affc47cf0c5277a13668bf5370fe205be4ff5a6ade1f96ecc777 -address /var/run/docker/containerd/c
+1772814 1772791 Ss       257   688  0.0 do_sigtimedwait.isra.0   /sbin/docker-init -- /usr/bin/buildkitd-entrypoint --oci-worker-no-process-sandbox --allow-insecure-entitlement=network.host
+1773085 1772814 Sl       257 188932 14.6 futex_wait_queue        /usr/bin/buildkitd --oci-worker-no-process-sandbox --allow-insecure-entitlement=network.host
+1775276 1768114 Sl       254 105684 0.1 ep_poll                  /home/runner/externals/node24/bin/node /home/runner/_work/_actions/docker/build-push-action/c3c9e263c25d99ce0380d002d59b67737d91b0dc/dist/index.cjs
+1776345 1775276 Sl       252 22672  0.0 futex_wait_queue         /usr/bin/docker buildx build --file apps/web/Dockerfile --iidfile /home/runner/_work/_temp/docker-actions-toolkit-bs0uWO/build-iidfile-7a160592b5.txt --lab
+1776405 1776345 Sl       252 57108  0.4 futex_wait_queue         /usr/local/lib/docker/cli-plugins/docker-buildx buildx build --file apps/web/Dockerfile --iidfile /home/runner/_work/_temp/docker-actions-toolkit-bs0uWO/bu
+1776500 1772791 Ssl      252 19256  0.1 futex_wait_queue         buildctl dial-stdio
+=== 2026-09-29T03:38:00+0700 65711bfe5b77 procs=15 io=8:0 rbytes=911949824 wbytes=3702779904 rios=16490 wios=15407 dbytes=0 dios=0 7:0 rbytes=1260552192 wbytes=3554713600 rios=51683 wios=166469 dbytes=0 dios=0 
+    PID    PPID STAT ELAPSED   RSS %CPU WCHAN                    COMMAND
+1766898 1766867 Ss       354  3632  0.0 do_wait                  /bin/bash /opt/ci-runner/entrypoint.sh
+1767038 1766898 Sl       354 86916  0.5 futex_wait_queue         dockerd --host=unix:///var/run/docker.sock --group=docker
+1767080 1767038 Ssl      354 42664  0.3 futex_wait_queue         containerd --config /var/run/docker/containerd/containerd.toml
+1767680 1766898 S        351  3880  0.0 do_wait                  /bin/bash /home/runner/run.sh
+1767681 1767680 S        351  1680  0.0 pipe_read                tee -a /run/ci-runner/runner.out
+1767686 1767680 S        351  3628  0.0 do_wait                  /bin/bash /home/runner/run-helper.sh
+1767690 1767686 Sl       351 112316 0.9 futex_wait_queue         /home/runner/bin/Runner.Listener run
+1768114 1767690 Sl       342 134232 2.1 futex_wait_queue         /home/runner/bin/Runner.Worker spawnclient 150 153
+1772791 1766898 Sl       318 11320  0.1 futex_wait_queue         /usr/bin/containerd-shim-runc-v2 -namespace moby -id 1280c2e9e3e1affc47cf0c5277a13668bf5370fe205be4ff5a6ade1f96ecc777 -address /var/run/docker/containerd/c
+1772814 1772791 Ss       317   688  0.0 do_sigtimedwait.isra.0   /sbin/docker-init -- /usr/bin/buildkitd-entrypoint --oci-worker-no-process-sandbox --allow-insecure-entitlement=network.host
+1773085 1772814 Sl       317 294588 27.2 futex_wait_queue        /usr/bin/buildkitd --oci-worker-no-process-sandbox --allow-insecure-entitlement=network.host
+1819600 1768114 Sl        52 105672 0.8 ep_poll                  /home/runner/externals/node24/bin/node /home/runner/_work/_actions/docker/build-push-action/c3c9e263c25d99ce0380d002d59b67737d91b0dc/dist/index.cjs
+1819861 1819600 Sl        51 24588  0.0 futex_wait_queue         /usr/bin/docker buildx build --file apps/web/Dockerfile --iidfile /home/runner/_work/_temp/docker-actions-toolkit-F28Uva/build-iidfile-74b474bb03.txt --lab
+1819876 1819861 Sl        51 56804  0.5 futex_wait_queue         /usr/local/lib/docker/cli-plugins/docker-buildx buildx build --file apps/web/Dockerfile --iidfile /home/runner/_work/_temp/docker-actions-toolkit-F28Uva/bu
+1819897 1772791 Ssl       51 19640  0.1 futex_wait_queue         buildctl dial-stdio
+=== 2026-09-29T03:39:01+0700 65711bfe5b77 procs=15 io=8:0 rbytes=1055850496 wbytes=4721176576 rios=19385 wios=17886 dbytes=0 dios=0 7:0 rbytes=1368588288 wbytes=3909500928 rios=54034 wios=168741 dbytes=0 dios=0 
+    PID    PPID STAT ELAPSED   RSS %CPU WCHAN                    COMMAND
+1766898 1766867 Ss       414  3632  0.0 do_wait                  /bin/bash /opt/ci-runner/entrypoint.sh
+1767038 1766898 Sl       414 87628  0.5 futex_wait_queue         dockerd --host=unix:///var/run/docker.sock --group=docker
+1767080 1767038 Ssl      414 46844  0.3 futex_wait_queue         containerd --config /var/run/docker/containerd/containerd.toml
+1767680 1766898 S        411  3880  0.0 do_wait                  /bin/bash /home/runner/run.sh
+1767681 1767680 S        411  1680  0.0 pipe_read                tee -a /run/ci-runner/runner.out
+1767686 1767680 S        411  3628  0.0 do_wait                  /bin/bash /home/runner/run-helper.sh
+1767690 1767686 Sl       411 112484 0.8 futex_wait_queue         /home/runner/bin/Runner.Listener run
+1768114 1767690 Sl       402 138060 2.0 futex_wait_queue         /home/runner/bin/Runner.Worker spawnclient 150 153
+1772791 1766898 Sl       378 11216  0.0 futex_wait_queue         /usr/bin/containerd-shim-runc-v2 -namespace moby -id 1280c2e9e3e1affc47cf0c5277a13668bf5370fe205be4ff5a6ade1f96ecc777 -address /var/run/docker/containerd/c
+1772814 1772791 Ss       378   688  0.0 do_sigtimedwait.isra.0   /sbin/docker-init -- /usr/bin/buildkitd-entrypoint --oci-worker-no-process-sandbox --allow-insecure-entitlement=network.host
+1773085 1772814 Sl       377 342016 26.5 futex_wait_queue        /usr/bin/buildkitd --oci-worker-no-process-sandbox --allow-insecure-entitlement=network.host
+1836117 1768114 S         21  3628  0.0 do_wait                  /usr/bin/bash -e /home/runner/_work/_temp/fc545b69-7af6-4147-9561-b562af9105dd.sh
+1836119 1836117 Sl        21 25656  0.0 futex_wait_queue         docker run --rm -e TRIVY_USERNAME -e TRIVY_PASSWORD -v /var/run/docker.sock:/var/run/docker.sock:ro -v /home/runner/_work/_temp/trivy-cache:/root/.cache/tr
+1836161 1766898 Sl        21 11220  0.0 futex_wait_queue         /usr/bin/containerd-shim-runc-v2 -namespace moby -id 3011a99620d8e80005efb30178f3b7cc96ca5847f404d43d9c68cc9bffcbadfa -address /var/run/docker/containerd/c
+1836186 1836161 Ssl       21 114652 26.5 futex_wait_queue        trivy image --quiet --platform linux/amd64 --severity HIGH,CRITICAL --exit-code 0 --format json ghcr.io/bctech-adm/proyekkas-web@sha256:e7be68bfc61cb1a18de
+=== 2026-09-29T03:40:01+0700 65711bfe5b77 procs=15 io=8:0 rbytes=1095258112 wbytes=5549961216 rios=19963 wios=19173 dbytes=0 dios=0 7:0 rbytes=1444724736 wbytes=3952373760 rios=54855 wios=168890 dbytes=0 dios=0 
+    PID    PPID STAT ELAPSED   RSS %CPU WCHAN                    COMMAND
+1766898 1766867 Ss       475  3632  0.0 do_wait                  /bin/bash /opt/ci-runner/entrypoint.sh
+1767038 1766898 Sl       474 87628  0.4 futex_wait_queue         dockerd --host=unix:///var/run/docker.sock --group=docker
+1767080 1767038 Ssl      474 47016  0.3 futex_wait_queue         containerd --config /var/run/docker/containerd/containerd.toml
+1767680 1766898 S        471  3880  0.0 do_wait                  /bin/bash /home/runner/run.sh
+1767681 1767680 S        471  1680  0.0 pipe_read                tee -a /run/ci-runner/runner.out
+1767686 1767680 S        471  3628  0.0 do_wait                  /bin/bash /home/runner/run-helper.sh
+1767690 1767686 Sl       471 112624 0.7 futex_wait_queue         /home/runner/bin/Runner.Listener run
+1768114 1767690 Sl       462 138404 1.8 futex_wait_queue         /home/runner/bin/Runner.Worker spawnclient 150 153
+1772791 1766898 Sl       438 11168  0.0 futex_wait_queue         /usr/bin/containerd-shim-runc-v2 -namespace moby -id 1280c2e9e3e1affc47cf0c5277a13668bf5370fe205be4ff5a6ade1f96ecc777 -address /var/run/docker/containerd/c
+1772814 1772791 Ss       438   688  0.0 do_sigtimedwait.isra.0   /sbin/docker-init -- /usr/bin/buildkitd-entrypoint --oci-worker-no-process-sandbox --allow-insecure-entitlement=network.host
+1773085 1772814 Sl       437 342132 22.9 futex_wait_queue        /usr/bin/buildkitd --oci-worker-no-process-sandbox --allow-insecure-entitlement=network.host
+1836117 1768114 S         81  3628  0.0 do_wait                  /usr/bin/bash -e /home/runner/_work/_temp/fc545b69-7af6-4147-9561-b562af9105dd.sh
+1836119 1836117 Sl        81 25664  0.0 futex_wait_queue         docker run --rm -e TRIVY_USERNAME -e TRIVY_PASSWORD -v /var/run/docker.sock:/var/run/docker.sock:ro -v /home/runner/_work/_temp/trivy-cache:/root/.cache/tr
+1836161 1766898 Sl        81 11168  0.0 futex_wait_queue         /usr/bin/containerd-shim-runc-v2 -namespace moby -id 3011a99620d8e80005efb30178f3b7cc96ca5847f404d43d9c68cc9bffcbadfa -address /var/run/docker/containerd/c
+1836186 1836161 Ssl       81 120032 26.5 futex_wait_queue        trivy image --quiet --platform linux/amd64 --severity HIGH,CRITICAL --exit-code 0 --format json ghcr.io/bctech-adm/proyekkas-web@sha256:e7be68bfc61cb1a18de
+=== 2026-09-29T03:41:01+0700 65711bfe5b77 procs=15 io=8:0 rbytes=1100201984 wbytes=5641293824 rios=20101 wios=19566 dbytes=0 dios=0 7:0 rbytes=1447522304 wbytes=4188422144 rios=55166 wios=169679 dbytes=0 dios=0 
+    PID    PPID STAT ELAPSED   RSS %CPU WCHAN                    COMMAND
+1766898 1766867 Ss       535  3632  0.0 do_wait                  /bin/bash /opt/ci-runner/entrypoint.sh
+1767038 1766898 Sl       535 88012  0.4 futex_wait_queue         dockerd --host=unix:///var/run/docker.sock --group=docker
+1767080 1767038 Ssl      534 50168  0.2 futex_wait_queue         containerd --config /var/run/docker/containerd/containerd.toml
+1767680 1766898 S        531  3880  0.0 do_wait                  /bin/bash /home/runner/run.sh
+1767681 1767680 S        531  1680  0.0 pipe_read                tee -a /run/ci-runner/runner.out
+1767686 1767680 S        531  3628  0.0 do_wait                  /bin/bash /home/runner/run-helper.sh
+1767690 1767686 Sl       531 113416 0.6 futex_wait_queue         /home/runner/bin/Runner.Listener run
+1768114 1767690 Sl       522 138348 1.7 futex_wait_queue         /home/runner/bin/Runner.Worker spawnclient 150 153
+1772791 1766898 Sl       498 11236  0.0 futex_wait_queue         /usr/bin/containerd-shim-runc-v2 -namespace moby -id 1280c2e9e3e1affc47cf0c5277a13668bf5370fe205be4ff5a6ade1f96ecc777 -address /var/run/docker/containerd/c
+1772814 1772791 Ss       498   688  0.0 do_sigtimedwait.isra.0   /sbin/docker-init -- /usr/bin/buildkitd-entrypoint --oci-worker-no-process-sandbox --allow-insecure-entitlement=network.host
+1773085 1772814 Sl       498 256692 20.1 futex_wait_queue        /usr/bin/buildkitd --oci-worker-no-process-sandbox --allow-insecure-entitlement=network.host
+1836117 1768114 S        141  3632  0.0 do_wait                  /usr/bin/bash -e /home/runner/_work/_temp/fc545b69-7af6-4147-9561-b562af9105dd.sh
+1852565 1836117 Sl        34 26040  0.0 futex_wait_queue         docker run --rm -e TRIVY_USERNAME -e TRIVY_PASSWORD -v /var/run/docker.sock:/var/run/docker.sock:ro -v /home/runner/_work/_temp/trivy-cache:/root/.cache/tr
+1852607 1766898 Sl        34 10956  0.0 futex_wait_queue         /usr/bin/containerd-shim-runc-v2 -namespace moby -id fd46306a314a70a176cfcde99036aefebabbe37291c47164fc54c0b3ecb20ae3 -address /var/run/docker/containerd/c
+1852630 1852607 Ssl       34 126900 22.2 futex_wait_queue        trivy image --quiet --platform linux/amd64 --severity HIGH,CRITICAL --exit-code 0 --format json ghcr.io/bctech-adm/proyekkas-migrate@sha256:22017e5ddfa21c4
+=== 2026-09-29T03:42:01+0700 65711bfe5b77 procs=15 io=8:0 rbytes=1100455936 wbytes=5846933504 rios=20107 wios=19925 dbytes=0 dios=0 7:0 rbytes=1447596032 wbytes=4397420544 rios=55168 wios=170122 dbytes=0 dios=0 
+    PID    PPID STAT ELAPSED   RSS %CPU WCHAN                    COMMAND
+1766898 1766867 Ss       595  3632  0.0 do_wait                  /bin/bash /opt/ci-runner/entrypoint.sh
+1767038 1766898 Sl       595 87972  0.3 futex_wait_queue         dockerd --host=unix:///var/run/docker.sock --group=docker
+1767080 1767038 Ssl      595 50160  0.2 futex_wait_queue         containerd --config /var/run/docker/containerd/containerd.toml
+1767680 1766898 S        592  3880  0.0 do_wait                  /bin/bash /home/runner/run.sh
+1767681 1767680 S        592  1680  0.0 pipe_read                tee -a /run/ci-runner/runner.out
+1767686 1767680 S        592  3628  0.0 do_wait                  /bin/bash /home/runner/run-helper.sh
+1767690 1767686 Sl       592 113264 0.6 futex_wait_queue         /home/runner/bin/Runner.Listener run
+1768114 1767690 Sl       583 138348 1.5 futex_wait_queue         /home/runner/bin/Runner.Worker spawnclient 150 153
+1772791 1766898 Sl       559 11172  0.0 futex_wait_queue         /usr/bin/containerd-shim-runc-v2 -namespace moby -id 1280c2e9e3e1affc47cf0c5277a13668bf5370fe205be4ff5a6ade1f96ecc777 -address /var/run/docker/containerd/c
+1772814 1772791 Ss       559   688  0.0 do_sigtimedwait.isra.0   /sbin/docker-init -- /usr/bin/buildkitd-entrypoint --oci-worker-no-process-sandbox --allow-insecure-entitlement=network.host
+1773085 1772814 Sl       558 256692 17.9 futex_wait_queue        /usr/bin/buildkitd --oci-worker-no-process-sandbox --allow-insecure-entitlement=network.host
+1836117 1768114 S        202  3632  0.0 do_wait                  /usr/bin/bash -e /home/runner/_work/_temp/fc545b69-7af6-4147-9561-b562af9105dd.sh
+1852565 1836117 Sl        94 26040  0.0 futex_wait_queue         docker run --rm -e TRIVY_USERNAME -e TRIVY_PASSWORD -v /var/run/docker.sock:/var/run/docker.sock:ro -v /home/runner/_work/_temp/trivy-cache:/root/.cache/tr
+1852607 1766898 Sl        94 11064  0.0 futex_wait_queue         /usr/bin/containerd-shim-runc-v2 -namespace moby -id fd46306a314a70a176cfcde99036aefebabbe37291c47164fc54c0b3ecb20ae3 -address /var/run/docker/containerd/c
+1852630 1852607 Ssl       94 194904 17.9 futex_wait_queue        trivy image --quiet --platform linux/amd64 --severity HIGH,CRITICAL --exit-code 0 --format json ghcr.io/bctech-adm/proyekkas-migrate@sha256:22017e5ddfa21c4
+=== 2026-09-29T03:43:02+0700 65711bfe5b77 procs=15 io=8:0 rbytes=1100455936 wbytes=5855563776 rios=20107 wios=19966 dbytes=0 dios=0 7:0 rbytes=1447596032 wbytes=4397469696 rios=55168 wios=170134 dbytes=0 dios=0 
+    PID    PPID STAT ELAPSED   RSS %CPU WCHAN                    COMMAND
+1766898 1766867 Ss       656  3632  0.0 do_wait                  /bin/bash /opt/ci-runner/entrypoint.sh
+1767038 1766898 Sl       655 86704  0.3 futex_wait_queue         dockerd --host=unix:///var/run/docker.sock --group=docker
+1767080 1767038 Ssl      655 49748  0.2 futex_wait_queue         containerd --config /var/run/docker/containerd/containerd.toml
+1767680 1766898 S        652  3880  0.0 do_wait                  /bin/bash /home/runner/run.sh
+1767681 1767680 S        652  1680  0.0 pipe_read                tee -a /run/ci-runner/runner.out
+1767686 1767680 S        652  3628  0.0 do_wait                  /bin/bash /home/runner/run-helper.sh
+1767690 1767686 Sl       652 113276 0.5 futex_wait_queue         /home/runner/bin/Runner.Listener run
+1768114 1767690 Sl       643 139544 1.4 futex_wait_queue         /home/runner/bin/Runner.Worker spawnclient 150 153
+1772791 1766898 Sl       619 11172  0.0 futex_wait_queue         /usr/bin/containerd-shim-runc-v2 -namespace moby -id 1280c2e9e3e1affc47cf0c5277a13668bf5370fe205be4ff5a6ade1f96ecc777 -address /var/run/docker/containerd/c
+1772814 1772791 Ss       619   688  0.0 do_sigtimedwait.isra.0   /sbin/docker-init -- /usr/bin/buildkitd-entrypoint --oci-worker-no-process-sandbox --allow-insecure-entitlement=network.host
+1773085 1772814 Sl       618 226944 16.2 futex_wait_queue        /usr/bin/buildkitd --oci-worker-no-process-sandbox --allow-insecure-entitlement=network.host
+1836117 1768114 S        262  3632  0.0 do_wait                  /usr/bin/bash -e /home/runner/_work/_temp/fc545b69-7af6-4147-9561-b562af9105dd.sh
+1852565 1836117 Sl       155 26712  0.0 futex_wait_queue         docker run --rm -e TRIVY_USERNAME -e TRIVY_PASSWORD -v /var/run/docker.sock:/var/run/docker.sock:ro -v /home/runner/_work/_temp/trivy-cache:/root/.cache/tr
+1852607 1766898 Sl       155 11032  0.0 futex_wait_queue         /usr/bin/containerd-shim-runc-v2 -namespace moby -id fd46306a314a70a176cfcde99036aefebabbe37291c47164fc54c0b3ecb20ae3 -address /var/run/docker/containerd/c
+1852630 1852607 Ssl      154 148272 22.0 futex_wait_queue        trivy image --quiet --platform linux/amd64 --severity HIGH,CRITICAL --exit-code 0 --format json ghcr.io/bctech-adm/proyekkas-migrate@sha256:22017e5ddfa21c4
+=== 2026-09-29T03:44:02+0700 65711bfe5b77 procs=15 io=8:0 rbytes=1102352384 wbytes=5857538048 rios=20346 wios=20196 dbytes=0 dios=0 7:0 rbytes=1448431616 wbytes=4400324608 rios=55187 wios=170454 dbytes=0 dios=0 
+    PID    PPID STAT ELAPSED   RSS %CPU WCHAN                    COMMAND
+1766898 1766867 Ss       716  3632  0.0 do_wait                  /bin/bash /opt/ci-runner/entrypoint.sh
+1767038 1766898 Sl       715 88156  0.3 futex_wait_queue         dockerd --host=unix:///var/run/docker.sock --group=docker
+1767080 1767038 Ssl      715 52176  0.2 futex_wait_queue         containerd --config /var/run/docker/containerd/containerd.toml
+1767680 1766898 S        712  3880  0.0 do_wait                  /bin/bash /home/runner/run.sh
+1767681 1767680 S        712  1680  0.0 pipe_read                tee -a /run/ci-runner/runner.out
+1767686 1767680 S        712  3628  0.0 do_wait                  /bin/bash /home/runner/run-helper.sh
+1767690 1767686 Sl       712 116960 0.5 futex_wait_queue         /home/runner/bin/Runner.Listener run
+1768114 1767690 Sl       703 142124 1.4 futex_wait_queue         /home/runner/bin/Runner.Worker spawnclient 150 153
+1772791 1766898 Sl       679 11172  0.0 futex_wait_queue         /usr/bin/containerd-shim-runc-v2 -namespace moby -id 1280c2e9e3e1affc47cf0c5277a13668bf5370fe205be4ff5a6ade1f96ecc777 -address /var/run/docker/containerd/c
+1772814 1772791 Ss       679   688  0.0 do_sigtimedwait.isra.0   /sbin/docker-init -- /usr/bin/buildkitd-entrypoint --oci-worker-no-process-sandbox --allow-insecure-entitlement=network.host
+1773085 1772814 Sl       678 226944 14.8 futex_wait_queue        /usr/bin/buildkitd --oci-worker-no-process-sandbox --allow-insecure-entitlement=network.host
+1887196 1768114 S          2  3764  0.0 do_wait                  /usr/bin/bash -e /home/runner/_work/_temp/703a44eb-db5a-4a22-b26f-604da8a2238e.sh
+1887199 1887196 Sl         2 25608  0.7 futex_wait_queue         docker run --rm -e TRIVY_USERNAME -e TRIVY_PASSWORD -v /var/run/docker.sock:/var/run/docker.sock:ro -v /home/runner/_work/_temp/trivy-cache:/root/.cache/tr
+1887390 1766898 Sl         2 10932  0.7 futex_wait_queue         /usr/bin/containerd-shim-runc-v2 -namespace moby -id e8f104edd60ad293e055d4cedf7235af7524d01bbedf3e8b9a18f05473eddc7b -address /var/run/docker/containerd/c
+1887447 1887390 Ssl        2 107252 21.8 futex_wait_queue        trivy image --quiet --platform linux/amd64 --severity CRITICAL --exit-code 1 --ignore-unfixed ghcr.io/bctech-adm/proyekkas-web@sha256:e7be68bfc61cb1a18dee8

@@ -1,0 +1,41 @@
+2026-09-29T01:37:36+0700 new container 160e38560c95
+2026-09-29T01:41:21+0700 logs ended 160e38560c95
+2026-09-29T01:41:23+0700 cgroup gone 160e38560c95 peak_anon=695754752 peak_total=5369360384 events=low 0 high 0 max 5086 oom 0 oom_kill 0 oom_group_kill 0 
+2026-09-29T01:41:41+0700 new container d4920785675a
+2026-09-29T01:49:04+0700 logs ended d4920785675a
+2026-09-29T01:49:08+0700 cgroup gone d4920785675a peak_anon=62754816 peak_total=89509888 events=low 0 high 0 max 0 oom 0 oom_kill 0 oom_group_kill 0 
+2026-09-29T01:50:46+0700 new container 5e3751ea66ff
+2026-09-29T01:58:45+0700 logs ended 5e3751ea66ff
+2026-09-29T01:58:48+0700 cgroup gone 5e3751ea66ff peak_anon=64864256 peak_total=88190976 events=low 0 high 0 max 0 oom 0 oom_kill 0 oom_group_kill 0 
+2026-09-29T01:59:20+0700 new container fb8cd3e2a629
+2026-09-29T02:11:44+0700 cgroup gone fb8cd3e2a629 peak_anon=2360037376 peak_total=5368709120 events=low 0 high 0 max 1467 oom 0 oom_kill 0 oom_group_kill 0 
+2026-09-29T02:17:02+0700 logs ended fb8cd3e2a629
+2026-09-29T02:17:23+0700 new container 36a13e4f034b
+2026-09-29T02:34:53+0700 logs ended 36a13e4f034b
+2026-09-29T02:34:54+0700 cgroup gone 36a13e4f034b peak_anon=1450094592 peak_total=3765141504 events=low 0 high 0 max 0 oom 0 oom_kill 0 oom_group_kill 0 
+2026-09-29T02:35:15+0700 new container 30b920a38ddb
+2026-09-29T02:42:25+0700 logs ended 30b920a38ddb
+2026-09-29T02:42:28+0700 cgroup gone 30b920a38ddb peak_anon=2198421504 peak_total=5368717312 events=low 0 high 0 max 4915 oom 0 oom_kill 0 oom_group_kill 0 
+2026-09-29T02:43:04+0700 new container b9b756f34286
+2026-09-29T02:45:54+0700 logs ended b9b756f34286
+2026-09-29T02:45:55+0700 cgroup gone b9b756f34286 peak_anon=196923392 peak_total=784969728 events=low 0 high 0 max 0 oom 0 oom_kill 0 oom_group_kill 0 
+2026-09-29T02:46:22+0700 new container 9bde6f37360f
+2026-09-29T02:49:15+0700 logs ended 9bde6f37360f
+2026-09-29T02:49:17+0700 cgroup gone 9bde6f37360f peak_anon=1415659520 peak_total=3050393600 events=low 0 high 0 max 0 oom 0 oom_kill 0 oom_group_kill 0 
+2026-09-29T02:49:43+0700 new container e34014a98b32
+2026-09-29T02:52:29+0700 logs ended e34014a98b32
+2026-09-29T02:52:29+0700 cgroup gone e34014a98b32 peak_anon=1455116288 peak_total=2692730880 events=low 0 high 0 max 0 oom 0 oom_kill 0 oom_group_kill 0 
+2026-09-29T02:53:03+0700 new container 40325844d63f
+2026-09-29T02:55:39+0700 logs ended 40325844d63f
+2026-09-29T02:55:39+0700 cgroup gone 40325844d63f peak_anon=537735168 peak_total=3669192704 events=low 0 high 0 max 0 oom 0 oom_kill 0 oom_group_kill 0 
+2026-09-29T02:56:21+0700 new container f5f4897ba912
+2026-09-29T03:14:32+0700 cgroup gone f5f4897ba912 peak_anon=1464111104 peak_total=3240181760 events=low 0 high 0 max 0 oom 0 oom_kill 0 oom_group_kill 0 
+2026-09-29T03:14:34+0700 logs ended f5f4897ba912
+2026-09-29T03:15:17+0700 new container d1b81b402b90
+2026-09-29T03:31:32+0700 logs ended d1b81b402b90
+2026-09-29T03:31:34+0700 cgroup gone d1b81b402b90 peak_anon=3219091456 peak_total=5368713216 events=low 0 high 0 max 14747 oom 0 oom_kill 0 oom_group_kill 0 
+2026-09-29T03:32:07+0700 new container 65711bfe5b77
+2026-09-29T03:45:08+0700 logs ended 65711bfe5b77
+2026-09-29T03:45:11+0700 cgroup gone 65711bfe5b77 peak_anon=2192232448 peak_total=5369520128 events=low 0 high 0 max 6705 oom 0 oom_kill 0 oom_group_kill 0 
+2026-09-29T03:45:28+0700 new container 5ba92d996356
+2026-09-29T03:51:56+0700 logs ended 5ba92d996356

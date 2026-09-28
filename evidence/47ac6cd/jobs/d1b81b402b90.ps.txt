@@ -1,0 +1,240 @@
+=== 2026-09-29T03:16:57+0700 d1b81b402b90 procs=14 io=8:0 rbytes=761982976 wbytes=2396758016 rios=13740 wios=19345 dbytes=0 dios=0 7:0 rbytes=576761856 wbytes=114688 rios=11327 wios=48 dbytes=0 dios=0 
+    PID    PPID STAT ELAPSED   RSS %CPU WCHAN                    COMMAND
+1594396 1594363 Ss       103  3456  0.0 do_wait                  /bin/bash /opt/ci-runner/entrypoint.sh
+1594542 1594396 Sl       103 84120  0.7 futex_wait_queue         dockerd --host=unix:///var/run/docker.sock --group=docker
+1594584 1594542 Ssl      103 44076  0.3 futex_wait_queue         containerd --config /var/run/docker/containerd/containerd.toml
+1595182 1594396 S        100  3792  0.0 do_wait                  /bin/bash /home/runner/run.sh
+1595183 1595182 S        100  1700  0.0 pipe_read                tee -a /run/ci-runner/runner.out
+1595187 1595182 S        100  3700  0.0 do_wait                  /bin/bash /home/runner/run-helper.sh
+1595191 1595187 Sl       100 114848 3.0 futex_wait_queue         /home/runner/bin/Runner.Listener run
+1598500 1595191 Sl        90 137632 6.2 futex_wait_queue         /home/runner/bin/Runner.Worker spawnclient 150 153
+1611587 1598500 S          6  3808  0.0 do_wait                  /usr/bin/bash -e /home/runner/_work/_temp/c698f2a0-5709-4016-9003-d5e16690bc1e.sh
+1611589 1611587 S          6  3816  0.0 do_wait                  bash tool/build_with_retry.sh flutter build apk --debug --flavor staging --dart-define-from-file=config/staging.json --dart-define=PK_OIDC_REDIRECT_URI=id.
+1611592 1611589 Sl         6 89460 14.5 futex_wait_queue         /home/runner/_work/_temp/flutter/bin/cache/dart-sdk/bin/dartvm --resolved_executable_name=/home/runner/_work/_temp/flutter/bin/cache/dart-sdk/bin/dart --ex
+1611593 1611589 S          6  1920  0.0 pipe_read                tee /tmp/tmp.3dYFj20425
+1611692 1611592 Sl         5 100044 33.6 futex_wait_queue        /cache/toolcache/Java_Temurin-Hotspot_jdk/17.0.20-101/x64/bin/java -Dorg.gradle.daemon=false -Dorg.gradle.workers.max=1 -Dorg.gradle.parallel=false -Dorg.g
+1611809 1611692 Ssl        3 235968 176 futex_wait_queue         /cache/toolcache/Java_Temurin-Hotspot_jdk/17.0.20-101/x64/bin/java --add-opens=java.base/java.lang=ALL-UNNAMED --add-opens=java.base/java.lang.invoke=ALL-U
+=== 2026-09-29T03:17:58+0700 d1b81b402b90 procs=18 io=8:0 rbytes=1308819456 wbytes=2718810112 rios=34314 wios=23171 dbytes=0 dios=0 7:0 rbytes=921604096 wbytes=188416 rios=38222 wios=55 dbytes=0 dios=0 
+    PID    PPID STAT ELAPSED   RSS %CPU WCHAN                    COMMAND
+1594396 1594363 Ss       163  3456  0.0 do_wait                  /bin/bash /opt/ci-runner/entrypoint.sh
+1594542 1594396 Sl       163 83556  0.4 futex_wait_queue         dockerd --host=unix:///var/run/docker.sock --group=docker
+1594584 1594542 Ssl      163 43716  0.2 futex_wait_queue         containerd --config /var/run/docker/containerd/containerd.toml
+1595182 1594396 S        160  3792  0.0 do_wait                  /bin/bash /home/runner/run.sh
+1595183 1595182 S        160  1700  0.0 pipe_read                tee -a /run/ci-runner/runner.out
+1595187 1595182 S        160  3700  0.0 do_wait                  /bin/bash /home/runner/run-helper.sh
+1595191 1595187 Sl       160 115904 1.9 futex_wait_queue         /home/runner/bin/Runner.Listener run
+1598500 1595191 Sl       150 137756 3.9 futex_wait_queue         /home/runner/bin/Runner.Worker spawnclient 150 153
+1611587 1598500 S         67  3808  0.0 do_wait                  /usr/bin/bash -e /home/runner/_work/_temp/c698f2a0-5709-4016-9003-d5e16690bc1e.sh
+1611589 1611587 S         67  3816  0.0 do_wait                  bash tool/build_with_retry.sh flutter build apk --debug --flavor staging --dart-define-from-file=config/staging.json --dart-define=PK_OIDC_REDIRECT_URI=id.
+1611592 1611589 Sl        67 89800  1.5 futex_wait_queue         /home/runner/_work/_temp/flutter/bin/cache/dart-sdk/bin/dartvm --resolved_executable_name=/home/runner/_work/_temp/flutter/bin/cache/dart-sdk/bin/dart --ex
+1611593 1611589 S         67  1920  0.0 pipe_read                tee /tmp/tmp.3dYFj20425
+1611692 1611592 Sl        65 101092 3.2 futex_wait_queue         /cache/toolcache/Java_Temurin-Hotspot_jdk/17.0.20-101/x64/bin/java -Dorg.gradle.daemon=false -Dorg.gradle.workers.max=1 -Dorg.gradle.parallel=false -Dorg.g
+1611809 1611692 Ssl       64 1142140 144 futex_wait_queue        /cache/toolcache/Java_Temurin-Hotspot_jdk/17.0.20-101/x64/bin/java --add-opens=java.base/java.lang=ALL-UNNAMED --add-opens=java.base/java.lang.invoke=ALL-U
+1620207 1611809 Sl        11 132660 13.4 futex_wait_queue        /home/runner/_work/_temp/flutter/bin/cache/dart-sdk/bin/dartvm --resolved_executable_name=/home/runner/_work/_temp/flutter/bin/cache/dart-sdk/bin/dart --ex
+1620315 1620207 Sl        10 980576 97.9 futex_wait_queue        /home/runner/_work/_temp/flutter/bin/cache/dart-sdk/bin/dartaotruntime /home/runner/_work/_temp/flutter/bin/cache/dart-sdk/bin/snapshots/frontend_server_ao
+1624079 1620207 Sl         1 32104  1.2 futex_wait_queue         /home/runner/_work/_temp/flutter/bin/cache/dart-sdk/bin/dart compile kernel --packages=/home/runner/_work/drms/drms/apps/mobile/.dart_tool/package_config.j
+1624092 1624079 Sl         1 159616 113 futex_wait_queue         /home/runner/_work/_temp/flutter/bin/cache/dart-sdk/bin/dartaotruntime /home/runner/_work/_temp/flutter/bin/cache/dart-sdk/bin/snapshots/gen_kernel_aot.dar
+=== 2026-09-29T03:18:58+0700 d1b81b402b90 procs=14 io=8:0 rbytes=1508864000 wbytes=3049496576 rios=41555 wios=23797 dbytes=0 dios=0 7:0 rbytes=1039323136 wbytes=434176 rios=45340 wios=65 dbytes=0 dios=0 
+    PID    PPID STAT ELAPSED   RSS %CPU WCHAN                    COMMAND
+1594396 1594363 Ss       223  3456  0.0 do_wait                  /bin/bash /opt/ci-runner/entrypoint.sh
+1594542 1594396 Sl       223 83556  0.3 futex_wait_queue         dockerd --host=unix:///var/run/docker.sock --group=docker
+1594584 1594542 Ssl      223 43728  0.2 futex_wait_queue         containerd --config /var/run/docker/containerd/containerd.toml
+1595182 1594396 S        220  3792  0.0 do_wait                  /bin/bash /home/runner/run.sh
+1595183 1595182 S        220  1700  0.0 pipe_read                tee -a /run/ci-runner/runner.out
+1595187 1595182 S        220  3700  0.0 do_wait                  /bin/bash /home/runner/run-helper.sh
+1595191 1595187 Sl       220 118600 1.4 futex_wait_queue         /home/runner/bin/Runner.Listener run
+1598500 1595191 Sl       210 137896 3.0 futex_wait_queue         /home/runner/bin/Runner.Worker spawnclient 150 153
+1611587 1598500 S        127  3808  0.0 do_wait                  /usr/bin/bash -e /home/runner/_work/_temp/c698f2a0-5709-4016-9003-d5e16690bc1e.sh
+1611589 1611587 S        127  3816  0.0 do_wait                  bash tool/build_with_retry.sh flutter build apk --debug --flavor staging --dart-define-from-file=config/staging.json --dart-define=PK_OIDC_REDIRECT_URI=id.
+1611592 1611589 Sl       127 80856  0.8 futex_wait_queue         /home/runner/_work/_temp/flutter/bin/cache/dart-sdk/bin/dartvm --resolved_executable_name=/home/runner/_work/_temp/flutter/bin/cache/dart-sdk/bin/dart --ex
+1611593 1611589 S        127  1920  0.0 pipe_read                tee /tmp/tmp.3dYFj20425
+1611692 1611592 Sl       125 101284 1.8 futex_wait_queue         /cache/toolcache/Java_Temurin-Hotspot_jdk/17.0.20-101/x64/bin/java -Dorg.gradle.daemon=false -Dorg.gradle.workers.max=1 -Dorg.gradle.parallel=false -Dorg.g
+1611809 1611692 Ssl      124 1343348 114 futex_wait_queue        /cache/toolcache/Java_Temurin-Hotspot_jdk/17.0.20-101/x64/bin/java --add-opens=java.base/java.lang=ALL-UNNAMED --add-opens=java.base/java.lang.invoke=ALL-U
+=== 2026-09-29T03:19:58+0700 d1b81b402b90 procs=14 io=8:0 rbytes=1697935360 wbytes=3200630784 rios=46627 wios=24979 dbytes=0 dios=0 7:0 rbytes=1202376704 wbytes=659456 rios=51680 wios=77 dbytes=0 dios=0 
+    PID    PPID STAT ELAPSED   RSS %CPU WCHAN                    COMMAND
+1594396 1594363 Ss       284  3456  0.0 do_wait                  /bin/bash /opt/ci-runner/entrypoint.sh
+1594542 1594396 Sl       283 80960  0.2 futex_wait_queue         dockerd --host=unix:///var/run/docker.sock --group=docker
+1594584 1594542 Ssl      283 38848  0.1 futex_wait_queue         containerd --config /var/run/docker/containerd/containerd.toml
+1595182 1594396 S        280  3792  0.0 do_wait                  /bin/bash /home/runner/run.sh
+1595183 1595182 S        280  1700  0.0 pipe_read                tee -a /run/ci-runner/runner.out
+1595187 1595182 S        280  3700  0.0 do_wait                  /bin/bash /home/runner/run-helper.sh
+1595191 1595187 Sl       280 118088 1.1 futex_wait_queue         /home/runner/bin/Runner.Listener run
+1598500 1595191 Sl       270 137896 2.4 futex_wait_queue         /home/runner/bin/Runner.Worker spawnclient 150 153
+1611587 1598500 S        187  3808  0.0 do_wait                  /usr/bin/bash -e /home/runner/_work/_temp/c698f2a0-5709-4016-9003-d5e16690bc1e.sh
+1611589 1611587 S        187  3816  0.0 do_wait                  bash tool/build_with_retry.sh flutter build apk --debug --flavor staging --dart-define-from-file=config/staging.json --dart-define=PK_OIDC_REDIRECT_URI=id.
+1611592 1611589 Sl       187 80852  0.5 futex_wait_queue         /home/runner/_work/_temp/flutter/bin/cache/dart-sdk/bin/dartvm --resolved_executable_name=/home/runner/_work/_temp/flutter/bin/cache/dart-sdk/bin/dart --ex
+1611593 1611589 S        187  1920  0.0 pipe_read                tee /tmp/tmp.3dYFj20425
+1611692 1611592 Sl       185 101704 1.3 futex_wait_queue         /cache/toolcache/Java_Temurin-Hotspot_jdk/17.0.20-101/x64/bin/java -Dorg.gradle.daemon=false -Dorg.gradle.workers.max=1 -Dorg.gradle.parallel=false -Dorg.g
+1611809 1611692 Ssl      184 2058280 137 futex_wait_queue        /cache/toolcache/Java_Temurin-Hotspot_jdk/17.0.20-101/x64/bin/java --add-opens=java.base/java.lang=ALL-UNNAMED --add-opens=java.base/java.lang.invoke=ALL-U
+=== 2026-09-29T03:20:58+0700 d1b81b402b90 procs=15 io=8:0 rbytes=4515512320 wbytes=4568236032 rios=71893 wios=29935 dbytes=0 dios=0 7:0 rbytes=3132407808 wbytes=868352 rios=71505 wios=122 dbytes=0 dios=0 
+    PID    PPID STAT ELAPSED   RSS %CPU WCHAN                    COMMAND
+1594396 1594363 Ss       344  3456  0.0 do_wait                  /bin/bash /opt/ci-runner/entrypoint.sh
+1594542 1594396 Sl       343 80932  0.2 futex_wait_queue         dockerd --host=unix:///var/run/docker.sock --group=docker
+1594584 1594542 Ssl      343 38852  0.1 ep_poll                  containerd --config /var/run/docker/containerd/containerd.toml
+1595182 1594396 S        340  3792  0.0 do_wait                  /bin/bash /home/runner/run.sh
+1595183 1595182 S        340  1700  0.0 pipe_read                tee -a /run/ci-runner/runner.out
+1595187 1595182 S        340  3700  0.0 do_wait                  /bin/bash /home/runner/run-helper.sh
+1595191 1595187 Sl       340 118172 0.9 futex_wait_queue         /home/runner/bin/Runner.Listener run
+1598500 1595191 Sl       330 139516 2.1 futex_wait_queue         /home/runner/bin/Runner.Worker spawnclient 150 153
+1611587 1598500 S        247  3808  0.0 do_wait                  /usr/bin/bash -e /home/runner/_work/_temp/c698f2a0-5709-4016-9003-d5e16690bc1e.sh
+1611589 1611587 S        247  3816  0.0 do_wait                  bash tool/build_with_retry.sh flutter build apk --debug --flavor staging --dart-define-from-file=config/staging.json --dart-define=PK_OIDC_REDIRECT_URI=id.
+1611592 1611589 Sl       247 80852  0.4 futex_wait_queue         /home/runner/_work/_temp/flutter/bin/cache/dart-sdk/bin/dartvm --resolved_executable_name=/home/runner/_work/_temp/flutter/bin/cache/dart-sdk/bin/dart --ex
+1611593 1611589 S        247  1920  0.0 pipe_read                tee /tmp/tmp.3dYFj20425
+1611692 1611592 Sl       246 101956 1.1 futex_wait_queue         /cache/toolcache/Java_Temurin-Hotspot_jdk/17.0.20-101/x64/bin/java -Dorg.gradle.daemon=false -Dorg.gradle.workers.max=1 -Dorg.gradle.parallel=false -Dorg.g
+1611809 1611692 Ssl      244 2183376 131 futex_wait_queue        /cache/toolcache/Java_Temurin-Hotspot_jdk/17.0.20-101/x64/bin/java --add-opens=java.base/java.lang=ALL-UNNAMED --add-opens=java.base/java.lang.invoke=ALL-U
+1646589 1611809 S         37 17224  0.8 pipe_read                /cache/gradle/caches/9.3.1/transforms/35fc7c9aabf3963476dbd7a99d18fea8/transformed/aapt2-9.1.0-14792394-linux/aapt2 m
+=== 2026-09-29T03:21:58+0700 d1b81b402b90 procs=13 io=8:0 rbytes=4934418432 wbytes=5335777280 rios=76853 wios=32050 dbytes=0 dios=0 7:0 rbytes=3169734656 wbytes=1589248 rios=73534 wios=297 dbytes=0 dios=0 
+    PID    PPID STAT ELAPSED   RSS %CPU WCHAN                    COMMAND
+1594396 1594363 Ss       404  3456  0.0 do_wait                  /bin/bash /opt/ci-runner/entrypoint.sh
+1594542 1594396 Sl       403 82776  0.2 futex_wait_queue         dockerd --host=unix:///var/run/docker.sock --group=docker
+1594584 1594542 Ssl      403 43232  0.1 futex_wait_queue         containerd --config /var/run/docker/containerd/containerd.toml
+1595182 1594396 S        400  3792  0.0 do_wait                  /bin/bash /home/runner/run.sh
+1595183 1595182 S        400  1700  0.0 pipe_read                tee -a /run/ci-runner/runner.out
+1595187 1595182 S        400  3700  0.0 do_wait                  /bin/bash /home/runner/run-helper.sh
+1595191 1595187 Sl       400 118156 0.8 futex_wait_queue         /home/runner/bin/Runner.Listener run
+1598500 1595191 Sl       390 145060 1.9 futex_wait_queue         /home/runner/bin/Runner.Worker spawnclient 150 153
+1656059 1598500 S         46  3572  0.0 do_wait                  /usr/bin/bash -e /home/runner/_work/_temp/f8d9c4e5-b47a-4858-b43e-4d0a0fd5bc65.sh
+1656061 1656059 S         46  3688  0.0 do_wait                  bash tool/apk_secret_scan.sh build/app/outputs/flutter-apk/app-staging-debug.apk
+1657217 1656061 Sl        41 25696  0.0 futex_wait_queue         docker run --rm -v /home/runner/_work/_temp/apk-scan-debug:/scan:ro -v /home/runner/_work/drms/drms/apps/mobile/tool/apk-gitleaks.toml:/cfg/gitleaks.toml:r
+1657317 1594396 Sl        41 10912  0.0 futex_wait_queue         /usr/bin/containerd-shim-runc-v2 -namespace moby -id d02f2743c58d8f8d0238b561867eef6100a64d6d51ddc91a46ead371c5215f54 -address /var/run/docker/containerd/c
+1657357 1657317 Ssl       41 51748  183 futex_wait_queue         gitleaks dir --no-banner --redact --exit-code 1 --config /cfg/gitleaks.toml /scan
+=== 2026-09-29T03:23:58+0700 d1b81b402b90 procs=18 io=8:0 rbytes=5543563264 wbytes=5340430336 rios=96581 wios=32800 dbytes=0 dios=0 7:0 rbytes=3574906880 wbytes=3538944 rios=110849 wios=762 dbytes=0 dios=0 
+    PID    PPID STAT ELAPSED   RSS %CPU WCHAN                    COMMAND
+1594396 1594363 Ss       524  3456  0.0 do_wait                  /bin/bash /opt/ci-runner/entrypoint.sh
+1594542 1594396 Sl       524 83808  0.2 futex_wait_queue         dockerd --host=unix:///var/run/docker.sock --group=docker
+1594584 1594542 Ssl      523 46872  0.1 futex_wait_queue         containerd --config /var/run/docker/containerd/containerd.toml
+1595182 1594396 S        521  3792  0.0 do_wait                  /bin/bash /home/runner/run.sh
+1595183 1595182 S        521  1700  0.0 pipe_read                tee -a /run/ci-runner/runner.out
+1595187 1595182 S        521  3700  0.0 do_wait                  /bin/bash /home/runner/run-helper.sh
+1595191 1595187 Sl       521 118232 0.6 futex_wait_queue         /home/runner/bin/Runner.Listener run
+1598500 1595191 Sl       511 145384 1.7 futex_wait_queue         /home/runner/bin/Runner.Worker spawnclient 150 153
+1678196 1598500 S         42  3688  0.0 do_wait                  /usr/bin/bash -e /home/runner/_work/_temp/fed643cd-6b3a-441e-bad7-8f3962e3aa6d.sh
+1678197 1678196 S         42  3728  0.0 do_wait                  bash tool/build_with_retry.sh flutter build apk --release --flavor staging --dart-define-from-file=config/staging.json --build-number=31 --obfuscate --spli
+1678200 1678197 Sl        42 88820  2.4 futex_wait_queue         /home/runner/_work/_temp/flutter/bin/cache/dart-sdk/bin/dartvm --resolved_executable_name=/home/runner/_work/_temp/flutter/bin/cache/dart-sdk/bin/dart --ex
+1678201 1678197 S         42  1880  0.0 pipe_read                tee /tmp/tmp.lU2KrBEaq2
+1678282 1678200 Sl        41 104448 5.3 futex_wait_queue         /cache/toolcache/Java_Temurin-Hotspot_jdk/17.0.20-101/x64/bin/java -Dorg.gradle.daemon=false -Dorg.gradle.workers.max=1 -Dorg.gradle.parallel=false -Dorg.g
+1678654 1678282 Ssl       39 1083100 164 futex_wait_queue        /cache/toolcache/Java_Temurin-Hotspot_jdk/17.0.20-101/x64/bin/java --add-opens=java.base/java.lang=ALL-UNNAMED --add-opens=java.base/java.lang.invoke=ALL-U
+1683046 1678654 Sl         3 130360 43.5 futex_wait_queue        /home/runner/_work/_temp/flutter/bin/cache/dart-sdk/bin/dartvm --resolved_executable_name=/home/runner/_work/_temp/flutter/bin/cache/dart-sdk/bin/dart --ex
+1683167 1683046 Sl         2 289160 100 futex_wait_queue         /home/runner/_work/_temp/flutter/bin/cache/dart-sdk/bin/dartaotruntime /home/runner/_work/_temp/flutter/bin/cache/dart-sdk/bin/snapshots/frontend_server_ao
+1683223 1683046 Sl         0 32544  7.4 futex_wait_queue         /home/runner/_work/_temp/flutter/bin/cache/dart-sdk/bin/dart compile kernel --packages=/home/runner/_work/drms/drms/apps/mobile/.dart_tool/package_config.j
+1683236 1683223 Sl         0 52740 50.0 futex_wait_queue         /home/runner/_work/_temp/flutter/bin/cache/dart-sdk/bin/dartaotruntime /home/runner/_work/_temp/flutter/bin/cache/dart-sdk/bin/snapshots/gen_kernel_aot.dar
+=== 2026-09-29T03:24:58+0700 d1b81b402b90 procs=18 io=8:0 rbytes=5607235584 wbytes=5468848128 rios=99325 wios=33313 dbytes=0 dios=0 7:0 rbytes=3597578240 wbytes=4022272 rios=112756 wios=801 dbytes=0 dios=0 
+    PID    PPID STAT ELAPSED   RSS %CPU WCHAN                    COMMAND
+1594396 1594363 Ss       584  3456  0.0 do_wait                  /bin/bash /opt/ci-runner/entrypoint.sh
+1594542 1594396 Sl       584 83664  0.1 futex_wait_queue         dockerd --host=unix:///var/run/docker.sock --group=docker
+1594584 1594542 Ssl      584 44424  0.1 futex_wait_queue         containerd --config /var/run/docker/containerd/containerd.toml
+1595182 1594396 S        581  3792  0.0 do_wait                  /bin/bash /home/runner/run.sh
+1595183 1595182 S        581  1700  0.0 pipe_read                tee -a /run/ci-runner/runner.out
+1595187 1595182 S        581  3700  0.0 do_wait                  /bin/bash /home/runner/run-helper.sh
+1595191 1595187 Sl       581 117492 0.6 futex_wait_queue         /home/runner/bin/Runner.Listener run
+1598500 1595191 Sl       571 145348 1.5 futex_wait_queue         /home/runner/bin/Runner.Worker spawnclient 150 153
+1678196 1598500 S        102  3688  0.0 do_wait                  /usr/bin/bash -e /home/runner/_work/_temp/fed643cd-6b3a-441e-bad7-8f3962e3aa6d.sh
+1678197 1678196 S        102  3728  0.0 do_wait                  bash tool/build_with_retry.sh flutter build apk --release --flavor staging --dart-define-from-file=config/staging.json --build-number=31 --obfuscate --spli
+1678200 1678197 Sl       102 80788  1.0 futex_wait_queue         /home/runner/_work/_temp/flutter/bin/cache/dart-sdk/bin/dartvm --resolved_executable_name=/home/runner/_work/_temp/flutter/bin/cache/dart-sdk/bin/dart --ex
+1678201 1678197 S        102  1880  0.0 pipe_read                tee /tmp/tmp.lU2KrBEaq2
+1678282 1678200 Sl       101 104480 2.3 futex_wait_queue         /cache/toolcache/Java_Temurin-Hotspot_jdk/17.0.20-101/x64/bin/java -Dorg.gradle.daemon=false -Dorg.gradle.workers.max=1 -Dorg.gradle.parallel=false -Dorg.g
+1678654 1678282 Ssl       99 1056356 66.5 futex_wait_queue       /cache/toolcache/Java_Temurin-Hotspot_jdk/17.0.20-101/x64/bin/java --add-opens=java.base/java.lang=ALL-UNNAMED --add-opens=java.base/java.lang.invoke=ALL-U
+1683046 1678654 Sl        63 131624 6.4 futex_wait_queue         /home/runner/_work/_temp/flutter/bin/cache/dart-sdk/bin/dartvm --resolved_executable_name=/home/runner/_work/_temp/flutter/bin/cache/dart-sdk/bin/dart --ex
+1691962 1683046 Rl         9 280012 49.6 -                       /home/runner/_work/_temp/flutter/bin/cache/artifacts/engine/android-arm-release/linux-x64/gen_snapshot --deterministic --snapshot_kind=app-aot-elf --elf=/h
+1691963 1683046 Rl         9 256912 36.4 -                       /home/runner/_work/_temp/flutter/bin/cache/artifacts/engine/android-arm64-release/linux-x64/gen_snapshot --deterministic --snapshot_kind=app-aot-elf --elf=
+1691968 1683046 Rl         9 258832 41.8 -                       /home/runner/_work/_temp/flutter/bin/cache/artifacts/engine/android-x64-release/linux-x64/gen_snapshot --deterministic --snapshot_kind=app-aot-elf --elf=/h
+=== 2026-09-29T03:25:59+0700 d1b81b402b90 procs=14 io=8:0 rbytes=6147407872 wbytes=6208184320 rios=105618 wios=35005 dbytes=0 dios=0 7:0 rbytes=4120928256 wbytes=4222976 rios=120829 wios=841 dbytes=0 dios=0 
+    PID    PPID STAT ELAPSED   RSS %CPU WCHAN                    COMMAND
+1594396 1594363 Ss       644  3456  0.0 do_wait                  /bin/bash /opt/ci-runner/entrypoint.sh
+1594542 1594396 Sl       644 82428  0.1 futex_wait_queue         dockerd --host=unix:///var/run/docker.sock --group=docker
+1594584 1594542 Ssl      644 44432  0.1 futex_wait_queue         containerd --config /var/run/docker/containerd/containerd.toml
+1595182 1594396 S        641  3792  0.0 do_wait                  /bin/bash /home/runner/run.sh
+1595183 1595182 S        641  1700  0.0 pipe_read                tee -a /run/ci-runner/runner.out
+1595187 1595182 S        641  3700  0.0 do_wait                  /bin/bash /home/runner/run-helper.sh
+1595191 1595187 Sl       641 117540 0.5 futex_wait_queue         /home/runner/bin/Runner.Listener run
+1598500 1595191 Sl       631 145484 1.4 futex_wait_queue         /home/runner/bin/Runner.Worker spawnclient 150 153
+1678196 1598500 S        162  3688  0.0 do_wait                  /usr/bin/bash -e /home/runner/_work/_temp/fed643cd-6b3a-441e-bad7-8f3962e3aa6d.sh
+1678197 1678196 S        162  3728  0.0 do_wait                  bash tool/build_with_retry.sh flutter build apk --release --flavor staging --dart-define-from-file=config/staging.json --build-number=31 --obfuscate --spli
+1678200 1678197 Sl       162 80820  0.6 futex_wait_queue         /home/runner/_work/_temp/flutter/bin/cache/dart-sdk/bin/dartvm --resolved_executable_name=/home/runner/_work/_temp/flutter/bin/cache/dart-sdk/bin/dart --ex
+1678201 1678197 S        162  1880  0.0 pipe_read                tee /tmp/tmp.lU2KrBEaq2
+1678282 1678200 Sl       161 104656 1.5 futex_wait_queue         /cache/toolcache/Java_Temurin-Hotspot_jdk/17.0.20-101/x64/bin/java -Dorg.gradle.daemon=false -Dorg.gradle.workers.max=1 -Dorg.gradle.parallel=false -Dorg.g
+1678654 1678282 Ssl      159 1302444 54.5 futex_wait_queue       /cache/toolcache/Java_Temurin-Hotspot_jdk/17.0.20-101/x64/bin/java --add-opens=java.base/java.lang=ALL-UNNAMED --add-opens=java.base/java.lang.invoke=ALL-U
+=== 2026-09-29T03:26:59+0700 d1b81b402b90 procs=14 io=8:0 rbytes=6161018880 wbytes=6404374528 rios=106286 wios=36857 dbytes=0 dios=0 7:0 rbytes=4132786176 wbytes=4534272 rios=121714 wios=896 dbytes=0 dios=0 
+    PID    PPID STAT ELAPSED   RSS %CPU WCHAN                    COMMAND
+1594396 1594363 Ss       704  3456  0.0 do_wait                  /bin/bash /opt/ci-runner/entrypoint.sh
+1594542 1594396 Sl       704 82428  0.1 futex_wait_queue         dockerd --host=unix:///var/run/docker.sock --group=docker
+1594584 1594542 Ssl      704 40420  0.1 futex_wait_queue         containerd --config /var/run/docker/containerd/containerd.toml
+1595182 1594396 S        701  3792  0.0 do_wait                  /bin/bash /home/runner/run.sh
+1595183 1595182 S        701  1700  0.0 pipe_read                tee -a /run/ci-runner/runner.out
+1595187 1595182 S        701  3700  0.0 do_wait                  /bin/bash /home/runner/run-helper.sh
+1595191 1595187 Sl       701 118352 0.5 futex_wait_queue         /home/runner/bin/Runner.Listener run
+1598500 1595191 Sl       691 145484 1.4 futex_wait_queue         /home/runner/bin/Runner.Worker spawnclient 150 153
+1678196 1598500 S        223  3688  0.0 do_wait                  /usr/bin/bash -e /home/runner/_work/_temp/fed643cd-6b3a-441e-bad7-8f3962e3aa6d.sh
+1678197 1678196 S        223  3728  0.0 do_wait                  bash tool/build_with_retry.sh flutter build apk --release --flavor staging --dart-define-from-file=config/staging.json --build-number=31 --obfuscate --spli
+1678200 1678197 Sl       223 80300  0.4 futex_wait_queue         /home/runner/_work/_temp/flutter/bin/cache/dart-sdk/bin/dartvm --resolved_executable_name=/home/runner/_work/_temp/flutter/bin/cache/dart-sdk/bin/dart --ex
+1678201 1678197 S        223  1880  0.0 pipe_read                tee /tmp/tmp.lU2KrBEaq2
+1678282 1678200 Sl       221 104860 1.2 futex_wait_queue         /cache/toolcache/Java_Temurin-Hotspot_jdk/17.0.20-101/x64/bin/java -Dorg.gradle.daemon=false -Dorg.gradle.workers.max=1 -Dorg.gradle.parallel=false -Dorg.g
+1678654 1678282 Ssl      219 1685420 93.0 futex_wait_queue       /cache/toolcache/Java_Temurin-Hotspot_jdk/17.0.20-101/x64/bin/java --add-opens=java.base/java.lang=ALL-UNNAMED --add-opens=java.base/java.lang.invoke=ALL-U
+=== 2026-09-29T03:27:59+0700 d1b81b402b90 procs=15 io=8:0 rbytes=6384582656 wbytes=6439354368 rios=110700 wios=40398 dbytes=0 dios=0 7:0 rbytes=4343742464 wbytes=4714496 rios=129090 wios=931 dbytes=0 dios=0 
+    PID    PPID STAT ELAPSED   RSS %CPU WCHAN                    COMMAND
+1594396 1594363 Ss       765  3456  0.0 do_wait                  /bin/bash /opt/ci-runner/entrypoint.sh
+1594542 1594396 Sl       764 82540  0.1 futex_wait_queue         dockerd --host=unix:///var/run/docker.sock --group=docker
+1594584 1594542 Ssl      764 40420  0.1 futex_wait_queue         containerd --config /var/run/docker/containerd/containerd.toml
+1595182 1594396 S        761  3792  0.0 do_wait                  /bin/bash /home/runner/run.sh
+1595183 1595182 S        761  1700  0.0 pipe_read                tee -a /run/ci-runner/runner.out
+1595187 1595182 S        761  3700  0.0 do_wait                  /bin/bash /home/runner/run-helper.sh
+1595191 1595187 Sl       761 118604 0.5 futex_wait_queue         /home/runner/bin/Runner.Listener run
+1598500 1595191 Sl       751 145484 1.3 futex_wait_queue         /home/runner/bin/Runner.Worker spawnclient 150 153
+1678196 1598500 S        283  3688  0.0 do_wait                  /usr/bin/bash -e /home/runner/_work/_temp/fed643cd-6b3a-441e-bad7-8f3962e3aa6d.sh
+1678197 1678196 S        283  3728  0.0 do_wait                  bash tool/build_with_retry.sh flutter build apk --release --flavor staging --dart-define-from-file=config/staging.json --build-number=31 --obfuscate --spli
+1678200 1678197 Sl       283 80300  0.3 futex_wait_queue         /home/runner/_work/_temp/flutter/bin/cache/dart-sdk/bin/dartvm --resolved_executable_name=/home/runner/_work/_temp/flutter/bin/cache/dart-sdk/bin/dart --ex
+1678201 1678197 S        283  1880  0.0 pipe_read                tee /tmp/tmp.lU2KrBEaq2
+1678282 1678200 Sl       281 105036 1.0 futex_wait_queue         /cache/toolcache/Java_Temurin-Hotspot_jdk/17.0.20-101/x64/bin/java -Dorg.gradle.daemon=false -Dorg.gradle.workers.max=1 -Dorg.gradle.parallel=false -Dorg.g
+1678654 1678282 Ssl      280 2560488 113 futex_wait_queue        /cache/toolcache/Java_Temurin-Hotspot_jdk/17.0.20-101/x64/bin/java --add-opens=java.base/java.lang=ALL-UNNAMED --add-opens=java.base/java.lang.invoke=ALL-U
+1717030 1678654 S         50 39020  2.2 pipe_read                /cache/gradle/caches/9.3.1/transforms/35fc7c9aabf3963476dbd7a99d18fea8/transformed/aapt2-9.1.0-14792394-linux/aapt2 m
+=== 2026-09-29T03:28:59+0700 d1b81b402b90 procs=15 io=8:0 rbytes=6384623616 wbytes=6442672128 rios=110706 wios=40598 dbytes=0 dios=0 7:0 rbytes=4344168448 wbytes=4714496 rios=129123 wios=931 dbytes=0 dios=0 
+    PID    PPID STAT ELAPSED   RSS %CPU WCHAN                    COMMAND
+1594396 1594363 Ss       825  3456  0.0 do_wait                  /bin/bash /opt/ci-runner/entrypoint.sh
+1594542 1594396 Sl       824 82540  0.1 futex_wait_queue         dockerd --host=unix:///var/run/docker.sock --group=docker
+1594584 1594542 Ssl      824 40452  0.1 futex_wait_queue         containerd --config /var/run/docker/containerd/containerd.toml
+1595182 1594396 S        821  3792  0.0 do_wait                  /bin/bash /home/runner/run.sh
+1595183 1595182 S        821  1700  0.0 pipe_read                tee -a /run/ci-runner/runner.out
+1595187 1595182 S        821  3700  0.0 do_wait                  /bin/bash /home/runner/run-helper.sh
+1595191 1595187 Sl       821 118684 0.4 futex_wait_queue         /home/runner/bin/Runner.Listener run
+1598500 1595191 Sl       811 145484 1.2 futex_wait_queue         /home/runner/bin/Runner.Worker spawnclient 150 153
+1678196 1598500 S        343  3688  0.0 do_wait                  /usr/bin/bash -e /home/runner/_work/_temp/fed643cd-6b3a-441e-bad7-8f3962e3aa6d.sh
+1678197 1678196 S        343  3728  0.0 do_wait                  bash tool/build_with_retry.sh flutter build apk --release --flavor staging --dart-define-from-file=config/staging.json --build-number=31 --obfuscate --spli
+1678200 1678197 Sl       343 80300  0.3 futex_wait_queue         /home/runner/_work/_temp/flutter/bin/cache/dart-sdk/bin/dartvm --resolved_executable_name=/home/runner/_work/_temp/flutter/bin/cache/dart-sdk/bin/dart --ex
+1678201 1678197 S        343  1880  0.0 pipe_read                tee /tmp/tmp.lU2KrBEaq2
+1678282 1678200 Sl       341 105036 0.9 futex_wait_queue         /cache/toolcache/Java_Temurin-Hotspot_jdk/17.0.20-101/x64/bin/java -Dorg.gradle.daemon=false -Dorg.gradle.workers.max=1 -Dorg.gradle.parallel=false -Dorg.g
+1678654 1678282 Ssl      340 2616924 128 futex_wait_queue        /cache/toolcache/Java_Temurin-Hotspot_jdk/17.0.20-101/x64/bin/java --add-opens=java.base/java.lang=ALL-UNNAMED --add-opens=java.base/java.lang.invoke=ALL-U
+1717030 1678654 S        111 39020  1.0 pipe_read                /cache/gradle/caches/9.3.1/transforms/35fc7c9aabf3963476dbd7a99d18fea8/transformed/aapt2-9.1.0-14792394-linux/aapt2 m
+=== 2026-09-29T03:29:59+0700 d1b81b402b90 procs=15 io=8:0 rbytes=6386921472 wbytes=6443646976 rios=110901 wios=40820 dbytes=0 dios=0 7:0 rbytes=4346368000 wbytes=4714496 rios=129364 wios=931 dbytes=0 dios=0 
+    PID    PPID STAT ELAPSED   RSS %CPU WCHAN                    COMMAND
+1594396 1594363 Ss       885  3456  0.0 do_wait                  /bin/bash /opt/ci-runner/entrypoint.sh
+1594542 1594396 Sl       884 82452  0.1 futex_wait_queue         dockerd --host=unix:///var/run/docker.sock --group=docker
+1594584 1594542 Ssl      884 40452  0.1 futex_wait_queue         containerd --config /var/run/docker/containerd/containerd.toml
+1595182 1594396 S        882  3792  0.0 do_wait                  /bin/bash /home/runner/run.sh
+1595183 1595182 S        882  1700  0.0 pipe_read                tee -a /run/ci-runner/runner.out
+1595187 1595182 S        882  3700  0.0 do_wait                  /bin/bash /home/runner/run-helper.sh
+1595191 1595187 Sl       882 118708 0.4 futex_wait_queue         /home/runner/bin/Runner.Listener run
+1598500 1595191 Sl       871 147976 1.2 futex_wait_queue         /home/runner/bin/Runner.Worker spawnclient 150 153
+1678196 1598500 S        403  3688  0.0 do_wait                  /usr/bin/bash -e /home/runner/_work/_temp/fed643cd-6b3a-441e-bad7-8f3962e3aa6d.sh
+1678197 1678196 S        403  3728  0.0 do_wait                  bash tool/build_with_retry.sh flutter build apk --release --flavor staging --dart-define-from-file=config/staging.json --build-number=31 --obfuscate --spli
+1678200 1678197 Sl       403 80300  0.2 futex_wait_queue         /home/runner/_work/_temp/flutter/bin/cache/dart-sdk/bin/dartvm --resolved_executable_name=/home/runner/_work/_temp/flutter/bin/cache/dart-sdk/bin/dart --ex
+1678201 1678197 S        403  1880  0.0 pipe_read                tee /tmp/tmp.lU2KrBEaq2
+1678282 1678200 Sl       401 105044 0.8 futex_wait_queue         /cache/toolcache/Java_Temurin-Hotspot_jdk/17.0.20-101/x64/bin/java -Dorg.gradle.daemon=false -Dorg.gradle.workers.max=1 -Dorg.gradle.parallel=false -Dorg.g
+1678654 1678282 Ssl      400 2657696 139 futex_wait_queue        /cache/toolcache/Java_Temurin-Hotspot_jdk/17.0.20-101/x64/bin/java --add-opens=java.base/java.lang=ALL-UNNAMED --add-opens=java.base/java.lang.invoke=ALL-U
+1717030 1678654 S        171 39020  0.6 pipe_read                /cache/gradle/caches/9.3.1/transforms/35fc7c9aabf3963476dbd7a99d18fea8/transformed/aapt2-9.1.0-14792394-linux/aapt2 m
+=== 2026-09-29T03:30:59+0700 d1b81b402b90 procs=15 io=8:0 rbytes=6551134208 wbytes=6496026624 rios=119089 wios=42013 dbytes=0 dios=0 7:0 rbytes=4454895616 wbytes=5058560 rios=135815 wios=953 dbytes=0 dios=0 
+    PID    PPID STAT ELAPSED   RSS %CPU WCHAN                    COMMAND
+1594396 1594363 Ss       945  3456  0.0 do_wait                  /bin/bash /opt/ci-runner/entrypoint.sh
+1594542 1594396 Sl       945 82452  0.1 futex_wait_queue         dockerd --host=unix:///var/run/docker.sock --group=docker
+1594584 1594542 Ssl      944 40500  0.1 futex_wait_queue         containerd --config /var/run/docker/containerd/containerd.toml
+1595182 1594396 S        942  3792  0.0 do_wait                  /bin/bash /home/runner/run.sh
+1595183 1595182 S        942  1700  0.0 pipe_read                tee -a /run/ci-runner/runner.out
+1595187 1595182 S        942  3700  0.0 do_wait                  /bin/bash /home/runner/run-helper.sh
+1595191 1595187 Sl       942 118740 0.4 futex_wait_queue         /home/runner/bin/Runner.Listener run
+1598500 1595191 Sl       932 147996 1.1 futex_wait_queue         /home/runner/bin/Runner.Worker spawnclient 150 153
+1678196 1598500 S        463  3688  0.0 do_wait                  /usr/bin/bash -e /home/runner/_work/_temp/fed643cd-6b3a-441e-bad7-8f3962e3aa6d.sh
+1678197 1678196 S        463  3728  0.0 do_wait                  bash tool/build_with_retry.sh flutter build apk --release --flavor staging --dart-define-from-file=config/staging.json --build-number=31 --obfuscate --spli
+1678200 1678197 Sl       463 80300  0.2 futex_wait_queue         /home/runner/_work/_temp/flutter/bin/cache/dart-sdk/bin/dartvm --resolved_executable_name=/home/runner/_work/_temp/flutter/bin/cache/dart-sdk/bin/dart --ex
+1678201 1678197 S        463  1880  0.0 pipe_read                tee /tmp/tmp.lU2KrBEaq2
+1678282 1678200 Sl       462 105432 0.7 futex_wait_queue         /cache/toolcache/Java_Temurin-Hotspot_jdk/17.0.20-101/x64/bin/java -Dorg.gradle.daemon=false -Dorg.gradle.workers.max=1 -Dorg.gradle.parallel=false -Dorg.g
+1678654 1678282 Ssl      460 2809492 145 futex_wait_queue        /cache/toolcache/Java_Temurin-Hotspot_jdk/17.0.20-101/x64/bin/java --add-opens=java.base/java.lang=ALL-UNNAMED --add-opens=java.base/java.lang.invoke=ALL-U
+1717030 1678654 S        231 39020  0.5 pipe_read                /cache/gradle/caches/9.3.1/transforms/35fc7c9aabf3963476dbd7a99d18fea8/transformed/aapt2-9.1.0-14792394-linux/aapt2 m

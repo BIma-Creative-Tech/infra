@@ -1,0 +1,498 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+2026-09-28 13:51:37Z: Running job: build APKs (staging)
+2026-09-28 15:07:14Z: Job build APKs (staging) completed with result: Canceled
+2026-09-28 15:07:53Z: Running job: integration (throwaway Postgres, migrations as owner, tests as app role)
+[ci-runner-entrypoint] 2026-09-28T13:51:26+00:00 starting inner dockerd
+[ci-runner-entrypoint] 2026-09-28T13:51:27+00:00 inner dockerd up: 29.7.2 storage=overlayfs
+[ci-runner-entrypoint] 2026-09-28T13:51:29+00:00 starting runner 2.337.0-1 as uid 1001
+[ci-runner-entrypoint] 2026-09-28T15:07:15+00:00 runner exited rc=0
+[ci-runner-entrypoint] 2026-09-28T15:07:39+00:00 starting inner dockerd
+[ci-runner-entrypoint] 2026-09-28T15:07:41+00:00 inner dockerd up: 29.7.2 storage=overlayfs
+[ci-runner-entrypoint] 2026-09-28T15:07:42+00:00 starting runner 2.337.0-1 as uid 1001
+[RUNNER 2026-09-28 13:51:29Z INFO RunnerServer] Establish connection with 100 seconds timeout.
+[RUNNER 2026-09-28 13:51:29Z INFO RunnerServer] Establish connection with 60 seconds timeout.
+[RUNNER 2026-09-28 13:51:29Z INFO RunnerServer] Establish connection with 60 seconds timeout.
+[RUNNER 2026-09-28 13:51:34Z INFO JobDispatcher] Set runner/worker IPC timeout to 30 seconds.
+[RUNNER 2026-09-28 13:51:37Z INFO Terminal] WRITE LINE: 2026-09-28 13:51:37Z: Running job: build APKs (staging)
+[RUNNER 2026-09-28 13:51:38Z INFO ProcessInvokerWrapper]   Force kill process on cancellation: 'True'
+[RUNNER 2026-09-28 15:06:46Z INFO JobDispatcher] Job cancellation request 1bad79ac-6884-5aad-9cd2-3f0f703db0eb received, cancellation timeout 5 minutes.
+[RUNNER 2026-09-28 15:06:46Z INFO JobDispatcher] Send job cancellation message to worker for job 1bad79ac-6884-5aad-9cd2-3f0f703db0eb.
+[RUNNER 2026-09-28 15:06:47Z INFO JobDispatcher] Job cancellation request 1bad79ac-6884-5aad-9cd2-3f0f703db0eb received, cancellation timeout 5 minutes.
+[RUNNER 2026-09-28 15:06:47Z INFO JobDispatcher] Job cancellation request 1bad79ac-6884-5aad-9cd2-3f0f703db0eb received, cancellation timeout 5 minutes.
+[RUNNER 2026-09-28 15:07:14Z ERR  BrokerServer]    at GitHub.Actions.RunService.WebApi.BrokerHttpClient.GetRunnerMessageAsync(Nullable`1 sessionId, String runnerVersion, Nullable`1 status, String os, String architecture, Nullable`1 disableUpdate, CancellationToken cancellationToken)
+[RUNNER 2026-09-28 15:07:14Z ERR  BrokerServer]    at GitHub.Runner.Common.RunnerService.RetryRequest[T](Func`1 func, CancellationToken cancellationToken, Int32 maxAttempts, Func`2 shouldRetry)
+[RUNNER 2026-09-28 15:07:14Z ERR  BrokerServer]    at GitHub.Services.Common.RawHttpMessageHandler.SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+[RUNNER 2026-09-28 15:07:14Z ERR  BrokerServer]    at GitHub.Services.Common.RawHttpMessageHandler.SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+[RUNNER 2026-09-28 15:07:14Z ERR  BrokerServer]    at GitHub.Services.Common.VssHttpRetryMessageHandler.SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+[RUNNER 2026-09-28 15:07:14Z ERR  BrokerServer]    at GitHub.Services.Common.VssHttpRetryMessageHandler.SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+[RUNNER 2026-09-28 15:07:14Z ERR  BrokerServer]    at Sdk.WebApi.WebApi.RawHttpClientBase.SendAsync(HttpRequestMessage message, HttpCompletionOption completionOption, Object userState, CancellationToken cancellationToken)
+[RUNNER 2026-09-28 15:07:14Z ERR  BrokerServer]    at Sdk.WebApi.WebApi.RawHttpClientBase.SendAsync[T](HttpMethod method, IEnumerable`1 additionalHeaders, Uri requestUri, HttpContent content, IEnumerable`1 queryParameters, Boolean readErrorBody, Object userState, CancellationToken cancellationToken)
+[RUNNER 2026-09-28 15:07:14Z ERR  BrokerServer]    at Sdk.WebApi.WebApi.RawHttpClientBase.SendAsync[T](HttpRequestMessage message, Boolean readErrorBody, Object userState, CancellationToken cancellationToken)
+[RUNNER 2026-09-28 15:07:14Z ERR  BrokerServer]    at System.Net.Http.AuthenticationHelper.SendWithAuthAsync(HttpRequestMessage request, Uri authUri, Boolean async, ICredentials credentials, Boolean preAuthenticate, Boolean isProxyAuth, Boolean doRequestAuth, HttpConnectionPool pool, CancellationToken cancellationToken)
+[RUNNER 2026-09-28 15:07:14Z ERR  BrokerServer]    at System.Net.Http.AuthenticationHelper.SendWithAuthAsync(HttpRequestMessage request, Uri authUri, Boolean async, ICredentials credentials, Boolean preAuthenticate, Boolean isProxyAuth, Boolean doRequestAuth, HttpConnectionPool pool, CancellationToken cancellationToken)
+[RUNNER 2026-09-28 15:07:14Z ERR  BrokerServer]    at System.Net.Http.AuthenticationHelper.SendWithNtAuthAsync(HttpRequestMessage request, Uri authUri, Boolean async, ICredentials credentials, Boolean isProxyAuth, HttpConnection connection, HttpConnectionPool connectionPool, CancellationToken cancellationToken)
+[RUNNER 2026-09-28 15:07:14Z ERR  BrokerServer]    at System.Net.Http.AuthenticationHelper.SendWithNtAuthAsync(HttpRequestMessage request, Uri authUri, Boolean async, ICredentials credentials, Boolean isProxyAuth, HttpConnection connection, HttpConnectionPool connectionPool, CancellationToken cancellationToken)
+[RUNNER 2026-09-28 15:07:14Z ERR  BrokerServer]    at System.Net.Http.HttpClient.HandleFailure(Exception e, Boolean telemetryStarted, HttpResponseMessage response, CancellationTokenSource cts, CancellationToken cancellationToken, CancellationTokenSource pendingRequestsCts)
+[RUNNER 2026-09-28 15:07:14Z ERR  BrokerServer]    at System.Net.Http.HttpConnectionPool.SendWithVersionDetectionAndRetryAsync(HttpRequestMessage request, Boolean async, Boolean doRequestAuth, CancellationToken cancellationToken)
+[RUNNER 2026-09-28 15:07:14Z ERR  BrokerServer]    at System.Net.Http.HttpConnectionPool.SendWithVersionDetectionAndRetryAsync(HttpRequestMessage request, Boolean async, Boolean doRequestAuth, CancellationToken cancellationToken)
+[RUNNER 2026-09-28 15:07:14Z ERR  BrokerServer]    at System.Net.Http.HttpConnection.SendAsync(HttpRequestMessage request, Boolean async, CancellationToken cancellationToken)
+[RUNNER 2026-09-28 15:07:14Z ERR  BrokerServer]    at System.Net.Http.HttpConnection.SendAsync(HttpRequestMessage request, Boolean async, CancellationToken cancellationToken)
+[RUNNER 2026-09-28 15:07:14Z ERR  BrokerServer]    at System.Net.Http.HttpConnection.SendAsync(HttpRequestMessage request, Boolean async, CancellationToken cancellationToken)
+[RUNNER 2026-09-28 15:07:14Z ERR  BrokerServer]    at System.Net.Http.HttpConnection.SendAsync(HttpRequestMessage request, Boolean async, CancellationToken cancellationToken)
+[RUNNER 2026-09-28 15:07:14Z ERR  BrokerServer]    at System.Net.Http.HttpConnection.SendAsync(HttpRequestMessage request, Boolean async, CancellationToken cancellationToken)
+[RUNNER 2026-09-28 15:07:14Z ERR  BrokerServer]    at System.Net.Http.RedirectHandler.SendAsync(HttpRequestMessage request, Boolean async, CancellationToken cancellationToken)
+[RUNNER 2026-09-28 15:07:14Z ERR  BrokerServer]    at System.Net.Http.RedirectHandler.SendAsync(HttpRequestMessage request, Boolean async, CancellationToken cancellationToken)
+[RUNNER 2026-09-28 15:07:14Z ERR  BrokerServer]    at System.Net.Security.SslStream.EnsureFullTlsFrameAsync[TIOAdapter](CancellationToken cancellationToken, Int32 estimatedSize)
+[RUNNER 2026-09-28 15:07:14Z ERR  BrokerServer]    at System.Net.Security.SslStream.EnsureFullTlsFrameAsync[TIOAdapter](CancellationToken cancellationToken, Int32 estimatedSize)
+[RUNNER 2026-09-28 15:07:14Z ERR  BrokerServer]    at System.Net.Security.SslStream.EnsureFullTlsFrameAsync[TIOAdapter](CancellationToken cancellationToken, Int32 estimatedSize)
+[RUNNER 2026-09-28 15:07:14Z ERR  BrokerServer]    at System.Net.Security.SslStream.ReadAsyncInternal[TIOAdapter](Memory`1 buffer, CancellationToken cancellationToken)
+[RUNNER 2026-09-28 15:07:14Z ERR  BrokerServer]    at System.Net.Security.SslStream.ReadAsyncInternal[TIOAdapter](Memory`1 buffer, CancellationToken cancellationToken)
+[RUNNER 2026-09-28 15:07:14Z ERR  BrokerServer]    at System.Net.Security.SslStream.ReadAsyncInternal[TIOAdapter](Memory`1 buffer, CancellationToken cancellationToken)
+[RUNNER 2026-09-28 15:07:14Z ERR  BrokerServer]  ---> System.IO.IOException: Unable to read data from the transport connection: Operation canceled.
+[RUNNER 2026-09-28 15:07:14Z ERR  BrokerServer]  ---> System.IO.IOException: Unable to read data from the transport connection: Operation canceled.
+[RUNNER 2026-09-28 15:07:14Z ERR  BrokerServer] System.IO.IOException: Unable to read data from the transport connection: Operation canceled.
+[RUNNER 2026-09-28 15:07:14Z ERR  BrokerServer]  ---> System.Net.Sockets.SocketException (125): Operation canceled
+[RUNNER 2026-09-28 15:07:14Z ERR  BrokerServer]  ---> System.Net.Sockets.SocketException (125): Operation canceled
+[RUNNER 2026-09-28 15:07:14Z ERR  BrokerServer]  ---> System.Net.Sockets.SocketException (125): Operation canceled
+[RUNNER 2026-09-28 15:07:14Z ERR  BrokerServer] System.Net.Sockets.SocketException (125): Operation canceled
+[RUNNER 2026-09-28 15:07:14Z ERR  BrokerServer]  ---> System.Threading.Tasks.TaskCanceledException: The operation was canceled.
+[RUNNER 2026-09-28 15:07:14Z ERR  BrokerServer] System.Threading.Tasks.TaskCanceledException: The operation was canceled.
+[RUNNER 2026-09-28 15:07:14Z ERR  BrokerServer] System.Threading.Tasks.TaskCanceledException: The operation was canceled.
+[RUNNER 2026-09-28 15:07:14Z INFO BrokerMessageListener] Get next message has been cancelled.
+[RUNNER 2026-09-28 15:07:14Z INFO JobDispatcher] Ensure WorkerDispatcher for job 1bad79ac-6884-5aad-9cd2-3f0f703db0eb run to finish, cancel any running job.
+[RUNNER 2026-09-28 15:07:14Z INFO JobDispatcher] job renew has been cancelled, stop renew job 1bad79ac-6884-5aad-9cd2-3f0f703db0eb.
+[RUNNER 2026-09-28 15:07:14Z INFO Runner]    at GitHub.Runner.Common.RunnerService.RetryRequest[T](Func`1 func, CancellationToken cancellationToken, Int32 maxAttempts, Func`2 shouldRetry)
+[RUNNER 2026-09-28 15:07:14Z INFO Runner] Ignore any exception after cancel message loop. System.Threading.Tasks.TaskCanceledException: A task was canceled.
+[RUNNER 2026-09-28 15:07:14Z INFO Terminal] WRITE LINE: 2026-09-28 15:07:14Z: Job build APKs (staging) completed with result: Canceled
+[RUNNER 2026-09-28 15:07:14Z WARN GitHubActionsService] GET request to https://broker.actions.githubusercontent.com/message?sessionId=93aad662-24f8-4df9-9bfe-fed440a7c054&status=Busy&runnerVersion=2.337.0&os=Linux&architecture=X64&disableUpdate=true has been cancelled.
+[RUNNER 2026-09-28 15:07:42Z INFO RunnerServer] Establish connection with 100 seconds timeout.
+[RUNNER 2026-09-28 15:07:42Z INFO RunnerServer] Establish connection with 60 seconds timeout.
+[RUNNER 2026-09-28 15:07:42Z INFO RunnerServer] Establish connection with 60 seconds timeout.
+[RUNNER 2026-09-28 15:07:48Z INFO JobDispatcher] Set runner/worker IPC timeout to 30 seconds.
+[RUNNER 2026-09-28 15:07:53Z INFO Terminal] WRITE LINE: 2026-09-28 15:07:53Z: Running job: integration (throwaway Postgres, migrations as owner, tests as app role)
+[RUNNER 2026-09-28 15:07:55Z INFO ProcessInvokerWrapper]   Force kill process on cancellation: 'True'
+[WORKER 2026-09-28 13:51:39Z INFO Worker] Listening for cancel message from the channel.
+[WORKER 2026-09-28 13:51:39Z INFO Worker] Waiting for the job to complete or for a cancel message from the channel.
+[WORKER 2026-09-28 13:51:41Z INFO ProcessInvokerWrapper]   Force kill process on cancellation: 'False'
+[WORKER 2026-09-28 13:51:45Z INFO ProcessInvokerWrapper]   Force kill process on cancellation: 'False'
+[WORKER 2026-09-28 13:51:48Z INFO ProcessInvokerWrapper]   Force kill process on cancellation: 'False'
+[WORKER 2026-09-28 13:51:51Z INFO ProcessInvokerWrapper]   Force kill process on cancellation: 'False'
+[WORKER 2026-09-28 13:51:52Z INFO ProcessInvokerWrapper]   Force kill process on cancellation: 'False'
+[WORKER 2026-09-28 13:51:52Z INFO StepsRunner] Evaluating: always()
+[WORKER 2026-09-28 13:51:52Z INFO StepsRunner] Processing step: DisplayName='Set up runner'
+[WORKER 2026-09-28 13:51:52Z INFO StepsRunner] Result: true
+[WORKER 2026-09-28 13:51:52Z INFO StepsRunner] Starting the step.
+[WORKER 2026-09-28 13:51:53Z INFO ProcessInvokerWrapper]   Force kill process on cancellation: 'False'
+[WORKER 2026-09-28 13:51:53Z INFO StepsRunner] Current state: job state = ''
+[WORKER 2026-09-28 13:51:53Z INFO StepsRunner] Evaluating: success()
+[WORKER 2026-09-28 13:51:53Z INFO StepsRunner] No need for updating job result with current step result 'Succeeded'.
+[WORKER 2026-09-28 13:51:53Z INFO StepsRunner] Processing step: DisplayName='Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1'
+[WORKER 2026-09-28 13:51:53Z INFO StepsRunner] Result: true
+[WORKER 2026-09-28 13:51:53Z INFO StepsRunner] Starting the step.
+[WORKER 2026-09-28 13:51:53Z INFO StepsRunner] Step result: 
+[WORKER 2026-09-28 13:51:55Z INFO ProcessInvokerWrapper]   Force kill process on cancellation: 'False'
+[WORKER 2026-09-28 13:51:55Z INFO ProcessInvokerWrapper]   Force kill process on cancellation: 'False'
+[WORKER 2026-09-28 13:51:55Z INFO StepsRunner] Current state: job state = ''
+[WORKER 2026-09-28 13:51:55Z INFO StepsRunner] Current state: job state = ''
+[WORKER 2026-09-28 13:51:55Z INFO StepsRunner] Evaluating: success()
+[WORKER 2026-09-28 13:51:55Z INFO StepsRunner] Evaluating: success()
+[WORKER 2026-09-28 13:51:55Z INFO StepsRunner] No need for updating job result with current step result 'Succeeded'.
+[WORKER 2026-09-28 13:51:55Z INFO StepsRunner] No need for updating job result with current step result 'Succeeded'.
+[WORKER 2026-09-28 13:51:55Z INFO StepsRunner] Processing step: DisplayName='Install Flutter ${{ env.FLUTTER_VERSION }} (official tarball, sha256-verified; self-hosted keeps it in the local cache)'
+[WORKER 2026-09-28 13:51:55Z INFO StepsRunner] Processing step: DisplayName='Run actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6'
+[WORKER 2026-09-28 13:51:55Z INFO StepsRunner] Result: true
+[WORKER 2026-09-28 13:51:55Z INFO StepsRunner] Result: true
+[WORKER 2026-09-28 13:51:55Z INFO StepsRunner] Starting the step.
+[WORKER 2026-09-28 13:51:55Z INFO StepsRunner] Starting the step.
+[WORKER 2026-09-28 13:51:55Z INFO StepsRunner] Step result: 
+[WORKER 2026-09-28 13:51:55Z INFO StepsRunner] Step result: 
+[WORKER 2026-09-28 13:53:42Z INFO ProcessInvokerWrapper]   Force kill process on cancellation: 'False'
+[WORKER 2026-09-28 13:53:42Z INFO StepsRunner] Current state: job state = ''
+[WORKER 2026-09-28 13:53:42Z INFO StepsRunner] Current state: job state = ''
+[WORKER 2026-09-28 13:53:42Z INFO StepsRunner] Evaluating: success()
+[WORKER 2026-09-28 13:53:42Z INFO StepsRunner] Evaluating: (success() && (runner.environment == 'github-hosted'))
+[WORKER 2026-09-28 13:53:42Z INFO StepsRunner] Expanded: (true && ('self-hosted' == 'github-hosted'))
+[WORKER 2026-09-28 13:53:42Z INFO StepsRunner] No need for updating job result with current step result 'Skipped'.
+[WORKER 2026-09-28 13:53:42Z INFO StepsRunner] No need for updating job result with current step result 'Succeeded'.
+[WORKER 2026-09-28 13:53:42Z INFO StepsRunner] Processing step: DisplayName='Run actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306'
+[WORKER 2026-09-28 13:53:42Z INFO StepsRunner] Processing step: DisplayName='Run flutter config --no-analytics && flutter pub get --enforce-lockfile'
+[WORKER 2026-09-28 13:53:42Z INFO StepsRunner] Result: false
+[WORKER 2026-09-28 13:53:42Z INFO StepsRunner] Result: true
+[WORKER 2026-09-28 13:53:42Z INFO StepsRunner] Skipping step due to condition evaluation.
+[WORKER 2026-09-28 13:53:42Z INFO StepsRunner] Starting the step.
+[WORKER 2026-09-28 13:53:42Z INFO StepsRunner] Step result: 
+[WORKER 2026-09-28 13:53:45Z INFO ProcessInvokerWrapper]   Force kill process on cancellation: 'False'
+[WORKER 2026-09-28 13:53:45Z INFO ProcessInvokerWrapper]   Force kill process on cancellation: 'False'
+[WORKER 2026-09-28 13:53:45Z INFO StepsRunner] Current state: job state = ''
+[WORKER 2026-09-28 13:53:45Z INFO StepsRunner] Current state: job state = ''
+[WORKER 2026-09-28 13:53:45Z INFO StepsRunner] Evaluating: success()
+[WORKER 2026-09-28 13:53:45Z INFO StepsRunner] Evaluating: (success() && (runner.environment == 'self-hosted'))
+[WORKER 2026-09-28 13:53:45Z INFO StepsRunner] Expanded: (true && ('self-hosted' == 'self-hosted'))
+[WORKER 2026-09-28 13:53:45Z INFO StepsRunner] No need for updating job result with current step result 'Succeeded'.
+[WORKER 2026-09-28 13:53:45Z INFO StepsRunner] No need for updating job result with current step result 'Succeeded'.
+[WORKER 2026-09-28 13:53:45Z INFO StepsRunner] Processing step: DisplayName='Debug APK (staging flavor, custom-scheme redirect)'
+[WORKER 2026-09-28 13:53:45Z INFO StepsRunner] Processing step: DisplayName='Self-hosted limits (2 vCPU / 4 GiB, plan 12 §6) → Gradle/Kotlin settings'
+[WORKER 2026-09-28 13:53:45Z INFO StepsRunner] Result: true
+[WORKER 2026-09-28 13:53:45Z INFO StepsRunner] Result: true
+[WORKER 2026-09-28 13:53:45Z INFO StepsRunner] Starting the step.
+[WORKER 2026-09-28 13:53:45Z INFO StepsRunner] Starting the step.
+[WORKER 2026-09-28 13:53:45Z INFO StepsRunner] Step result: 
+[WORKER 2026-09-28 13:53:45Z INFO StepsRunner] Step result: 
+[WORKER 2026-09-28 13:58:07Z INFO ProcessInvokerWrapper]   Force kill process on cancellation: 'False'
+[WORKER 2026-09-28 13:58:07Z INFO StepsRunner] Current state: job state = ''
+[WORKER 2026-09-28 13:58:07Z INFO StepsRunner] Evaluating: success()
+[WORKER 2026-09-28 13:58:07Z INFO StepsRunner] No need for updating job result with current step result 'Succeeded'.
+[WORKER 2026-09-28 13:58:07Z INFO StepsRunner] Processing step: DisplayName='Static secret scan of the debug APK (F4 gate "no secrets in APK")'
+[WORKER 2026-09-28 13:58:07Z INFO StepsRunner] Result: true
+[WORKER 2026-09-28 13:58:07Z INFO StepsRunner] Starting the step.
+[WORKER 2026-09-28 13:58:07Z INFO StepsRunner] Step result: 
+[WORKER 2026-09-28 13:59:48Z INFO ProcessInvokerWrapper]   Force kill process on cancellation: 'False'
+[WORKER 2026-09-28 13:59:48Z INFO StepsRunner] Current state: job state = ''
+[WORKER 2026-09-28 13:59:48Z INFO StepsRunner] Evaluating: success()
+[WORKER 2026-09-28 13:59:48Z INFO StepsRunner] No need for updating job result with current step result 'Succeeded'.
+[WORKER 2026-09-28 13:59:48Z INFO StepsRunner] Processing step: DisplayName='Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a'
+[WORKER 2026-09-28 13:59:48Z INFO StepsRunner] Result: true
+[WORKER 2026-09-28 13:59:48Z INFO StepsRunner] Starting the step.
+[WORKER 2026-09-28 13:59:48Z INFO StepsRunner] Step result: 
+[WORKER 2026-09-28 14:00:05Z INFO ProcessInvokerWrapper]   Force kill process on cancellation: 'False'
+[WORKER 2026-09-28 14:00:05Z INFO StepsRunner] Current state: job state = ''
+[WORKER 2026-09-28 14:00:05Z INFO StepsRunner] Current state: job state = ''
+[WORKER 2026-09-28 14:00:05Z INFO StepsRunner] Evaluating: (success() && (env.HAS_STAGING_KEY != 'true'))
+[WORKER 2026-09-28 14:00:05Z INFO StepsRunner] Evaluating: (success() && (env.HAS_STAGING_KEY == 'true'))
+[WORKER 2026-09-28 14:00:05Z INFO StepsRunner] Expanded: (true && ('true' != 'true'))
+[WORKER 2026-09-28 14:00:05Z INFO StepsRunner] Expanded: (true && ('true' == 'true'))
+[WORKER 2026-09-28 14:00:05Z INFO StepsRunner] No need for updating job result with current step result 'Skipped'.
+[WORKER 2026-09-28 14:00:05Z INFO StepsRunner] No need for updating job result with current step result 'Succeeded'.
+[WORKER 2026-09-28 14:00:05Z INFO StepsRunner] Processing step: DisplayName='Decode staging keystore'
+[WORKER 2026-09-28 14:00:05Z INFO StepsRunner] Processing step: DisplayName='No staging signing key → skip the signed release build'
+[WORKER 2026-09-28 14:00:05Z INFO StepsRunner] Result: false
+[WORKER 2026-09-28 14:00:05Z INFO StepsRunner] Result: true
+[WORKER 2026-09-28 14:00:05Z INFO StepsRunner] Skipping step due to condition evaluation.
+[WORKER 2026-09-28 14:00:05Z INFO StepsRunner] Starting the step.
+[WORKER 2026-09-28 14:00:05Z INFO StepsRunner] Step result: 
+[WORKER 2026-09-28 14:00:11Z INFO ProcessInvokerWrapper]   Force kill process on cancellation: 'False'
+[WORKER 2026-09-28 14:00:11Z INFO StepsRunner] Current state: job state = ''
+[WORKER 2026-09-28 14:00:11Z INFO StepsRunner] Evaluating: (success() && (env.HAS_STAGING_KEY == 'true'))
+[WORKER 2026-09-28 14:00:11Z INFO StepsRunner] Expanded: (true && ('true' == 'true'))
+[WORKER 2026-09-28 14:00:11Z INFO StepsRunner] No need for updating job result with current step result 'Succeeded'.
+[WORKER 2026-09-28 14:00:11Z INFO StepsRunner] Processing step: DisplayName='Release APK (staging flavor, stable key, App Link redirect)'
+[WORKER 2026-09-28 14:00:11Z INFO StepsRunner] Result: true
+[WORKER 2026-09-28 14:00:11Z INFO StepsRunner] Starting the step.
+[WORKER 2026-09-28 14:00:11Z INFO StepsRunner] Step result: 
+[WORKER 2026-09-28 15:06:46Z INFO StepsRunner] Cancel current running step.
+[WORKER 2026-09-28 15:06:46Z INFO StepsRunner] Evaluating: (success() && (env.HAS_STAGING_KEY == 'true'))
+[WORKER 2026-09-28 15:06:46Z INFO StepsRunner] Expanded: (false && (env['HAS_STAGING_KEY'] == 'true'))
+[WORKER 2026-09-28 15:06:46Z INFO StepsRunner] Result: false
+[WORKER 2026-09-28 15:06:56Z INFO ProcessInvokerWrapper] Kill entire process tree since both cancel and terminate signal has been ignored by the target process.
+[WORKER 2026-09-28 15:06:59Z ERR  StepsRunner]    at GitHub.Runner.Common.ProcessInvokerWrapper.ExecuteAsync(String workingDirectory, String fileName, String arguments, IDictionary`2 environment, Boolean requireExitCodeZero, Encoding outputEncoding, Boolean killProcessOnCancel, Channel`1 redirectStandardIn, Boolean inheritConsoleHandler, Boolean keepStandardInOpen, Boolean highPriorityProcess, CancellationToken cancellationToken)
+[WORKER 2026-09-28 15:06:59Z ERR  StepsRunner]    at GitHub.Runner.Sdk.ProcessInvoker.ExecuteAsync(String workingDirectory, String fileName, String arguments, IDictionary`2 environment, Boolean requireExitCodeZero, Encoding outputEncoding, Boolean killProcessOnCancel, Channel`1 redirectStandardIn, Boolean inheritConsoleHandler, Boolean keepStandardInOpen, Boolean highPriorityProcess, CancellationToken cancellationToken)
+[WORKER 2026-09-28 15:06:59Z ERR  StepsRunner]    at GitHub.Runner.Worker.ActionRunner.RunAsync()
+[WORKER 2026-09-28 15:06:59Z ERR  StepsRunner]    at GitHub.Runner.Worker.Handlers.DefaultStepHost.ExecuteAsync(IExecutionContext context, String workingDirectory, String fileName, String arguments, IDictionary`2 environment, Boolean requireExitCodeZero, Encoding outputEncoding, Boolean killProcessOnCancel, Boolean inheritConsoleHandler, String standardInInput, CancellationToken cancellationToken)
+[WORKER 2026-09-28 15:06:59Z ERR  StepsRunner]    at GitHub.Runner.Worker.Handlers.ScriptHandler.RunAsync(ActionRunStage stage)
+[WORKER 2026-09-28 15:06:59Z ERR  StepsRunner]    at GitHub.Runner.Worker.StepsRunner.RunStepAsync(IStep step, CancellationToken jobCancellationToken)
+[WORKER 2026-09-28 15:06:59Z ERR  StepsRunner]    at System.Threading.CancellationToken.ThrowOperationCanceledException()
+[WORKER 2026-09-28 15:06:59Z ERR  StepsRunner] Caught cancellation exception from step: System.OperationCanceledException: The operation was canceled.
+[WORKER 2026-09-28 15:06:59Z INFO ActionManifestManagerLegacy]   "lit": "cancelled"
+[WORKER 2026-09-28 15:06:59Z INFO ExecutionContext]   "result": "canceled",
+[WORKER 2026-09-28 15:06:59Z INFO ExecutionContext]     "The operation was canceled."
+[WORKER 2026-09-28 15:06:59Z INFO ProcessInvokerWrapper]   Force kill process on cancellation: 'False'
+[WORKER 2026-09-28 15:06:59Z INFO ProcessInvokerWrapper]   Force kill process on cancellation: 'False'
+[WORKER 2026-09-28 15:06:59Z INFO ProcessInvokerWrapper]   Force kill process on cancellation: 'False'
+[WORKER 2026-09-28 15:06:59Z INFO ProcessInvokerWrapper]   Force kill process on cancellation: 'False'
+[WORKER 2026-09-28 15:06:59Z INFO StepsRunner] Current state: job state = 'Canceled'
+[WORKER 2026-09-28 15:06:59Z INFO StepsRunner] Current state: job state = 'Canceled'
+[WORKER 2026-09-28 15:06:59Z INFO StepsRunner] Current state: job state = 'Canceled'
+[WORKER 2026-09-28 15:06:59Z INFO StepsRunner] Current state: job state = 'Canceled'
+[WORKER 2026-09-28 15:06:59Z INFO StepsRunner] Current state: job state = 'Canceled'
+[WORKER 2026-09-28 15:06:59Z INFO StepsRunner] Current state: job state = 'Canceled'
+[WORKER 2026-09-28 15:06:59Z INFO StepsRunner] Evaluating: always()
+[WORKER 2026-09-28 15:06:59Z INFO StepsRunner] Evaluating: always()
+[WORKER 2026-09-28 15:06:59Z INFO StepsRunner] Evaluating: always()
+[WORKER 2026-09-28 15:06:59Z INFO StepsRunner] Evaluating: always()
+[WORKER 2026-09-28 15:06:59Z INFO StepsRunner] Evaluating: (success() && (env.HAS_STAGING_KEY == 'true'))
+[WORKER 2026-09-28 15:06:59Z INFO StepsRunner] Evaluating: (success() && (env.HAS_STAGING_KEY == 'true'))
+[WORKER 2026-09-28 15:06:59Z INFO StepsRunner] Expanded: (false && (env['HAS_STAGING_KEY'] == 'true'))
+[WORKER 2026-09-28 15:06:59Z INFO StepsRunner] Expanded: (false && (env['HAS_STAGING_KEY'] == 'true'))
+[WORKER 2026-09-28 15:06:59Z INFO StepsRunner] No need for updating job result with current step result 'Canceled'.
+[WORKER 2026-09-28 15:06:59Z INFO StepsRunner] No need for updating job result with current step result 'Skipped'.
+[WORKER 2026-09-28 15:06:59Z INFO StepsRunner] No need for updating job result with current step result 'Skipped'.
+[WORKER 2026-09-28 15:06:59Z INFO StepsRunner] No need for updating job result with current step result 'Succeeded'.
+[WORKER 2026-09-28 15:06:59Z INFO StepsRunner] No need for updating job result with current step result 'Succeeded'.
+[WORKER 2026-09-28 15:06:59Z INFO StepsRunner] No need for updating job result with current step result 'Succeeded'.
+[WORKER 2026-09-28 15:06:59Z INFO StepsRunner] Processing step: DisplayName='Complete runner'
+[WORKER 2026-09-28 15:06:59Z INFO StepsRunner] Processing step: DisplayName='Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1'
+[WORKER 2026-09-28 15:06:59Z INFO StepsRunner] Processing step: DisplayName='Post Run actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6'
+[WORKER 2026-09-28 15:06:59Z INFO StepsRunner] Processing step: DisplayName='Remove keystore'
+[WORKER 2026-09-28 15:06:59Z INFO StepsRunner] Processing step: DisplayName='Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a'
+[WORKER 2026-09-28 15:06:59Z INFO StepsRunner] Processing step: DisplayName='Static secret scan of the release APKs (gitleaks + trivy + deny-list, tool/apk_secret_scan.sh)'
+[WORKER 2026-09-28 15:06:59Z INFO StepsRunner] Result: false
+[WORKER 2026-09-28 15:06:59Z INFO StepsRunner] Result: false
+[WORKER 2026-09-28 15:06:59Z INFO StepsRunner] Result: true
+[WORKER 2026-09-28 15:06:59Z INFO StepsRunner] Result: true
+[WORKER 2026-09-28 15:06:59Z INFO StepsRunner] Result: true
+[WORKER 2026-09-28 15:06:59Z INFO StepsRunner] Result: true
+[WORKER 2026-09-28 15:06:59Z INFO StepsRunner] Skipping step due to condition evaluation.
+[WORKER 2026-09-28 15:06:59Z INFO StepsRunner] Skipping step due to condition evaluation.
+[WORKER 2026-09-28 15:06:59Z INFO StepsRunner] Starting the step.
+[WORKER 2026-09-28 15:06:59Z INFO StepsRunner] Starting the step.
+[WORKER 2026-09-28 15:06:59Z INFO StepsRunner] Starting the step.
+[WORKER 2026-09-28 15:06:59Z INFO StepsRunner] Starting the step.
+[WORKER 2026-09-28 15:06:59Z INFO StepsRunner] Step result: 
+[WORKER 2026-09-28 15:06:59Z INFO StepsRunner] Step result: 
+[WORKER 2026-09-28 15:06:59Z INFO StepsRunner] Step result: 
+[WORKER 2026-09-28 15:06:59Z INFO StepsRunner] Step result: Canceled
+[WORKER 2026-09-28 15:07:01Z INFO StepsRunner] Current state: job state = 'Canceled'
+[WORKER 2026-09-28 15:07:01Z INFO StepsRunner] No need for updating job result with current step result 'Succeeded'.
+[WORKER 2026-09-28 15:07:01Z INFO StepsRunner] Step result: 
+[WORKER 2026-09-28 15:07:56Z INFO Worker] Listening for cancel message from the channel.
+[WORKER 2026-09-28 15:07:56Z INFO Worker]                 "lit": "--health-cmd \"pg_isready -U postgres\" --health-interval 5s --health-timeout 3s --health-retries 20"
+[WORKER 2026-09-28 15:07:56Z INFO Worker] Waiting for the job to complete or for a cancel message from the channel.
+[WORKER 2026-09-28 15:07:58Z INFO ProcessInvokerWrapper]   Force kill process on cancellation: 'False'

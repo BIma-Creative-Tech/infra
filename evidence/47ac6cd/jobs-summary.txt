@@ -1,0 +1,17 @@
+cid           start(UTC)            job                                       result     peak_anon_MiB  peak_total_MiB  oom_kill  exit
+error:                                                                                                                            
+error:                                                                                                                            
+160e38560c95  2026-09-28T18:33:12Z  image_build_(runner_+_migrate)_·_trivy_   Succeeded  663            5120            0         0
+fb8cd3e2a629  2026-09-28T19:00:19Z  image_build_(runner_+_migrate)_·_trivy_   Canceled   2250           5120            0         0
+36a13e4f034b  2026-09-28T19:17:41Z  integration_(throwaway_Postgres,_migrati  Succeeded  1382           3590            0         0
+30b920a38ddb  2026-09-28T19:35:26Z  analyze_·_format_·_codegen_drift_·_te     Succeeded  2096           5120            0         0
+b9b756f34286  2026-09-28T19:43:20Z  gitleaks_·_semgrep_·_trivy_fs_·_hadol     Failed     187            748             0         10
+9bde6f37360f  2026-09-28T19:46:32Z  lint_·_typecheck_·_unit_+_coverage_·_     Succeeded  1350           2909            0         0
+e34014a98b32  2026-09-28T19:49:53Z  lint_·_typecheck_·_unit_+_coverage_·_     Succeeded  1387           2567            0         0
+40325844d63f  2026-09-28T19:53:15Z  gitleaks_·_semgrep_·_trivy_fs_·_hadol     Succeeded  512            3499            0         0
+f5f4897ba912  2026-09-28T19:56:32Z  integration_(throwaway_Postgres,_migrati  Succeeded  1396           3090            0         0
+d1b81b402b90  2026-09-28T20:15:26Z  build_APKs_(staging)                      Failed     3069           5120            0         10
+65711bfe5b77  2026-09-28T20:32:17Z  image_build_(runner_+_migrate)_·_trivy_   Succeeded  2090           5120            0         0
+5ba92d996356  idle                  -                                         -          58             81              0         ?
+d4920785675a  idle                  -                                         -          59             85              0         
+5e3751ea66ff  idle                  -                                         -          61             84              0         

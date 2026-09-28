@@ -1,0 +1,18 @@
+2026-09-29T02:08:00+07:00
+    PID    PPID STAT ELAPSED WCHAN                        COMMAND
+ 966750  966737 Zsl      200 -                            [runc:[2:INIT]] <defunct>
+/proc/966754/status:State:	S (sleeping)
+/proc/966754/status:NSpid:	966754	2626	1024	3
+/proc/966750/status:State:	Z (zombie)
+/proc/966750/status:NSpid:	966750	2622	1020	1
+[<0>] zap_pid_ns_processes+0x142/0x1b0
+[<0>] forget_original_parent+0x34b/0x360
+[<0>] exit_notify+0x4a/0x200
+[<0>] do_exit+0x2ee/0x530
+[<0>] do_group_exit+0x35/0x90
+[<0>] get_signal+0x96e/0x9b0
+[<0>] arch_do_signal_or_restart+0x42/0x210
+[<0>] syscall_exit_to_user_mode+0x15f/0x1e0
+[<0>] do_syscall_64+0x94/0x180
+[<0>] entry_SYSCALL_64_after_hwframe+0x78/0x80
+0::/system.slice/docker-fb8cd3e2a6293cd2dd6e346c08a335e13e93d9d707c3b5441c0671cb2660d976.scope/docker/buildx/686630359a5651b97d7cdf4a80ffa7222e00e0eb20f00bccadd0a372921dfd06/kkr79uw8qe8vmhpfrvjpjdzf9

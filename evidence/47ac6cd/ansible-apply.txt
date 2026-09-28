@@ -1,0 +1,128 @@
+
+PLAY [Bootstrap host VPS] ******************************************************
+
+TASK [Gathering Facts] *********************************************************
+ok: [srv2001692]
+
+TASK [Tentukan fase SSH efektif untuk run ini] *********************************
+ok: [srv2001692]
+
+TASK [Guard fase SSH (maks satu fase; hanya fase saat ini atau tepat berikutnya)] ***
+ok: [srv2001692]
+
+TASK [Tetapkan fase SSH efektif] ***********************************************
+ok: [srv2001692]
+
+TASK [ci_runner : Validasi ci_runner_state] ************************************
+ok: [srv2001692]
+
+TASK [ci_runner : Direktori state runner] **************************************
+ok: [srv2001692]
+
+TASK [ci_runner : Alokasikan file disk (fallocate, sekali)] ********************
+ok: [srv2001692]
+
+TASK [ci_runner : Izin file disk] **********************************************
+ok: [srv2001692]
+
+TASK [ci_runner : Cek filesystem di file disk] *********************************
+ok: [srv2001692]
+
+TASK [ci_runner : mkfs.ext4 (sekali, -m 0, label ci)] **************************
+skipping: [srv2001692]
+
+TASK [ci_runner : Cek alokasi file disk (sparse?)] *****************************
+ok: [srv2001692]
+
+TASK [ci_runner : Isi hole file disk (fallocate, non-destruktif)] **************
+changed: [srv2001692]
+
+TASK [ci_runner : Peringatan file disk masih sparse] ***************************
+skipping: [srv2001692]
+
+TASK [ci_runner : Mountpoint] **************************************************
+ok: [srv2001692]
+
+TASK [ci_runner : Unit mount /srv/ci] ******************************************
+ok: [srv2001692]
+
+TASK [ci_runner : daemon-reload (unit mount)] **********************************
+skipping: [srv2001692]
+
+TASK [ci_runner : Mount aktif + saat boot] *************************************
+ok: [srv2001692]
+
+TASK [ci_runner : Pastikan benar-benar ter-mount (bukan direktori kosong di /)] ***
+ok: [srv2001692]
+
+TASK [ci_runner : /srv/ci tidak di-mount dengan discard dan tidak ikut fstrim.timer] ***
+ok: [srv2001692]
+
+TASK [ci_runner : Root filesystem /srv/ci 0700 (setelah mount)] ****************
+ok: [srv2001692]
+
+TASK [ci_runner : Direktori data dockerd dalam] ********************************
+ok: [srv2001692]
+
+TASK [ci_runner : Direktori cache (milik uid runner)] **************************
+ok: [srv2001692] => (item=)
+ok: [srv2001692] => (item=npm)
+ok: [srv2001692] => (item=pub)
+ok: [srv2001692] => (item=gradle)
+ok: [srv2001692] => (item=flutter)
+ok: [srv2001692] => (item=android-sdk)
+ok: [srv2001692] => (item=toolcache)
+ok: [srv2001692] => (item=trivy)
+
+TASK [ci_runner : Direktori konteks build] *************************************
+ok: [srv2001692] => (item=/usr/local/lib/ci-runner/image)
+ok: [srv2001692] => (item=/usr/local/lib/ci-runner/image/hooks)
+
+TASK [ci_runner : Konteks build image] *****************************************
+ok: [srv2001692] => (item=Dockerfile)
+ok: [srv2001692] => (item=daemon.json)
+changed: [srv2001692] => (item=entrypoint.sh)
+ok: [srv2001692] => (item=hooks/cleanup.sh)
+ok: [srv2001692] => (item=hooks/job-started.sh)
+ok: [srv2001692] => (item=hooks/job-completed.sh)
+ok: [srv2001692] => (item=android-bootstrap.sh)
+
+TASK [ci_runner : Cek image ci-runner:2.337.0-2] *******************************
+ok: [srv2001692]
+
+TASK [ci_runner : Build image ci-runner:2.337.0-2] *****************************
+changed: [srv2001692]
+
+TASK [ci_runner : Direktori /etc/ci-runner] ************************************
+ok: [srv2001692]
+
+TASK [ci_runner : Env supervisor (tanpa secret)] *******************************
+changed: [srv2001692]
+
+TASK [ci_runner : Skrip supervisor] ********************************************
+changed: [srv2001692]
+
+TASK [ci_runner : Direktori textfile node-exporter] ****************************
+ok: [srv2001692]
+
+TASK [ci_runner : Unit supervisor + path] **************************************
+changed: [srv2001692] => (item=ci-runner-supervisor.service)
+changed: [srv2001692] => (item=ci-runner-supervisor.path)
+
+TASK [ci_runner : daemon-reload (supervisor)] **********************************
+ok: [srv2001692]
+
+TASK [ci_runner : Unit path supervisor] ****************************************
+changed: [srv2001692]
+
+TASK [ci_runner : Service supervisor diaktifkan saat boot (tetap menunggu PAT via ConditionPathExists)] ***
+ok: [srv2001692]
+
+RUNNING HANDLER [ci_runner : Restart ci-runner-supervisor] *********************
+ok: [srv2001692] => {
+    "msg": "ci-runner-supervisor akan memuat ulang sendiri di titik aman (idle/antar job); tidak di-restart paksa."
+}
+
+PLAY RECAP *********************************************************************
+srv2001692                 : ok=32   changed=7    unreachable=0    failed=0    skipped=3    rescued=0    ignored=0   
+

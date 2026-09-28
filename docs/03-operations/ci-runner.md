@@ -83,6 +83,14 @@ Gejala: job antre di GitHub, `docker ps` menunjukkan `ci-runner-job` "Up" lama p
 Insiden 2026-09-28 23:48 WIB: zombie `runc:[2:INIT]` (pid ns container) dengan parent `sysbox-fs` tidak di-reap, init container
 macet di `zap_pid_ns_processes` ±3 j, sampai `systemctl restart sysbox-fs`.
 
+**Akar masalah (terbukti live 2026-09-29 02:0x WIB, `evidence/47ac6cd/buildkit-runc-zombie-*.txt`):** buildx driver
+`docker-container` menjalankan buildkitd di dockerd dalam; `buildkit-runc run` untuk step RUN membuat pid namespace bersarang.
+`sysbox-fs` (host) menyuntikkan helper (`nsenter`, tampil sebagai `runc:[2:INIT]`) ke pid ns itu dan **tidak me-reap-nya**
+(zombie, parent = sysbox-fs). Init pid ns lalu macet di `zap_pid_ns_processes` → build menggantung sampai `timeout-minutes`,
+dan saat job dibatalkan container job macet di exit dengan tanda yang sama. Bug sysbox 0.7.1; mitigasi di workflow drms
+(`--oci-worker-no-process-sandbox` atau driver `docker`) + watchdog di bawah. Pantau: zombie anak sysbox-fs
+`ps -o pid,stat,etimes,args --ppid $(pgrep -x sysbox-fs) | awk '$2 ~ /Z/'`.
+
 **Otomatis (watchdog supervisor, R12):**
 - `exiting code=` tercatat tetapi container belum keluar > `ci_runner_stuck_grace` (180 s), atau `runner exited` tanpa keluar
   > `ci_runner_cleanup_grace` (600 s), atau guard timeout job (> `ci_runner_job_timeout` = 3 j sejak `Running job:` →
@@ -91,6 +99,9 @@ macet di `zap_pid_ns_processes` ±3 j, sampai `systemctl restart sysbox-fs`.
   (ikut me-restart `sysbox` + `sysbox-mgr`; supervisor hanya `Wants=sysbox.service` sehingga tidak ikut berhenti) →
   `docker rm -f`. Log `WARN: job container STUCK`, `ci_runner_stuck_total`++, alert `ci-runner-stuck` 24 j.
 - Container sisa yang tidak bisa dihapus saat supervisor start → reaper yang sama.
+- Terbukti live 2026-09-29 (job image 47ac6cd dibatalkan 02:11:10 WIB → `exiting code=11` 02:11:40 → STUCK 02:14:51 → stop/kill
+  gagal → restart sysbox-fs 02:17:02 → dihapus 02:17:03 → registrasi ulang 02:17:20; prod tidak berubah). Bila container macet
+  belum bisa dibuang, supervisor tidak meregistrasi runner baru dan mencoba lagi tiap 5 menit.
 
 **Manual** (alert `ci-runner-stuck` dengan `ci_runner_stuck_unresolved 1`, atau watchdog tidak bertindak):
 1. `journalctl -u ci-runner-supervisor -n 100 | grep -E 'STUCK|ERROR'` dan `docker logs --tail 30 ci-runner-job`.
