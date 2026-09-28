@@ -1,0 +1,23 @@
+# Domain tambahan Expomedia: expomedia.co.id + www.expomedia.co.id → 301 permanen ke host kanonik expomedia.id
+# (path & query dipertahankan). File manual (bukan render provision-web-client.sh — skrip belum punya flag domain
+# tambahan), jadi TIDAK ditimpa saat provision ulang. Pola sama dengan router www di web-expomedia-prod.yml.
+# Sertifikat per host (Host() eksplisit, tanpa wildcard — CLAUDE.md §3.5.1); HTTP-01 butuh A @ & www → IP VPS.
+# Service tidak pernah tercapai (redirect dulu) — memakai service web-expomedia-prod dari file render.
+http:
+  routers:
+    web-expomedia-prod-coid:
+      entryPoints: [websecure]
+      rule: "Host(`expomedia.co.id`) || Host(`www.expomedia.co.id`)"
+      priority: 1
+      middlewares: [crowdsec, security-headers, web-expomedia-prod-coid-redirect]
+      service: web-expomedia-prod
+      tls:
+        certResolver: le-http
+
+  middlewares:
+    # Opsi: docs v3.7 .../middlewares/redirectregex.md. Single-quoted YAML → backslash literal.
+    web-expomedia-prod-coid-redirect:
+      redirectRegex:
+        regex: '^https?://(?:www\.)?expomedia\.co\.id/(.*)'
+        replacement: 'https://expomedia.id/${1}'
+        permanent: true

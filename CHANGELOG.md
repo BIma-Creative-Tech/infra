@@ -9,6 +9,14 @@ file `VERSION`.
 ## [Unreleased]
 
 ### Added
+- traefik (2026-09-29): domain tambahan `expomedia.co.id` + `www.expomedia.co.id` → 301 permanen ke
+  `https://expomedia.id` (path & query dipertahankan) — `traefik/dynamic/clients/web-expomedia-prod-coid.yml`, file
+  manual (provision-web-client.sh belum punya flag domain tambahan; tidak ditimpa saat provision ulang), sertifikat SAN
+  `le-http` (HTTP-01). DNS: zona di mysrsx (A @ & www → IP VPS); catatan: delegasi registrar masih
+  `ns1/ns2/ns3.mysrsx.com` (ns3 tidak ada, ns2 timeout) — owner diminta menyamakan dengan expomedia.id.
+- web expomedia (2026-09-29): prod & staging → image `web-expomedia:dev-22be3cd` (v0.3.0: logo resmi, foto event asli;
+  prod tetap mode coming soon). Re-render dari template terkini: env opsional `LEAD_WEBHOOK_URL` (kosong), router
+  kontak + `/api/lead`, override `docker-compose.{turnstile,umami}.yml` (tidak dimuat — COMPOSE_FILE tidak berubah).
 - ci_runner (plan 12 R12, 2026-09-29): watchdog container job macet di supervisor (insiden 2026-09-28 23:48 WIB: zombie
   `runc:[2:INIT]` milik sysbox-fs, container tak keluar ±3 j) — guard timeout job `ci_runner_job_timeout` 3 j, stop → kill →
   restart `sysbox-fs` (hanya bila tidak ada container sysbox lain) → rm; metrik `ci_runner_stuck_total`,

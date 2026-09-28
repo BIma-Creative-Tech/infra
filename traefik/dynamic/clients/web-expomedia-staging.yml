@@ -7,11 +7,11 @@
 # (plan 03 §3), seperti control-plane (dynamic/platform/cp.yml).
 http:
   routers:
-    # Form kontak (plan 03 §3): POST ke /contact atau /api/contact → limit per IP lebih ketat. GET halaman
+    # Form kontak (plan 03 §3): POST ke /contact, /api/contact atau /api/lead → limit per IP lebih ketat. GET halaman
     # /contact tetap lewat router utama. Aktif walau form kontak off (endpoint 404; limit tidak merugikan).
     web-expomedia-staging-contact:
       entryPoints: [websecure]
-      rule: "Host(`expomedia.staging.bimacreative.tech`) && Method(`POST`) && (Path(`/contact`) || Path(`/api/contact`))"
+      rule: "Host(`expomedia.staging.bimacreative.tech`) && Method(`POST`) && (Path(`/contact`) || Path(`/api/contact`) || Path(`/api/lead`))"
       priority: 100
       middlewares: [crowdsec, security-headers, web-expomedia-staging-ratelimit-contact]
       service: web-expomedia-staging
