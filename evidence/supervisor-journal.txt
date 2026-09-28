@@ -1,0 +1,37 @@
+registered runner name=drms-srv2001692-1790591160 id=21 labels=["self-hosted","linux","x64","drms"]
+job container exited rc=0 (runner id=21)
+removing leftover job container(s): f66ff65ef38e
+registered runner name=drms-srv2001692-1790591596 id=22 labels=["self-hosted","linux","x64","drms"]
+job container exited rc=0 (runner id=22)
+removing leftover job container(s): a7b30f702007
+registered runner name=drms-srv2001692-1790591888 id=23 labels=["self-hosted","linux","x64","drms"]
+job container exited rc=0 (runner id=23)
+removing leftover job container(s): 22946ff1ec99
+registered runner name=drms-srv2001692-1790593019 id=24 labels=["self-hosted","linux","x64","drms"]
+job container exited rc=0 (runner id=24)
+removing leftover job container(s): b3a6f23aea20
+registered runner name=drms-srv2001692-1790593638 id=25 labels=["self-hosted","linux","x64","drms"]
+job container exited rc=0 (runner id=25)
+removing leftover job container(s): 740198e483bb
+registered runner name=drms-srv2001692-1790594087 id=26 labels=["self-hosted","linux","x64","drms"]
+job container exited rc=0 (runner id=26)
+removing leftover job container(s): ff829b03bd38
+registered runner name=drms-srv2001692-1790595007 id=27 labels=["self-hosted","linux","x64","drms"]
+job container exited rc=0 (runner id=27)
+removing leftover job container(s): 2acccaa179de
+registered runner name=drms-srv2001692-1790595153 id=28 labels=["self-hosted","linux","x64","drms"]
+job container exited rc=0 (runner id=28)
+removing leftover job container(s): abee493364a7
+registered runner name=drms-srv2001692-1790596287 id=29 labels=["self-hosted","linux","x64","drms"]
+job container exited rc=0 (runner id=29)
+removing leftover job container(s): 31b76c0f635a
+registered runner name=drms-srv2001692-1790596357 id=30 labels=["self-hosted","linux","x64","drms"]
+job container exited rc=0 (runner id=30)
+removing leftover job container(s): 296c6cd41a31
+registered runner name=drms-srv2001692-1790596547 id=31 labels=["self-hosted","linux","x64","drms"]
+job container exited rc=0 (runner id=31)
+removing leftover job container(s): 33e0767acbbe
+registered runner name=drms-srv2001692-1790597806 id=32 labels=["self-hosted","linux","x64","drms"]
+job container exited rc=0 (runner id=32)
+removing leftover job container(s): 01c8dd883995
+registered runner name=drms-srv2001692-1790598292 id=33 labels=["self-hosted","linux","x64","drms"]

@@ -1,0 +1,36 @@
+# ff829b03bd38 build APKs (staging) — failed step + memory.events + kernel OOM dump
+2026-09-28T11:19:44.977642345Z [WORKER 2026-09-28 11:19:44Z INFO StepsRunner] Processing step: DisplayName='Debug APK (staging flavor, custom-scheme redirect)'
+2026-09-28T11:29:29.768277500Z [WORKER 2026-09-28 11:29:29Z INFO ProcessInvokerWrapper] Finished process 1030 with exit code 1, and elapsed time 00:09:44.7800756.
+2026-09-28T11:29:29.775202945Z [WORKER 2026-09-28 11:29:29Z INFO ExecutionContext]     "Process completed with exit code 1."
+2026-09-28T11:29:46.103568781Z 2026-09-28 11:29:46Z: Job build APKs (staging) completed with result: Failed
+## memory.events
+low 0
+high 0
+max 65298
+oom 1
+oom_kill 1
+oom_group_kill 0
+## dmesg
+[Mon Sep 28 18:29:30 2026] DartWorker invoked oom-killer: gfp_mask=0x100cca(GFP_HIGHUSER_MOVABLE), order=0, oom_score_adj=800
+[Mon Sep 28 18:29:30 2026] memory: usage 4194092kB, limit 4194304kB, failcnt 802429
+[Mon Sep 28 18:29:30 2026] anon 4147150848
+[Mon Sep 28 18:29:30 2026] [  pid  ]   uid  tgid total_vm      rss rss_anon rss_file rss_shmem pgtables_bytes swapents oom_score_adj name
+[Mon Sep 28 18:29:30 2026] [4073857] 231072 4073857     1081      832       64      768         0    49152        0           800 entrypoint.sh
+[Mon Sep 28 18:29:30 2026] [4073995] 231072 4073995   521215    19818     4010    15808         0   393216        0           800 dockerd
+[Mon Sep 28 18:29:30 2026] [4074037] 231072 4074037   341650     9564     2300     7264         0   212992        0           800 containerd
+[Mon Sep 28 18:29:30 2026] [4074586] 232073 4074586     1222      864       64      800         0    57344        0           800 run.sh
+[Mon Sep 28 18:29:30 2026] [4074590] 232073 4074590     1189      896       64      832         0    49152        0           800 run-helper.sh
+[Mon Sep 28 18:29:30 2026] [4074594] 232073 4074594 68594872    29982     9886    14624      5472   643072        0           800 Runner.Listener
+[Mon Sep 28 18:29:30 2026] [4074908] 232073 4074908 68580785    33467    10971    15936      6560   655360        0           800 Runner.Worker
+[Mon Sep 28 18:29:30 2026] [4087565] 232073 4087565     1188      864       64      800         0    49152        0           500 bash
+[Mon Sep 28 18:29:30 2026] [4087566] 232073 4087566     1188      896       64      832         0    49152        0           800 bash
+[Mon Sep 28 18:29:30 2026] [4087569] 232073 4087569   185302    11988    11348      640         0   385024        0           800 dart:flutter_to
+[Mon Sep 28 18:29:30 2026] [4087570] 232073 4087570      783      416        0      416         0    53248        0           800 tee
+[Mon Sep 28 18:29:30 2026] [4087673] 232073 4087673  1906350    60648    59439     1209         0   905216        0           800 java
+[Mon Sep 28 18:29:30 2026] [4096476] 232073 4096476  1414298   621471   620632      839         0  5832704        0           800 java
+[Mon Sep 28 18:29:30 2026] [4111708] 232073 4111708   214905    26491    25851      640         0   495616        0           800 dart:flutter_to
+[Mon Sep 28 18:29:30 2026] [4111797] 232073 4111797   328099   238466   237890      576         0  2707456        0           800 dart:frontend_s
+[Mon Sep 28 18:29:30 2026] [4112320] 232073 4112320    93839     4864     4256      608         0   159744        0           800 dart:dartdev_ao
+[Mon Sep 28 18:29:30 2026] [4112333] 232073 4112333   129771    25505    24961      544         0   335872        0           800 dart:gen_kernel
+[Mon Sep 28 18:29:30 2026] oom-kill:constraint=CONSTRAINT_MEMCG,nodemask=(null),cpuset=init.scope,mems_allowed=0,oom_memcg=/system.slice/docker-ff829b03bd386c496ff87f5e2720b14f2f0c068f2ffaeacd6608b919657baa7a.scope,task_memcg=/system.slice/docker-ff829b03bd386c496ff87f5e2720b14f2f0c068f2ffaeacd6608b919657baa7a.scope/init.scope,task=java,pid=4096476,uid=232073
+[Mon Sep 28 18:29:30 2026] Memory cgroup out of memory: Killed process 4096476 (java) total-vm:5657192kB, anon-rss:2482528kB, file-rss:3356kB, shmem-rss:0kB, UID:232073 pgtables:5696kB oom_score_adj:800

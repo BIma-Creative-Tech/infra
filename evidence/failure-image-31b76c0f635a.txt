@@ -1,0 +1,16 @@
+# 31b76c0f635a image build — failed step
+2026-09-28T11:52:03.361834990Z [WORKER 2026-09-28 11:52:03Z INFO StepsRunner] Processing step: DisplayName='Build web (runner target) → GHCR by digest (untagged) + SBOM + provenance'
+2026-09-28T11:52:04.911633259Z [WORKER 2026-09-28 11:52:04Z INFO ProcessInvokerWrapper] Finished process 1059 with exit code 1, and elapsed time 00:00:01.5357839.
+2026-09-28T11:52:04.913946381Z [WORKER 2026-09-28 11:52:04Z INFO ExecutionContext]     "buildx failed with: failed to build: push-by-digest is currently not implemented for docker driver, please create a new builder instance"
+2026-09-28T11:52:16.257287903Z 2026-09-28 11:52:16Z: Job image build (runner + migrate) · trivy · GHCR push completed with result: Failed
+## Buildx driver selection script (same in PR run 01c8dd883995)
+driver=docker-container
+if [[ "$RUNNER_ENV" == "self-hosted" ]]; then
+  if docker info --format '{{json .DriverStatus}}' | grep -q 'io.containerd.snapshotter'; then
+    driver=docker
+  else
+    echo "::warning::inner dockerd without the containerd image store â buildx docker-container (no layer cache)"
+  fi
+fi
+echo "driver=$driver" | tee -a "$GITHUB_OUTPUT"
+

@@ -1,0 +1,10 @@
+Chain CI-RUNNER-EGRESS (1 references)
+    pkts      bytes target     prot opt in     out     source               destination         
+  200370 14551310 RETURN     0    --  *      *       0.0.0.0/0            0.0.0.0/0            ctstate RELATED,ESTABLISHED
+       1       60 RETURN     0    --  *      *       0.0.0.0/0            0.0.0.0/0            ctstate DNAT
+       6      360 DROP       0    --  *      *       0.0.0.0/0            10.0.0.0/8          
+       0        0 DROP       0    --  *      *       0.0.0.0/0            172.16.0.0/12       
+       0        0 DROP       0    --  *      *       0.0.0.0/0            192.168.0.0/16      
+       6      360 DROP       0    --  *      *       0.0.0.0/0            169.254.0.0/16      
+       0        0 DROP       0    --  *      *       0.0.0.0/0            100.64.0.0/10       
+      76     4608 RETURN     0    --  *      *       0.0.0.0/0            0.0.0.0/0           

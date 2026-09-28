@@ -1,0 +1,1 @@
+Runtime=sysbox-runc Privileged=false NanoCpus=2000000000 Memory=4294967296 MemorySwap=4294967296 PidsLimit=4096 CpuShares=256 OomScoreAdj=800 SecurityOpt=[no-new-privileges:true] Ports={} Net=ci-runner Restart=no AutoRemove=false Blkio=[{"Path":"/dev/loop0","Rate":62914560},{"Path":"/dev/sda","Rate":62914560}] Mounts=/srv/ci/cache:/cache /srv/ci/docker:/var/lib/docker 
