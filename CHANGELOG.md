@@ -84,6 +84,9 @@ file `VERSION`.
   per tenant; laporan QA `docs/qa/2026-09-25-plan04-{staging,prod}.md`.
 
 ### Changed
+- ci_runner (plan 12 R12b, 2026-09-29): image `ci-runner:2.337.0-3` — sisa milik root dari container dalam (Trivy cache di
+  `/cache/trivy` / `_work/_temp/trivy-cache`) di-chown ke uid 1001: entrypoint saat start/keluar + janitor root yang dipicu hook
+  job-completed (menghilangkan "permission denied" pembersihan temp di akhir job). Diuji di container sysbox sekali pakai.
 - ci_runner (plan 12 R12): entrypoint image `ci-runner:2.337.0-2` keluar dengan kode hasil job (0/10 Failed/11 Canceled/12/13
   tanpa job) → `ci_runner_jobs_total{result=success|failure|cancelled|none|error}` akurat (sebelumnya selalu rc 0);
   path unit `PathChanged` (bukan `PathExists`), preflight menolak credential PAT kosong, supervisor reload sendiri di titik aman
