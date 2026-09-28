@@ -1,6 +1,6 @@
 # Plan 12 — Self-hosted GitHub Actions runner untuk `bctech-adm/drms`
 
-- **Status:** APPROVED (owner GATE 1 2026-09-28: Q1–Q6 all recommendations) (menunggu GATE 1)
+- **Status:** APPROVED (owner GATE 1 2026-09-28: Q1–Q6 all recommendations)
 - **Tanggal:** 2026-09-28 · **Penulis:** Analyst (untuk Lead) · **Permintaan:** sesi app ProyekKas, keputusan owner
   2026-09-28: "self-hosted runner", karena akun GitHub Free kehabisan menit Actions dan job CI drms gagal dalam 2 s.
 - **ADR:** `docs/adr/0014-self-hosted-ci-runner.md` (**proposed**)
