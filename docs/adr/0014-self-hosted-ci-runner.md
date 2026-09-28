@@ -1,6 +1,6 @@
 # ADR 0014 — Self-hosted GitHub Actions runner (ephemeral, sysbox) untuk `bctech-adm/drms`
 
-- **Status:** proposed (menunggu GATE 1 plan 12)
+- **Status:** accepted (2026-09-28, owner GATE 1) (menunggu GATE 1 plan 12)
 - **Tanggal:** 2026-09-28
 - **Penulis:** Analyst
 - **Terkait:** plan 12 (`docs/plans/12-gh-runner-drms.md`, fakta + sumber §2), ADR 0001 (lisensi), ADR 0004 (kapasitas),
