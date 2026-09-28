@@ -1,0 +1,6 @@
+2026-09-29T02:14:51+07:00 srv2001692 ci-runner-supervisor[950425]: ci-runner-supervisor: WARN: job container STUCK (entrypoint exited 181 s ago) — watchdog: docker stop
+2026-09-29T02:16:05+07:00 srv2001692 ci-runner-supervisor[950425]: ci-runner-supervisor: WARN: container still running after docker stop — docker kill
+2026-09-29T02:17:02+07:00 srv2001692 ci-runner-supervisor[950425]: ci-runner-supervisor: WARN: stuck container not removable — restarting sysbox-fs (no other sysbox containers running)
+2026-09-29T02:17:03+07:00 srv2001692 ci-runner-supervisor[950425]: ci-runner-supervisor: stuck container removed after sysbox-fs restart
+2026-09-29T02:17:03+07:00 srv2001692 ci-runner-supervisor[950425]: ci-runner-supervisor: job container exited rc=125 result=cancelled (runner id=48)
+2026-09-29T02:17:20+07:00 srv2001692 ci-runner-supervisor[950425]: ci-runner-supervisor: registered runner name=drms-srv2001692-1790623039 id=49 labels=["self-hosted","linux","x64","drms"]

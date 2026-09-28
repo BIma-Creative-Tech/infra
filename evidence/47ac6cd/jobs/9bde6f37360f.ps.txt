@@ -1,0 +1,17 @@
+=== 2026-09-29T02:47:54+0700 9bde6f37360f procs=15 io=8:0 rbytes=206712832 wbytes=1011650560 rios=3119 wios=68508 dbytes=0 dios=0 7:0 rbytes=194179072 wbytes=139264 rios=1581 wios=56 dbytes=0 dios=0 
+    PID    PPID STAT ELAPSED   RSS %CPU WCHAN                    COMMAND
+1290922 1290889 Ss        93  3552  0.0 do_wait                  /bin/bash /opt/ci-runner/entrypoint.sh
+1291083 1290922 Sl        93 84080  0.7 futex_wait_queue         dockerd --host=unix:///var/run/docker.sock --group=docker
+1291125 1291083 Ssl       93 45576  0.3 futex_wait_queue         containerd --config /var/run/docker/containerd/containerd.toml
+1291671 1290922 S         90  3812  0.0 do_wait                  /bin/bash /home/runner/run.sh
+1291672 1291671 S         90  1604  0.0 pipe_read                tee -a /run/ci-runner/runner.out
+1291676 1291671 S         90  3668  0.0 do_wait                  /bin/bash /home/runner/run-helper.sh
+1291680 1291676 Sl        90 115180 3.3 futex_wait_queue         /home/runner/bin/Runner.Listener run
+1291966 1291680 Sl        80 129140 5.6 futex_wait_queue         /home/runner/bin/Runner.Worker spawnclient 150 153
+1304416 1291966 S          5  3760  0.0 do_wait                  /usr/bin/bash -e /home/runner/_work/_temp/ecb651b1-140a-4429-a70c-f4a34002af46.sh
+1304417 1304416 Sl         5 68988  2.7 ep_poll                  npm run test:coverage
+1304428 1304417 S          4  2004  0.0 do_wait                  sh -c npm run test:coverage -w apps/web
+1304429 1304428 Sl         4 70832  3.2 ep_poll                  npm run test:coverage
+1304440 1304429 S          4  1988  0.0 do_wait                  sh -c vitest run --coverage
+1304441 1304440 Rl         4 416668 66.5 -                       node /home/runner/_work/drms/drms/node_modules/.bin/vitest run --coverage
+1304506 1304441 Sl         4 298020 59.3 -                       /cache/toolcache/node/24.21.0/x64/bin/node --experimental-import-meta-resolve --require /home/runner/_work/drms/drms/node_modules/vitest/suppress-warnings.

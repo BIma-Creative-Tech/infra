@@ -1,0 +1,64 @@
+=== 2026-09-29T02:37:53+0700 30b920a38ddb procs=14 io=8:0 rbytes=1629835264 wbytes=2735919104 rios=15893 wios=26416 dbytes=0 dios=0 7:0 rbytes=1583775744 wbytes=8192 rios=8983 wios=48 dbytes=0 dios=0 
+    PID    PPID STAT ELAPSED   RSS %CPU WCHAN                    COMMAND
+1175555 1175441 Ss       159  3628  0.0 do_wait                  /bin/bash /opt/ci-runner/entrypoint.sh
+1175949 1175555 Sl       158 82516  0.4 futex_wait_queue         dockerd --host=unix:///var/run/docker.sock --group=docker
+1176103 1175949 Ssl      158 38892  0.2 futex_wait_queue         containerd --config /var/run/docker/containerd/containerd.toml
+1178177 1175555 S        156  3848  0.0 do_wait                  /bin/bash /home/runner/run.sh
+1178178 1178177 S        156  1700  0.0 pipe_read                tee -a /run/ci-runner/runner.out
+1178182 1178177 S        156  3720  0.0 do_wait                  /bin/bash /home/runner/run-helper.sh
+1178186 1178182 Sl       156 111292 2.0 futex_wait_queue         /home/runner/bin/Runner.Listener run
+1178585 1178186 Sl       146 139456 3.3 futex_wait_queue         /home/runner/bin/Runner.Worker spawnclient 150 153
+1191858 1178585 S         61  3636  0.0 do_wait                  /usr/bin/bash -e /home/runner/_work/_temp/5d453e7e-7b62-41cd-9a5c-77c20b61ae9c.sh
+1191862 1191858 Sl        61 163520 4.2 futex_wait_queue         /home/runner/_work/_temp/flutter/bin/cache/dart-sdk/bin/dartvm --resolved_executable_name=/home/runner/_work/_temp/flutter/bin/cache/dart-sdk/bin/dart --ex
+1195340 1191862 Sl        50 34124  0.0 futex_wait_queue         /home/runner/_work/_temp/flutter/bin/cache/dart-sdk/bin/dart compile aot-snapshot --packages /home/runner/_work/drms/drms/apps/mobile/.dart_tool/package_co
+1195356 1175555 S         50  3676  0.0 do_wait                  bash -c while kill -0 985; do sleep 1; done; kill -9 1078
+1199229 1195340 Rl        25 269880 102 -                        /home/runner/_work/_temp/flutter/bin/cache/dart-sdk/bin/utils/gen_snapshot --snapshot-kind=app-aot-elf --elf=/home/runner/_work/drms/drms/apps/mobile/.dart
+1203367 1195356 S          0  2016  0.0 hrtimer_nanosleep        sleep 1
+=== 2026-09-29T02:39:54+0700 30b920a38ddb procs=14 io=8:0 rbytes=1816334336 wbytes=3408977920 rios=22002 wios=31858 dbytes=0 dios=0 7:0 rbytes=1619791872 wbytes=8192 rios=11206 wios=48 dbytes=0 dios=0 
+    PID    PPID STAT ELAPSED   RSS %CPU WCHAN                    COMMAND
+1175555 1175441 Ss       279  3628  0.0 do_wait                  /bin/bash /opt/ci-runner/entrypoint.sh
+1175949 1175555 Sl       279 81684  0.2 futex_wait_queue         dockerd --host=unix:///var/run/docker.sock --group=docker
+1176103 1175949 Ssl      278 38928  0.1 futex_wait_queue         containerd --config /var/run/docker/containerd/containerd.toml
+1178177 1175555 S        276  3848  0.0 do_wait                  /bin/bash /home/runner/run.sh
+1178178 1178177 S        276  1700  0.0 pipe_read                tee -a /run/ci-runner/runner.out
+1178182 1178177 S        276  3720  0.0 do_wait                  /bin/bash /home/runner/run-helper.sh
+1178186 1178182 Sl       276 114532 1.2 futex_wait_queue         /home/runner/bin/Runner.Listener run
+1178585 1178186 Sl       266 144276 2.3 futex_wait_queue         /home/runner/bin/Runner.Worker spawnclient 150 153
+1215533 1178585 S         43  3820  0.0 do_wait                  /usr/bin/bash -e /home/runner/_work/_temp/c1d99397-dcaa-49b2-bdc7-c83bdbd29c53.sh
+1215534 1215533 Sl        43 148760 13.5 futex_wait_queue        /home/runner/_work/_temp/flutter/bin/cache/dart-sdk/bin/dartvm --resolved_executable_name=/home/runner/_work/_temp/flutter/bin/cache/dart-sdk/bin/dart --ex
+1216039 1215534 Sl        35 884348 91.4 futex_wait_queue        /home/runner/_work/_temp/flutter/bin/cache/dart-sdk/bin/dartaotruntime /home/runner/_work/_temp/flutter/bin/cache/dart-sdk/bin/snapshots/frontend_server_ao
+1223600 1215534 Rl         4 278660 45.2 -                       /home/runner/_work/_temp/flutter/bin/cache/artifacts/engine/linux-x64/flutter_tester --vm-service-port=0 --enable-checked-mode --verify-entry-points --enab
+1223619 1175555 Sl         4 37412  1.7 futex_wait_queue         /home/runner/_work/_temp/flutter/bin/cache/dart-sdk/bin/dart development-service --vm-service-uri=http://127.0.0.1:43281/JuAvAw3KlVg=/ --bind-address=127.0
+1223758 1215534 Rl         0 74332 58.0 -                        /home/runner/_work/_temp/flutter/bin/cache/artifacts/engine/linux-x64/flutter_tester --vm-service-port=0 --enable-checked-mode --verify-entry-points --enab
+=== 2026-09-29T02:40:54+0700 30b920a38ddb procs=13 io=8:0 rbytes=1835171840 wbytes=5762981888 rios=23076 wios=36013 dbytes=0 dios=0 7:0 rbytes=1619931136 wbytes=8192 rios=11234 wios=48 dbytes=0 dios=0 
+    PID    PPID STAT ELAPSED   RSS %CPU WCHAN                    COMMAND
+1175555 1175441 Ss       339  3628  0.0 do_wait                  /bin/bash /opt/ci-runner/entrypoint.sh
+1175949 1175555 Sl       339 81748  0.2 futex_wait_queue         dockerd --host=unix:///var/run/docker.sock --group=docker
+1176103 1175949 Ssl      339 38944  0.1 futex_wait_queue         containerd --config /var/run/docker/containerd/containerd.toml
+1178177 1175555 S        336  3848  0.0 do_wait                  /bin/bash /home/runner/run.sh
+1178178 1178177 S        336  1700  0.0 pipe_read                tee -a /run/ci-runner/runner.out
+1178182 1178177 S        336  3720  0.0 do_wait                  /bin/bash /home/runner/run-helper.sh
+1178186 1178182 Sl       336 114608 1.0 futex_wait_queue         /home/runner/bin/Runner.Listener run
+1178585 1178186 Sl       326 144124 2.0 futex_wait_queue         /home/runner/bin/Runner.Worker spawnclient 150 153
+1215533 1178585 S        103  3820  0.0 do_wait                  /usr/bin/bash -e /home/runner/_work/_temp/c1d99397-dcaa-49b2-bdc7-c83bdbd29c53.sh
+1215534 1215533 Sl       103 154688 10.7 futex_wait_queue        /home/runner/_work/_temp/flutter/bin/cache/dart-sdk/bin/dartvm --resolved_executable_name=/home/runner/_work/_temp/flutter/bin/cache/dart-sdk/bin/dart --ex
+1216039 1215534 Sl        95 1213076 58.5 futex_wait_queue       /home/runner/_work/_temp/flutter/bin/cache/dart-sdk/bin/dartaotruntime /home/runner/_work/_temp/flutter/bin/cache/dart-sdk/bin/snapshots/frontend_server_ao
+1233464 1215534 Rl         0 243864 143 -                        /home/runner/_work/_temp/flutter/bin/cache/artifacts/engine/linux-x64/flutter_tester --vm-service-port=0 --enable-checked-mode --verify-entry-points --enab
+1233501 1175555 Sl         0 35492 19.2 futex_wait_queue         /home/runner/_work/_temp/flutter/bin/cache/dart-sdk/bin/dart development-service --vm-service-uri=http://127.0.0.1:41575/9RcrEivmQ4w=/ --bind-address=127.0
+=== 2026-09-29T02:41:54+0700 30b920a38ddb procs=15 io=8:0 rbytes=1840087040 wbytes=7749509120 rios=23219 wios=39579 dbytes=0 dios=0 7:0 rbytes=1620103168 wbytes=8192 rios=11276 wios=48 dbytes=0 dios=0 
+    PID    PPID STAT ELAPSED   RSS %CPU WCHAN                    COMMAND
+1175555 1175441 Ss       399  3628  0.0 do_wait                  /bin/bash /opt/ci-runner/entrypoint.sh
+1175949 1175555 Sl       399 81876  0.1 futex_wait_queue         dockerd --host=unix:///var/run/docker.sock --group=docker
+1176103 1175949 Ssl      399 38960  0.1 futex_wait_queue         containerd --config /var/run/docker/containerd/containerd.toml
+1178177 1175555 S        396  3848  0.0 do_wait                  /bin/bash /home/runner/run.sh
+1178178 1178177 S        396  1700  0.0 pipe_read                tee -a /run/ci-runner/runner.out
+1178182 1178177 S        396  3720  0.0 do_wait                  /bin/bash /home/runner/run-helper.sh
+1178186 1178182 Sl       396 114640 0.8 futex_wait_queue         /home/runner/bin/Runner.Listener run
+1178585 1178186 Sl       386 144100 1.8 futex_wait_queue         /home/runner/bin/Runner.Worker spawnclient 150 153
+1215533 1178585 S        163  3820  0.0 do_wait                  /usr/bin/bash -e /home/runner/_work/_temp/c1d99397-dcaa-49b2-bdc7-c83bdbd29c53.sh
+1215534 1215533 Sl       163 158356 8.8 futex_wait_queue         /home/runner/_work/_temp/flutter/bin/cache/dart-sdk/bin/dartvm --resolved_executable_name=/home/runner/_work/_temp/flutter/bin/cache/dart-sdk/bin/dart --ex
+1216039 1215534 Sl       155 1179396 43.4 futex_wait_queue       /home/runner/_work/_temp/flutter/bin/cache/dart-sdk/bin/dartaotruntime /home/runner/_work/_temp/flutter/bin/cache/dart-sdk/bin/snapshots/frontend_server_ao
+1244001 1215534 Rl         3 301684 61.8 -                       /home/runner/_work/_temp/flutter/bin/cache/artifacts/engine/linux-x64/flutter_tester --vm-service-port=0 --enable-checked-mode --verify-entry-points --enab
+1244193 1175555 Sl         3 37732  1.9 futex_wait_queue         /home/runner/_work/_temp/flutter/bin/cache/dart-sdk/bin/dart development-service --vm-service-uri=http://127.0.0.1:42261/BAYzwMlxin8=/ --bind-address=127.0
+1245422 1215534 Rl         0 243508 91.8 -                       /home/runner/_work/_temp/flutter/bin/cache/artifacts/engine/linux-x64/flutter_tester --vm-service-port=0 --enable-checked-mode --verify-entry-points --enab
+1245443 1175555 Sl         0 37480 10.6 futex_wait_queue         /home/runner/_work/_temp/flutter/bin/cache/dart-sdk/bin/dart development-service --vm-service-uri=http://127.0.0.1:36873/HV2wHqkAGgk=/ --bind-address=127.0

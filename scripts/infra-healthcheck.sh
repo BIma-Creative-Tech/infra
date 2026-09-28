@@ -217,6 +217,18 @@ if [[ -d /etc/ci-runner ]]; then
       problem "ci-runner-registration" "registrasi JIT runner gagal ${fails}x berturut-turut (PAT kedaluwarsa/dicabut? journalctl -u ci-runner-supervisor)"
     fi
   fi
+  # R12: watchdog container macet (insiden 2026-09-28 23:48 WIB) + job melewati guard timeout.
+  stuck_unres="$(ci_val ci_runner_stuck_unresolved "$ci_tf/ci_runner.prom")"
+  stuck_last="$(ci_val ci_runner_last_stuck_timestamp_seconds "$ci_tf/ci_runner.prom")"
+  if [[ "$stuck_unres" == 1 ]]; then
+    problem "ci-runner-stuck" "container ci-runner-job macet dan watchdog TIDAK bisa membersihkannya — runner tidak menerima job (runbook docs/03-operations/ci-runner.md §Container macet)"
+  elif [[ -n "$stuck_last" ]] && (( ${stuck_last%.*} > 0 && NOW - ${stuck_last%.*} < ${HC_CI_STUCK_WINDOW_SEC:-86400} )); then
+    problem "ci-runner-stuck" "watchdog membersihkan container ci-runner-job yang macet pada $(date -d "@${stuck_last%.*}" '+%F %T %Z') (journalctl -u ci-runner-supervisor; cek sysbox-fs)"
+  fi
+  job_sec="$(ci_val ci_runner_job_running_seconds "$ci_tf/ci_runner_heartbeat.prom")"
+  if [[ -n "$job_sec" ]] && (( ${job_sec%.*} > ${HC_CI_JOB_MAX_SEC:-12600} )); then
+    problem "ci-runner-job-timeout" "job CI berjalan ${job_sec%.*} s (> ${HC_CI_JOB_MAX_SEC:-12600} s) — guard timeout supervisor tidak berhasil? (journalctl -u ci-runner-supervisor)"
+  fi
   upd="$(ci_val ci_runner_update_available "$ci_tf/ci_runner.prom")"
   lts="$(ci_val ci_runner_latest_release_timestamp_seconds "$ci_tf/ci_runner.prom")"
   if [[ "$upd" == 1 && -n "$lts" ]] && (( ${lts%.*} > 0 && NOW - ${lts%.*} > ${HC_CI_RUNNER_MAX_AGE_DAYS:-21} * 86400 )); then

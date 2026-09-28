@@ -4,6 +4,21 @@
 - **Eksekusi (2026-09-28, branch `feat/infra-ci-runner`):** R0 ✓, R0b daftar ✓ (belum ada yang dihapus), R1 ✓, R2 ✓ (tanpa restart
   dockerd), R3 ✓, R4 ✓, R6 ✓, R5 terpasang & menunggu PAT owner, R7 kode ✓ (healthcheck berlaku setelah merge; monitor Kuma = Lead).
   Bukti: `docs/qa/2026-09-28-plan12-r0-sysbox-postinst.md`, `docs/qa/2026-09-28-plan12-r1-r7.md`, `docs/qa/r0b-image-cleanup-candidates.md`.
+- **R10 (2026-09-28):** QA `docs/qa/2026-09-28-plan12-r10.md` — 10/12 job OK; F1 APK OOM @4 GiB → `ci_runner_memory` **5g**
+  (owner, aktif 2026-09-29 01:32 WIB); F2 buildx `docker` driver tanpa push-by-digest → workflow drms `47ac6cd` (docker-container
+  saat publish). §6 disk: file loop ternyata sparse (lihat R12).
+- **R12 (2026-09-29, branch `fix/ci-runner-r10`):** insiden container job macet 2026-09-28 23:48 → 01:31:55 WIB (zombie sysbox-fs; job image-publish 47ac6cd kena timeout 75 mnt) → watchdog
+  supervisor (guard timeout job 3 j, stop → kill → restart sysbox-fs bila aman → rm, `ci_runner_stuck_total`, alert
+  `ci-runner-stuck`/`ci-runner-job-timeout`), supervisor `Wants=sysbox.service`; entrypoint meneruskan hasil job (kode keluar,
+  `ci_runner_jobs_total{result}`; image `2.337.0-2`); race PAT (`PathChanged` + preflight credential tidak kosong + reload aman
+  saat PAT/config berubah, handler tidak me-restart paksa); `disk.img` diisi penuh 40 GiB (`mkfs -E nodiscard`, fstrim.timer
+  terbukti tidak menyentuh `/srv/ci`). Live 2026-09-29 01:49–01:50 WIB (runner idle). Ops: `docs/03-operations/ci-runner.md`.
+  Akar masalah hang image-publish (terbukti live 02:05 WIB): buildkit (driver docker-container) membuat pid ns bersarang; sysbox-fs
+  meninggalkan helper zombie di dalamnya → init ns macet di `zap_pid_ns_processes` (bug sysbox 0.7.1). Watchdog terbukti live
+  02:14–02:17 WIB (stuck → restart sysbox-fs → registrasi ulang ±6 mnt). drms `197226b`: buildkitd
+  `--oci-worker-no-process-sandbox` → image job develop push **Succeeded** (push-by-digest + SBOM/provenance step sukses, tanpa
+  zombie); APK @5 GiB puncak anon 3,0 GiB tanpa OOM, tapi step Release APK gagal exit 1 (deterministik, bukan runner — sesi app).
+  Revisi R8: driver `docker` tidak bisa push-by-digest; `docker-container` hanya dengan `--oci-worker-no-process-sandbox` di sysbox.
 - **Tanggal:** 2026-09-28 · **Penulis:** Analyst (untuk Lead) · **Permintaan:** sesi app ProyekKas, keputusan owner
   2026-09-28: "self-hosted runner", karena akun GitHub Free kehabisan menit Actions dan job CI drms gagal dalam 2 s.
 - **ADR:** `docs/adr/0014-self-hosted-ci-runner.md` (**proposed**)
@@ -202,7 +217,7 @@ token dipakai sekali lewat stdin (`read -rs`), tidak ditulis ke file/riwayat she
 | sysbox-mgr + sysbox-fs | ±50–100 MiB **[ESTIMASI]**, unit host (di luar Σ container) | diukur R2 |
 | Disk | loop ext4 **40 GiB** (`fallocate`, `mkfs.ext4 -m 0`), mount `/srv/ci` `nosuid` (`nodev` diuji di R1) | image+build cache ±12 GB, cache Flutter/Android/Gradle/npm/pub ±12 GB, workspace ±3 GB, sisa GC **[ESTIMASI]**. `/` 107 → 147 G ≈ **76%** tanpa pembersihan image lama. Dengan R0b (±50 GB reclaimable) ≈ 50% |
 | IO | `io.max` bps pada device loop | mq-deadline → `io.weight` tidak berlaku (§2.1) |
-| Timeout | `timeout-minutes` workflow sudah ada (20–45) | antre maksimal 24 jam (perilaku GitHub) |
+| Timeout | `timeout-minutes` workflow sudah ada (20–75) + guard supervisor 3 j (R12, `ci_runner_job_timeout`) | antre maksimal 24 jam (perilaku GitHub) |
 
 **Aturan perencanaan ADR 0004:** Σ limit 14 768 + 4 096 (CI) + 384 (dbt) + 2 048 (cadangan) = 21 296 vs 15 992 → **−5,3 GiB**.
 Jadi CI tidak bisa "muat" menurut aturan batas atas. Usulan revisi ADR 0004 (keputusan GATE Q4):
@@ -213,7 +228,8 @@ Jadi CI tidak bisa "muat" menurut aturan batas atas. Usulan revisi ADR 0004 (kep
    darurat dicatat. Tanpa aturan ini beban justru bertambah (CI + build lokal).
 3. Pemicu evaluasi: 7 hari data `container-metrics` → bila RAM available p05 < 3 GiB atau swap > 1 GiB berulang saat job CI →
    turunkan CI ke 3 GiB (APK dipisah ke malam hari) atau pindahkan CI ke VPS terpisah (ADR 0004 §6).
-4. Disk: `/srv/ci` dihitung sebagai alokasi tetap 40 GiB. Alert `/` > 70% tetap. Laju tumbuh `/` harus turun (build pindah ke
+4. Disk: `/srv/ci` dihitung sebagai alokasi tetap 40 GiB (R12: file loop kini benar-benar teralokasi penuh; sebelumnya sparse
+   karena `mkfs.ext4` men-discard — lihat `docs/03-operations/ci-runner.md` §7). Alert `/` > 70% tetap. Laju tumbuh `/` harus turun (build pindah ke
    kuota tetap), diukur 7 hari setelah R10.
 
 ## 7. Image & penyimpanan GitHub 500 MB (GATE Q5)

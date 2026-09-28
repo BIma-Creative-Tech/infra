@@ -9,6 +9,12 @@ file `VERSION`.
 ## [Unreleased]
 
 ### Added
+- ci_runner (plan 12 R12, 2026-09-29): watchdog container job macet di supervisor (insiden 2026-09-28 23:48 WIB: zombie
+  `runc:[2:INIT]` milik sysbox-fs, container tak keluar ±3 j) — guard timeout job `ci_runner_job_timeout` 3 j, stop → kill →
+  restart `sysbox-fs` (hanya bila tidak ada container sysbox lain) → rm; metrik `ci_runner_stuck_total`,
+  `ci_runner_stuck_unresolved`, `ci_runner_last_stuck_timestamp_seconds`, `ci_runner_job_timeouts_total`,
+  `ci_runner_job_running_seconds`; healthcheck `ci-runner-stuck` + `ci-runner-job-timeout`. Ops `docs/03-operations/ci-runner.md`
+  (operasi, rotasi PAT, runbook container macet, reset cache, disk, upgrade).
 - analytics (ADR 0013, plan 11 U1–U6/U10, 2026-09-27): Umami 3.4.0 (MIT, digest ter-pin) di `analytics.bimacreative.tech` —
   stack `analytics/umami/` (uid 1001, rootfs ro, tanpa egress, 256m), DB/role `umami` di Postgres shared (limit 10, total 196),
   network `db-umami` 10.100.28.0/24 + `analytics-edge` 10.100.17.0/24 (`--internal`, attach live), router
@@ -78,6 +84,11 @@ file `VERSION`.
   per tenant; laporan QA `docs/qa/2026-09-25-plan04-{staging,prod}.md`.
 
 ### Changed
+- ci_runner (plan 12 R12): entrypoint image `ci-runner:2.337.0-2` keluar dengan kode hasil job (0/10 Failed/11 Canceled/12/13
+  tanpa job) → `ci_runner_jobs_total{result=success|failure|cancelled|none|error}` akurat (sebelumnya selalu rc 0);
+  path unit `PathChanged` (bukan `PathExists`), preflight menolak credential PAT kosong, supervisor reload sendiri di titik aman
+  saat PAT/skrip/env/unit berubah — handler Ansible tidak lagi me-restart paksa; supervisor `Wants=sysbox.service` (bukan
+  `Requires`); mkfs `-E nodiscard` + pengisian hole `disk.img` (`ci_runner_fill_disk_holes`) + cek `/srv/ci` di luar fstrim.
 - network (plan 06, ADR 0010, `06f0f6b`): compose 8 stack pindah dari network `db` bersama ke `db-*` per konsumen; Keycloak
   keluar dari `proxy`/`db` → `kc-edge` (gw_priority 1) + `db-keycloak` + `metrics`; odoo-staging → `odoo-edge-stg`. Downtime
   terukur: staging Odoo ±3 s (18:42:18–21 WIB), staging DRMS ±33 s, prod CP ±4 s (22:02:31–35), Traefik ±5 s (22:03:36–41),

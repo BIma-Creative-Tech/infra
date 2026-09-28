@@ -1,0 +1,524 @@
+=== 2026-09-29T02:18:49+0700 36a13e4f034b procs=31 io=8:0 rbytes=423751680 wbytes=1032466432 rios=11215 wios=62646 dbytes=0 dios=0 7:0 rbytes=370835456 wbytes=94425088 rios=13220 wios=11724 dbytes=0 dios=0 
+    PID    PPID STAT ELAPSED   RSS %CPU WCHAN                    COMMAND
+1000038  999999 Ss        88  3680  0.0 do_wait                  /bin/bash /opt/ci-runner/entrypoint.sh
+1000177 1000038 Sl        87 92788 10.2 futex_wait_queue         dockerd --host=unix:///var/run/docker.sock --group=docker
+1000220 1000177 Ssl       87 49756  0.9 futex_wait_queue         containerd --config /var/run/docker/containerd/containerd.toml
+1001042 1000038 S         76  3888  0.0 do_wait                  /bin/bash /home/runner/run.sh
+1001043 1001042 S         76  1676  0.0 pipe_read                tee -a /run/ci-runner/runner.out
+1001047 1001042 S         76  3780  0.0 do_wait                  /bin/bash /home/runner/run-helper.sh
+1001051 1001047 Sl        76 111560 3.8 futex_wait_queue         /home/runner/bin/Runner.Listener run
+1001364 1001051 Sl        66 131032 7.6 futex_wait_queue         /home/runner/bin/Runner.Worker spawnclient 150 153
+1002062 1000038 Sl        55 12040  0.1 futex_wait_queue         /usr/bin/containerd-shim-runc-v2 -namespace moby -id bb78a15f8cde45f9e831ff8e9e9ebd025eb1981a2c471b72838eb07f27eff8cd -address /var/run/docker/containerd/c
+1002107 1002062 Ss        55 29440  0.3 ep_poll                  postgres
+1002316 1000177 Sl        55  3496  0.3 ep_poll                  /usr/bin/docker-proxy -proto tcp -host-ip 0.0.0.0 -host-port 5432 -container-ip 172.18.0.2 -container-port 5432 -use-listen-fd
+1002323 1000177 Sl        54  3216  0.0 ep_poll                  /usr/bin/docker-proxy -proto tcp -host-ip :: -host-port 5432 -container-ip 172.18.0.2 -container-port 5432 -use-listen-fd
+1002524 1002107 Ss        52  6112  0.0 ep_poll                  postgres: checkpointer 
+1002525 1002107 Ss        52  7772  0.0 ep_poll                  postgres: background writer 
+1002527 1002107 Ss        52 10320  0.0 ep_poll                  postgres: walwriter 
+1002528 1002107 Ss        52  9288  0.0 ep_poll                  postgres: autovacuum launcher 
+1002529 1002107 Ss        52  8616  0.0 ep_poll                  postgres: logical replication launcher 
+1004448 1000038 Sl        17 11380  0.1 futex_wait_queue         /usr/bin/containerd-shim-runc-v2 -namespace moby -id 9e21a987cca737b7565a10baa940a0a3d888bd055eaf6eac01a74f9e530662a8 -address /var/run/docker/containerd/c
+1004471 1004448 Ssl       17 23436  0.8 futex_wait_queue         /mailpit --smtp-tls-cert /certs/server.crt --smtp-tls-key /certs/server.key --smtp-require-starttls --smtp-auth-file /certs/auth.txt --smtp-disable-rdns --
+1004712 1000177 Sl        17  3040  0.0 futex_wait_queue         /usr/bin/docker-proxy -proto tcp -host-ip 127.0.0.1 -host-port 1025 -container-ip 172.17.0.2 -container-port 1025 -use-listen-fd
+1004728 1000177 Sl        17  3164  0.0 ep_poll                  /usr/bin/docker-proxy -proto tcp -host-ip 127.0.0.1 -host-port 8025 -container-ip 172.17.0.2 -container-port 8025 -use-listen-fd
+1004744 1001364 S         17  3648  0.0 do_wait                  /usr/bin/bash -e /home/runner/_work/_temp/3b01ece1-32a9-43e2-aa6d-ede6c6d57129.sh
+1004745 1004744 Sl        17 69228  0.9 ep_poll                  npm run test:int
+1004760 1004745 S         16  1920  0.0 do_wait                  sh -c npm run test:int -w apps/web
+1004761 1004760 Sl        16 69972  0.9 ep_poll                  npm run test:int
+1004776 1004761 S         16  1892  0.0 do_wait                  sh -c vitest run -c vitest.integration.config.ts
+1004777 1004776 Sl        16 339960 20.9 ep_poll                 node /home/runner/_work/drms/drms/node_modules/.bin/vitest run -c vitest.integration.config.ts
+1005221 1004777 Sl         6 376692 55.0 ep_poll                 /cache/toolcache/node/24.21.0/x64/bin/node --experimental-import-meta-resolve --require /home/runner/_work/drms/drms/node_modules/vitest/suppress-warnings.
+1005387 1005221 Sl         1 129160 94.0 -                       node /home/runner/_work/drms/drms/node_modules/payload/bin.js generate:types
+1005394 1002107 Ss         1 13808  0.0 ep_poll                  postgres: pk_test_app pk_test 172.18.0.1(44308) idle
+1005396 1002107 Ss         1 32636 14.0 ep_poll                  postgres: pk_test_app pk_test 172.18.0.1(44324) idle in transaction
+=== 2026-09-29T02:19:49+0700 36a13e4f034b procs=30 io=8:0 rbytes=424062976 wbytes=1113464832 rios=11229 wios=69381 dbytes=0 dios=0 7:0 rbytes=371245056 wbytes=132628480 rios=13243 wios=13841 dbytes=0 dios=0 
+    PID    PPID STAT ELAPSED   RSS %CPU WCHAN                    COMMAND
+1000038  999999 Ss       148  3680  0.0 do_wait                  /bin/bash /opt/ci-runner/entrypoint.sh
+1000177 1000038 Sl       147 92948  6.1 futex_wait_queue         dockerd --host=unix:///var/run/docker.sock --group=docker
+1000220 1000177 Ssl      147 49804  0.6 futex_wait_queue         containerd --config /var/run/docker/containerd/containerd.toml
+1001042 1000038 S        136  3888  0.0 do_wait                  /bin/bash /home/runner/run.sh
+1001043 1001042 S        136  1676  0.0 pipe_read                tee -a /run/ci-runner/runner.out
+1001047 1001042 S        136  3780  0.0 do_wait                  /bin/bash /home/runner/run-helper.sh
+1001051 1001047 Sl       136 114208 2.2 futex_wait_queue         /home/runner/bin/Runner.Listener run
+1001364 1001051 Sl       126 131852 4.2 futex_wait_queue         /home/runner/bin/Runner.Worker spawnclient 150 153
+1002062 1000038 Sl       115 11956  0.1 futex_wait_queue         /usr/bin/containerd-shim-runc-v2 -namespace moby -id bb78a15f8cde45f9e831ff8e9e9ebd025eb1981a2c471b72838eb07f27eff8cd -address /var/run/docker/containerd/c
+1002107 1002062 Ss       115 29440  0.1 ep_poll                  postgres
+1002316 1000177 Sl       115  3536  7.8 futex_wait_queue         /usr/bin/docker-proxy -proto tcp -host-ip 0.0.0.0 -host-port 5432 -container-ip 172.18.0.2 -container-port 5432 -use-listen-fd
+1002323 1000177 Sl       115  3216  0.0 ep_poll                  /usr/bin/docker-proxy -proto tcp -host-ip :: -host-port 5432 -container-ip 172.18.0.2 -container-port 5432 -use-listen-fd
+1002524 1002107 Ss       112  6112  0.0 ep_poll                  postgres: checkpointer 
+1002525 1002107 Ss       112  8308  0.0 ep_poll                  postgres: background writer 
+1002527 1002107 Ss       112 10320  0.0 ep_poll                  postgres: walwriter 
+1002528 1002107 Ss       112  9352  0.0 ep_poll                  postgres: autovacuum launcher 
+1002529 1002107 Ss       112  8616  0.0 ep_poll                  postgres: logical replication launcher 
+1004448 1000038 Sl        78 11600  0.0 futex_wait_queue         /usr/bin/containerd-shim-runc-v2 -namespace moby -id 9e21a987cca737b7565a10baa940a0a3d888bd055eaf6eac01a74f9e530662a8 -address /var/run/docker/containerd/c
+1004471 1004448 Ssl       78 23540  0.2 futex_wait_queue         /mailpit --smtp-tls-cert /certs/server.crt --smtp-tls-key /certs/server.key --smtp-require-starttls --smtp-auth-file /certs/auth.txt --smtp-disable-rdns --
+1004712 1000177 Sl        77  3040  0.0 futex_wait_queue         /usr/bin/docker-proxy -proto tcp -host-ip 127.0.0.1 -host-port 1025 -container-ip 172.17.0.2 -container-port 1025 -use-listen-fd
+1004728 1000177 Sl        77  3164  0.0 ep_poll                  /usr/bin/docker-proxy -proto tcp -host-ip 127.0.0.1 -host-port 8025 -container-ip 172.17.0.2 -container-port 8025 -use-listen-fd
+1004744 1001364 S         77  3648  0.0 do_wait                  /usr/bin/bash -e /home/runner/_work/_temp/3b01ece1-32a9-43e2-aa6d-ede6c6d57129.sh
+1004745 1004744 Sl        77 69228  0.2 ep_poll                  npm run test:int
+1004760 1004745 S         77  1920  0.0 do_wait                  sh -c npm run test:int -w apps/web
+1004761 1004760 Sl        77 69972  0.2 ep_poll                  npm run test:int
+1004776 1004761 S         76  1892  0.0 do_wait                  sh -c vitest run -c vitest.integration.config.ts
+1004777 1004776 Sl        76 202028 4.7 ep_poll                  node /home/runner/_work/drms/drms/node_modules/.bin/vitest run -c vitest.integration.config.ts
+1005221 1004777 Rl        66 424916 60.0 -                       /cache/toolcache/node/24.21.0/x64/bin/node --experimental-import-meta-resolve --require /home/runner/_work/drms/drms/node_modules/vitest/suppress-warnings.
+1005394 1002107 Ss        61 13808  0.0 ep_poll                  postgres: pk_test_app pk_test 172.18.0.1(44308) idle
+1005396 1002107 Ss        61 57348 24.3 ep_poll                  postgres: pk_test_app pk_test 172.18.0.1(44324) idle in transaction
+=== 2026-09-29T02:20:49+0700 36a13e4f034b procs=30 io=8:0 rbytes=424062976 wbytes=1123336192 rios=11229 wios=70308 dbytes=0 dios=0 7:0 rbytes=371281920 wbytes=148258816 rios=13244 wios=15316 dbytes=0 dios=0 
+    PID    PPID STAT ELAPSED   RSS %CPU WCHAN                    COMMAND
+1000038  999999 Ss       208  3680  0.0 do_wait                  /bin/bash /opt/ci-runner/entrypoint.sh
+1000177 1000038 Sl       207 92956  4.4 futex_wait_queue         dockerd --host=unix:///var/run/docker.sock --group=docker
+1000220 1000177 Ssl      207 50652  0.5 futex_wait_queue         containerd --config /var/run/docker/containerd/containerd.toml
+1001042 1000038 S        196  3888  0.0 do_wait                  /bin/bash /home/runner/run.sh
+1001043 1001042 S        196  1676  0.0 pipe_read                tee -a /run/ci-runner/runner.out
+1001047 1001042 S        196  3780  0.0 do_wait                  /bin/bash /home/runner/run-helper.sh
+1001051 1001047 Sl       196 119588 1.5 futex_wait_queue         /home/runner/bin/Runner.Listener run
+1001364 1001051 Sl       186 131848 3.0 futex_wait_queue         /home/runner/bin/Runner.Worker spawnclient 150 153
+1002062 1000038 Sl       176 12072  0.1 futex_wait_queue         /usr/bin/containerd-shim-runc-v2 -namespace moby -id bb78a15f8cde45f9e831ff8e9e9ebd025eb1981a2c471b72838eb07f27eff8cd -address /var/run/docker/containerd/c
+1002107 1002062 Ss       175 29440  0.1 ep_poll                  postgres
+1002316 1000177 Sl       175  3540 10.2 futex_wait_queue         /usr/bin/docker-proxy -proto tcp -host-ip 0.0.0.0 -host-port 5432 -container-ip 172.18.0.2 -container-port 5432 -use-listen-fd
+1002323 1000177 Sl       175  3216  0.0 ep_poll                  /usr/bin/docker-proxy -proto tcp -host-ip :: -host-port 5432 -container-ip 172.18.0.2 -container-port 5432 -use-listen-fd
+1002524 1002107 Ss       172  6112  0.0 ep_poll                  postgres: checkpointer 
+1002525 1002107 Ss       172  8388  0.0 ep_poll                  postgres: background writer 
+1002527 1002107 Ss       172 10320  0.0 ep_poll                  postgres: walwriter 
+1002528 1002107 Ss       172  9352  0.0 ep_poll                  postgres: autovacuum launcher 
+1002529 1002107 Ss       172  8616  0.0 ep_poll                  postgres: logical replication launcher 
+1004448 1000038 Sl       138 11464  0.0 futex_wait_queue         /usr/bin/containerd-shim-runc-v2 -namespace moby -id 9e21a987cca737b7565a10baa940a0a3d888bd055eaf6eac01a74f9e530662a8 -address /var/run/docker/containerd/c
+1004471 1004448 Ssl      138 23620  0.1 futex_wait_queue         /mailpit --smtp-tls-cert /certs/server.crt --smtp-tls-key /certs/server.key --smtp-require-starttls --smtp-auth-file /certs/auth.txt --smtp-disable-rdns --
+1004712 1000177 Sl       137  3040  0.0 futex_wait_queue         /usr/bin/docker-proxy -proto tcp -host-ip 127.0.0.1 -host-port 1025 -container-ip 172.17.0.2 -container-port 1025 -use-listen-fd
+1004728 1000177 Sl       137  3164  0.0 ep_poll                  /usr/bin/docker-proxy -proto tcp -host-ip 127.0.0.1 -host-port 8025 -container-ip 172.17.0.2 -container-port 8025 -use-listen-fd
+1004744 1001364 S        137  3648  0.0 do_wait                  /usr/bin/bash -e /home/runner/_work/_temp/3b01ece1-32a9-43e2-aa6d-ede6c6d57129.sh
+1004745 1004744 Sl       137 69228  0.1 ep_poll                  npm run test:int
+1004760 1004745 S        137  1920  0.0 do_wait                  sh -c npm run test:int -w apps/web
+1004761 1004760 Sl       137 69972  0.1 ep_poll                  npm run test:int
+1004776 1004761 S        137  1892  0.0 do_wait                  sh -c vitest run -c vitest.integration.config.ts
+1004777 1004776 Sl       137 212464 2.6 ep_poll                  node /home/runner/_work/drms/drms/node_modules/.bin/vitest run -c vitest.integration.config.ts
+1005221 1004777 Rl       126 474564 58.4 -                       /cache/toolcache/node/24.21.0/x64/bin/node --experimental-import-meta-resolve --require /home/runner/_work/drms/drms/node_modules/vitest/suppress-warnings.
+1005394 1002107 Ss       121 13808  0.0 ep_poll                  postgres: pk_test_app pk_test 172.18.0.1(44308) idle
+1005396 1002107 Rs       121 60852 24.8 -                        postgres: pk_test_app pk_test 172.18.0.1(44324) PARSE
+=== 2026-09-29T02:21:49+0700 36a13e4f034b procs=30 io=8:0 rbytes=424062976 wbytes=1148866560 rios=11229 wios=71127 dbytes=0 dios=0 7:0 rbytes=371281920 wbytes=181399552 rios=13244 wios=16876 dbytes=0 dios=0 
+    PID    PPID STAT ELAPSED   RSS %CPU WCHAN                    COMMAND
+1000038  999999 Ss       268  3680  0.0 do_wait                  /bin/bash /opt/ci-runner/entrypoint.sh
+1000177 1000038 Sl       268 92972  3.4 futex_wait_queue         dockerd --host=unix:///var/run/docker.sock --group=docker
+1000220 1000177 Ssl      268 47940  0.4 futex_wait_queue         containerd --config /var/run/docker/containerd/containerd.toml
+1001042 1000038 S        256  3888  0.0 do_wait                  /bin/bash /home/runner/run.sh
+1001043 1001042 S        256  1676  0.0 pipe_read                tee -a /run/ci-runner/runner.out
+1001047 1001042 S        256  3780  0.0 do_wait                  /bin/bash /home/runner/run-helper.sh
+1001051 1001047 Sl       256 117596 1.2 futex_wait_queue         /home/runner/bin/Runner.Listener run
+1001364 1001051 Sl       247 131852 2.3 futex_wait_queue         /home/runner/bin/Runner.Worker spawnclient 150 153
+1002062 1000038 Sl       236 11948  0.1 futex_wait_queue         /usr/bin/containerd-shim-runc-v2 -namespace moby -id bb78a15f8cde45f9e831ff8e9e9ebd025eb1981a2c471b72838eb07f27eff8cd -address /var/run/docker/containerd/c
+1002107 1002062 Ss       236 29440  0.1 ep_poll                  postgres
+1002316 1000177 Sl       235  3540 11.6 -                        /usr/bin/docker-proxy -proto tcp -host-ip 0.0.0.0 -host-port 5432 -container-ip 172.18.0.2 -container-port 5432 -use-listen-fd
+1002323 1000177 Sl       235  3216  0.0 ep_poll                  /usr/bin/docker-proxy -proto tcp -host-ip :: -host-port 5432 -container-ip 172.18.0.2 -container-port 5432 -use-listen-fd
+1002524 1002107 Ss       232  6112  0.0 ep_poll                  postgres: checkpointer 
+1002525 1002107 Ss       232  8404  0.0 ep_poll                  postgres: background writer 
+1002527 1002107 Ss       232 10320  0.0 ep_poll                  postgres: walwriter 
+1002528 1002107 Ss       232  9352  0.0 ep_poll                  postgres: autovacuum launcher 
+1002529 1002107 Ss       232  8616  0.0 ep_poll                  postgres: logical replication launcher 
+1004448 1000038 Sl       198 11348  0.0 futex_wait_queue         /usr/bin/containerd-shim-runc-v2 -namespace moby -id 9e21a987cca737b7565a10baa940a0a3d888bd055eaf6eac01a74f9e530662a8 -address /var/run/docker/containerd/c
+1004471 1004448 Ssl      198 23668  0.0 futex_wait_queue         /mailpit --smtp-tls-cert /certs/server.crt --smtp-tls-key /certs/server.key --smtp-require-starttls --smtp-auth-file /certs/auth.txt --smtp-disable-rdns --
+1004712 1000177 Sl       197  3040  0.0 futex_wait_queue         /usr/bin/docker-proxy -proto tcp -host-ip 127.0.0.1 -host-port 1025 -container-ip 172.17.0.2 -container-port 1025 -use-listen-fd
+1004728 1000177 Sl       197  3164  0.0 ep_poll                  /usr/bin/docker-proxy -proto tcp -host-ip 127.0.0.1 -host-port 8025 -container-ip 172.17.0.2 -container-port 8025 -use-listen-fd
+1004744 1001364 S        197  3648  0.0 do_wait                  /usr/bin/bash -e /home/runner/_work/_temp/3b01ece1-32a9-43e2-aa6d-ede6c6d57129.sh
+1004745 1004744 Sl       197 69228  0.0 ep_poll                  npm run test:int
+1004760 1004745 S        197  1920  0.0 do_wait                  sh -c npm run test:int -w apps/web
+1004761 1004760 Sl       197 69972  0.0 ep_poll                  npm run test:int
+1004776 1004761 S        197  1892  0.0 do_wait                  sh -c vitest run -c vitest.integration.config.ts
+1004777 1004776 Sl       197 212464 1.8 ep_poll                  node /home/runner/_work/drms/drms/node_modules/.bin/vitest run -c vitest.integration.config.ts
+1005221 1004777 Sl       186 475396 58.1 -                       /cache/toolcache/node/24.21.0/x64/bin/node --experimental-import-meta-resolve --require /home/runner/_work/drms/drms/node_modules/vitest/suppress-warnings.
+1005394 1002107 Ss       181 13808  0.0 ep_poll                  postgres: pk_test_app pk_test 172.18.0.1(44308) idle
+1005396 1002107 Ss       181 64588 25.4 ep_poll                  postgres: pk_test_app pk_test 172.18.0.1(44324) idle in transaction
+=== 2026-09-29T02:22:49+0700 36a13e4f034b procs=30 io=8:0 rbytes=424103936 wbytes=1155694592 rios=11230 wios=71865 dbytes=0 dios=0 7:0 rbytes=371404800 wbytes=197283840 rios=13245 wios=18405 dbytes=0 dios=0 
+    PID    PPID STAT ELAPSED   RSS %CPU WCHAN                    COMMAND
+1000038  999999 Ss       328  3680  0.0 do_wait                  /bin/bash /opt/ci-runner/entrypoint.sh
+1000177 1000038 Sl       328 91868  2.8 futex_wait_queue         dockerd --host=unix:///var/run/docker.sock --group=docker
+1000220 1000177 Ssl      328 47984  0.4 futex_wait_queue         containerd --config /var/run/docker/containerd/containerd.toml
+1001042 1000038 S        316  3888  0.0 do_wait                  /bin/bash /home/runner/run.sh
+1001043 1001042 S        316  1676  0.0 pipe_read                tee -a /run/ci-runner/runner.out
+1001047 1001042 S        316  3780  0.0 do_wait                  /bin/bash /home/runner/run-helper.sh
+1001051 1001047 Sl       316 115768 1.0 futex_wait_queue         /home/runner/bin/Runner.Listener run
+1001364 1001051 Sl       307 131872 1.9 futex_wait_queue         /home/runner/bin/Runner.Worker spawnclient 150 153
+1002062 1000038 Sl       296 12132  0.1 futex_wait_queue         /usr/bin/containerd-shim-runc-v2 -namespace moby -id bb78a15f8cde45f9e831ff8e9e9ebd025eb1981a2c471b72838eb07f27eff8cd -address /var/run/docker/containerd/c
+1002107 1002062 Ss       296 29440  0.0 ep_poll                  postgres
+1002316 1000177 Sl       295  3540 12.4 futex_wait_queue         /usr/bin/docker-proxy -proto tcp -host-ip 0.0.0.0 -host-port 5432 -container-ip 172.18.0.2 -container-port 5432 -use-listen-fd
+1002323 1000177 Sl       295  3216  0.0 ep_poll                  /usr/bin/docker-proxy -proto tcp -host-ip :: -host-port 5432 -container-ip 172.18.0.2 -container-port 5432 -use-listen-fd
+1002524 1002107 Ss       293  6112  0.0 ep_poll                  postgres: checkpointer 
+1002525 1002107 Ss       293  8420  0.0 ep_poll                  postgres: background writer 
+1002527 1002107 Ss       293 10320  0.0 ep_poll                  postgres: walwriter 
+1002528 1002107 Ss       293  9352  0.0 ep_poll                  postgres: autovacuum launcher 
+1002529 1002107 Ss       293  8616  0.0 ep_poll                  postgres: logical replication launcher 
+1004448 1000038 Sl       258 11380  0.0 futex_wait_queue         /usr/bin/containerd-shim-runc-v2 -namespace moby -id 9e21a987cca737b7565a10baa940a0a3d888bd055eaf6eac01a74f9e530662a8 -address /var/run/docker/containerd/c
+1004471 1004448 Ssl      258 23600  0.0 futex_wait_queue         /mailpit --smtp-tls-cert /certs/server.crt --smtp-tls-key /certs/server.key --smtp-require-starttls --smtp-auth-file /certs/auth.txt --smtp-disable-rdns --
+1004712 1000177 Sl       257  3040  0.0 futex_wait_queue         /usr/bin/docker-proxy -proto tcp -host-ip 127.0.0.1 -host-port 1025 -container-ip 172.17.0.2 -container-port 1025 -use-listen-fd
+1004728 1000177 Sl       257  3164  0.0 ep_poll                  /usr/bin/docker-proxy -proto tcp -host-ip 127.0.0.1 -host-port 8025 -container-ip 172.17.0.2 -container-port 8025 -use-listen-fd
+1004744 1001364 S        257  3648  0.0 do_wait                  /usr/bin/bash -e /home/runner/_work/_temp/3b01ece1-32a9-43e2-aa6d-ede6c6d57129.sh
+1004745 1004744 Sl       257 69228  0.0 ep_poll                  npm run test:int
+1004760 1004745 S        257  1920  0.0 do_wait                  sh -c npm run test:int -w apps/web
+1004761 1004760 Sl       257 69972  0.0 ep_poll                  npm run test:int
+1004776 1004761 S        257  1892  0.0 do_wait                  sh -c vitest run -c vitest.integration.config.ts
+1004777 1004776 Sl       257 212464 1.4 ep_poll                  node /home/runner/_work/drms/drms/node_modules/.bin/vitest run -c vitest.integration.config.ts
+1005221 1004777 Sl       246 475720 57.7 ep_poll                 /cache/toolcache/node/24.21.0/x64/bin/node --experimental-import-meta-resolve --require /home/runner/_work/drms/drms/node_modules/vitest/suppress-warnings.
+1005394 1002107 Ss       241 13808  0.0 ep_poll                  postgres: pk_test_app pk_test 172.18.0.1(44308) idle
+1005396 1002107 Ss       241 67920 25.7 ep_poll                  postgres: pk_test_app pk_test 172.18.0.1(44324) idle in transaction
+=== 2026-09-29T02:23:49+0700 36a13e4f034b procs=30 io=8:0 rbytes=424103936 wbytes=1195085824 rios=11230 wios=73267 dbytes=0 dios=0 7:0 rbytes=371404800 wbytes=239845376 rios=13245 wios=20251 dbytes=0 dios=0 
+    PID    PPID STAT ELAPSED   RSS %CPU WCHAN                    COMMAND
+1000038  999999 Ss       388  3680  0.0 do_wait                  /bin/bash /opt/ci-runner/entrypoint.sh
+1000177 1000038 Sl       388 91884  2.4 futex_wait_queue         dockerd --host=unix:///var/run/docker.sock --group=docker
+1000220 1000177 Ssl      388 48008  0.3 futex_wait_queue         containerd --config /var/run/docker/containerd/containerd.toml
+1001042 1000038 S        376  3888  0.0 do_wait                  /bin/bash /home/runner/run.sh
+1001043 1001042 S        376  1676  0.0 pipe_read                tee -a /run/ci-runner/runner.out
+1001047 1001042 S        376  3780  0.0 do_wait                  /bin/bash /home/runner/run-helper.sh
+1001051 1001047 Sl       376 115812 0.8 futex_wait_queue         /home/runner/bin/Runner.Listener run
+1001364 1001051 Sl       367 131860 1.7 futex_wait_queue         /home/runner/bin/Runner.Worker spawnclient 150 153
+1002062 1000038 Sl       356 12100  0.1 futex_wait_queue         /usr/bin/containerd-shim-runc-v2 -namespace moby -id bb78a15f8cde45f9e831ff8e9e9ebd025eb1981a2c471b72838eb07f27eff8cd -address /var/run/docker/containerd/c
+1002107 1002062 Ss       356 29440  0.0 ep_poll                  postgres
+1002316 1000177 Sl       355  3576 13.0 ep_poll                  /usr/bin/docker-proxy -proto tcp -host-ip 0.0.0.0 -host-port 5432 -container-ip 172.18.0.2 -container-port 5432 -use-listen-fd
+1002323 1000177 Sl       355  3216  0.0 ep_poll                  /usr/bin/docker-proxy -proto tcp -host-ip :: -host-port 5432 -container-ip 172.18.0.2 -container-port 5432 -use-listen-fd
+1002524 1002107 Ss       353 21908  0.0 ep_poll                  postgres: checkpointer 
+1002525 1002107 Ss       353  8432  0.0 ep_poll                  postgres: background writer 
+1002527 1002107 Ss       353 10320  0.0 ep_poll                  postgres: walwriter 
+1002528 1002107 Ss       353  9352  0.0 ep_poll                  postgres: autovacuum launcher 
+1002529 1002107 Ss       353  8616  0.0 ep_poll                  postgres: logical replication launcher 
+1004448 1000038 Sl       318 11392  0.0 futex_wait_queue         /usr/bin/containerd-shim-runc-v2 -namespace moby -id 9e21a987cca737b7565a10baa940a0a3d888bd055eaf6eac01a74f9e530662a8 -address /var/run/docker/containerd/c
+1004471 1004448 Ssl      318 23612  0.0 futex_wait_queue         /mailpit --smtp-tls-cert /certs/server.crt --smtp-tls-key /certs/server.key --smtp-require-starttls --smtp-auth-file /certs/auth.txt --smtp-disable-rdns --
+1004712 1000177 Sl       317  3040  0.0 futex_wait_queue         /usr/bin/docker-proxy -proto tcp -host-ip 127.0.0.1 -host-port 1025 -container-ip 172.17.0.2 -container-port 1025 -use-listen-fd
+1004728 1000177 Sl       317  3164  0.0 ep_poll                  /usr/bin/docker-proxy -proto tcp -host-ip 127.0.0.1 -host-port 8025 -container-ip 172.17.0.2 -container-port 8025 -use-listen-fd
+1004744 1001364 S        317  3648  0.0 do_wait                  /usr/bin/bash -e /home/runner/_work/_temp/3b01ece1-32a9-43e2-aa6d-ede6c6d57129.sh
+1004745 1004744 Sl       317 69228  0.0 ep_poll                  npm run test:int
+1004760 1004745 S        317  1920  0.0 do_wait                  sh -c npm run test:int -w apps/web
+1004761 1004760 Sl       317 69972  0.0 ep_poll                  npm run test:int
+1004776 1004761 S        317  1892  0.0 do_wait                  sh -c vitest run -c vitest.integration.config.ts
+1004777 1004776 Sl       317 212464 1.1 ep_poll                  node /home/runner/_work/drms/drms/node_modules/.bin/vitest run -c vitest.integration.config.ts
+1005221 1004777 Sl       307 477624 57.8 ep_poll                 /cache/toolcache/node/24.21.0/x64/bin/node --experimental-import-meta-resolve --require /home/runner/_work/drms/drms/node_modules/vitest/suppress-warnings.
+1005394 1002107 Ss       301 13808  0.0 ep_poll                  postgres: pk_test_app pk_test 172.18.0.1(44308) idle
+1005396 1002107 Ss       301 71496 25.9 ep_poll                  postgres: pk_test_app pk_test 172.18.0.1(44324) idle in transaction
+=== 2026-09-29T02:24:50+0700 36a13e4f034b procs=30 io=8:0 rbytes=424103936 wbytes=1222295552 rios=11230 wios=74815 dbytes=0 dios=0 7:0 rbytes=371404800 wbytes=263839744 rios=13245 wios=22245 dbytes=0 dios=0 
+    PID    PPID STAT ELAPSED   RSS %CPU WCHAN                    COMMAND
+1000038  999999 Ss       448  3680  0.0 do_wait                  /bin/bash /opt/ci-runner/entrypoint.sh
+1000177 1000038 Sl       448 91896  2.1 futex_wait_queue         dockerd --host=unix:///var/run/docker.sock --group=docker
+1000220 1000177 Ssl      448 48036  0.3 futex_wait_queue         containerd --config /var/run/docker/containerd/containerd.toml
+1001042 1000038 S        436  3888  0.0 do_wait                  /bin/bash /home/runner/run.sh
+1001043 1001042 S        436  1676  0.0 pipe_read                tee -a /run/ci-runner/runner.out
+1001047 1001042 S        436  3780  0.0 do_wait                  /bin/bash /home/runner/run-helper.sh
+1001051 1001047 Sl       436 116720 0.7 futex_wait_queue         /home/runner/bin/Runner.Listener run
+1001364 1001051 Sl       427 132220 1.5 futex_wait_queue         /home/runner/bin/Runner.Worker spawnclient 150 153
+1002062 1000038 Sl       416 12020  0.1 futex_wait_queue         /usr/bin/containerd-shim-runc-v2 -namespace moby -id bb78a15f8cde45f9e831ff8e9e9ebd025eb1981a2c471b72838eb07f27eff8cd -address /var/run/docker/containerd/c
+1002107 1002062 Ss       416 29440  0.0 ep_poll                  postgres
+1002316 1000177 Sl       415  3592 13.3 futex_wait_queue         /usr/bin/docker-proxy -proto tcp -host-ip 0.0.0.0 -host-port 5432 -container-ip 172.18.0.2 -container-port 5432 -use-listen-fd
+1002323 1000177 Sl       415  3216  0.0 ep_poll                  /usr/bin/docker-proxy -proto tcp -host-ip :: -host-port 5432 -container-ip 172.18.0.2 -container-port 5432 -use-listen-fd
+1002524 1002107 Ss       413 33020  0.0 ep_poll                  postgres: checkpointer 
+1002525 1002107 Ss       413  8448  0.0 ep_poll                  postgres: background writer 
+1002527 1002107 Ss       413 10320  0.0 ep_poll                  postgres: walwriter 
+1002528 1002107 Ss       413  9352  0.0 ep_poll                  postgres: autovacuum launcher 
+1002529 1002107 Ss       413  8616  0.0 ep_poll                  postgres: logical replication launcher 
+1004448 1000038 Sl       378 11464  0.0 futex_wait_queue         /usr/bin/containerd-shim-runc-v2 -namespace moby -id 9e21a987cca737b7565a10baa940a0a3d888bd055eaf6eac01a74f9e530662a8 -address /var/run/docker/containerd/c
+1004471 1004448 Ssl      378 23672  0.0 futex_wait_queue         /mailpit --smtp-tls-cert /certs/server.crt --smtp-tls-key /certs/server.key --smtp-require-starttls --smtp-auth-file /certs/auth.txt --smtp-disable-rdns --
+1004712 1000177 Sl       377  3040  0.0 futex_wait_queue         /usr/bin/docker-proxy -proto tcp -host-ip 127.0.0.1 -host-port 1025 -container-ip 172.17.0.2 -container-port 1025 -use-listen-fd
+1004728 1000177 Sl       377  3164  0.0 ep_poll                  /usr/bin/docker-proxy -proto tcp -host-ip 127.0.0.1 -host-port 8025 -container-ip 172.17.0.2 -container-port 8025 -use-listen-fd
+1004744 1001364 S        377  3648  0.0 do_wait                  /usr/bin/bash -e /home/runner/_work/_temp/3b01ece1-32a9-43e2-aa6d-ede6c6d57129.sh
+1004745 1004744 Sl       377 69228  0.0 ep_poll                  npm run test:int
+1004760 1004745 S        377  1920  0.0 do_wait                  sh -c npm run test:int -w apps/web
+1004761 1004760 Sl       377 69972  0.0 ep_poll                  npm run test:int
+1004776 1004761 S        377  1892  0.0 do_wait                  sh -c vitest run -c vitest.integration.config.ts
+1004777 1004776 Sl       377 212464 0.9 ep_poll                  node /home/runner/_work/drms/drms/node_modules/.bin/vitest run -c vitest.integration.config.ts
+1005221 1004777 Sl       367 478424 57.9 ep_poll                 /cache/toolcache/node/24.21.0/x64/bin/node --experimental-import-meta-resolve --require /home/runner/_work/drms/drms/node_modules/vitest/suppress-warnings.
+1005394 1002107 Ss       362 13808  0.0 ep_poll                  postgres: pk_test_app pk_test 172.18.0.1(44308) idle
+1005396 1002107 Rs       361 74928 26.0 -                        postgres: pk_test_app pk_test 172.18.0.1(44324) BIND
+=== 2026-09-29T02:25:50+0700 36a13e4f034b procs=30 io=8:0 rbytes=424103936 wbytes=1262329856 rios=11230 wios=76197 dbytes=0 dios=0 7:0 rbytes=371404800 wbytes=304164864 rios=13245 wios=24175 dbytes=0 dios=0 
+    PID    PPID STAT ELAPSED   RSS %CPU WCHAN                    COMMAND
+1000038  999999 Ss       508  3680  0.0 do_wait                  /bin/bash /opt/ci-runner/entrypoint.sh
+1000177 1000038 Sl       508 91920  1.9 futex_wait_queue         dockerd --host=unix:///var/run/docker.sock --group=docker
+1000220 1000177 Ssl      508 48060  0.3 futex_wait_queue         containerd --config /var/run/docker/containerd/containerd.toml
+1001042 1000038 S        497  3888  0.0 do_wait                  /bin/bash /home/runner/run.sh
+1001043 1001042 S        497  1676  0.0 pipe_read                tee -a /run/ci-runner/runner.out
+1001047 1001042 S        497  3780  0.0 do_wait                  /bin/bash /home/runner/run-helper.sh
+1001051 1001047 Sl       497 116044 0.6 futex_wait_queue         /home/runner/bin/Runner.Listener run
+1001364 1001051 Sl       487 132224 1.3 futex_wait_queue         /home/runner/bin/Runner.Worker spawnclient 150 153
+1002062 1000038 Sl       476 11904  0.1 futex_wait_queue         /usr/bin/containerd-shim-runc-v2 -namespace moby -id bb78a15f8cde45f9e831ff8e9e9ebd025eb1981a2c471b72838eb07f27eff8cd -address /var/run/docker/containerd/c
+1002107 1002062 Ss       476 29440  0.0 ep_poll                  postgres
+1002316 1000177 Sl       475  3592 13.5 ep_poll                  /usr/bin/docker-proxy -proto tcp -host-ip 0.0.0.0 -host-port 5432 -container-ip 172.18.0.2 -container-port 5432 -use-listen-fd
+1002323 1000177 Sl       475  3216  0.0 ep_poll                  /usr/bin/docker-proxy -proto tcp -host-ip :: -host-port 5432 -container-ip 172.18.0.2 -container-port 5432 -use-listen-fd
+1002524 1002107 Ss       473 44044  0.0 ep_poll                  postgres: checkpointer 
+1002525 1002107 Ss       473  8476  0.0 ep_poll                  postgres: background writer 
+1002527 1002107 Ss       473 10320  0.0 ep_poll                  postgres: walwriter 
+1002528 1002107 Ss       473  9352  0.0 ep_poll                  postgres: autovacuum launcher 
+1002529 1002107 Ss       473  8616  0.0 ep_poll                  postgres: logical replication launcher 
+1004448 1000038 Sl       438 11464  0.0 futex_wait_queue         /usr/bin/containerd-shim-runc-v2 -namespace moby -id 9e21a987cca737b7565a10baa940a0a3d888bd055eaf6eac01a74f9e530662a8 -address /var/run/docker/containerd/c
+1004471 1004448 Ssl      438 23684  0.0 futex_wait_queue         /mailpit --smtp-tls-cert /certs/server.crt --smtp-tls-key /certs/server.key --smtp-require-starttls --smtp-auth-file /certs/auth.txt --smtp-disable-rdns --
+1004712 1000177 Sl       438  3040  0.0 futex_wait_queue         /usr/bin/docker-proxy -proto tcp -host-ip 127.0.0.1 -host-port 1025 -container-ip 172.17.0.2 -container-port 1025 -use-listen-fd
+1004728 1000177 Sl       438  3164  0.0 ep_poll                  /usr/bin/docker-proxy -proto tcp -host-ip 127.0.0.1 -host-port 8025 -container-ip 172.17.0.2 -container-port 8025 -use-listen-fd
+1004744 1001364 S        437  3648  0.0 do_wait                  /usr/bin/bash -e /home/runner/_work/_temp/3b01ece1-32a9-43e2-aa6d-ede6c6d57129.sh
+1004745 1004744 Sl       437 69228  0.0 ep_poll                  npm run test:int
+1004760 1004745 S        437  1920  0.0 do_wait                  sh -c npm run test:int -w apps/web
+1004761 1004760 Sl       437 69972  0.0 ep_poll                  npm run test:int
+1004776 1004761 S        437  1892  0.0 do_wait                  sh -c vitest run -c vitest.integration.config.ts
+1004777 1004776 Sl       437 212464 0.8 ep_poll                  node /home/runner/_work/drms/drms/node_modules/.bin/vitest run -c vitest.integration.config.ts
+1005221 1004777 Sl       427 480656 57.9 ep_poll                 /cache/toolcache/node/24.21.0/x64/bin/node --experimental-import-meta-resolve --require /home/runner/_work/drms/drms/node_modules/vitest/suppress-warnings.
+1005394 1002107 Ss       422 13808  0.0 ep_poll                  postgres: pk_test_app pk_test 172.18.0.1(44308) idle
+1005396 1002107 Ss       422 77960 26.1 ep_poll                  postgres: pk_test_app pk_test 172.18.0.1(44324) idle
+=== 2026-09-29T02:26:50+0700 36a13e4f034b procs=30 io=8:0 rbytes=424103936 wbytes=1289322496 rios=11230 wios=77679 dbytes=0 dios=0 7:0 rbytes=371404800 wbytes=328245248 rios=13245 wios=26045 dbytes=0 dios=0 
+    PID    PPID STAT ELAPSED   RSS %CPU WCHAN                    COMMAND
+1000038  999999 Ss       569  3680  0.0 do_wait                  /bin/bash /opt/ci-runner/entrypoint.sh
+1000177 1000038 Sl       568 91920  1.7 futex_wait_queue         dockerd --host=unix:///var/run/docker.sock --group=docker
+1000220 1000177 Ssl      568 48072  0.3 futex_wait_queue         containerd --config /var/run/docker/containerd/containerd.toml
+1001042 1000038 S        557  3888  0.0 do_wait                  /bin/bash /home/runner/run.sh
+1001043 1001042 S        557  1676  0.0 pipe_read                tee -a /run/ci-runner/runner.out
+1001047 1001042 S        557  3780  0.0 do_wait                  /bin/bash /home/runner/run-helper.sh
+1001051 1001047 Sl       557 116540 0.6 futex_wait_queue         /home/runner/bin/Runner.Listener run
+1001364 1001051 Sl       547 132224 1.2 futex_wait_queue         /home/runner/bin/Runner.Worker spawnclient 150 153
+1002062 1000038 Sl       536 12032  0.1 futex_wait_queue         /usr/bin/containerd-shim-runc-v2 -namespace moby -id bb78a15f8cde45f9e831ff8e9e9ebd025eb1981a2c471b72838eb07f27eff8cd -address /var/run/docker/containerd/c
+1002107 1002062 Ss       536 29440  0.0 ep_poll                  postgres
+1002316 1000177 Sl       535  3592 13.8 ep_poll                  /usr/bin/docker-proxy -proto tcp -host-ip 0.0.0.0 -host-port 5432 -container-ip 172.18.0.2 -container-port 5432 -use-listen-fd
+1002323 1000177 Sl       535  3216  0.0 ep_poll                  /usr/bin/docker-proxy -proto tcp -host-ip :: -host-port 5432 -container-ip 172.18.0.2 -container-port 5432 -use-listen-fd
+1002524 1002107 Ss       533 45456  0.0 ep_poll                  postgres: checkpointer 
+1002525 1002107 Ss       533  8488  0.0 ep_poll                  postgres: background writer 
+1002527 1002107 Ss       533 10320  0.0 ep_poll                  postgres: walwriter 
+1002528 1002107 Ss       533  9352  0.0 ep_poll                  postgres: autovacuum launcher 
+1002529 1002107 Ss       533  8616  0.0 ep_poll                  postgres: logical replication launcher 
+1004448 1000038 Sl       498 11456  0.0 futex_wait_queue         /usr/bin/containerd-shim-runc-v2 -namespace moby -id 9e21a987cca737b7565a10baa940a0a3d888bd055eaf6eac01a74f9e530662a8 -address /var/run/docker/containerd/c
+1004471 1004448 Ssl      498 23748  0.0 futex_wait_queue         /mailpit --smtp-tls-cert /certs/server.crt --smtp-tls-key /certs/server.key --smtp-require-starttls --smtp-auth-file /certs/auth.txt --smtp-disable-rdns --
+1004712 1000177 Sl       498  3040  0.0 futex_wait_queue         /usr/bin/docker-proxy -proto tcp -host-ip 127.0.0.1 -host-port 1025 -container-ip 172.17.0.2 -container-port 1025 -use-listen-fd
+1004728 1000177 Sl       498  3164  0.0 ep_poll                  /usr/bin/docker-proxy -proto tcp -host-ip 127.0.0.1 -host-port 8025 -container-ip 172.17.0.2 -container-port 8025 -use-listen-fd
+1004744 1001364 S        498  3648  0.0 do_wait                  /usr/bin/bash -e /home/runner/_work/_temp/3b01ece1-32a9-43e2-aa6d-ede6c6d57129.sh
+1004745 1004744 Sl       498 69228  0.0 ep_poll                  npm run test:int
+1004760 1004745 S        497  1920  0.0 do_wait                  sh -c npm run test:int -w apps/web
+1004761 1004760 Sl       497 69972  0.0 ep_poll                  npm run test:int
+1004776 1004761 S        497  1892  0.0 do_wait                  sh -c vitest run -c vitest.integration.config.ts
+1004777 1004776 Sl       497 212464 0.7 ep_poll                  node /home/runner/_work/drms/drms/node_modules/.bin/vitest run -c vitest.integration.config.ts
+1005221 1004777 Rl       487 481884 58.0 ep_poll                 /cache/toolcache/node/24.21.0/x64/bin/node --experimental-import-meta-resolve --require /home/runner/_work/drms/drms/node_modules/vitest/suppress-warnings.
+1005394 1002107 Ss       482 13808  0.0 ep_poll                  postgres: pk_test_app pk_test 172.18.0.1(44308) idle
+1005396 1002107 Rs       482 81804 26.2 -                        postgres: pk_test_app pk_test 172.18.0.1(44324) idle in transaction
+=== 2026-09-29T02:27:50+0700 36a13e4f034b procs=32 io=8:0 rbytes=424239104 wbytes=1329676288 rios=11232 wios=79347 dbytes=0 dios=0 7:0 rbytes=371658752 wbytes=366358528 rios=13254 wios=29539 dbytes=0 dios=0 
+    PID    PPID STAT ELAPSED   RSS %CPU WCHAN                    COMMAND
+1000038  999999 Ss       629  3680  0.0 do_wait                  /bin/bash /opt/ci-runner/entrypoint.sh
+1000177 1000038 Sl       628 91920  1.6 futex_wait_queue         dockerd --host=unix:///var/run/docker.sock --group=docker
+1000220 1000177 Ssl      628 48152  0.3 futex_wait_queue         containerd --config /var/run/docker/containerd/containerd.toml
+1001042 1000038 S        617  3888  0.0 do_wait                  /bin/bash /home/runner/run.sh
+1001043 1001042 S        617  1676  0.0 pipe_read                tee -a /run/ci-runner/runner.out
+1001047 1001042 S        617  3780  0.0 do_wait                  /bin/bash /home/runner/run-helper.sh
+1001051 1001047 Sl       617 116544 0.5 futex_wait_queue         /home/runner/bin/Runner.Listener run
+1001364 1001051 Sl       607 133208 1.1 futex_wait_queue         /home/runner/bin/Runner.Worker spawnclient 150 153
+1002062 1000038 Sl       596 12060  0.1 futex_wait_queue         /usr/bin/containerd-shim-runc-v2 -namespace moby -id bb78a15f8cde45f9e831ff8e9e9ebd025eb1981a2c471b72838eb07f27eff8cd -address /var/run/docker/containerd/c
+1002107 1002062 Ss       596 29440  0.0 ep_poll                  postgres
+1002316 1000177 Rl       596  3936 13.5 ep_poll                  /usr/bin/docker-proxy -proto tcp -host-ip 0.0.0.0 -host-port 5432 -container-ip 172.18.0.2 -container-port 5432 -use-listen-fd
+1002323 1000177 Sl       596  3216  0.0 ep_poll                  /usr/bin/docker-proxy -proto tcp -host-ip :: -host-port 5432 -container-ip 172.18.0.2 -container-port 5432 -use-listen-fd
+1002524 1002107 Ss       593 47992  0.0 ep_poll                  postgres: checkpointer 
+1002525 1002107 Ss       593  8504  0.0 ep_poll                  postgres: background writer 
+1002527 1002107 Ss       593 10320  0.0 ep_poll                  postgres: walwriter 
+1002528 1002107 Ss       593  9352  0.0 ep_poll                  postgres: autovacuum launcher 
+1002529 1002107 Ss       593  8616  0.0 ep_poll                  postgres: logical replication launcher 
+1004448 1000038 Sl       558 11536  0.0 futex_wait_queue         /usr/bin/containerd-shim-runc-v2 -namespace moby -id 9e21a987cca737b7565a10baa940a0a3d888bd055eaf6eac01a74f9e530662a8 -address /var/run/docker/containerd/c
+1004471 1004448 Ssl      558 23752  0.0 futex_wait_queue         /mailpit --smtp-tls-cert /certs/server.crt --smtp-tls-key /certs/server.key --smtp-require-starttls --smtp-auth-file /certs/auth.txt --smtp-disable-rdns --
+1004712 1000177 Sl       558  3040  0.0 futex_wait_queue         /usr/bin/docker-proxy -proto tcp -host-ip 127.0.0.1 -host-port 1025 -container-ip 172.17.0.2 -container-port 1025 -use-listen-fd
+1004728 1000177 Sl       558  3164  0.0 ep_poll                  /usr/bin/docker-proxy -proto tcp -host-ip 127.0.0.1 -host-port 8025 -container-ip 172.17.0.2 -container-port 8025 -use-listen-fd
+1004744 1001364 S        558  3648  0.0 do_wait                  /usr/bin/bash -e /home/runner/_work/_temp/3b01ece1-32a9-43e2-aa6d-ede6c6d57129.sh
+1004745 1004744 Sl       558 69228  0.0 ep_poll                  npm run test:int
+1004760 1004745 S        557  1920  0.0 do_wait                  sh -c npm run test:int -w apps/web
+1004761 1004760 Sl       557 69972  0.0 ep_poll                  npm run test:int
+1004776 1004761 S        557  1892  0.0 do_wait                  sh -c vitest run -c vitest.integration.config.ts
+1004777 1004776 Sl       557 231476 0.7 ep_poll                  node /home/runner/_work/drms/drms/node_modules/.bin/vitest run -c vitest.integration.config.ts
+1094468 1004777 Sl        10 447968 77.1 -                       /cache/toolcache/node/24.21.0/x64/bin/node --experimental-import-meta-resolve --require /home/runner/_work/drms/drms/node_modules/vitest/suppress-warnings.
+1095325 1002107 Ss         9 13752  0.0 ep_poll                  postgres: pk_test_app pk_test 172.18.0.1(49386) idle
+1095419 1002107 Ss         8 63780 17.8 ep_poll                  postgres: pk_test_app pk_test 172.18.0.1(49388) idle
+1098038 1002107 Ss         0 35140  3.8 ep_poll                  postgres: pk_test_app pk_test 172.18.0.1(53800) idle
+1098040 1002107 Ss         0 32912 11.1 ep_poll                  postgres: pk_test_app pk_test 172.18.0.1(53828) idle
+=== 2026-09-29T02:28:50+0700 36a13e4f034b procs=31 io=8:0 rbytes=424329216 wbytes=1355116544 rios=11233 wios=80700 dbytes=0 dios=0 7:0 rbytes=371658752 wbytes=388653056 rios=13254 wios=31382 dbytes=0 dios=0 
+    PID    PPID STAT ELAPSED   RSS %CPU WCHAN                    COMMAND
+1000038  999999 Ss       689  3680  0.0 do_wait                  /bin/bash /opt/ci-runner/entrypoint.sh
+1000177 1000038 Sl       688 92048  1.4 futex_wait_queue         dockerd --host=unix:///var/run/docker.sock --group=docker
+1000220 1000177 Ssl      688 48312  0.3 futex_wait_queue         containerd --config /var/run/docker/containerd/containerd.toml
+1001042 1000038 S        677  3888  0.0 do_wait                  /bin/bash /home/runner/run.sh
+1001043 1001042 S        677  1676  0.0 pipe_read                tee -a /run/ci-runner/runner.out
+1001047 1001042 S        677  3780  0.0 do_wait                  /bin/bash /home/runner/run-helper.sh
+1001051 1001047 Sl       677 121012 0.5 futex_wait_queue         /home/runner/bin/Runner.Listener run
+1001364 1001051 Sl       667 133508 1.1 futex_wait_queue         /home/runner/bin/Runner.Worker spawnclient 150 153
+1002062 1000038 Sl       656 12236  0.1 futex_wait_queue         /usr/bin/containerd-shim-runc-v2 -namespace moby -id bb78a15f8cde45f9e831ff8e9e9ebd025eb1981a2c471b72838eb07f27eff8cd -address /var/run/docker/containerd/c
+1002107 1002062 Ss       656 29440  0.1 ep_poll                  postgres
+1002316 1000177 Sl       656  4180 13.0 futex_wait_queue         /usr/bin/docker-proxy -proto tcp -host-ip 0.0.0.0 -host-port 5432 -container-ip 172.18.0.2 -container-port 5432 -use-listen-fd
+1002323 1000177 Sl       656  3216  0.0 ep_poll                  /usr/bin/docker-proxy -proto tcp -host-ip :: -host-port 5432 -container-ip 172.18.0.2 -container-port 5432 -use-listen-fd
+1002524 1002107 Ss       653 54552  0.0 ep_poll                  postgres: checkpointer 
+1002525 1002107 Ss       653  8520  0.0 ep_poll                  postgres: background writer 
+1002527 1002107 Ss       653 10320  0.0 ep_poll                  postgres: walwriter 
+1002528 1002107 Ss       653  9352  0.0 ep_poll                  postgres: autovacuum launcher 
+1002529 1002107 Ss       653  8616  0.0 ep_poll                  postgres: logical replication launcher 
+1004448 1000038 Sl       619 11508  0.0 futex_wait_queue         /usr/bin/containerd-shim-runc-v2 -namespace moby -id 9e21a987cca737b7565a10baa940a0a3d888bd055eaf6eac01a74f9e530662a8 -address /var/run/docker/containerd/c
+1004471 1004448 Ssl      619 23840  0.0 futex_wait_queue         /mailpit --smtp-tls-cert /certs/server.crt --smtp-tls-key /certs/server.key --smtp-require-starttls --smtp-auth-file /certs/auth.txt --smtp-disable-rdns --
+1004712 1000177 Sl       618  3040  0.0 futex_wait_queue         /usr/bin/docker-proxy -proto tcp -host-ip 127.0.0.1 -host-port 1025 -container-ip 172.17.0.2 -container-port 1025 -use-listen-fd
+1004728 1000177 Sl       618  3164  0.0 ep_poll                  /usr/bin/docker-proxy -proto tcp -host-ip 127.0.0.1 -host-port 8025 -container-ip 172.17.0.2 -container-port 8025 -use-listen-fd
+1004744 1001364 S        618  3648  0.0 do_wait                  /usr/bin/bash -e /home/runner/_work/_temp/3b01ece1-32a9-43e2-aa6d-ede6c6d57129.sh
+1004745 1004744 Sl       618 69228  0.0 ep_poll                  npm run test:int
+1004760 1004745 S        618  1920  0.0 do_wait                  sh -c npm run test:int -w apps/web
+1004761 1004760 Sl       618 69972  0.0 ep_poll                  npm run test:int
+1004776 1004761 S        617  1892  0.0 do_wait                  sh -c vitest run -c vitest.integration.config.ts
+1004777 1004776 Sl       617 235488 0.7 ep_poll                  node /home/runner/_work/drms/drms/node_modules/.bin/vitest run -c vitest.integration.config.ts
+1107152 1004777 Rl         4 360920 99.7 -                       /cache/toolcache/node/24.21.0/x64/bin/node --experimental-import-meta-resolve --require /home/runner/_work/drms/drms/node_modules/vitest/suppress-warnings.
+1107267 1107152 Sl         2 157660 93.8 -                       node /home/runner/_work/drms/drms/node_modules/payload/bin.js generate:types
+1107282 1002107 Ss         2 13812  0.0 ep_poll                  postgres: pk_test_app pk_test 172.18.0.1(35964) idle
+1107286 1002107 Ss         2 43008 16.0 ep_poll                  postgres: pk_test_app pk_test 172.18.0.1(35980) idle in transaction
+=== 2026-09-29T02:29:50+0700 36a13e4f034b procs=31 io=8:0 rbytes=424349696 wbytes=1380065280 rios=11238 wios=82136 dbytes=0 dios=0 7:0 rbytes=371699712 wbytes=409616384 rios=13264 wios=32806 dbytes=0 dios=0 
+    PID    PPID STAT ELAPSED   RSS %CPU WCHAN                    COMMAND
+1000038  999999 Ss       749  3680  0.0 do_wait                  /bin/bash /opt/ci-runner/entrypoint.sh
+1000177 1000038 Sl       749 92068  1.3 futex_wait_queue         dockerd --host=unix:///var/run/docker.sock --group=docker
+1000220 1000177 Ssl      748 48320  0.2 futex_wait_queue         containerd --config /var/run/docker/containerd/containerd.toml
+1001042 1000038 S        737  3888  0.0 do_wait                  /bin/bash /home/runner/run.sh
+1001043 1001042 S        737  1676  0.0 pipe_read                tee -a /run/ci-runner/runner.out
+1001047 1001042 S        737  3780  0.0 do_wait                  /bin/bash /home/runner/run-helper.sh
+1001051 1001047 Sl       737 118380 0.4 futex_wait_queue         /home/runner/bin/Runner.Listener run
+1001364 1001051 Sl       727 133492 1.0 futex_wait_queue         /home/runner/bin/Runner.Worker spawnclient 150 153
+1002062 1000038 Sl       717 12208  0.1 futex_wait_queue         /usr/bin/containerd-shim-runc-v2 -namespace moby -id bb78a15f8cde45f9e831ff8e9e9ebd025eb1981a2c471b72838eb07f27eff8cd -address /var/run/docker/containerd/c
+1002107 1002062 Ss       716 29440  0.1 ep_poll                  postgres
+1002316 1000177 Sl       716  4432 12.8 futex_wait_queue         /usr/bin/docker-proxy -proto tcp -host-ip 0.0.0.0 -host-port 5432 -container-ip 172.18.0.2 -container-port 5432 -use-listen-fd
+1002323 1000177 Sl       716  3216  0.0 ep_poll                  /usr/bin/docker-proxy -proto tcp -host-ip :: -host-port 5432 -container-ip 172.18.0.2 -container-port 5432 -use-listen-fd
+1002524 1002107 Ss       713 64160  0.0 ep_poll                  postgres: checkpointer 
+1002525 1002107 Ss       713  8532  0.0 ep_poll                  postgres: background writer 
+1002527 1002107 Ss       713 10320  0.0 ep_poll                  postgres: walwriter 
+1002528 1002107 Ss       713  9352  0.0 ep_poll                  postgres: autovacuum launcher 
+1002529 1002107 Ss       713  8616  0.0 ep_poll                  postgres: logical replication launcher 
+1004448 1000038 Sl       679 11400  0.0 futex_wait_queue         /usr/bin/containerd-shim-runc-v2 -namespace moby -id 9e21a987cca737b7565a10baa940a0a3d888bd055eaf6eac01a74f9e530662a8 -address /var/run/docker/containerd/c
+1004471 1004448 Ssl      679 23840  0.0 futex_wait_queue         /mailpit --smtp-tls-cert /certs/server.crt --smtp-tls-key /certs/server.key --smtp-require-starttls --smtp-auth-file /certs/auth.txt --smtp-disable-rdns --
+1004712 1000177 Sl       678  3040  0.0 futex_wait_queue         /usr/bin/docker-proxy -proto tcp -host-ip 127.0.0.1 -host-port 1025 -container-ip 172.17.0.2 -container-port 1025 -use-listen-fd
+1004728 1000177 Sl       678  3164  0.0 ep_poll                  /usr/bin/docker-proxy -proto tcp -host-ip 127.0.0.1 -host-port 8025 -container-ip 172.17.0.2 -container-port 8025 -use-listen-fd
+1004744 1001364 S        678  3648  0.0 do_wait                  /usr/bin/bash -e /home/runner/_work/_temp/3b01ece1-32a9-43e2-aa6d-ede6c6d57129.sh
+1004745 1004744 Sl       678 69228  0.0 ep_poll                  npm run test:int
+1004760 1004745 S        678  1920  0.0 do_wait                  sh -c npm run test:int -w apps/web
+1004761 1004760 Sl       678 69972  0.0 ep_poll                  npm run test:int
+1004776 1004761 S        678  1892  0.0 do_wait                  sh -c vitest run -c vitest.integration.config.ts
+1004777 1004776 Sl       678 240524 0.7 ep_poll                  node /home/runner/_work/drms/drms/node_modules/.bin/vitest run -c vitest.integration.config.ts
+1116361 1004777 Sl         7 419196 86.6 ep_poll                 /cache/toolcache/node/24.21.0/x64/bin/node --experimental-import-meta-resolve --require /home/runner/_work/drms/drms/node_modules/vitest/suppress-warnings.
+1117853 1116361 Rl         5 337396 91.2 futex_wait_queue        node /home/runner/_work/drms/drms/node_modules/payload/bin.js generate:types
+1117886 1002107 Ss         5 13756  0.0 ep_poll                  postgres: pk_test_app pk_test 172.18.0.1(44802) idle
+1117988 1002107 Ss         4 61620 15.9 ep_poll                  postgres: pk_test_app pk_test 172.18.0.1(44812) idle in transaction
+=== 2026-09-29T02:30:50+0700 36a13e4f034b procs=31 io=8:0 rbytes=424456192 wbytes=1401913344 rios=11239 wios=83288 dbytes=0 dios=0 7:0 rbytes=371699712 wbytes=429334528 rios=13264 wios=34451 dbytes=0 dios=0 
+    PID    PPID STAT ELAPSED   RSS %CPU WCHAN                    COMMAND
+1000038  999999 Ss       809  3680  0.0 do_wait                  /bin/bash /opt/ci-runner/entrypoint.sh
+1000177 1000038 Sl       809 92068  1.2 futex_wait_queue         dockerd --host=unix:///var/run/docker.sock --group=docker
+1000220 1000177 Ssl      809 48536  0.2 futex_wait_queue         containerd --config /var/run/docker/containerd/containerd.toml
+1001042 1000038 S        797  3888  0.0 do_wait                  /bin/bash /home/runner/run.sh
+1001043 1001042 S        797  1676  0.0 pipe_read                tee -a /run/ci-runner/runner.out
+1001047 1001042 S        797  3780  0.0 do_wait                  /bin/bash /home/runner/run-helper.sh
+1001051 1001047 Sl       797 120588 0.4 futex_wait_queue         /home/runner/bin/Runner.Listener run
+1001364 1001051 Sl       788 133436 1.0 futex_wait_queue         /home/runner/bin/Runner.Worker spawnclient 150 153
+1002062 1000038 Sl       777 12128  0.1 futex_wait_queue         /usr/bin/containerd-shim-runc-v2 -namespace moby -id bb78a15f8cde45f9e831ff8e9e9ebd025eb1981a2c471b72838eb07f27eff8cd -address /var/run/docker/containerd/c
+1002107 1002062 Ss       777 29440  0.1 ep_poll                  postgres
+1002316 1000177 Sl       776  4512 12.5 futex_wait_queue         /usr/bin/docker-proxy -proto tcp -host-ip 0.0.0.0 -host-port 5432 -container-ip 172.18.0.2 -container-port 5432 -use-listen-fd
+1002323 1000177 Sl       776  3216  0.0 ep_poll                  /usr/bin/docker-proxy -proto tcp -host-ip :: -host-port 5432 -container-ip 172.18.0.2 -container-port 5432 -use-listen-fd
+1002524 1002107 Ss       774 64480  0.0 ep_poll                  postgres: checkpointer 
+1002525 1002107 Ss       774  8544  0.0 ep_poll                  postgres: background writer 
+1002527 1002107 Ss       774 10320  0.0 ep_poll                  postgres: walwriter 
+1002528 1002107 Ss       774  9352  0.0 ep_poll                  postgres: autovacuum launcher 
+1002529 1002107 Ss       774  8616  0.0 ep_poll                  postgres: logical replication launcher 
+1004448 1000038 Sl       739 11600  0.0 futex_wait_queue         /usr/bin/containerd-shim-runc-v2 -namespace moby -id 9e21a987cca737b7565a10baa940a0a3d888bd055eaf6eac01a74f9e530662a8 -address /var/run/docker/containerd/c
+1004471 1004448 Ssl      739 23720  0.0 futex_wait_queue         /mailpit --smtp-tls-cert /certs/server.crt --smtp-tls-key /certs/server.key --smtp-require-starttls --smtp-auth-file /certs/auth.txt --smtp-disable-rdns --
+1004712 1000177 Sl       738  3040  0.0 futex_wait_queue         /usr/bin/docker-proxy -proto tcp -host-ip 127.0.0.1 -host-port 1025 -container-ip 172.17.0.2 -container-port 1025 -use-listen-fd
+1004728 1000177 Sl       738  3164  0.0 ep_poll                  /usr/bin/docker-proxy -proto tcp -host-ip 127.0.0.1 -host-port 8025 -container-ip 172.17.0.2 -container-port 8025 -use-listen-fd
+1004744 1001364 S        738  3648  0.0 do_wait                  /usr/bin/bash -e /home/runner/_work/_temp/3b01ece1-32a9-43e2-aa6d-ede6c6d57129.sh
+1004745 1004744 Sl       738 69228  0.0 ep_poll                  npm run test:int
+1004760 1004745 S        738  1920  0.0 do_wait                  sh -c npm run test:int -w apps/web
+1004761 1004760 Sl       738 69972  0.0 ep_poll                  npm run test:int
+1004776 1004761 S        738  1892  0.0 do_wait                  sh -c vitest run -c vitest.integration.config.ts
+1004777 1004776 Sl       738 240760 0.7 ep_poll                  node /home/runner/_work/drms/drms/node_modules/.bin/vitest run -c vitest.integration.config.ts
+1129475 1004777 Rl         7 398608 83.6 -                       /cache/toolcache/node/24.21.0/x64/bin/node --experimental-import-meta-resolve --require /home/runner/_work/drms/drms/node_modules/vitest/suppress-warnings.
+1129632 1129475 Sl         5 324020 94.9 futex_wait_queue        node /home/runner/_work/drms/drms/node_modules/payload/bin.js generate:types
+1129639 1002107 Ss         5 13812  0.0 ep_poll                  postgres: pk_test_app pk_test 172.18.0.1(34516) idle
+1129663 1002107 Ss         5 48328 17.2 ep_poll                  postgres: pk_test_app pk_test 172.18.0.1(52030) idle
+=== 2026-09-29T02:31:50+0700 36a13e4f034b procs=33 io=8:0 rbytes=424456192 wbytes=1421717504 rios=11239 wios=84646 dbytes=0 dios=0 7:0 rbytes=371699712 wbytes=448221184 rios=13264 wios=36133 dbytes=0 dios=0 
+    PID    PPID STAT ELAPSED   RSS %CPU WCHAN                    COMMAND
+1000038  999999 Ss       869  3680  0.0 do_wait                  /bin/bash /opt/ci-runner/entrypoint.sh
+1000177 1000038 Sl       869 92072  1.2 futex_wait_queue         dockerd --host=unix:///var/run/docker.sock --group=docker
+1000220 1000177 Ssl      869 48400  0.2 futex_wait_queue         containerd --config /var/run/docker/containerd/containerd.toml
+1001042 1000038 S        857  3888  0.0 do_wait                  /bin/bash /home/runner/run.sh
+1001043 1001042 S        857  1676  0.0 pipe_read                tee -a /run/ci-runner/runner.out
+1001047 1001042 S        857  3780  0.0 do_wait                  /bin/bash /home/runner/run-helper.sh
+1001051 1001047 Sl       857 119220 0.4 futex_wait_queue         /home/runner/bin/Runner.Listener run
+1001364 1001051 Sl       848 133748 0.9 futex_wait_queue         /home/runner/bin/Runner.Worker spawnclient 150 153
+1002062 1000038 Sl       837 12132  0.1 futex_wait_queue         /usr/bin/containerd-shim-runc-v2 -namespace moby -id bb78a15f8cde45f9e831ff8e9e9ebd025eb1981a2c471b72838eb07f27eff8cd -address /var/run/docker/containerd/c
+1002107 1002062 Ss       837 29440  0.1 ep_poll                  postgres
+1002316 1000177 Sl       836  4536 12.2 futex_wait_queue         /usr/bin/docker-proxy -proto tcp -host-ip 0.0.0.0 -host-port 5432 -container-ip 172.18.0.2 -container-port 5432 -use-listen-fd
+1002323 1000177 Sl       836  3216  0.0 ep_poll                  /usr/bin/docker-proxy -proto tcp -host-ip :: -host-port 5432 -container-ip 172.18.0.2 -container-port 5432 -use-listen-fd
+1002524 1002107 Ss       834 64608  0.0 ep_poll                  postgres: checkpointer 
+1002525 1002107 Ss       834  8560  0.0 ep_poll                  postgres: background writer 
+1002527 1002107 Ss       834 10320  0.0 ep_poll                  postgres: walwriter 
+1002528 1002107 Ss       834  9352  0.0 ep_poll                  postgres: autovacuum launcher 
+1002529 1002107 Ss       834  8616  0.0 ep_poll                  postgres: logical replication launcher 
+1004448 1000038 Sl       799 11540  0.0 futex_wait_queue         /usr/bin/containerd-shim-runc-v2 -namespace moby -id 9e21a987cca737b7565a10baa940a0a3d888bd055eaf6eac01a74f9e530662a8 -address /var/run/docker/containerd/c
+1004471 1004448 Ssl      799 23720  0.0 futex_wait_queue         /mailpit --smtp-tls-cert /certs/server.crt --smtp-tls-key /certs/server.key --smtp-require-starttls --smtp-auth-file /certs/auth.txt --smtp-disable-rdns --
+1004712 1000177 Sl       798  3040  0.0 futex_wait_queue         /usr/bin/docker-proxy -proto tcp -host-ip 127.0.0.1 -host-port 1025 -container-ip 172.17.0.2 -container-port 1025 -use-listen-fd
+1004728 1000177 Sl       798  3164  0.0 ep_poll                  /usr/bin/docker-proxy -proto tcp -host-ip 127.0.0.1 -host-port 8025 -container-ip 172.17.0.2 -container-port 8025 -use-listen-fd
+1004744 1001364 S        798  3648  0.0 do_wait                  /usr/bin/bash -e /home/runner/_work/_temp/3b01ece1-32a9-43e2-aa6d-ede6c6d57129.sh
+1004745 1004744 Sl       798 69228  0.0 ep_poll                  npm run test:int
+1004760 1004745 S        798  1920  0.0 do_wait                  sh -c npm run test:int -w apps/web
+1004761 1004760 Sl       798 69972  0.0 ep_poll                  npm run test:int
+1004776 1004761 S        798  1892  0.0 do_wait                  sh -c vitest run -c vitest.integration.config.ts
+1004777 1004776 Sl       798 241360 0.7 ep_poll                  node /home/runner/_work/drms/drms/node_modules/.bin/vitest run -c vitest.integration.config.ts
+1138758 1004777 Rl         8 405040 81.6 -                       /cache/toolcache/node/24.21.0/x64/bin/node --experimental-import-meta-resolve --require /home/runner/_work/drms/drms/node_modules/vitest/suppress-warnings.
+1138883 1138758 Rl         6 391984 99.1 -                       node /home/runner/_work/drms/drms/node_modules/payload/bin.js generate:types
+1138890 1002107 Ss         6 13756  0.0 ep_poll                  postgres: pk_test_app pk_test 172.18.0.1(45228) idle
+1138896 1002107 Ss         5 51744  8.9 ep_poll                  postgres: pk_test_app pk_test 172.18.0.1(45234) idle
+1139016 1002107 Rs         2 56252 20.0 -                        postgres: pk_test_app pk_test 172.18.0.1(42904) BIND
+1139017 1002107 Ss         2 33160  0.3 ep_poll                  postgres: pk_test_app pk_test 172.18.0.1(42902) idle
+=== 2026-09-29T02:32:51+0700 36a13e4f034b procs=31 io=8:0 rbytes=424456192 wbytes=1440120832 rios=11239 wios=85968 dbytes=0 dios=0 7:0 rbytes=371699712 wbytes=463187968 rios=13264 wios=38018 dbytes=0 dios=0 
+    PID    PPID STAT ELAPSED   RSS %CPU WCHAN                    COMMAND
+1000038  999999 Ss       929  3680  0.0 do_wait                  /bin/bash /opt/ci-runner/entrypoint.sh
+1000177 1000038 Sl       929 92072  1.1 futex_wait_queue         dockerd --host=unix:///var/run/docker.sock --group=docker
+1000220 1000177 Ssl      929 48440  0.2 futex_wait_queue         containerd --config /var/run/docker/containerd/containerd.toml
+1001042 1000038 S        917  3888  0.0 do_wait                  /bin/bash /home/runner/run.sh
+1001043 1001042 S        917  1676  0.0 pipe_read                tee -a /run/ci-runner/runner.out
+1001047 1001042 S        917  3780  0.0 do_wait                  /bin/bash /home/runner/run-helper.sh
+1001051 1001047 Sl       917 119292 0.4 futex_wait_queue         /home/runner/bin/Runner.Listener run
+1001364 1001051 Sl       908 134784 0.9 futex_wait_queue         /home/runner/bin/Runner.Worker spawnclient 150 153
+1002062 1000038 Sl       897 12232  0.1 futex_wait_queue         /usr/bin/containerd-shim-runc-v2 -namespace moby -id bb78a15f8cde45f9e831ff8e9e9ebd025eb1981a2c471b72838eb07f27eff8cd -address /var/run/docker/containerd/c
+1002107 1002062 Ss       897 29440  0.1 ep_poll                  postgres
+1002316 1000177 Sl       896  4748 11.9 futex_wait_queue         /usr/bin/docker-proxy -proto tcp -host-ip 0.0.0.0 -host-port 5432 -container-ip 172.18.0.2 -container-port 5432 -use-listen-fd
+1002323 1000177 Sl       896  3216  0.0 ep_poll                  /usr/bin/docker-proxy -proto tcp -host-ip :: -host-port 5432 -container-ip 172.18.0.2 -container-port 5432 -use-listen-fd
+1002524 1002107 Ss       894 65056  0.0 ep_poll                  postgres: checkpointer 
+1002525 1002107 Ss       894  8576  0.0 ep_poll                  postgres: background writer 
+1002527 1002107 Ss       894 10320  0.0 ep_poll                  postgres: walwriter 
+1002528 1002107 Ss       894  9352  0.0 ep_poll                  postgres: autovacuum launcher 
+1002529 1002107 Ss       894  8616  0.0 ep_poll                  postgres: logical replication launcher 
+1004448 1000038 Sl       859 11548  0.0 futex_wait_queue         /usr/bin/containerd-shim-runc-v2 -namespace moby -id 9e21a987cca737b7565a10baa940a0a3d888bd055eaf6eac01a74f9e530662a8 -address /var/run/docker/containerd/c
+1004471 1004448 Ssl      859 23744  0.0 futex_wait_queue         /mailpit --smtp-tls-cert /certs/server.crt --smtp-tls-key /certs/server.key --smtp-require-starttls --smtp-auth-file /certs/auth.txt --smtp-disable-rdns --
+1004712 1000177 Sl       858  3040  0.0 futex_wait_queue         /usr/bin/docker-proxy -proto tcp -host-ip 127.0.0.1 -host-port 1025 -container-ip 172.17.0.2 -container-port 1025 -use-listen-fd
+1004728 1000177 Sl       858  3164  0.0 ep_poll                  /usr/bin/docker-proxy -proto tcp -host-ip 127.0.0.1 -host-port 8025 -container-ip 172.17.0.2 -container-port 8025 -use-listen-fd
+1004744 1001364 S        858  3648  0.0 do_wait                  /usr/bin/bash -e /home/runner/_work/_temp/3b01ece1-32a9-43e2-aa6d-ede6c6d57129.sh
+1004745 1004744 Sl       858 69228  0.0 ep_poll                  npm run test:int
+1004760 1004745 S        858  1920  0.0 do_wait                  sh -c npm run test:int -w apps/web
+1004761 1004760 Sl       858 69972  0.0 ep_poll                  npm run test:int
+1004776 1004761 S        858  1892  0.0 do_wait                  sh -c vitest run -c vitest.integration.config.ts
+1004777 1004776 Sl       858 241732 0.7 ep_poll                  node /home/runner/_work/drms/drms/node_modules/.bin/vitest run -c vitest.integration.config.ts
+1150326 1004777 Sl         5 350048 74.0 ep_poll                 /cache/toolcache/node/24.21.0/x64/bin/node --experimental-import-meta-resolve --require /home/runner/_work/drms/drms/node_modules/vitest/suppress-warnings.
+1151610 1150326 Sl         2 129588 55.1 futex_wait_queue        node /home/runner/_work/drms/drms/node_modules/payload/bin.js generate:types
+1151617 1002107 Ss         2 13816  0.0 ep_poll                  postgres: pk_test_app pk_test 172.18.0.1(51156) idle
+1151619 1002107 Ss         2 41244  8.6 ep_poll                  postgres: pk_test_app pk_test 172.18.0.1(51170) idle
+=== 2026-09-29T02:33:51+0700 36a13e4f034b procs=32 io=8:0 rbytes=424747008 wbytes=1463623680 rios=11245 wios=87336 dbytes=0 dios=0 7:0 rbytes=372240384 wbytes=485617664 rios=13272 wios=39824 dbytes=0 dios=0 
+    PID    PPID STAT ELAPSED   RSS %CPU WCHAN                    COMMAND
+1000038  999999 Ss       989  3680  0.0 do_wait                  /bin/bash /opt/ci-runner/entrypoint.sh
+1000177 1000038 Sl       989 92088  1.0 futex_wait_queue         dockerd --host=unix:///var/run/docker.sock --group=docker
+1000220 1000177 Ssl      989 48664  0.2 futex_wait_queue         containerd --config /var/run/docker/containerd/containerd.toml
+1001042 1000038 S        978  3888  0.0 do_wait                  /bin/bash /home/runner/run.sh
+1001043 1001042 S        978  1676  0.0 pipe_read                tee -a /run/ci-runner/runner.out
+1001047 1001042 S        978  3780  0.0 do_wait                  /bin/bash /home/runner/run-helper.sh
+1001051 1001047 Sl       978 119264 0.3 futex_wait_queue         /home/runner/bin/Runner.Listener run
+1001364 1001051 Sl       968 134800 0.9 futex_wait_queue         /home/runner/bin/Runner.Worker spawnclient 150 153
+1002062 1000038 Sl       957 12220  0.1 futex_wait_queue         /usr/bin/containerd-shim-runc-v2 -namespace moby -id bb78a15f8cde45f9e831ff8e9e9ebd025eb1981a2c471b72838eb07f27eff8cd -address /var/run/docker/containerd/c
+1002107 1002062 Ss       957 29440  0.1 ep_poll                  postgres
+1002316 1000177 Sl       956  4916 11.6 futex_wait_queue         /usr/bin/docker-proxy -proto tcp -host-ip 0.0.0.0 -host-port 5432 -container-ip 172.18.0.2 -container-port 5432 -use-listen-fd
+1002323 1000177 Sl       956  3216  0.0 ep_poll                  /usr/bin/docker-proxy -proto tcp -host-ip :: -host-port 5432 -container-ip 172.18.0.2 -container-port 5432 -use-listen-fd
+1002524 1002107 Ss       954 69884  0.0 ep_poll                  postgres: checkpointer 
+1002525 1002107 Ss       954  8592  0.0 ep_poll                  postgres: background writer 
+1002527 1002107 Ss       954 10320  0.0 ep_poll                  postgres: walwriter 
+1002528 1002107 Ss       954  9352  0.0 ep_poll                  postgres: autovacuum launcher 
+1002529 1002107 Ss       954  8616  0.0 ep_poll                  postgres: logical replication launcher 
+1004448 1000038 Sl       919 11544  0.0 futex_wait_queue         /usr/bin/containerd-shim-runc-v2 -namespace moby -id 9e21a987cca737b7565a10baa940a0a3d888bd055eaf6eac01a74f9e530662a8 -address /var/run/docker/containerd/c
+1004471 1004448 Ssl      919 28604  0.0 futex_wait_queue         /mailpit --smtp-tls-cert /certs/server.crt --smtp-tls-key /certs/server.key --smtp-require-starttls --smtp-auth-file /certs/auth.txt --smtp-disable-rdns --
+1004712 1000177 Sl       919  3316  0.0 futex_wait_queue         /usr/bin/docker-proxy -proto tcp -host-ip 127.0.0.1 -host-port 1025 -container-ip 172.17.0.2 -container-port 1025 -use-listen-fd
+1004728 1000177 Sl       919  3332  0.0 futex_wait_queue         /usr/bin/docker-proxy -proto tcp -host-ip 127.0.0.1 -host-port 8025 -container-ip 172.17.0.2 -container-port 8025 -use-listen-fd
+1004744 1001364 S        918  3648  0.0 do_wait                  /usr/bin/bash -e /home/runner/_work/_temp/3b01ece1-32a9-43e2-aa6d-ede6c6d57129.sh
+1004745 1004744 Sl       918 69228  0.0 ep_poll                  npm run test:int
+1004760 1004745 S        918  1920  0.0 do_wait                  sh -c npm run test:int -w apps/web
+1004761 1004760 Sl       918 69972  0.0 ep_poll                  npm run test:int
+1004776 1004761 S        918  1892  0.0 do_wait                  sh -c vitest run -c vitest.integration.config.ts
+1004777 1004776 Sl       918 242360 0.7 ep_poll                  node /home/runner/_work/drms/drms/node_modules/.bin/vitest run -c vitest.integration.config.ts
+1160799 1000038 Rl         6 379656 82.5 -                       node /home/runner/_work/drms/drms/node_modules/payload/bin.js generate:types
+1160998 1004777 Rl         3 327124 88.5 -                       /cache/toolcache/node/24.21.0/x64/bin/node --experimental-import-meta-resolve --require /home/runner/_work/drms/drms/node_modules/vitest/suppress-warnings.
+1161092 1160998 Sl         1 103320 62.5 futex_wait_queue        node /home/runner/_work/drms/drms/node_modules/payload/bin.js generate:types
+1161100 1002107 Ss         0 13816  0.0 ep_poll                  postgres: pk_test_app pk_test 172.18.0.1(51236) idle
+1161106 1002107 Ss         0 37328  9.3 ep_poll                  postgres: pk_test_app pk_test 172.18.0.1(51246) idle in transaction
