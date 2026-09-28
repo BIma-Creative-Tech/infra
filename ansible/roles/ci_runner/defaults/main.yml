@@ -1,0 +1,110 @@
+---
+# Role ci_runner — runner GitHub Actions self-hosted ephemeral (sysbox) untuk bctech-adm/drms.
+# Plan 12 (docs/plans/12-gh-runner-drms.md), ADR 0014. Tanpa docker.sock host, tanpa --privileged.
+# Terapkan bertahap (check dulu: --check --diff), satu tag per task plan:
+#   R1 --tags ci_runner_disk      R2 --tags ci_runner_sysbox   R4 --tags ci_runner_network
+#   R3 --tags ci_runner_image     R5 --tags ci_runner_supervisor
+#   R6 --tags ci_runner_toolchain,ci_runner_gc
+# Prasyarat R2: role docker sudah menulis `bip` + `default-address-pools` (+ runtime sysbox-runc) ke daemon.json
+#   (plan 12 R0: tanpa itu postinst sysbox bisa me-restart dockerd). Role ini MENOLAK instal bila belum.
+# Rollback: ci_runner_state: absent (plan 12 §11). Paket sysbox, loop disk & image TIDAK dihapus otomatis
+#   (destruktif/perlu konfirmasi): lihat tasks/absent.yml.
+ci_runner_state: present # present | absent
+
+# --- GitHub ---------------------------------------------------------------------------------------------------------
+ci_runner_repo: bctech-adm/drms
+ci_runner_labels: [self-hosted, linux, x64, drms]
+# [UNVERIFIED sampai registrasi pertama] id grup "Default" untuk runner tingkat repo di akun User.
+ci_runner_group_id: 1
+ci_runner_name_prefix: "drms-{{ ansible_facts['hostname'] }}"
+ci_runner_etc_dir: /etc/ci-runner
+# PAT fine-grained (repo drms saja, Administration RW). Dipasang OWNER sendiri:
+#   sudo install -m 600 -o root -g root /dev/stdin /etc/ci-runner/pat
+ci_runner_pat_file: "{{ ci_runner_etc_dir }}/pat"
+
+# --- Disk (R1) ------------------------------------------------------------------------------------------------------
+ci_runner_state_dir: /var/lib/ci-runner
+ci_runner_disk_image: "{{ ci_runner_state_dir }}/disk.img"
+ci_runner_disk_size: 40G
+ci_runner_disk_label: ci
+ci_runner_mountpoint: /srv/ci
+ci_runner_mount_options: loop,nosuid,nodev,noatime
+# uid/gid user `runner` di image resmi (actions-runner). Sysbox memakai ID-mapped mount → uid host = uid dalam.
+ci_runner_uid: 1001
+ci_runner_gid: 1001
+ci_runner_cache_subdirs: [npm, pub, gradle, flutter, android-sdk, toolcache, trivy]
+
+# --- Sysbox (R2) ----------------------------------------------------------------------------------------------------
+ci_runner_sysbox_version: 0.7.1
+ci_runner_sysbox_deb: "sysbox-ce_{{ ci_runner_sysbox_version }}.linux_amd64.deb"
+ci_runner_sysbox_url: "https://github.com/nestybox/sysbox/releases/download/v{{ ci_runner_sysbox_version }}/{{ ci_runner_sysbox_deb }}"
+# = `digest` asset di GitHub API release v0.7.1 = sha256sum lokal (2026-09-28).
+ci_runner_sysbox_sha256: 9d6d5484f980d0a17f86c492c1262015c2afb66280bdb97215b79fde6a0261c5
+
+# --- Network (R4) ---------------------------------------------------------------------------------------------------
+ci_runner_network: ci-runner
+ci_runner_subnet: 10.100.18.0/24
+ci_runner_gateway: 10.100.18.1
+ci_runner_bridge: br-ci-runner
+# Tujuan yang di-DROP dari subnet CI (DOCKER-USER → chain CI-RUNNER-EGRESS). Koneksi yang di-DNAT (port publik
+# VPS: hairpin ke Traefik 80/443, mail) diizinkan lebih dulu, setara akses dari internet.
+ci_runner_egress_drop:
+  - 10.0.0.0/8
+  - 172.16.0.0/12
+  - 192.168.0.0/16
+  - 169.254.0.0/16
+  - 100.64.0.0/10
+
+# --- Image (R3/R6) --------------------------------------------------------------------------------------------------
+ci_runner_version: 2.337.0
+ci_runner_image_build: 1
+ci_runner_image: "ci-runner:{{ ci_runner_version }}-{{ ci_runner_image_build }}"
+ci_runner_base_image: "ghcr.io/actions/actions-runner:{{ ci_runner_version }}@sha256:e5496277be5d09bc968b3d64911b74e219ac4a3f2edce956a3ecf9271bea1ef4"
+ci_runner_gh_version: 2.101.0
+# = gh_2.101.0_checksums.txt (release cli/cli v2.101.0) = digest asset GitHub API.
+ci_runner_gh_sha256: 9bca2d1c16825f109907a23307628a2f0698fbf99662b73a5cf0b020293072b8
+ci_runner_build_dir: /usr/local/lib/ci-runner/image
+
+# --- Kapasitas (ADR 0004 revisi, GATE Q4) ---------------------------------------------------------------------------
+ci_runner_cpus: "2.0"
+ci_runner_cpu_shares: 256
+ci_runner_memory: 4g
+ci_runner_pids_limit: 4096
+ci_runner_oom_score_adj: 800
+# io.max absolut (mq-deadline → io.weight tidak berlaku). Diterapkan ke device loop /srv/ci DAN device rootfs host.
+ci_runner_write_bps: 60mb
+ci_runner_read_bps: 120mb
+ci_runner_io_devices: [/dev/sda]
+
+# --- Supervisor (R5) ------------------------------------------------------------------------------------------------
+ci_runner_supervisor_bin: /usr/local/sbin/ci-runner-supervisor
+ci_runner_backoff_min: 30
+ci_runner_backoff_max: 600
+ci_runner_textfile_dir: /var/lib/node-exporter-textfile
+# Opsional: URL push Uptime Kuma di file {{ ci_runner_etc_dir }}/kuma-push-url (root 600), diisi Lead.
+ci_runner_kuma_push_file: "{{ ci_runner_etc_dir }}/kuma-push-url"
+# Unit path memulai supervisor begitu PAT ada. false = tidak ada yang dijalankan otomatis.
+ci_runner_supervisor_enabled: true
+
+# --- Toolchain (R6) -------------------------------------------------------------------------------------------------
+# Android cmdline-tools (Google repository2-3.xml: commandlinetools-linux-<rev>_latest.zip). sha256 dihitung dari unduhan
+# dan dicocokkan dengan sha1 di repository2-3.xml (2026-09-28).
+# cmdline-tools;latest = 23.0, rev 16111833, sha1 e025545c62a8e64c7559119566a569fb1dec5f60 (repository2-3.xml) = sha1sum.
+ci_runner_android_cmdline_tools_rev: "16111833"
+ci_runner_android_cmdline_tools_sha256: 0877a1d048fe4a24efe2eff536ca4223f7adeb58648bb81909d33c446918cfa8
+# Sesuai Flutter 3.47.5 (packages/flutter_tools/gradle/src/main/kotlin/FlutterExtension.kt: compileSdk 36,
+# ndkVersion 28.2.13676358) + apps/mobile/android/app/build.gradle.kts (compileSdk/ndk = flutter.*).
+ci_runner_android_packages:
+  - platform-tools
+  - platforms;android-36
+  - build-tools;36.0.0
+  - ndk;28.2.13676358
+# JDK untuk sdkmanager (bootstrap saja; job memakai actions/setup-java). Temurin 17 JRE, Adoptium API.
+ci_runner_bootstrap_jre_url: https://github.com/adoptium/temurin17-binaries/releases/download/jdk-17.0.20.1%2B1/OpenJDK17U-jre_x64_linux_hotspot_17.0.20.1_1.tar.gz
+ci_runner_bootstrap_jre_sha256: 0b2b640e3046b64c8ec504de0ab9d91bb5610182bda21fad454681ce54d45a62
+
+# --- GC (R6) --------------------------------------------------------------------------------------------------------
+ci_runner_gc_bin: /usr/local/sbin/ci-runner-gc
+ci_runner_gc_gradle_max_gb: 6
+ci_runner_gc_high_pct: 85
+ci_runner_gc_reset_docker_pct: 92

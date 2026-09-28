@@ -1,0 +1,16 @@
+# {{ ansible_managed }} — role ci_runner (plan 12 R4)
+[Unit]
+Description=Egress firewall runner CI (DOCKER-USER → CI-RUNNER-EGRESS, plan 12)
+After=docker.service
+Wants=docker.service
+# Bila dockerd restart, terapkan ulang (dockerd tidak mem-flush DOCKER-USER, tetapi idempoten lebih aman).
+PartOf=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/sbin/ci-runner-firewall apply
+ExecStop=/usr/local/sbin/ci-runner-firewall remove
+
+[Install]
+WantedBy=multi-user.target docker.service

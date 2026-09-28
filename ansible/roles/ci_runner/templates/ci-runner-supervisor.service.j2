@@ -1,0 +1,45 @@
+# {{ ansible_managed }} — role ci_runner (plan 12 R5, ADR 0014)
+[Unit]
+Description=Supervisor runner GitHub Actions ephemeral (JIT, sysbox) untuk {{ ci_runner_repo }}
+Documentation=file:///opt/infra/docs/plans/12-gh-runner-drms.md
+# Tanpa PAT unit tidak dijalankan (bukan failed); ci-runner-supervisor.path memulainya begitu PAT dipasang owner.
+ConditionPathExists={{ ci_runner_pat_file }}
+Requires=docker.service sysbox.service {{ ci_runner_mountpoint | regex_replace('^/', '') | replace('/', '-') }}.mount ci-runner-firewall.service
+After=docker.service sysbox.service {{ ci_runner_mountpoint | regex_replace('^/', '') | replace('/', '-') }}.mount ci-runner-firewall.service network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+EnvironmentFile={{ ci_runner_etc_dir }}/supervisor.env
+LoadCredential=pat:{{ ci_runner_pat_file }}
+ExecStartPre={{ ci_runner_supervisor_bin }} preflight
+ExecStart={{ ci_runner_supervisor_bin }} run
+Restart=always
+RestartSec={{ ci_runner_backoff_min }}
+TimeoutStopSec=90
+KillMode=mixed
+StateDirectory=ci-runner
+StateDirectoryMode=0700
+RuntimeDirectory=ci-runner-supervisor
+RuntimeDirectoryMode=0700
+SyslogIdentifier=ci-runner-supervisor
+UMask=0077
+# Hardening: root (butuh socket dockerd host untuk membuat container job; setara root — itulah sebabnya
+# kode ini minimal & root-owned). Tidak ada akses tulis selain state + textfile.
+ProtectSystem=strict
+ReadWritePaths={{ ci_runner_textfile_dir }}
+ProtectHome=yes
+PrivateTmp=yes
+NoNewPrivileges=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+MemoryMax=256M
+TasksMax=128
+
+[Install]
+WantedBy=multi-user.target

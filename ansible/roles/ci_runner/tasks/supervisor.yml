@@ -1,0 +1,66 @@
+---
+# R5: supervisor + unit. PAT dipasang OWNER (bukan Ansible): sudo install -m 600 -o root -g root /dev/stdin {{ ci_runner_pat_file }}
+- name: Direktori {{ ci_runner_etc_dir }}
+  ansible.builtin.file:
+    path: "{{ ci_runner_etc_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: Env supervisor (tanpa secret)
+  ansible.builtin.template:
+    src: supervisor.env.j2
+    dest: "{{ ci_runner_etc_dir }}/supervisor.env"
+    owner: root
+    group: root
+    mode: "0600"
+  notify: Restart ci-runner-supervisor
+
+- name: Skrip supervisor
+  ansible.builtin.copy:
+    src: ci-runner-supervisor
+    dest: "{{ ci_runner_supervisor_bin }}"
+    owner: root
+    group: root
+    mode: "0750"
+  notify: Restart ci-runner-supervisor
+
+- name: Direktori textfile node-exporter
+  ansible.builtin.file:
+    path: "{{ ci_runner_textfile_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Unit supervisor + path
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "/etc/systemd/system/{{ item }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - ci-runner-supervisor.service
+    - ci-runner-supervisor.path
+  register: ci_runner_sup_units
+  notify: Restart ci-runner-supervisor
+
+- name: daemon-reload (supervisor)
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+  when: ci_runner_sup_units is changed
+
+- name: Unit path supervisor
+  ansible.builtin.systemd_service:
+    name: ci-runner-supervisor.path
+    enabled: "{{ ci_runner_supervisor_enabled | bool }}"
+    state: "{{ 'started' if ci_runner_supervisor_enabled | bool else 'stopped' }}"
+  ignore_errors: "{{ ansible_check_mode }}"
+
+- name: Service supervisor diaktifkan saat boot (tetap menunggu PAT via ConditionPathExists)
+  ansible.builtin.systemd_service:
+    name: ci-runner-supervisor.service
+    enabled: "{{ ci_runner_supervisor_enabled | bool }}"
+  ignore_errors: "{{ ansible_check_mode }}"

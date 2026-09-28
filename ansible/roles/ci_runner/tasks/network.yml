@@ -1,0 +1,69 @@
+---
+# R4: network ci-runner (bukan --internal: butuh egress internet) + drop egress ke rentang privat/link-local.
+# Tidak menyentuh network/container lain.
+- name: Cek network {{ ci_runner_network }}
+  ansible.builtin.command:
+    cmd: "docker network inspect -f '{{ '{{' }}range .IPAM.Config{{ '}}' }}{{ '{{' }}.Subnet{{ '}}' }}{{ '{{' }}end{{ '}}' }}' {{ ci_runner_network }}"
+  register: ci_runner_net_inspect
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Guard — network yang ada harus bersubnet {{ ci_runner_subnet }}
+  ansible.builtin.assert:
+    that:
+      - ci_runner_net_inspect.rc != 0 or ci_runner_net_inspect.stdout | trim == ci_runner_subnet
+    fail_msg: "Network {{ ci_runner_network }} sudah ada dengan subnet lain: {{ ci_runner_net_inspect.stdout }}"
+    quiet: true
+
+- name: Buat network {{ ci_runner_network }}
+  ansible.builtin.command:
+    argv:
+      - docker
+      - network
+      - create
+      - --driver=bridge
+      - "--subnet={{ ci_runner_subnet }}"
+      - "--gateway={{ ci_runner_gateway }}"
+      - "--opt=com.docker.network.bridge.name={{ ci_runner_bridge }}"
+      - --opt=com.docker.network.bridge.enable_icc=false
+      - --label=ci-runner=1
+      - "{{ ci_runner_network }}"
+  when: ci_runner_net_inspect.rc != 0
+
+- name: Skrip firewall egress CI
+  ansible.builtin.template:
+    src: ci-runner-firewall.j2
+    dest: /usr/local/sbin/ci-runner-firewall
+    owner: root
+    group: root
+    mode: "0750"
+  register: ci_runner_fw_script
+
+- name: Unit ci-runner-firewall
+  ansible.builtin.template:
+    src: ci-runner-firewall.service.j2
+    dest: /etc/systemd/system/ci-runner-firewall.service
+    owner: root
+    group: root
+    mode: "0644"
+  register: ci_runner_fw_unit
+
+- name: daemon-reload (firewall)
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+  when: ci_runner_fw_unit is changed
+
+- name: Firewall egress CI aktif + saat boot
+  ansible.builtin.systemd_service:
+    name: ci-runner-firewall.service
+    enabled: true
+    state: "{{ 'restarted' if (ci_runner_fw_script is changed or ci_runner_fw_unit is changed) else 'started' }}"
+  ignore_errors: "{{ ansible_check_mode }}"
+
+- name: Verifikasi aturan terpasang
+  ansible.builtin.command:
+    cmd: /usr/local/sbin/ci-runner-firewall check
+  changed_when: false
+  check_mode: false
+  when: not ansible_check_mode

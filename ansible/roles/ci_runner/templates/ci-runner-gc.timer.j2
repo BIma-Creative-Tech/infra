@@ -1,0 +1,11 @@
+# {{ ansible_managed }} — role ci_runner (plan 12 R6)
+[Unit]
+Description=GC harian data runner CI
+
+[Timer]
+OnCalendar=*-*-* 03:40:00
+RandomizedDelaySec=15min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

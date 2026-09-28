@@ -1,0 +1,47 @@
+---
+# Rollback plan 12 §11 (bagian yang tidak destruktif terhadap data). Registrasi runner di GitHub + revoke PAT = owner/UI.
+# TIDAK otomatis: hapus /etc/ci-runner/pat (owner revoke dulu), `umount` + hapus disk.img (konfirmasi, data runner saja),
+# `apt remove sysbox-ce` (lalu kosongkan docker_daemon_runtimes + --tags docker → SIGHUP), `docker image rm` image runner.
+- name: Hentikan path + supervisor (path dulu)
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    enabled: false
+    state: stopped
+  loop: [ci-runner-supervisor.path, ci-runner-supervisor.service, ci-runner-gc.timer]
+  failed_when: false
+
+- name: Hapus container berlabel ci-runner.role=job (hanya milik runner)
+  ansible.builtin.shell:
+    cmd: "ids=$(docker ps -aq --filter label=ci-runner.role=job); [ -z \"$ids\" ] || docker rm -f $ids"
+  changed_when: false
+
+- name: Lepas firewall egress CI
+  ansible.builtin.systemd_service:
+    name: ci-runner-firewall.service
+    enabled: false
+    state: stopped
+  failed_when: false
+
+- name: Hapus network {{ ci_runner_network }}
+  ansible.builtin.command:
+    cmd: "docker network rm {{ ci_runner_network }}"
+  register: ci_runner_net_rm
+  changed_when: ci_runner_net_rm.rc == 0
+  failed_when: false
+
+- name: Hapus unit & skrip
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /etc/systemd/system/ci-runner-supervisor.service
+    - /etc/systemd/system/ci-runner-supervisor.path
+    - /etc/systemd/system/ci-runner-firewall.service
+    - /etc/systemd/system/ci-runner-gc.service
+    - /etc/systemd/system/ci-runner-gc.timer
+    - "{{ ci_runner_supervisor_bin }}"
+    - "{{ ci_runner_gc_bin }}"
+    - /usr/local/sbin/ci-runner-firewall
+    - "{{ ci_runner_textfile_dir }}/ci_runner.prom"
+    - "{{ ci_runner_textfile_dir }}/ci_runner_heartbeat.prom"
+  notify: Reload systemd (ci_runner)

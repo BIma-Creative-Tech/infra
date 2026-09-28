@@ -1,0 +1,29 @@
+---
+# R6: Android SDK (cmdline-tools + lisensi + platform/build-tools/NDK sesuai Flutter 3.47.5) ke /srv/ci/cache/android-sdk.
+# Container sekali pakai: uid 1001, tanpa capability, NNP, network ci-runner (egress terfilter), mount HANYA cache.
+- name: Bootstrap Android SDK di cache
+  ansible.builtin.command:
+    argv:
+      - docker
+      - run
+      - --rm
+      - --name=ci-runner-bootstrap
+      - --label=ci-runner=1
+      - "--user={{ ci_runner_uid }}:{{ ci_runner_gid }}"
+      - --cap-drop=ALL
+      - --security-opt=no-new-privileges:true
+      - "--network={{ ci_runner_network }}"
+      - "--cpus={{ ci_runner_cpus }}"
+      - "--cpu-shares={{ ci_runner_cpu_shares }}"
+      - --memory=2g
+      - --memory-swap=2g
+      - "--mount=type=bind,source={{ ci_runner_mountpoint }}/cache,target=/cache"
+      - "--env=CMDLINE_TOOLS_REV={{ ci_runner_android_cmdline_tools_rev }}"
+      - "--env=CMDLINE_TOOLS_SHA256={{ ci_runner_android_cmdline_tools_sha256 }}"
+      - "--env=JRE_URL={{ ci_runner_bootstrap_jre_url }}"
+      - "--env=JRE_SHA256={{ ci_runner_bootstrap_jre_sha256 }}"
+      - "--env=ANDROID_PACKAGES={{ ci_runner_android_packages | join(',') }}"
+      - --entrypoint=/opt/ci-runner/android-bootstrap.sh
+      - "{{ ci_runner_image }}"
+  register: ci_runner_android_bootstrap
+  changed_when: "'up to date' not in ci_runner_android_bootstrap.stdout"

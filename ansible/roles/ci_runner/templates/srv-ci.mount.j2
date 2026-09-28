@@ -1,0 +1,14 @@
+# {{ ansible_managed }} — role ci_runner (plan 12 R1)
+# Kuota tetap untuk data runner CI: ext4 di file loop {{ ci_runner_disk_image }} ({{ ci_runner_disk_size }}).
+[Unit]
+Description=Kuota disk runner CI (loop ext4, plan 12)
+Before=ci-runner-supervisor.service
+
+[Mount]
+What={{ ci_runner_disk_image }}
+Where={{ ci_runner_mountpoint }}
+Type=ext4
+Options={{ ci_runner_mount_options }}
+
+[Install]
+WantedBy=multi-user.target

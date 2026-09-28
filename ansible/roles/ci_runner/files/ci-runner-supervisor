@@ -1,0 +1,294 @@
+#!/bin/bash
+# ci-runner-supervisor — runner GitHub Actions ephemeral (JIT) untuk satu repo, satu job sekaligus.
+# Plan 12 R5 (docs/plans/12-gh-runner-drms.md §4), ADR 0014. Dipasang oleh role Ansible ci_runner.
+#
+# Loop:  hapus registrasi offline sisa → POST generate-jitconfig (PAT dari systemd LoadCredential) →
+#        docker run --runtime=sysbox-runc (JIT lewat STDIN) → tunggu container keluar (1 job) → hapus registrasi
+#        bila masih ada → metrik textfile → ulangi. Gagal → backoff eksponensial BACKOFF_MIN..BACKOFF_MAX detik.
+#
+# Aturan keamanan:
+#  - PAT tidak pernah di argv (curl membaca header dari stdin `-K -`), tidak pernah ke container/log/metrik.
+#  - JIT config (sekali pakai) hanya lewat stdin container; tidak di argv/env/`docker inspect`.
+#  - Hanya menyentuh container berlabel ci-runner.role=job. Tidak pernah prune dockerd host.
+#
+# Pemakaian:  ci-runner-supervisor run        (systemd: ci-runner-supervisor.service)
+#             ci-runner-supervisor preflight  (ExecStartPre: izin PAT, mount, runtime, network, image)
+set -uo pipefail
+umask 077
+
+: "${CI_REPO:?}" "${CI_LABELS_JSON:?}" "${CI_GROUP_ID:?}" "${CI_NAME_PREFIX:?}" "${CI_IMAGE:?}" "${CI_NETWORK:?}"
+: "${CI_CPUS:?}" "${CI_CPU_SHARES:?}" "${CI_MEMORY:?}" "${CI_PIDS:?}" "${CI_OOM_SCORE_ADJ:?}"
+: "${CI_WRITE_BPS:?}" "${CI_READ_BPS:?}" "${CI_MOUNTPOINT:?}" "${CI_TEXTFILE_DIR:?}" "${CI_RUNNER_VERSION:?}"
+CI_IO_DEVICES="${CI_IO_DEVICES:-}"
+CI_PAT_SOURCE="${CI_PAT_SOURCE:-/etc/ci-runner/pat}"
+CI_KUMA_PUSH_FILE="${CI_KUMA_PUSH_FILE:-/etc/ci-runner/kuma-push-url}"
+BACKOFF_MIN="${CI_BACKOFF_MIN:-30}"
+BACKOFF_MAX="${CI_BACKOFF_MAX:-600}"
+STATE_DIR="${STATE_DIRECTORY:-/var/lib/ci-runner}"
+STATE_FILE="$STATE_DIR/supervisor.state"
+CONTAINER_NAME="ci-runner-job"
+API="https://api.github.com"
+API_VER="2022-11-28"
+
+log() { printf 'ci-runner-supervisor: %s\n' "$*" >&2; }
+
+pat_file() { printf '%s/pat' "${CREDENTIALS_DIRECTORY:-/nonexistent}"; }
+
+# gh_api <METHOD> <PATH> [JSON_BODY] → stdout = body; global HTTP_CODE. Header Authorization via stdin (-K -).
+HTTP_CODE=000
+gh_api() {
+  local method=$1 path=$2 body=${3:-} out code tok
+  out="$(mktemp -p "${RUNTIME_DIRECTORY:-/tmp}")"
+  tok="$(<"$(pat_file)")"
+  tok="${tok//[$'\r\n\t ']/}"
+  if [[ -n "$body" ]]; then
+    code="$(printf 'header = "Authorization: Bearer %s"\n' "$tok" | curl -sS -m 30 -K - -o "$out" -w '%{http_code}' \
+      -X "$method" -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: $API_VER" \
+      -H "Content-Type: application/json" --data-binary "$body" "$API$path")" || code=000
+  else
+    code="$(printf 'header = "Authorization: Bearer %s"\n' "$tok" | curl -sS -m 30 -K - -o "$out" -w '%{http_code}' \
+      -X "$method" -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: $API_VER" "$API$path")" || code=000
+  fi
+  tok=""
+  HTTP_CODE="$code"
+  cat "$out"; rm -f "$out"
+}
+
+# --- state & metrik -----------------------------------------------------------------------------------------------
+REG_FAIL_TOTAL=0; REG_FAIL_CONSEC=0; JOBS_OK=0; JOBS_FAIL=0; LAST_EXIT=-1; LAST_JOB_END=0; LAST_REG_OK=0
+LATEST_TAG=""; LATEST_TS=0; CURRENT_TS=0; RELEASE_CHECKED=0
+load_state() { [[ -f "$STATE_FILE" ]] && while IFS='=' read -r k v; do
+  [[ "$k" =~ ^[A-Z_]+$ && "$v" =~ ^[A-Za-z0-9._-]*$ ]] && printf -v "$k" '%s' "$v"; done < "$STATE_FILE"; true; }
+save_state() {
+  local t; t="$(mktemp -p "$STATE_DIR" .state.XXXXXX)"
+  printf '%s\n' "REG_FAIL_TOTAL=$REG_FAIL_TOTAL" "REG_FAIL_CONSEC=$REG_FAIL_CONSEC" "JOBS_OK=$JOBS_OK" \
+    "JOBS_FAIL=$JOBS_FAIL" "LAST_EXIT=$LAST_EXIT" "LAST_JOB_END=$LAST_JOB_END" "LAST_REG_OK=$LAST_REG_OK" \
+    "LATEST_TAG=$LATEST_TAG" "LATEST_TS=$LATEST_TS" "CURRENT_TS=$CURRENT_TS" "RELEASE_CHECKED=$RELEASE_CHECKED" > "$t"
+  mv -f "$t" "$STATE_FILE"
+}
+
+write_prom() { # write_prom <nama file> (isi dari stdin), atomik
+  local f="$CI_TEXTFILE_DIR/$1" t
+  [[ -d "$CI_TEXTFILE_DIR" ]] || { cat >/dev/null; return 0; }
+  t="$(mktemp -p "$CI_TEXTFILE_DIR" .ci_runner.XXXXXX)"
+  cat > "$t"; chmod 0644 "$t"; mv -f "$t" "$f"
+}
+
+write_metrics() {
+  local upd=0
+  [[ -n "$LATEST_TAG" && "$LATEST_TAG" != "v$CI_RUNNER_VERSION" ]] && upd=1
+  write_prom ci_runner.prom <<EOF
+# HELP ci_runner_registration_failures_total Registrasi JIT gagal (kumulatif).
+# TYPE ci_runner_registration_failures_total counter
+ci_runner_registration_failures_total $REG_FAIL_TOTAL
+# HELP ci_runner_registration_consecutive_failures Registrasi JIT gagal berturut-turut (0 = terakhir sukses).
+# TYPE ci_runner_registration_consecutive_failures gauge
+ci_runner_registration_consecutive_failures $REG_FAIL_CONSEC
+# HELP ci_runner_last_registration_success_timestamp_seconds Waktu registrasi JIT sukses terakhir.
+# TYPE ci_runner_last_registration_success_timestamp_seconds gauge
+ci_runner_last_registration_success_timestamp_seconds $LAST_REG_OK
+# HELP ci_runner_jobs_total Container job selesai menurut kode keluar runner.
+# TYPE ci_runner_jobs_total counter
+ci_runner_jobs_total{result="success"} $JOBS_OK
+ci_runner_jobs_total{result="failure"} $JOBS_FAIL
+# HELP ci_runner_last_job_exit_code Kode keluar container job terakhir (-1 = belum ada).
+# TYPE ci_runner_last_job_exit_code gauge
+ci_runner_last_job_exit_code $LAST_EXIT
+# HELP ci_runner_last_job_end_timestamp_seconds Waktu container job terakhir selesai.
+# TYPE ci_runner_last_job_end_timestamp_seconds gauge
+ci_runner_last_job_end_timestamp_seconds $LAST_JOB_END
+# HELP ci_runner_version_info Versi actions/runner di image.
+# TYPE ci_runner_version_info gauge
+ci_runner_version_info{version="$CI_RUNNER_VERSION",image="$CI_IMAGE"} 1
+# HELP ci_runner_current_release_timestamp_seconds Tanggal rilis versi runner yang dipakai.
+# TYPE ci_runner_current_release_timestamp_seconds gauge
+ci_runner_current_release_timestamp_seconds $CURRENT_TS
+# HELP ci_runner_latest_release_timestamp_seconds Tanggal rilis actions/runner terbaru (GitHub releases/latest).
+# TYPE ci_runner_latest_release_timestamp_seconds gauge
+ci_runner_latest_release_timestamp_seconds $LATEST_TS
+# HELP ci_runner_update_available 1 bila rilis terbaru != versi image (upgrade wajib <= 21 hari, batas GitHub 30).
+# TYPE ci_runner_update_available gauge
+ci_runner_update_available $upd
+EOF
+}
+
+heartbeat_loop() { # proses latar: detak tiap 60 s (metrik + push Kuma opsional)
+  local running url
+  while :; do
+    running=0
+    [[ "$(docker inspect -f '{{.State.Running}}' "$CONTAINER_NAME" 2>/dev/null)" == true ]] && running=1
+    write_prom ci_runner_heartbeat.prom <<EOF
+# HELP ci_runner_supervisor_heartbeat_timestamp_seconds Detak supervisor (tiap 60 s). Basi > 10 mnt = supervisor mati.
+# TYPE ci_runner_supervisor_heartbeat_timestamp_seconds gauge
+ci_runner_supervisor_heartbeat_timestamp_seconds $(date +%s)
+# HELP ci_runner_container_running 1 bila container job (runner online/menjalankan job) berjalan.
+# TYPE ci_runner_container_running gauge
+ci_runner_container_running $running
+EOF
+    if [[ -r "$CI_KUMA_PUSH_FILE" ]]; then
+      url="$(head -n1 "$CI_KUMA_PUSH_FILE" | tr -d '[:space:]')"
+      if [[ "$url" =~ ^https?://[^[:space:]\"]+$ ]]; then
+        printf 'url = "%s?status=up&msg=OK&ping="\n' "$url" | curl -fsS -m 10 -K - -o /dev/null 2>/dev/null || true
+      fi
+    fi
+    sleep 60
+  done
+}
+
+check_releases() { # tiap 6 jam, tanpa PAT (endpoint publik)
+  local now body
+  now="$(date +%s)"
+  (( now - RELEASE_CHECKED < 21600 )) && return 0
+  body="$(curl -fsS -m 20 -H "Accept: application/vnd.github+json" "$API/repos/actions/runner/releases/latest" 2>/dev/null)" || return 0
+  LATEST_TAG="$(jq -r '.tag_name // empty' <<<"$body")"
+  LATEST_TS="$(jq -r '.published_at // empty | fromdateiso8601' <<<"$body" 2>/dev/null || echo 0)"
+  body="$(curl -fsS -m 20 -H "Accept: application/vnd.github+json" "$API/repos/actions/runner/releases/tags/v$CI_RUNNER_VERSION" 2>/dev/null)" || return 0
+  CURRENT_TS="$(jq -r '.published_at // empty | fromdateiso8601' <<<"$body" 2>/dev/null || echo 0)"
+  [[ "$LATEST_TS" =~ ^[0-9]+$ ]] || LATEST_TS=0
+  [[ "$CURRENT_TS" =~ ^[0-9]+$ ]] || CURRENT_TS=0
+  RELEASE_CHECKED="$now"
+  log "release check: latest=$LATEST_TAG current=v$CI_RUNNER_VERSION"
+}
+
+# --- GitHub runner registrations ----------------------------------------------------------------------------------
+delete_runner() { # delete_runner <id>
+  gh_api DELETE "/repos/$CI_REPO/actions/runners/$1" >/dev/null
+  case "$HTTP_CODE" in
+    204) log "deleted runner registration id=$1" ;;
+    404) : ;;
+    *) log "WARN: delete runner id=$1 → HTTP $HTTP_CODE" ;;
+  esac
+}
+
+cleanup_offline_runners() { # hanya runner milik supervisor ini (prefix nama), offline & tidak busy
+  local body ids id
+  body="$(gh_api GET "/repos/$CI_REPO/actions/runners?per_page=100")"
+  [[ "$HTTP_CODE" == 200 ]] || { log "WARN: list runners → HTTP $HTTP_CODE"; return 0; }
+  ids="$(jq -r --arg p "$CI_NAME_PREFIX-" \
+    '.runners[]? | select((.name|startswith($p)) and .status=="offline" and (.busy|not)) | .id' <<<"$body")"
+  for id in $ids; do [[ "$id" =~ ^[0-9]+$ ]] && delete_runner "$id"; done
+}
+
+# --- container ------------------------------------------------------------------------------------------------------
+remove_job_containers() { # hanya container berlabel ci-runner.role=job
+  local ids
+  ids="$(docker ps -aq --filter label=ci-runner.role=job)"
+  [[ -n "$ids" ]] && { log "removing leftover job container(s): $(echo $ids)"; docker rm -f $ids >/dev/null; }
+  true
+}
+
+CHILD=""; RUNNER_ID=""
+on_term() {
+  log "stop requested"
+  if [[ -n "$CHILD" ]]; then docker stop -t 30 "$CONTAINER_NAME" >/dev/null 2>&1; fi
+  remove_job_containers
+  [[ -n "$RUNNER_ID" ]] && delete_runner "$RUNNER_ID"
+  [[ -n "${HB_PID:-}" ]] && kill "$HB_PID" 2>/dev/null
+  save_state; write_metrics
+  exit 0
+}
+
+run_job_container() { # run_job_container <encoded_jit_config> → return kode keluar container
+  local jit=$1 loopdev args=() d rc
+  loopdev="$(findmnt -n -o SOURCE --mountpoint "$CI_MOUNTPOINT")"
+  for d in $loopdev $CI_IO_DEVICES; do
+    [[ -b "$d" ]] || continue
+    args+=(--device-write-bps "$d:$CI_WRITE_BPS" --device-read-bps "$d:$CI_READ_BPS")
+  done
+  remove_job_containers
+  # -a STDIN: JIT hanya masuk lewat stdin; stdout/stderr container → json-file (Alloy/Loki, label container=ci-runner-job).
+  printf '%s\n' "$jit" | docker run -i -a STDIN \
+    --name "$CONTAINER_NAME" \
+    --label ci-runner.role=job --label ci-runner=1 \
+    --runtime=sysbox-runc \
+    --network "$CI_NETWORK" \
+    --hostname ci-runner \
+    --cpus "$CI_CPUS" --cpu-shares "$CI_CPU_SHARES" \
+    --memory "$CI_MEMORY" --memory-swap "$CI_MEMORY" \
+    --pids-limit "$CI_PIDS" --oom-score-adj "$CI_OOM_SCORE_ADJ" \
+    "${args[@]}" \
+    --security-opt no-new-privileges:true \
+    --mount "type=bind,source=$CI_MOUNTPOINT/docker,target=/var/lib/docker" \
+    --mount "type=bind,source=$CI_MOUNTPOINT/cache,target=/cache" \
+    --log-driver json-file --log-opt max-size=10m --log-opt max-file=3 \
+    --stop-timeout 30 \
+    "$CI_IMAGE" >/dev/null &
+  CHILD=$!
+  wait "$CHILD"; rc=$?
+  CHILD=""
+  rc="$(docker inspect -f '{{.State.ExitCode}}' "$CONTAINER_NAME" 2>/dev/null || echo "$rc")"
+  return "$rc"
+}
+
+# --- mode -----------------------------------------------------------------------------------------------------------
+preflight() {
+  local perm
+  perm="$(stat -c '%a %U %G' "$CI_PAT_SOURCE" 2>/dev/null)" || { log "PAT tidak ada: $CI_PAT_SOURCE"; exit 1; }
+  [[ "$perm" == "600 root root" ]] || { log "izin PAT harus '600 root root', sekarang '$perm'"; exit 1; }
+  findmnt -n --mountpoint "$CI_MOUNTPOINT" >/dev/null || { log "$CI_MOUNTPOINT tidak ter-mount"; exit 1; }
+  docker info --format '{{range $k,$v := .Runtimes}}{{$k}} {{end}}' | grep -qw sysbox-runc || { log "runtime sysbox-runc tidak ada"; exit 1; }
+  docker network inspect "$CI_NETWORK" >/dev/null || { log "network $CI_NETWORK tidak ada"; exit 1; }
+  docker image inspect "$CI_IMAGE" >/dev/null || { log "image $CI_IMAGE tidak ada"; exit 1; }
+  log "preflight OK"
+}
+
+run() {
+  local backoff=$BACKOFF_MIN name body jit labels rc
+  install -d -m 0700 "$STATE_DIR"
+  load_state
+  trap on_term TERM INT
+  heartbeat_loop & HB_PID=$!
+  remove_job_containers
+  while :; do
+    check_releases
+    cleanup_offline_runners
+    name="$CI_NAME_PREFIX-$(date +%s)"
+    body="$(jq -cn --arg n "$name" --argjson g "$CI_GROUP_ID" --argjson l "$CI_LABELS_JSON" \
+      '{name:$n, runner_group_id:$g, labels:$l, work_folder:"_work"}')"
+    body="$(gh_api POST "/repos/$CI_REPO/actions/runners/generate-jitconfig" "$body")"
+    if [[ "$HTTP_CODE" != 201 ]]; then
+      REG_FAIL_TOTAL=$((REG_FAIL_TOTAL + 1)); REG_FAIL_CONSEC=$((REG_FAIL_CONSEC + 1))
+      log "registration FAILED: HTTP $HTTP_CODE $(jq -r '.message // empty' <<<"$body" 2>/dev/null | head -c 200); retry in ${backoff}s"
+      save_state; write_metrics
+      sleep "$backoff" & wait $!
+      backoff=$(( backoff * 2 > BACKOFF_MAX ? BACKOFF_MAX : backoff * 2 ))
+      continue
+    fi
+    jit="$(jq -r '.encoded_jit_config // empty' <<<"$body")"
+    RUNNER_ID="$(jq -r '.runner.id // empty' <<<"$body")"
+    labels="$(jq -c '[.runner.labels[]?.name]' <<<"$body")"
+    body=""
+    if [[ -z "$jit" || ! "$RUNNER_ID" =~ ^[0-9]+$ ]]; then
+      REG_FAIL_TOTAL=$((REG_FAIL_TOTAL + 1)); REG_FAIL_CONSEC=$((REG_FAIL_CONSEC + 1))
+      log "registration FAILED: 201 without encoded_jit_config/runner.id; retry in ${backoff}s"
+      save_state; write_metrics; sleep "$backoff" & wait $!; continue
+    fi
+    REG_FAIL_CONSEC=0; LAST_REG_OK="$(date +%s)"; backoff=$BACKOFF_MIN
+    log "registered runner name=$name id=$RUNNER_ID labels=$labels"
+    save_state; write_metrics
+    run_job_container "$jit"; rc=$?
+    jit=""
+    LAST_EXIT=$rc; LAST_JOB_END="$(date +%s)"
+    if (( rc == 0 )); then JOBS_OK=$((JOBS_OK + 1)); else JOBS_FAIL=$((JOBS_FAIL + 1)); fi
+    log "job container exited rc=$rc (runner id=$RUNNER_ID)"
+    # Beri Alloy waktu membaca sisa log json-file sebelum container dihapus.
+    sleep 15 & wait $!
+    remove_job_containers
+    gh_api GET "/repos/$CI_REPO/actions/runners/$RUNNER_ID" >/dev/null
+    [[ "$HTTP_CODE" == 200 ]] && delete_runner "$RUNNER_ID"
+    RUNNER_ID=""
+    save_state; write_metrics
+    # Container yang gagal cepat (mis. dockerd dalam gagal) → jangan berputar cepat.
+    if (( rc != 0 )) && (( $(date +%s) - LAST_REG_OK < 60 )); then
+      log "container failed within 60 s of registration; backoff ${backoff}s"
+      sleep "$backoff" & wait $!
+      backoff=$(( backoff * 2 > BACKOFF_MAX ? BACKOFF_MAX : backoff * 2 ))
+    fi
+  done
+}
+
+case "${1:-}" in
+  run) run ;;
+  preflight) preflight ;;
+  *) echo "usage: $0 run|preflight" >&2; exit 2 ;;
+esac
