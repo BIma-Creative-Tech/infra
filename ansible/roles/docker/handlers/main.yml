@@ -1,5 +1,16 @@
 ---
+# Plan 12: default perubahan daemon.json = reload (SIGHUP, ExecReload unit docker.service), BUKAN restart.
+- name: Reload docker
+  ansible.builtin.systemd_service:
+    name: docker
+    state: reloaded
+  listen: daemon.json changed
+  when: docker_daemon_json_change_action == 'reload'
+
+# Hanya via -e docker_daemon_json_change_action=restart di jendela sepi + konfirmasi Lead (ADR 0004 §8.1).
 - name: Restart docker
   ansible.builtin.systemd_service:
     name: docker
     state: restarted
+  listen: daemon.json changed
+  when: docker_daemon_json_change_action == 'restart'

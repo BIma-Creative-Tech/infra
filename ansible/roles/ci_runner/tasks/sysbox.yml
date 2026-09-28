@@ -1,0 +1,97 @@
+---
+# R2: sysbox-ce TANPA restart dockerd (plan 12 R0: docs/qa/2026-09-28-plan12-r0-sysbox-postinst.md).
+# Guard keras: postinst 0.7.1 me-restart dockerd bila `bip`/`default-address-pools` belum ada di daemon.json.
+- name: Baca daemon.json
+  ansible.builtin.slurp:
+    src: /etc/docker/daemon.json
+  register: ci_runner_daemon_json_raw
+
+- name: Guard — bip + default-address-pools + runtime sysbox-runc sudah ada (role docker lebih dulu)
+  ansible.builtin.assert:
+    that:
+      - (ci_runner_daemon_json.bip | default('')) | length > 0
+      - (ci_runner_daemon_json['default-address-pools'] | default([])) | length > 0
+      - "'sysbox-runc' in (ci_runner_daemon_json.runtimes | default({}))"
+      # Regex yang dipakai skrip `config` sysbox (docker_network_valid_config) juga harus cocok.
+      - >-
+        ci_runner_daemon_json_text is search('(?m)^[ ]+"bip": "[0-9.]+')
+      - >-
+        ci_runner_daemon_json_text is search('(?m)^[ ]+"default-address-pools"')
+    fail_msg: >-
+      daemon.json belum berisi bip/default-address-pools/runtimes.sysbox-runc. Jalankan dulu
+      `--tags docker` (reload saja). Instal sysbox DIBATALKAN agar postinst tidak me-restart dockerd.
+    quiet: true
+  vars:
+    ci_runner_daemon_json_text: "{{ ci_runner_daemon_json_raw.content | b64decode }}"
+    ci_runner_daemon_json: "{{ ci_runner_daemon_json_raw.content | b64decode | from_json }}"
+
+- name: Guard — dockerd sudah memuat runtime sysbox-runc (reload sebelumnya) → postinst tidak mengirim SIGHUP lagi
+  ansible.builtin.command:
+    cmd: docker info --format '{{ "{{" }}range $k, $v := .Runtimes{{ "}}" }}{{ "{{" }}$k{{ "}}" }} {{ "{{" }}end{{ "}}" }}'
+  register: ci_runner_runtimes_before
+  changed_when: false
+  check_mode: false
+  failed_when: "'sysbox-runc' not in ci_runner_runtimes_before.stdout"
+
+- name: PID dockerd sebelum instal
+  ansible.builtin.command:
+    cmd: systemctl show docker -p MainPID --value
+  register: ci_runner_dockerd_pid_before
+  changed_when: false
+  check_mode: false
+
+- name: Direktori unduhan
+  ansible.builtin.file:
+    path: /var/cache/ci-runner
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: Unduh sysbox-ce (sha256 di-pin)
+  ansible.builtin.get_url:
+    url: "{{ ci_runner_sysbox_url }}"
+    dest: "/var/cache/ci-runner/{{ ci_runner_sysbox_deb }}"
+    checksum: "sha256:{{ ci_runner_sysbox_sha256 }}"
+    owner: root
+    group: root
+    mode: "0600"
+  # --check pada pemasangan pertama: direktori unduhan belum ada.
+  ignore_errors: "{{ ansible_check_mode }}"
+
+- name: Cek paket sysbox-ce terpasang
+  ansible.builtin.command:
+    cmd: dpkg-query -W -f='${Status} ${Version}' sysbox-ce
+  register: ci_runner_sysbox_pkg
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Instal sysbox-ce
+  ansible.builtin.apt:
+    deb: "/var/cache/ci-runner/{{ ci_runner_sysbox_deb }}"
+  ignore_errors: "{{ ansible_check_mode }}"
+  when: >-
+    'install ok installed' not in ci_runner_sysbox_pkg.stdout or
+    (ci_runner_sysbox_version ~ '.linux') not in ci_runner_sysbox_pkg.stdout
+
+- name: Hold sysbox-ce (upgrade hanya lewat role ini)
+  ansible.builtin.dpkg_selections:
+    name: sysbox-ce
+    selection: hold
+  when: not ansible_check_mode
+
+- name: Unit sysbox aktif
+  ansible.builtin.systemd_service:
+    name: sysbox.service
+    enabled: true
+    state: started
+  ignore_errors: "{{ ansible_check_mode }}"
+
+- name: PID dockerd sesudah instal (harus SAMA → tidak ada restart)
+  ansible.builtin.command:
+    cmd: systemctl show docker -p MainPID --value
+  register: ci_runner_dockerd_pid_after
+  changed_when: false
+  check_mode: false
+  failed_when: ci_runner_dockerd_pid_after.stdout != ci_runner_dockerd_pid_before.stdout

@@ -81,6 +81,11 @@ docker_packages:
   containerd.io: "2.3.5-1~ubuntu.24.04~noble"
   docker-buildx-plugin: "0.37.1-1~ubuntu.24.04~noble"
   docker-compose-plugin: "5.5.1-1~ubuntu.24.04~noble"
+# Plan 12 R2 (ADR 0014): runtime sysbox-runc (paket sysbox-ce, role ci_runner). Didaftarkan lewat role docker agar
+# rerun Ansible tidak menghapus entri yang ditulis postinst sysbox. Opsi reload → SIGHUP, tanpa restart dockerd.
+docker_daemon_runtimes:
+  sysbox-runc:
+    path: /usr/bin/sysbox-runc
 
 # ---------------------------------------------------------------------------
 # CrowdSec — repo APT saja (bouncer dipasang di plan 02)

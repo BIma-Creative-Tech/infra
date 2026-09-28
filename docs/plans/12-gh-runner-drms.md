@@ -1,6 +1,9 @@
 # Plan 12 — Self-hosted GitHub Actions runner untuk `bctech-adm/drms`
 
 - **Status:** APPROVED (owner GATE 1 2026-09-28: Q1–Q6 all recommendations)
+- **Eksekusi (2026-09-28, branch `feat/infra-ci-runner`):** R0 ✓, R0b daftar ✓ (belum ada yang dihapus), R1 ✓, R2 ✓ (tanpa restart
+  dockerd), R3 ✓, R4 ✓, R6 ✓, R5 terpasang & menunggu PAT owner, R7 kode ✓ (healthcheck berlaku setelah merge; monitor Kuma = Lead).
+  Bukti: `docs/qa/2026-09-28-plan12-r0-sysbox-postinst.md`, `docs/qa/2026-09-28-plan12-r1-r7.md`, `docs/qa/r0b-image-cleanup-candidates.md`.
 - **Tanggal:** 2026-09-28 · **Penulis:** Analyst (untuk Lead) · **Permintaan:** sesi app ProyekKas, keputusan owner
   2026-09-28: "self-hosted runner", karena akun GitHub Free kehabisan menit Actions dan job CI drms gagal dalam 2 s.
 - **ADR:** `docs/adr/0014-self-hosted-ci-runner.md` (**proposed**)

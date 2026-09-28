@@ -1,0 +1,109 @@
+---
+# R1: ext4 di file loop berukuran TETAP → isi CI tidak bisa memenuhi `/` (kuota keras). Hanya data runner.
+- name: Direktori state runner
+  ansible.builtin.file:
+    path: "{{ ci_runner_state_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: Alokasikan file disk (fallocate, sekali)
+  ansible.builtin.command:
+    cmd: "fallocate -l {{ ci_runner_disk_size }} {{ ci_runner_disk_image }}"
+    creates: "{{ ci_runner_disk_image }}"
+
+- name: Izin file disk
+  ansible.builtin.file:
+    path: "{{ ci_runner_disk_image }}"
+    owner: root
+    group: root
+    mode: "0600"
+  when: not ansible_check_mode
+
+- name: Cek filesystem di file disk
+  ansible.builtin.command:
+    cmd: "blkid -o value -s TYPE {{ ci_runner_disk_image }}"
+  register: ci_runner_disk_fstype
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+# Hanya bila BELUM ada filesystem sama sekali (blkid kosong) → tidak pernah memformat ulang data yang ada.
+- name: mkfs.ext4 (sekali, -m 0, label ci)
+  ansible.builtin.command:
+    cmd: "mkfs.ext4 -q -F -m 0 -L {{ ci_runner_disk_label }} {{ ci_runner_disk_image }}"
+  when:
+    - not ansible_check_mode
+    - ci_runner_disk_fstype.stdout | trim == ''
+
+# 0700: uid 1001 di host = user `deploy` (bukan runner). Tanpa izin traversal, deploy (atau user host lain) tidak bisa
+# membaca/meracuni cache CI. Container tidak terpengaruh (bind mount di-resolve dockerd sebagai root).
+- name: Mountpoint
+  ansible.builtin.file:
+    path: "{{ ci_runner_mountpoint }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: Unit mount {{ ci_runner_mountpoint }}
+  ansible.builtin.template:
+    src: srv-ci.mount.j2
+    dest: "/etc/systemd/system/{{ ci_runner_mountpoint | regex_replace('^/', '') | replace('/', '-') }}.mount"
+    owner: root
+    group: root
+    mode: "0644"
+  register: ci_runner_mount_unit
+
+- name: daemon-reload (unit mount)
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+  when: ci_runner_mount_unit is changed
+
+- name: Mount aktif + saat boot
+  ansible.builtin.systemd_service:
+    name: "{{ ci_runner_mountpoint | regex_replace('^/', '') | replace('/', '-') }}.mount"
+    enabled: true
+    state: started
+  ignore_errors: "{{ ansible_check_mode }}"
+
+- name: Pastikan benar-benar ter-mount (bukan direktori kosong di /)
+  ansible.builtin.command:
+    cmd: "findmnt -n -o SOURCE,FSTYPE,OPTIONS --mountpoint {{ ci_runner_mountpoint }}"
+  register: ci_runner_findmnt
+  changed_when: false
+  check_mode: false
+  failed_when: >-
+    ci_runner_findmnt.rc != 0 or 'ext4' not in ci_runner_findmnt.stdout or
+    'nosuid' not in ci_runner_findmnt.stdout
+  when: not ansible_check_mode
+
+- name: Root filesystem /srv/ci 0700 (setelah mount)
+  ansible.builtin.file:
+    path: "{{ ci_runner_mountpoint }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+  when: not ansible_check_mode
+
+# docker/ = data-root dockerd DALAM (root di container ↔ root host lewat ID-mapped mount sysbox).
+- name: Direktori data dockerd dalam
+  ansible.builtin.file:
+    path: "{{ ci_runner_mountpoint }}/docker"
+    state: directory
+    owner: root
+    group: root
+    mode: "0710"
+  when: not ansible_check_mode
+
+- name: Direktori cache (milik uid runner)
+  ansible.builtin.file:
+    path: "{{ ci_runner_mountpoint }}/cache/{{ item }}"
+    state: directory
+    owner: "{{ ci_runner_uid }}"
+    group: "{{ ci_runner_gid }}"
+    mode: "0750"
+  loop: "{{ [''] + ci_runner_cache_subdirs }}"
+  when: not ansible_check_mode

@@ -1,0 +1,12 @@
+# {{ ansible_managed }} — role ci_runner (plan 12 R5)
+# Memulai supervisor begitu owner memasang PAT. Rollback: `systemctl disable --now ci-runner-supervisor.path
+# ci-runner-supervisor.service` (path dulu — kalau tidak, path unit memulai ulang service selama PAT ada).
+[Unit]
+Description=Mulai ci-runner-supervisor saat {{ ci_runner_pat_file }} ada
+
+[Path]
+PathExists={{ ci_runner_pat_file }}
+Unit=ci-runner-supervisor.service
+
+[Install]
+WantedBy=multi-user.target

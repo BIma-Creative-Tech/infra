@@ -1,0 +1,44 @@
+#!/bin/bash
+# {{ ansible_managed }} — role ci_runner (plan 12 R4, ADR 0014 #5)
+# Egress container CI (subnet {{ ci_runner_subnet }}) : DROP ke rentang privat/link-local/CGNAT.
+# Koneksi yang di-DNAT (port publik VPS → Traefik/mail, "hairpin") diizinkan lebih dulu = setara akses dari internet.
+# Hanya chain CI-RUNNER-EGRESS milik sendiri + SATU jump dari DOCKER-USER yang dicocokkan subnet CI. Tidak pernah
+# mem-flush DOCKER-USER atau chain lain.
+set -euo pipefail
+IPT=/usr/sbin/iptables
+CHAIN=CI-RUNNER-EGRESS
+SUBNET={{ ci_runner_subnet }}
+DROP_DST=({{ ci_runner_egress_drop | join(' ') }})
+JUMP=(-s "$SUBNET" -m comment --comment ci-runner-egress -j "$CHAIN")
+
+apply() {
+  # dockerd membuat DOCKER-USER saat start; bila belum ada (boot), buat — dockerd memakai chain yang sudah ada.
+  $IPT -w -n -L DOCKER-USER >/dev/null 2>&1 || $IPT -w -N DOCKER-USER
+  $IPT -w -n -L "$CHAIN" >/dev/null 2>&1 || $IPT -w -N "$CHAIN"
+  $IPT -w -F "$CHAIN"
+  $IPT -w -A "$CHAIN" -m conntrack --ctstate RELATED,ESTABLISHED -j RETURN
+  $IPT -w -A "$CHAIN" -m conntrack --ctstate DNAT -j RETURN
+  for d in "${DROP_DST[@]}"; do
+    $IPT -w -A "$CHAIN" -d "$d" -j DROP
+  done
+  $IPT -w -A "$CHAIN" -j RETURN
+  $IPT -w -C DOCKER-USER "${JUMP[@]}" 2>/dev/null || $IPT -w -I DOCKER-USER 1 "${JUMP[@]}"
+}
+
+remove() {
+  while $IPT -w -C DOCKER-USER "${JUMP[@]}" 2>/dev/null; do $IPT -w -D DOCKER-USER "${JUMP[@]}"; done
+  if $IPT -w -n -L "$CHAIN" >/dev/null 2>&1; then $IPT -w -F "$CHAIN"; $IPT -w -X "$CHAIN"; fi
+}
+
+check() {
+  $IPT -w -C DOCKER-USER "${JUMP[@]}"
+  for d in "${DROP_DST[@]}"; do $IPT -w -C "$CHAIN" -d "$d" -j DROP; done
+  echo "ci-runner-firewall: OK"
+}
+
+case "${1:-}" in
+  apply) apply ;;
+  remove) remove ;;
+  check) check ;;
+  *) echo "usage: $0 apply|remove|check" >&2; exit 2 ;;
+esac

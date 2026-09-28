@@ -1,0 +1,16 @@
+# {{ ansible_managed }} — role ci_runner (plan 12 R6)
+[Unit]
+Description=GC harian data runner CI ({{ ci_runner_mountpoint }} saja)
+Requires={{ ci_runner_mountpoint | regex_replace('^/', '') | replace('/', '-') }}.mount
+After={{ ci_runner_mountpoint | regex_replace('^/', '') | replace('/', '-') }}.mount docker.service
+
+[Service]
+Type=oneshot
+ExecStart={{ ci_runner_gc_bin }}
+Nice=19
+IOSchedulingClass=idle
+ProtectSystem=strict
+ReadWritePaths={{ ci_runner_mountpoint }}
+ProtectHome=yes
+PrivateTmp=yes
+NoNewPrivileges=yes

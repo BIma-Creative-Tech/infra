@@ -9,6 +9,8 @@
 #   H7  --tags healthcheck,backup (timer infra-healthcheck + alert email; OnFailure restic)
 #   T19 --tags container_metrics (timer metrik per container → textfile node-exporter; ADR 0004 T19 §8.2)
 #   P05 --tags infra_jobs,auditd (dispatcher infra-job + spool + unit; watch auditd /usr/local/sbin/infra-job)
+#   Plan 12 --tags ci_runner_disk | ci_runner_sysbox | ci_runner_network | ci_runner_image | ci_runner_toolchain,ci_runner_gc
+#        | ci_runner_supervisor   (runner CI ephemeral sysbox; butuh --tags docker lebih dulu; ADR 0014)
 #   T17b --tags mail_tls_export (ekspor sertifikat mail.* dari acme.json; QA-T17B-02 / B18, docs/03-operations/mail.md §TLS)
 # Tag ssh_phase_b / ssh_phase_c hanya boleh dijalankan Lead bersama user (S4–S7).
 - name: Bootstrap host VPS
@@ -73,3 +75,6 @@
     # QA-T17B-02 / B18: ekspor HANYA sertifikat mail.* dari acme.json (unit path+timer). Butuh infra-unit-failure@ (healthcheck).
     #   --tags mail_tls_export (--check --diff dulu). Rollback: mail_tls_export_state=absent.
     - { role: mail_tls_export, tags: [mail_tls_export] }
+    # Plan 12 (ADR 0014): runner GitHub Actions ephemeral (sysbox) untuk bctech-adm/drms. Butuh role docker (bip/pool/
+    #   runtime sysbox-runc) lebih dulu. --tags ci_runner_<task> (--check --diff dulu). Rollback: ci_runner_state=absent.
+    - { role: ci_runner, tags: [ci_runner] }

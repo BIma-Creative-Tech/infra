@@ -33,7 +33,7 @@ TAG=infra-healthcheck
 if [[ -r "$ENV_FILE" ]]; then
   while IFS= read -r line || [[ -n "$line" ]]; do
     [[ "$line" =~ ^[[:space:]]*(#|$) ]] && continue
-    [[ "$line" =~ ^(ALERT_TO|ALERT_FROM|ALERT_SMTP_HOST|ALERT_SMTP_PORT|ALERT_PASSWORD_FILE|HC_STACKS|HC_UNITS|HC_REPEAT_MINUTES|HC_STATE_DIR|HC_EXTRA_CONTAINERS|HC_DISK_PCT|HC_SWAP_MIB)=(.*)$ ]] || continue
+    [[ "$line" =~ ^(ALERT_TO|ALERT_FROM|ALERT_SMTP_HOST|ALERT_SMTP_PORT|ALERT_PASSWORD_FILE|HC_STACKS|HC_UNITS|HC_REPEAT_MINUTES|HC_STATE_DIR|HC_EXTRA_CONTAINERS|HC_DISK_PCT|HC_SWAP_MIB|HC_CI_TEXTFILE_DIR|HC_CI_DISK_PCT|HC_CI_HEARTBEAT_SEC|HC_CI_REG_FAILS|HC_CI_RUNNER_MAX_AGE_DAYS|HC_CI_MEM_PCT)=(.*)$ ]] || continue
     k="${BASH_REMATCH[1]}"; v="${BASH_REMATCH[2]}"; v="${v#\"}"; v="${v%\"}"
     [[ -n "${!k+x}" ]] || export "$k=$v"   # env proses (mis. dari unit/pemanggil) menang atas file
   done < "$ENV_FILE"
@@ -192,6 +192,44 @@ fi
 swap_mib="$(awk '/^SwapTotal:/{t=$2} /^SwapFree:/{f=$2} END{print int((t-f)/1024)}' /proc/meminfo)"
 if [[ -n "$swap_mib" ]] && (( swap_mib > ${HC_SWAP_MIB:-1024} )); then
   problem "swap-used" "swap terpakai ${swap_mib} MiB (> ${HC_SWAP_MIB:-1024} MiB) — cek build lokal / container mendekati limit"
+fi
+
+# 6. runner CI self-hosted (plan 12 R7, ADR 0014) — hanya bila role ci_runner terpasang (/etc/ci-runner ada).
+#    Sumber: textfile node-exporter yang ditulis ci-runner-supervisor + df /srv/ci + cgroup container ci-runner-job.
+if [[ -d /etc/ci-runner ]]; then
+  ci_tf="${HC_CI_TEXTFILE_DIR:-/var/lib/node-exporter-textfile}"
+  ci_val() { [[ -r "$2" ]] || return 0; awk -v m="$1" '$1 == m {print $2; exit}' "$2"; }
+  if findmnt -n --mountpoint /srv/ci >/dev/null 2>&1; then
+    ci_pct="$(df --output=pcent /srv/ci | tail -n1 | tr -dc '0-9')"
+    if [[ -n "$ci_pct" ]] && (( ci_pct > ${HC_CI_DISK_PCT:-85} )); then
+      problem "ci-runner-disk" "/srv/ci (kuota runner CI) terpakai ${ci_pct}% (> ${HC_CI_DISK_PCT:-85}%) — ci-runner-gc / reset cache (docs/03-operations/ci-runner.md)"
+    fi
+  else
+    problem "ci-runner-disk" "/srv/ci tidak ter-mount (srv-ci.mount)"
+  fi
+  if [[ -f /etc/ci-runner/pat ]] && systemctl is-enabled --quiet ci-runner-supervisor.path 2>/dev/null; then
+    hb="$(ci_val ci_runner_supervisor_heartbeat_timestamp_seconds "$ci_tf/ci_runner_heartbeat.prom")"
+    if [[ -z "$hb" ]] || (( NOW - ${hb%.*} > ${HC_CI_HEARTBEAT_SEC:-600} )); then
+      problem "ci-runner-supervisor" "ci-runner-supervisor tanpa detak > ${HC_CI_HEARTBEAT_SEC:-600} s (journalctl -u ci-runner-supervisor)"
+    fi
+    fails="$(ci_val ci_runner_registration_consecutive_failures "$ci_tf/ci_runner.prom")"
+    if [[ -n "$fails" ]] && (( ${fails%.*} >= ${HC_CI_REG_FAILS:-3} )); then
+      problem "ci-runner-registration" "registrasi JIT runner gagal ${fails}x berturut-turut (PAT kedaluwarsa/dicabut? journalctl -u ci-runner-supervisor)"
+    fi
+  fi
+  upd="$(ci_val ci_runner_update_available "$ci_tf/ci_runner.prom")"
+  lts="$(ci_val ci_runner_latest_release_timestamp_seconds "$ci_tf/ci_runner.prom")"
+  if [[ "$upd" == 1 && -n "$lts" ]] && (( ${lts%.*} > 0 && NOW - ${lts%.*} > ${HC_CI_RUNNER_MAX_AGE_DAYS:-21} * 86400 )); then
+    problem "ci-runner-outdated" "image runner CI tertinggal rilis actions/runner > ${HC_CI_RUNNER_MAX_AGE_DAYS:-21} hari (GitHub berhenti meng-queue job setelah 30 hari) — bump ci_runner_version + digest"
+  fi
+  ci_id="$(docker inspect -f '{{.Id}}' ci-runner-job 2>/dev/null || true)"
+  if [[ -n "$ci_id" && -r "/sys/fs/cgroup/system.slice/docker-${ci_id}.scope/memory.max" ]]; then
+    ci_max="$(< "/sys/fs/cgroup/system.slice/docker-${ci_id}.scope/memory.max")"
+    ci_anon="$(awk '$1 == "anon" {print $2}' "/sys/fs/cgroup/system.slice/docker-${ci_id}.scope/memory.stat")"
+    if [[ "$ci_max" =~ ^[0-9]+$ && -n "$ci_anon" ]] && (( ci_anon * 100 > ci_max * ${HC_CI_MEM_PCT:-90} )); then
+      problem "ci-runner-memory" "container ci-runner-job memakai $(( ci_anon / 1048576 )) MiB anon (> ${HC_CI_MEM_PCT:-90}% dari limit $(( ci_max / 1048576 )) MiB) — risiko OOM job CI"
+    fi
+  fi
 fi
 
 # --- laporan ke journal ---------------------------------------------------------------------------------------------

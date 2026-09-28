@@ -1,0 +1,48 @@
+---
+- name: Validasi ci_runner_state
+  ansible.builtin.assert:
+    that:
+      - ci_runner_state in ['present', 'absent']
+    quiet: true
+  tags: [always]
+
+# import_tasks (statik) agar tag per task plan (ci_runner_disk, …) bisa dipilih sendiri-sendiri.
+- name: R1 — loop disk /srv/ci
+  ansible.builtin.import_tasks: disk.yml
+  when: ci_runner_state == 'present'
+  tags: [ci_runner_disk]
+
+- name: R2 — sysbox
+  ansible.builtin.import_tasks: sysbox.yml
+  when: ci_runner_state == 'present'
+  tags: [ci_runner_sysbox]
+
+- name: R4 — network + egress DOCKER-USER
+  ansible.builtin.import_tasks: network.yml
+  when: ci_runner_state == 'present'
+  tags: [ci_runner_network]
+
+- name: R3 — image runner
+  ansible.builtin.import_tasks: image.yml
+  when: ci_runner_state == 'present'
+  tags: [ci_runner_image]
+
+- name: R6 — toolchain Android di cache
+  ansible.builtin.import_tasks: toolchain.yml
+  when: ci_runner_state == 'present'
+  tags: [ci_runner_toolchain]
+
+- name: R6 — GC harian /srv/ci
+  ansible.builtin.import_tasks: gc.yml
+  when: ci_runner_state == 'present'
+  tags: [ci_runner_gc]
+
+- name: R5 — supervisor
+  ansible.builtin.import_tasks: supervisor.yml
+  when: ci_runner_state == 'present'
+  tags: [ci_runner_supervisor]
+
+- name: Rollback
+  ansible.builtin.import_tasks: absent.yml
+  when: ci_runner_state == 'absent'
+  tags: [ci_runner_absent]

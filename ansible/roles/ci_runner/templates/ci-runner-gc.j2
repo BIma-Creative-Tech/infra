@@ -1,0 +1,33 @@
+#!/bin/bash
+# {{ ansible_managed }} — role ci_runner (plan 12 R6). GC harian HANYA atas {{ ci_runner_mountpoint }} (data runner).
+# Container job sedang berjalan → hanya cache yang dipangkas (dockerd dalam memangkas dirinya lewat hook job).
+# Tidak ada container job + {{ ci_runner_mountpoint }} ≥ {{ ci_runner_gc_reset_docker_pct }}% → reset data-root dockerd dalam
+# ({{ ci_runner_mountpoint }}/docker, cache image CI saja; dibangun ulang otomatis). Tidak pernah `docker system prune` host.
+set -euo pipefail
+M={{ ci_runner_mountpoint }}
+log() { echo "ci-runner-gc: $*"; }
+pct() { df --output=pcent "$M" | tail -1 | tr -dc '0-9'; }
+findmnt -n --mountpoint "$M" >/dev/null || { log "$M tidak ter-mount, lewati"; exit 0; }
+log "start: $(pct)% used"
+
+gkb="$(du -sk "$M/cache/gradle" 2>/dev/null | cut -f1 || echo 0)"
+if (( ${gkb:-0} > {{ ci_runner_gc_gradle_max_gb }} * 1024 * 1024 )); then
+  log "gradle $((gkb / 1024)) MiB > {{ ci_runner_gc_gradle_max_gb }} GiB → hapus $M/cache/gradle/caches"
+  rm -rf --one-file-system "$M/cache/gradle/caches"
+fi
+if (( $(pct) >= {{ ci_runner_gc_high_pct }} )); then
+  for d in npm trivy pub flutter; do
+    (( $(pct) >= {{ ci_runner_gc_high_pct }} )) || break
+    log "$(pct)% ≥ {{ ci_runner_gc_high_pct }}% → kosongkan $M/cache/$d"
+    find "$M/cache/$d" -mindepth 1 -maxdepth 1 -exec rm -rf --one-file-system {} +
+  done
+fi
+if (( $(pct) >= {{ ci_runner_gc_reset_docker_pct }} )); then
+  if [[ -z "$(docker ps -aq --filter label=ci-runner.role=job)" ]]; then
+    log "$(pct)% ≥ {{ ci_runner_gc_reset_docker_pct }}% dan tidak ada container job → reset $M/docker"
+    find "$M/docker" -mindepth 1 -maxdepth 1 -exec rm -rf --one-file-system {} +
+  else
+    log "$(pct)% ≥ {{ ci_runner_gc_reset_docker_pct }}% tetapi container job ada → tunda reset $M/docker"
+  fi
+fi
+log "done: $(pct)% used"

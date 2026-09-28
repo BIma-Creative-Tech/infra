@@ -1,0 +1,31 @@
+---
+# R6: GC harian HANYA atas /srv/ci (data runner). Tidak pernah menyentuh dockerd host / container lain.
+- name: Skrip GC
+  ansible.builtin.template:
+    src: ci-runner-gc.j2
+    dest: "{{ ci_runner_gc_bin }}"
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: Unit GC
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "/etc/systemd/system/{{ item }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop: [ci-runner-gc.service, ci-runner-gc.timer]
+  register: ci_runner_gc_units
+
+- name: daemon-reload (gc)
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+  when: ci_runner_gc_units is changed
+
+- name: Timer GC aktif
+  ansible.builtin.systemd_service:
+    name: ci-runner-gc.timer
+    enabled: true
+    state: started
+  ignore_errors: "{{ ansible_check_mode }}"

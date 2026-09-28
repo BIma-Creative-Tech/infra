@@ -1,0 +1,55 @@
+---
+# R3: image ci-runner dibangun SEKALI di dockerd host (image kecil milik infra; plan 12 R3). Build ulang hanya bila
+# konteks berubah atau tag belum ada (bump runner = ubah ci_runner_version/digest/ci_runner_image_build).
+- name: Direktori konteks build
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - "{{ ci_runner_build_dir }}"
+    - "{{ ci_runner_build_dir }}/hooks"
+
+- name: Konteks build image
+  ansible.builtin.copy:
+    src: "image/{{ item }}"
+    dest: "{{ ci_runner_build_dir }}/{{ item }}"
+    owner: root
+    group: root
+    mode: "{{ '0755' if item.endswith('.sh') else '0644' }}"
+  loop:
+    - Dockerfile
+    - daemon.json
+    - entrypoint.sh
+    - hooks/cleanup.sh
+    - hooks/job-started.sh
+    - hooks/job-completed.sh
+    - android-bootstrap.sh
+  register: ci_runner_build_ctx
+
+- name: Cek image {{ ci_runner_image }}
+  ansible.builtin.command:
+    cmd: "docker image inspect -f '{{ '{{' }}.Id{{ '}}' }}' {{ ci_runner_image }}"
+  register: ci_runner_image_inspect
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Build image {{ ci_runner_image }}
+  ansible.builtin.command:
+    argv:
+      - docker
+      - build
+      - --pull=false
+      - "--build-arg=BASE_IMAGE={{ ci_runner_base_image }}"
+      - "--build-arg=GH_VERSION={{ ci_runner_gh_version }}"
+      - "--build-arg=GH_SHA256={{ ci_runner_gh_sha256 }}"
+      - "--build-arg=CI_RUNNER_IMAGE_VERSION={{ ci_runner_version }}-{{ ci_runner_image_build }}"
+      - "--label=org.opencontainers.image.version={{ ci_runner_version }}-{{ ci_runner_image_build }}"
+      - "--label=org.opencontainers.image.base.name={{ ci_runner_base_image }}"
+      - --label=ci-runner=1
+      - "--tag={{ ci_runner_image }}"
+      - "{{ ci_runner_build_dir }}"
+  when: ci_runner_image_inspect.rc != 0 or ci_runner_build_ctx is changed
