@@ -4,7 +4,11 @@ Description=Supervisor runner GitHub Actions ephemeral (JIT, sysbox) untuk {{ ci
 Documentation=file:///opt/infra/docs/plans/12-gh-runner-drms.md
 # Tanpa PAT unit tidak dijalankan (bukan failed); ci-runner-supervisor.path memulainya begitu PAT dipasang owner.
 ConditionPathExists={{ ci_runner_pat_file }}
-Requires=docker.service sysbox.service {{ ci_runner_mountpoint | regex_replace('^/', '') | replace('/', '-') }}.mount ci-runner-firewall.service
+# sysbox.service: Wants (bukan Requires) — watchdog container macet me-restart sysbox-fs (BindsTo → sysbox.service ikut
+# restart); dengan Requires supervisor ikut dihentikan di tengah penanganan (R12). Tanpa sysbox, docker run gagal cepat
+# (backoff).
+Requires=docker.service {{ ci_runner_mountpoint | regex_replace('^/', '') | replace('/', '-') }}.mount ci-runner-firewall.service
+Wants=sysbox.service
 After=docker.service sysbox.service {{ ci_runner_mountpoint | regex_replace('^/', '') | replace('/', '-') }}.mount ci-runner-firewall.service network-online.target
 Wants=network-online.target
 StartLimitIntervalSec=0

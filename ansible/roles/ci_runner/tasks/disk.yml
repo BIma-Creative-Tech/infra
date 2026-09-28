@@ -1,5 +1,11 @@
 ---
 # R1: ext4 di file loop berukuran TETAP → isi CI tidak bisa memenuhi `/` (kuota keras). Hanya data runner.
+# R12 (temuan R10 MEDIUM): file harus TERALOKASI PENUH (bukan sparse) agar `/` tidak ikut tumbuh saat /srv/ci terisi:
+#  - mkfs.ext4 `-E nodiscard` (default mke2fs men-discard = punch hole di file loop → hasil fallocate hilang);
+#  - opsi mount tanpa `discard` (default ext4) → blok yang dibebaskan di dalam tidak di-punch;
+#  - fstrim.timer Ubuntu: `fstrim --listed-in /etc/fstab:/proc/self/mountinfo` memakai file PERTAMA yang tidak kosong
+#    (= /etc/fstab) → /srv/ci (unit mount systemd, bukan fstab) tidak di-trim; dicek di bawah (dry-run);
+#  - file lama yang sparse diisi (fallocate tanpa -p/-d mengisi hole, data tidak disentuh) — hanya saat runner idle.
 - name: Direktori state runner
   ansible.builtin.file:
     path: "{{ ci_runner_state_dir }}"
@@ -32,10 +38,38 @@
 # Hanya bila BELUM ada filesystem sama sekali (blkid kosong) → tidak pernah memformat ulang data yang ada.
 - name: mkfs.ext4 (sekali, -m 0, label ci)
   ansible.builtin.command:
-    cmd: "mkfs.ext4 -q -F -m 0 -L {{ ci_runner_disk_label }} {{ ci_runner_disk_image }}"
+    cmd: "mkfs.ext4 -q -F -m 0 -E nodiscard -L {{ ci_runner_disk_label }} {{ ci_runner_disk_image }}"
   when:
     - not ansible_check_mode
     - ci_runner_disk_fstype.stdout | trim == ''
+
+- name: Cek alokasi file disk (sparse?)
+  ansible.builtin.stat:
+    path: "{{ ci_runner_disk_image }}"
+    get_checksum: false
+  register: ci_runner_disk_stat
+
+# st_blocks × 512 < ukuran → ada hole. Hanya bila supervisor TIDAK aktif (runner idle; lihat runbook) — mengisi hole
+# saat job menulis ke loop aman secara kernel, tapi IO 10–20 GB bersaing dengan job/prod.
+- name: Isi hole file disk (fallocate, non-destruktif)
+  ansible.builtin.command:
+    cmd: "fallocate -l {{ ci_runner_disk_size }} {{ ci_runner_disk_image }}"
+  when:
+    - not ansible_check_mode
+    - ci_runner_disk_stat.stat.exists
+    - (ci_runner_disk_stat.stat.blocks | int) * 512 < (ci_runner_disk_stat.stat.size | int)
+    - ci_runner_fill_disk_holes | bool
+
+- name: Peringatan file disk masih sparse
+  ansible.builtin.debug:
+    msg: >-
+      {{ ci_runner_disk_image }} sparse: {{ ((ci_runner_disk_stat.stat.blocks | int) * 512 / 1073741824) | round(1) }} GiB
+      teralokasi dari {{ ((ci_runner_disk_stat.stat.size | int) / 1073741824) | round(1) }} GiB. Hentikan supervisor saat idle lalu
+      jalankan dengan -e ci_runner_fill_disk_holes=true (docs/03-operations/ci-runner.md §Disk).
+  when:
+    - ci_runner_disk_stat.stat.exists
+    - (ci_runner_disk_stat.stat.blocks | int) * 512 < (ci_runner_disk_stat.stat.size | int)
+    - not (ci_runner_fill_disk_holes | bool)
 
 # 0700: uid 1001 di host = user `deploy` (bukan runner). Tanpa izin traversal, deploy (atau user host lain) tidak bisa
 # membaca/meracuni cache CI. Container tidak terpengaruh (bind mount di-resolve dockerd sebagai root).
@@ -77,6 +111,19 @@
   failed_when: >-
     ci_runner_findmnt.rc != 0 or 'ext4' not in ci_runner_findmnt.stdout or
     'nosuid' not in ci_runner_findmnt.stdout
+  when: not ansible_check_mode
+
+- name: /srv/ci tidak di-mount dengan discard dan tidak ikut fstrim.timer
+  ansible.builtin.shell:
+    cmd: >-
+      set -o pipefail;
+      findmnt -n -o OPTIONS --mountpoint {{ ci_runner_mountpoint }} | tr ',' '\n' | grep -qx discard && echo MOUNT-DISCARD;
+      fstrim --listed-in /etc/fstab:/proc/self/mountinfo --dry-run -v 2>/dev/null | grep -F '{{ ci_runner_mountpoint }}:' || true
+    executable: /bin/bash
+  register: ci_runner_trim_check
+  changed_when: false
+  check_mode: false
+  failed_when: ci_runner_trim_check.stdout | trim != ''
   when: not ansible_check_mode
 
 - name: Root filesystem /srv/ci 0700 (setelah mount)

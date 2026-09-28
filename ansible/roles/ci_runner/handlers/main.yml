@@ -1,9 +1,10 @@
 ---
-# Restart hanya bila service sedang berjalan (tanpa PAT: tidak berjalan → tidak ada yang di-restart).
+# TIDAK me-restart paksa (restart membatalkan job yang sedang berjalan). Sejak R12 supervisor memantau skrip,
+# supervisor.env, unit & PAT dan me-restart dirinya di titik aman (idle / antar job). Supervisor versi < R12 (tanpa
+# fitur ini) harus di-restart manual saat idle: docs/03-operations/ci-runner.md §Deploy perubahan.
 - name: Restart ci-runner-supervisor
-  ansible.builtin.command:
-    cmd: systemctl try-restart ci-runner-supervisor.service
-  changed_when: true
+  ansible.builtin.debug:
+    msg: "ci-runner-supervisor akan memuat ulang sendiri di titik aman (idle/antar job); tidak di-restart paksa."
 
 - name: Reload systemd (ci_runner)
   ansible.builtin.systemd_service:

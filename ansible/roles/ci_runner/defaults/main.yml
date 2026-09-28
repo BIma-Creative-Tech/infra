@@ -28,7 +28,10 @@ ci_runner_disk_image: "{{ ci_runner_state_dir }}/disk.img"
 ci_runner_disk_size: 40G
 ci_runner_disk_label: ci
 ci_runner_mountpoint: /srv/ci
+# Tanpa `discard` (lihat tasks/disk.yml: file loop harus tetap teralokasi penuh).
 ci_runner_mount_options: loop,nosuid,nodev,noatime
+# true = isi hole disk.img yang sparse (fallocate, non-destruktif). Jalankan HANYA saat supervisor dihentikan (idle).
+ci_runner_fill_disk_holes: false
 # uid/gid user `runner` di image resmi (actions-runner). Sysbox memakai ID-mapped mount → uid host = uid dalam.
 ci_runner_uid: 1001
 ci_runner_gid: 1001
@@ -57,7 +60,8 @@ ci_runner_egress_drop:
 
 # --- Image (R3/R6) --------------------------------------------------------------------------------------------------
 ci_runner_version: 2.337.0
-ci_runner_image_build: 1
+# 2 (R12): entrypoint meneruskan hasil job sebagai kode keluar.
+ci_runner_image_build: 2
 ci_runner_image: "ci-runner:{{ ci_runner_version }}-{{ ci_runner_image_build }}"
 ci_runner_base_image: "ghcr.io/actions/actions-runner:{{ ci_runner_version }}@sha256:e5496277be5d09bc968b3d64911b74e219ac4a3f2edce956a3ecf9271bea1ef4"
 ci_runner_gh_version: 2.101.0
@@ -80,6 +84,12 @@ ci_runner_io_devices: [/dev/sda]
 ci_runner_supervisor_bin: /usr/local/sbin/ci-runner-supervisor
 ci_runner_backoff_min: 30
 ci_runner_backoff_max: 600
+# Watchdog (R12): guard timeout job (detik sejak "Running job:"; GitHub-hosted default 6 j, job drms ≤ 25 mnt) dan
+# deteksi container macet setelah runner selesai (insiden 2026-09-28: zombie sysbox-fs, container tak keluar ±3 j).
+ci_runner_job_timeout: 10800
+ci_runner_stuck_grace: 180
+ci_runner_cleanup_grace: 600
+ci_runner_watch_interval: 30
 ci_runner_textfile_dir: /var/lib/node-exporter-textfile
 # Opsional: URL push Uptime Kuma di file {{ ci_runner_etc_dir }}/kuma-push-url (root 600), diisi Lead.
 ci_runner_kuma_push_file: "{{ ci_runner_etc_dir }}/kuma-push-url"

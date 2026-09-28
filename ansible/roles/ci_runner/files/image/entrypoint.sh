@@ -4,7 +4,11 @@
 #  2. dockerd DALAM (data-root /var/lib/docker = bind /srv/ci/docker) → socket lokal untuk job (services, docker run/build).
 #  3. Bersihkan sisa job sebelumnya (container/volume/network dalam) + kuota.
 #  4. run.sh sebagai uid 1001 tanpa capability (setpriv). JIT runner = ephemeral: keluar setelah satu job.
-#  5. Bersih-bersih, hentikan dockerd dalam, keluar dengan kode run.sh.
+#  5. Bersih-bersih, hentikan dockerd dalam, keluar dengan kode HASIL JOB (bukan kode run.sh, yang 0 walau job Failed):
+#       0 = Succeeded/SucceededWithIssues · 10 = Failed · 11 = Canceled · 12 = Abandoned/lainnya ·
+#      13 = runner keluar 0 tanpa job (mis. dihentikan supervisor) · selain itu = kode run.sh (runner error).
+#     Hasil diambil dari baris Terminal runner "<ts>Z: Job <nama> completed with result: <X>" (stdout run.sh di-tee).
+#     Penanda untuk watchdog supervisor (host): "runner exited rc=", "job result=", "exiting code=".
 set -euo pipefail
 log() { echo "[ci-runner-entrypoint] $(date -Is) $*" >&2; }
 
@@ -34,6 +38,10 @@ forward() { [[ -n "$RUNNER_PID" ]] && kill -TERM "$RUNNER_PID" 2>/dev/null || tr
 trap forward TERM INT
 
 log "starting runner ${CI_RUNNER_IMAGE_VERSION:-?} as uid 1001"
+# stdout run.sh → stdout container (json-file/Loki) DAN salinan lokal untuk membaca hasil job (hanya root container).
+RUNNER_OUT=/run/ci-runner/runner.out
+install -d -m 0700 /run/ci-runner
+: > "$RUNNER_OUT"
 set +e
 # shellcheck disable=SC2154  # npm_config_cache dkk. = ENV image
 setpriv --reuid=1001 --regid=1001 --init-groups \
@@ -47,16 +55,35 @@ setpriv --reuid=1001 --regid=1001 --init-groups \
     TRIVY_CACHE_DIR="$TRIVY_CACHE_DIR" \
     ACTIONS_RUNNER_HOOK_JOB_STARTED="$ACTIONS_RUNNER_HOOK_JOB_STARTED" \
     ACTIONS_RUNNER_HOOK_JOB_COMPLETED="$ACTIONS_RUNNER_HOOK_JOB_COMPLETED" \
-    /home/runner/run.sh &
+    /home/runner/run.sh > >(tee -a "$RUNNER_OUT") 2>&1 &
 RUNNER_PID=$!
 unset JIT
 wait "$RUNNER_PID"; RC=$?
 # wait bisa kembali lebih awal karena trap; tunggu sampai runner benar-benar keluar.
 while kill -0 "$RUNNER_PID" 2>/dev/null; do wait "$RUNNER_PID"; RC=$?; done
-set -e
 log "runner exited rc=$RC"
+
+# Hasil job: baris Terminal runner (bukan output step: itu berawalan "[WORKER"/"[RUNNER"). tee bisa tertinggal sedikit.
+RESULT=""
+for _ in $(seq 1 10); do
+  RESULT="$(grep -aE '^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9:]{8}Z: Job .* completed with result: [A-Za-z]+[[:space:]]*$' "$RUNNER_OUT" \
+    | tail -n1 | awk '{print $NF}' | tr -dc 'A-Za-z')"
+  [[ -n "$RESULT" ]] && break
+  grep -qaE '^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9:]{8}Z: Running job: ' "$RUNNER_OUT" || break
+  sleep 0.5
+done
+case "$RESULT" in
+  Succeeded|SucceededWithIssues) CODE=0 ;;
+  Failed) CODE=10 ;;
+  Canceled|Cancelled) CODE=11 ;;
+  "") if (( RC == 0 )); then RESULT=none; CODE=13; else RESULT=runner-error; CODE=$RC; fi ;;
+  *) CODE=12 ;;
+esac
+log "job result=$RESULT runner_rc=$RC exit_code=$CODE"
+set -e
 
 /opt/ci-runner/hooks/cleanup.sh post-run || true
 kill -TERM "$DOCKERD_PID" 2>/dev/null || true
 for _ in $(seq 1 20); do kill -0 "$DOCKERD_PID" 2>/dev/null || break; sleep 1; done
-exit "$RC"
+log "exiting code=$CODE"
+exit "$CODE"

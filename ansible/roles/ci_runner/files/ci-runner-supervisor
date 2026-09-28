@@ -6,6 +6,19 @@
 #        docker run --runtime=sysbox-runc (JIT lewat STDIN) → tunggu container keluar (1 job) → hapus registrasi
 #        bila masih ada → metrik textfile → ulangi. Gagal → backoff eksponensial BACKOFF_MIN..BACKOFF_MAX detik.
 #
+# Watchdog (R12, insiden 2026-09-28 23:48 WIB: runner keluar rc=0 tetapi container tidak pernah keluar ±3 jam — zombie
+# runc:[2:INIT] milik sysbox-fs tak di-reap, init container macet di zap_pid_ns_processes, `docker rm -f` gagal):
+#  - job berjalan > CI_JOB_TIMEOUT (sejak "Running job:") → docker stop (runner membatalkan job) = guard timeout job.
+#  - entrypoint mencatat "exiting code=" tetapi container belum keluar dalam CI_STUCK_GRACE, atau "runner exited" tanpa
+#    keluar dalam CI_CLEANUP_GRACE, atau timeout job + CI_STUCK_GRACE → container MACET:
+#    docker stop → docker kill → (hanya bila TIDAK ada container sysbox-runc lain yang berjalan) restart sysbox-fs →
+#    docker rm -f. Log WARN/ERROR + metrik ci_runner_stuck_total / ci_runner_stuck_unresolved (healthcheck §6).
+# Hasil job: kode keluar container = hasil job dari entrypoint (0 ok, 10 Failed, 11 Canceled, 12 lain, 13 tanpa job).
+# Reload aman: file PAT (rotasi), skrip ini, supervisor.env atau unit berubah (metadata stat, isi PAT tidak dibaca) →
+#   supervisor keluar di titik aman — sebelum registrasi berikut, atau saat runner masih idle menunggu job (container
+#   dihentikan + registrasi dihapus). TIDAK saat job berjalan. systemd Restart=always lalu memuat ulang LoadCredential,
+#   skrip & env baru. Karena itu handler Ansible tidak me-restart service (restart paksa membatalkan job yang berjalan).
+#
 # Aturan keamanan:
 #  - PAT tidak pernah di argv (curl membaca header dari stdin `-K -`), tidak pernah ke container/log/metrik.
 #  - JIT config (sekali pakai) hanya lewat stdin container; tidak di argv/env/`docker inspect`.
@@ -24,6 +37,10 @@ CI_PAT_SOURCE="${CI_PAT_SOURCE:-/etc/ci-runner/pat}"
 CI_KUMA_PUSH_FILE="${CI_KUMA_PUSH_FILE:-/etc/ci-runner/kuma-push-url}"
 BACKOFF_MIN="${CI_BACKOFF_MIN:-30}"
 BACKOFF_MAX="${CI_BACKOFF_MAX:-600}"
+JOB_TIMEOUT="${CI_JOB_TIMEOUT:-10800}"        # detik sejak "Running job:" sebelum job dihentikan (guard timeout)
+STUCK_GRACE="${CI_STUCK_GRACE:-180}"          # detik setelah "exiting code=" / docker stop sebelum dianggap macet
+CLEANUP_GRACE="${CI_CLEANUP_GRACE:-600}"      # detik setelah "runner exited" (cleanup post-run) sebelum dianggap macet
+WATCH_INTERVAL="${CI_WATCH_INTERVAL:-30}"
 STATE_DIR="${STATE_DIRECTORY:-/var/lib/ci-runner}"
 STATE_FILE="$STATE_DIR/supervisor.state"
 CONTAINER_NAME="ci-runner-job"
@@ -31,6 +48,7 @@ API="https://api.github.com"
 API_VER="2022-11-28"
 
 log() { printf 'ci-runner-supervisor: %s\n' "$*" >&2; }
+RUN_DIR="${RUNTIME_DIRECTORY:-/tmp}"
 
 pat_file() { printf '%s/pat' "${CREDENTIALS_DIRECTORY:-/nonexistent}"; }
 
@@ -53,6 +71,8 @@ gh_api() {
 
 # --- state & metrik -----------------------------------------------------------------------------------------------
 REG_FAIL_TOTAL=0; REG_FAIL_CONSEC=0; JOBS_OK=0; JOBS_FAIL=0; LAST_EXIT=-1; LAST_JOB_END=0; LAST_REG_OK=0
+JOBS_CANCELLED=0; JOBS_NONE=0; JOBS_ERROR=0; STUCK_TOTAL=0; LAST_STUCK=0; STUCK_UNRESOLVED=0; JOB_TIMEOUTS=0
+LAST_RESULT=none
 LATEST_TAG=""; LATEST_TS=0; CURRENT_TS=0; RELEASE_CHECKED=0
 load_state() { [[ -f "$STATE_FILE" ]] && while IFS='=' read -r k v; do
   [[ "$k" =~ ^[A-Z_]+$ && "$v" =~ ^[A-Za-z0-9._-]*$ ]] && printf -v "$k" '%s' "$v"; done < "$STATE_FILE"; true; }
@@ -60,7 +80,10 @@ save_state() {
   local t; t="$(mktemp -p "$STATE_DIR" .state.XXXXXX)"
   printf '%s\n' "REG_FAIL_TOTAL=$REG_FAIL_TOTAL" "REG_FAIL_CONSEC=$REG_FAIL_CONSEC" "JOBS_OK=$JOBS_OK" \
     "JOBS_FAIL=$JOBS_FAIL" "LAST_EXIT=$LAST_EXIT" "LAST_JOB_END=$LAST_JOB_END" "LAST_REG_OK=$LAST_REG_OK" \
-    "LATEST_TAG=$LATEST_TAG" "LATEST_TS=$LATEST_TS" "CURRENT_TS=$CURRENT_TS" "RELEASE_CHECKED=$RELEASE_CHECKED" > "$t"
+    "LATEST_TAG=$LATEST_TAG" "LATEST_TS=$LATEST_TS" "CURRENT_TS=$CURRENT_TS" "RELEASE_CHECKED=$RELEASE_CHECKED" \
+    "JOBS_CANCELLED=$JOBS_CANCELLED" "JOBS_NONE=$JOBS_NONE" "JOBS_ERROR=$JOBS_ERROR" "STUCK_TOTAL=$STUCK_TOTAL" \
+    "LAST_STUCK=$LAST_STUCK" "STUCK_UNRESOLVED=$STUCK_UNRESOLVED" "JOB_TIMEOUTS=$JOB_TIMEOUTS" \
+    "LAST_RESULT=$LAST_RESULT" > "$t"
   mv -f "$t" "$STATE_FILE"
 }
 
@@ -84,10 +107,25 @@ ci_runner_registration_consecutive_failures $REG_FAIL_CONSEC
 # HELP ci_runner_last_registration_success_timestamp_seconds Waktu registrasi JIT sukses terakhir.
 # TYPE ci_runner_last_registration_success_timestamp_seconds gauge
 ci_runner_last_registration_success_timestamp_seconds $LAST_REG_OK
-# HELP ci_runner_jobs_total Container job selesai menurut kode keluar runner.
+# HELP ci_runner_jobs_total Container job selesai menurut hasil job (entrypoint: 0 success, 10 failure, 11 cancelled, 13 none; lain = error).
 # TYPE ci_runner_jobs_total counter
 ci_runner_jobs_total{result="success"} $JOBS_OK
 ci_runner_jobs_total{result="failure"} $JOBS_FAIL
+ci_runner_jobs_total{result="cancelled"} $JOBS_CANCELLED
+ci_runner_jobs_total{result="none"} $JOBS_NONE
+ci_runner_jobs_total{result="error"} $JOBS_ERROR
+# HELP ci_runner_job_timeouts_total Job dihentikan karena melewati CI_JOB_TIMEOUT.
+# TYPE ci_runner_job_timeouts_total counter
+ci_runner_job_timeouts_total $JOB_TIMEOUTS
+# HELP ci_runner_stuck_total Container job macet (tidak keluar setelah runner selesai/timeout) yang ditangani watchdog.
+# TYPE ci_runner_stuck_total counter
+ci_runner_stuck_total $STUCK_TOTAL
+# HELP ci_runner_last_stuck_timestamp_seconds Waktu container macet terakhir terdeteksi (0 = belum pernah).
+# TYPE ci_runner_last_stuck_timestamp_seconds gauge
+ci_runner_last_stuck_timestamp_seconds $LAST_STUCK
+# HELP ci_runner_stuck_unresolved 1 bila container macet belum bisa dibersihkan (butuh operator; runbook ci-runner.md).
+# TYPE ci_runner_stuck_unresolved gauge
+ci_runner_stuck_unresolved $STUCK_UNRESOLVED
 # HELP ci_runner_last_job_exit_code Kode keluar container job terakhir (-1 = belum ada).
 # TYPE ci_runner_last_job_exit_code gauge
 ci_runner_last_job_exit_code $LAST_EXIT
@@ -110,10 +148,12 @@ EOF
 }
 
 heartbeat_loop() { # proses latar: detak tiap 60 s (metrik + push Kuma opsional)
-  local running url
+  local running url js jsec
   while :; do
-    running=0
-    [[ "$(docker inspect -f '{{.State.Running}}' "$CONTAINER_NAME" 2>/dev/null)" == true ]] && running=1
+    running=0; jsec=0
+    [[ "$(timeout 20 docker inspect -f '{{.State.Running}}' "$CONTAINER_NAME" 2>/dev/null)" == true ]] && running=1
+    js="$(cat "$RUN_DIR/job_started" 2>/dev/null)"
+    [[ "$running" == 1 && "$js" =~ ^[0-9]+$ ]] && jsec=$(( $(date +%s) - js ))
     write_prom ci_runner_heartbeat.prom <<EOF
 # HELP ci_runner_supervisor_heartbeat_timestamp_seconds Detak supervisor (tiap 60 s). Basi > 10 mnt = supervisor mati.
 # TYPE ci_runner_supervisor_heartbeat_timestamp_seconds gauge
@@ -121,6 +161,9 @@ ci_runner_supervisor_heartbeat_timestamp_seconds $(date +%s)
 # HELP ci_runner_container_running 1 bila container job (runner online/menjalankan job) berjalan.
 # TYPE ci_runner_container_running gauge
 ci_runner_container_running $running
+# HELP ci_runner_job_running_seconds Lama job saat ini berjalan (sejak "Running job:"; 0 = idle/tanpa job).
+# TYPE ci_runner_job_running_seconds gauge
+ci_runner_job_running_seconds $jsec
 EOF
     if [[ -r "$CI_KUMA_PUSH_FILE" ]]; then
       url="$(head -n1 "$CI_KUMA_PUSH_FILE" | tr -d '[:space:]')"
@@ -167,18 +210,86 @@ cleanup_offline_runners() { # hanya runner milik supervisor ini (prefix nama), o
 }
 
 # --- container ------------------------------------------------------------------------------------------------------
-remove_job_containers() { # hanya container berlabel ci-runner.role=job
+remove_job_containers() { # hanya container berlabel ci-runner.role=job; gagal hapus → reaper container macet
   local ids
-  ids="$(docker ps -aq --filter label=ci-runner.role=job)"
-  [[ -n "$ids" ]] && { log "removing leftover job container(s): $(echo $ids)"; docker rm -f $ids >/dev/null; }
-  true
+  ids="$(timeout 30 docker ps -aq --filter label=ci-runner.role=job)"
+  [[ -n "$ids" ]] || return 0
+  log "removing leftover job container(s): $(echo $ids)"
+  # shellcheck disable=SC2086
+  timeout 60 docker rm -f $ids >/dev/null && return 0
+  [[ "${1:-}" == noreap ]] && return 1
+  log "WARN: docker rm -f failed for job container(s) $(echo $ids)"
+  reap_stuck "leftover container cannot be removed"
+}
+
+container_running() { [[ "$(timeout 20 docker inspect -f '{{.State.Running}}' "$CONTAINER_NAME" 2>/dev/null)" == true ]]; }
+
+wait_not_running() { # wait_not_running <detik>
+  local end=$(( $(date +%s) + $1 ))
+  while (( $(date +%s) < end )); do container_running || return 0; sleep 5; done
+  ! container_running
+}
+
+other_sysbox_containers() { # container sysbox-runc BERJALAN selain job runner (restart sysbox-fs merusaknya)
+  local id
+  for id in $(timeout 30 docker ps -q); do
+    timeout 10 docker inspect -f '{{.HostConfig.Runtime}} {{.Name}} {{index .Config.Labels "ci-runner.role"}}' "$id" 2>/dev/null
+  done | awk '$1 == "sysbox-runc" && $3 != "job" {print $2}'
+}
+
+# reap_stuck <alasan>: stop → kill → restart sysbox-fs (bila aman) → rm -f. Return 0 bila container hilang.
+reap_stuck() {
+  local why=$1 others
+  STUCK_TOTAL=$((STUCK_TOTAL + 1)); LAST_STUCK="$(date +%s)"; STUCK_UNRESOLVED=1
+  log "WARN: job container STUCK ($why) — watchdog: docker stop"
+  save_state; write_metrics
+  timeout 60 docker stop -t 30 "$CONTAINER_NAME" >/dev/null 2>&1
+  if ! wait_not_running 30; then
+    log "WARN: container still running after docker stop — docker kill"
+    timeout 30 docker kill "$CONTAINER_NAME" >/dev/null 2>&1
+    wait_not_running 30
+  fi
+  if timeout 60 docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || ! timeout 20 docker inspect "$CONTAINER_NAME" >/dev/null 2>&1; then
+    STUCK_UNRESOLVED=0; log "stuck container removed (stop/kill)"; save_state; write_metrics; return 0
+  fi
+  others="$(other_sysbox_containers)"
+  if [[ -n "$others" ]]; then
+    log "ERROR: stuck container not removable and other sysbox containers are running ($(echo $others)) — NOT restarting sysbox-fs; operator action needed (docs/03-operations/ci-runner.md)"
+    save_state; write_metrics; return 1
+  fi
+  log "WARN: stuck container not removable — restarting sysbox-fs (no other sysbox containers running)"
+  # Unit ini hanya Wants=sysbox.service (bukan Requires) → restart sysbox-fs(+sysbox, sysbox-mgr) tidak menghentikan supervisor.
+  timeout 120 systemctl restart sysbox-fs.service || log "WARN: systemctl restart sysbox-fs failed"
+  wait_not_running 60
+  if timeout 60 docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || ! timeout 20 docker inspect "$CONTAINER_NAME" >/dev/null 2>&1; then
+    STUCK_UNRESOLVED=0; log "stuck container removed after sysbox-fs restart"; save_state; write_metrics; return 0
+  fi
+  log "ERROR: stuck container still present after sysbox-fs restart — operator action needed"
+  save_state; write_metrics; return 1
+}
+
+# --- reload aman (rotasi PAT / deploy baru) -------------------------------------------------------------------------
+CONFIG_FILES=("$CI_PAT_SOURCE" "$(readlink -f "$0")" "${CI_ENV_FILE:-/etc/ci-runner/supervisor.env}" /etc/systemd/system/ci-runner-supervisor.service)
+CONFIG_SIG=""
+config_sig() { stat -c '%n %Y %i %s' "${CONFIG_FILES[@]}" 2>/dev/null; }  # metadata saja (isi PAT tidak dibaca)
+config_changed() { [[ -n "$CONFIG_SIG" && "$(config_sig)" != "$CONFIG_SIG" ]]; }
+exit_if_pat_changed() { # hanya dipanggil di titik aman (tidak ada job berjalan)
+  config_changed || return 0
+  log "PAT/config changed since start — exiting to reload (systemd restarts the service)"
+  [[ -n "${HB_PID:-}" ]] && kill "$HB_PID" 2>/dev/null
+  save_state; write_metrics
+  exit 0
+}
+sleep_backoff() { # sleep_backoff <detik>: tidur, tapi keluar lebih awal bila PAT dirotasi
+  local end=$(( $(date +%s) + $1 ))
+  while (( $(date +%s) < end )); do exit_if_pat_changed; sleep 10 & wait $!; done
 }
 
 CHILD=""; RUNNER_ID=""
 on_term() {
   log "stop requested"
-  if [[ -n "$CHILD" ]]; then docker stop -t 30 "$CONTAINER_NAME" >/dev/null 2>&1; fi
-  remove_job_containers
+  if [[ -n "$CHILD" ]]; then timeout 45 docker stop -t 30 "$CONTAINER_NAME" >/dev/null 2>&1; fi
+  remove_job_containers noreap
   [[ -n "$RUNNER_ID" ]] && delete_runner "$RUNNER_ID"
   [[ -n "${HB_PID:-}" ]] && kill "$HB_PID" 2>/dev/null
   save_state; write_metrics
@@ -211,10 +322,73 @@ run_job_container() { # run_job_container <encoded_jit_config> → return kode k
     --stop-timeout 30 \
     "$CI_IMAGE" >/dev/null &
   CHILD=$!
-  wait "$CHILD"; rc=$?
+  watch_job_container; rc=$?
   CHILD=""
-  rc="$(docker inspect -f '{{.State.ExitCode}}' "$CONTAINER_NAME" 2>/dev/null || echo "$rc")"
+  rm -f "$RUN_DIR/job_started"
   return "$rc"
+}
+
+# watch_job_container: tunggu container job keluar sambil mengawasi log entrypoint/runner (bertahap, --since).
+# Return = kode keluar container (atau 125 bila watchdog harus membuangnya). Set JOB_RESULT_MARK bila entrypoint mencatatnya.
+JOB_RESULT_MARK=""
+watch_job_container() {
+  local since t_job=0 t_rexit=0 t_exiting=0 t_stop=0 now chunk rc stuck=""
+  JOB_RESULT_MARK=""
+  since="$(date +%s)"
+  while kill -0 "$CHILD" 2>/dev/null; do
+    sleep "$WATCH_INTERVAL" & wait $!
+    kill -0 "$CHILD" 2>/dev/null || break
+    now="$(date +%s)"
+    chunk="$(timeout 30 docker logs --since "$((since - 2))" "$CONTAINER_NAME" 2>&1 \
+      | grep -aE '^[0-9-]{10} [0-9:]{8}Z: Running job: |^\[ci-runner-entrypoint\] [^ ]+ (runner exited rc=|job result=|exiting code=)' | cut -c1-300)"
+    since="$now"
+    if (( t_job == 0 )) && grep -q 'Running job: ' <<<"$chunk"; then t_job=$now; echo "$now" > "$RUN_DIR/job_started"; fi
+    (( t_rexit == 0 )) && grep -q 'runner exited rc=' <<<"$chunk" && t_rexit=$now
+    (( t_exiting == 0 )) && grep -q 'exiting code=' <<<"$chunk" && t_exiting=$now
+    [[ "$chunk" =~ job\ result=([A-Za-z-]+) ]] && JOB_RESULT_MARK="${BASH_REMATCH[1]}"
+    if (( t_job == 0 && t_rexit == 0 )) && config_changed; then
+      log "PAT/config changed while runner idle (no job yet) — stopping idle runner to reload"
+      on_term
+    fi
+    if (( t_job > 0 && t_rexit == 0 && t_stop == 0 && now - t_job > JOB_TIMEOUT )); then
+      JOB_TIMEOUTS=$((JOB_TIMEOUTS + 1)); t_stop=$now
+      log "WARN: job running $((now - t_job)) s > CI_JOB_TIMEOUT=$JOB_TIMEOUT s — docker stop (runner cancels the job)"
+      save_state; write_metrics
+      timeout 60 docker stop -t 30 "$CONTAINER_NAME" >/dev/null 2>&1 &
+    fi
+    if (( t_exiting > 0 && now - t_exiting > STUCK_GRACE )); then stuck="entrypoint exited $((now - t_exiting)) s ago"
+    elif (( t_rexit > 0 && now - t_rexit > CLEANUP_GRACE )); then stuck="runner exited $((now - t_rexit)) s ago"
+    elif (( t_stop > 0 && now - t_stop > STUCK_GRACE )); then stuck="no exit $((now - t_stop)) s after job-timeout stop"
+    fi
+    if [[ -n "$stuck" ]]; then
+      reap_stuck "$stuck"
+      # docker run (klien) biasanya kembali sendiri setelah container hilang; kalau tidak, hentikan.
+      for _ in 1 2 3 4 5 6; do kill -0 "$CHILD" 2>/dev/null || break; sleep 5; done
+      kill "$CHILD" 2>/dev/null; wait "$CHILD" 2>/dev/null
+      return 125
+    fi
+  done
+  wait "$CHILD"; rc=$?
+  rc="$(timeout 20 docker inspect -f '{{.State.ExitCode}}' "$CONTAINER_NAME" 2>/dev/null || echo "$rc")"
+  return "$rc"
+}
+
+count_result() { # count_result <kode keluar> → LAST_RESULT + counter
+  case "$1" in
+    0) LAST_RESULT=success; JOBS_OK=$((JOBS_OK + 1)) ;;
+    10) LAST_RESULT=failure; JOBS_FAIL=$((JOBS_FAIL + 1)) ;;
+    11) LAST_RESULT=cancelled; JOBS_CANCELLED=$((JOBS_CANCELLED + 1)) ;;
+    13) LAST_RESULT=none; JOBS_NONE=$((JOBS_NONE + 1)) ;;
+    125) # dibuang watchdog: pakai hasil yang sempat dicatat entrypoint bila ada
+      case "$JOB_RESULT_MARK" in
+        Succeeded|SucceededWithIssues) LAST_RESULT=success; JOBS_OK=$((JOBS_OK + 1)) ;;
+        Failed) LAST_RESULT=failure; JOBS_FAIL=$((JOBS_FAIL + 1)) ;;
+        Canceled|Cancelled) LAST_RESULT=cancelled; JOBS_CANCELLED=$((JOBS_CANCELLED + 1)) ;;
+        none) LAST_RESULT=none; JOBS_NONE=$((JOBS_NONE + 1)) ;;
+        *) LAST_RESULT=error; JOBS_ERROR=$((JOBS_ERROR + 1)) ;;
+      esac ;;
+    *) LAST_RESULT=error; JOBS_ERROR=$((JOBS_ERROR + 1)) ;;
+  esac
 }
 
 # --- mode -----------------------------------------------------------------------------------------------------------
@@ -222,6 +396,17 @@ preflight() {
   local perm
   perm="$(stat -c '%a %U %G' "$CI_PAT_SOURCE" 2>/dev/null)" || { log "PAT tidak ada: $CI_PAT_SOURCE"; exit 1; }
   [[ "$perm" == "600 root root" ]] || { log "izin PAT harus '600 root root', sekarang '$perm'"; exit 1; }
+  # Salinan LoadCredential dibuat saat unit start: bila PAT baru dibuat tapi belum ditulis (race path unit), salinan
+  # kosong → gagal di sini (tanpa mencetak isi) → Restart=always mencoba lagi dengan salinan baru.
+  local tok
+  tok="$(<"$(pat_file)")" 2>/dev/null || tok=""
+  tok="${tok//[$'\r\n\t ']/}"
+  if [[ ! "$tok" =~ ^(github_pat_|ghp_)[A-Za-z0-9_]{20,}$ ]]; then
+    tok=""
+    log "credential 'pat' kosong atau format tidak dikenal (isi tidak dicetak) — PAT sedang ditulis? systemd mencoba lagi"
+    exit 1
+  fi
+  tok=""
   findmnt -n --mountpoint "$CI_MOUNTPOINT" >/dev/null || { log "$CI_MOUNTPOINT tidak ter-mount"; exit 1; }
   docker info --format '{{range $k,$v := .Runtimes}}{{$k}} {{end}}' | grep -qw sysbox-runc || { log "runtime sysbox-runc tidak ada"; exit 1; }
   docker network inspect "$CI_NETWORK" >/dev/null || { log "network $CI_NETWORK tidak ada"; exit 1; }
@@ -233,10 +418,12 @@ run() {
   local backoff=$BACKOFF_MIN name body jit labels rc started
   install -d -m 0700 "$STATE_DIR"
   load_state
+  CONFIG_SIG="$(config_sig)"
   trap on_term TERM INT
   heartbeat_loop & HB_PID=$!
   remove_job_containers
   while :; do
+    exit_if_pat_changed
     check_releases
     cleanup_offline_runners
     name="$CI_NAME_PREFIX-$(date +%s)"
@@ -248,7 +435,7 @@ run() {
       REG_FAIL_TOTAL=$((REG_FAIL_TOTAL + 1)); REG_FAIL_CONSEC=$((REG_FAIL_CONSEC + 1))
       log "registration FAILED: HTTP $HTTP_CODE $(jq -r '.message // empty' <<<"$body" 2>/dev/null | head -c 200); retry in ${backoff}s"
       save_state; write_metrics
-      sleep "$backoff" & wait $!
+      sleep_backoff "$backoff"
       backoff=$(( backoff * 2 > BACKOFF_MAX ? BACKOFF_MAX : backoff * 2 ))
       continue
     fi
@@ -259,7 +446,7 @@ run() {
     if [[ -z "$jit" || ! "$RUNNER_ID" =~ ^[0-9]+$ ]]; then
       REG_FAIL_TOTAL=$((REG_FAIL_TOTAL + 1)); REG_FAIL_CONSEC=$((REG_FAIL_CONSEC + 1))
       log "registration FAILED: 201 without encoded_jit_config/runner.id; retry in ${backoff}s"
-      save_state; write_metrics; sleep "$backoff" & wait $!; continue
+      save_state; write_metrics; sleep_backoff "$backoff"; continue
     fi
     REG_FAIL_CONSEC=0; LAST_REG_OK="$(date +%s)"; backoff=$BACKOFF_MIN
     log "registered runner name=$name id=$RUNNER_ID labels=$labels"
@@ -268,8 +455,8 @@ run() {
     run_job_container "$jit"; rc=$?
     jit=""
     LAST_EXIT=$rc; LAST_JOB_END="$(date +%s)"
-    if (( rc == 0 )); then JOBS_OK=$((JOBS_OK + 1)); else JOBS_FAIL=$((JOBS_FAIL + 1)); fi
-    log "job container exited rc=$rc (runner id=$RUNNER_ID)"
+    count_result "$rc"
+    log "job container exited rc=$rc result=$LAST_RESULT (runner id=$RUNNER_ID)"
     # Beri Alloy waktu membaca sisa log json-file sebelum container dihapus.
     sleep 15 & wait $!
     remove_job_containers
@@ -281,7 +468,7 @@ run() {
     # berputar cepat. Job asli butuh ≥ start dockerd dalam + job, jadi < 20 s dianggap gagal cepat.
     if (( LAST_JOB_END - started < 20 )); then
       log "job container lived $((LAST_JOB_END - started)) s (< 20 s, rc=$rc); backoff ${backoff}s"
-      sleep "$backoff" & wait $!
+      sleep_backoff "$backoff"
       backoff=$(( backoff * 2 > BACKOFF_MAX ? BACKOFF_MAX : backoff * 2 ))
     fi
   done

@@ -1,11 +1,15 @@
 # {{ ansible_managed }} — role ci_runner (plan 12 R5)
 # Memulai supervisor begitu owner memasang PAT. Rollback: `systemctl disable --now ci-runner-supervisor.path
-# ci-runner-supervisor.service` (path dulu — kalau tidak, path unit memulai ulang service selama PAT ada).
+# ci-runner-supervisor.service` (path dulu).
+# PathChanged (IN_CLOSE_WRITE/rename), BUKAN PathExists: PathExists memicu service saat file baru DIBUAT, sebelum isinya
+# ditulis → salinan LoadCredential kosong → 401 (R12, 2026-09-28). Saat boot service start sendiri (enabled +
+# ConditionPathExists). Rotasi PAT pada service yang sudah berjalan: supervisor mendeteksi perubahan file dan me-restart
+# dirinya di titik aman (tanpa membatalkan job) — docs/03-operations/ci-runner.md §Rotasi PAT.
 [Unit]
-Description=Mulai ci-runner-supervisor saat {{ ci_runner_pat_file }} ada
+Description=Mulai ci-runner-supervisor saat {{ ci_runner_pat_file }} selesai ditulis
 
 [Path]
-PathExists={{ ci_runner_pat_file }}
+PathChanged={{ ci_runner_pat_file }}
 Unit=ci-runner-supervisor.service
 
 [Install]
