@@ -35,3 +35,30 @@ docker_daemon_json:
       # terlihat di `df` Avail → 56 GiB Bfree ≈ 40 GiB Avail ≈ ≥ 20% dari 193G (df Use% ≤ ±79%).
       # Hanya memangkas BUILD CACHE, bukan image/volume/worktree.
       defaultMinFreeSpace: 56GB
+  # Plan 12 R0/R2 (ADR 0014): `bip` + `default-address-pools` ditulis EKSPLISIT dengan nilai IDENTIK perilaku sekarang
+  # (docker0 172.17.0.1/16 [NYATA `ip -4 addr show docker0` 2026-09-28]; pool = daftar bawaan
+  # moby docker-v29.8.1 daemon/libnetwork/ipamutils/utils.go localScopeDefaultNetworks). Alasan: postinst
+  # sysbox-ce 0.7.1 (`adjust_docker_config_network`) hanya MENULIS nilainya sendiri (172.20.0.1/16, 172.25.0.0/16) dan
+  # me-restart dockerd bila kedua kunci ini belum ada; bila sudah ada → tidak ada perubahan network, tidak ada restart
+  # (docs/qa/2026-09-28-plan12-r0-sysbox-postinst.md). Keduanya BUKAN opsi reload (daemon/reload.go) → baru dipakai saat
+  # dockerd restart berikutnya, dan karena nilainya identik, tidak ada perubahan perilaku. Semua network platform
+  # memakai subnet eksplisit (10.100.x.0/24), jadi pool hanya berlaku untuk network tanpa subnet.
+  bip: 172.17.0.1/16
+  default-address-pools:
+    - { base: 172.17.0.0/16, size: 16 }
+    - { base: 172.18.0.0/16, size: 16 }
+    - { base: 172.19.0.0/16, size: 16 }
+    - { base: 172.20.0.0/14, size: 16 }
+    - { base: 172.24.0.0/14, size: 16 }
+    - { base: 172.28.0.0/14, size: 16 }
+    - { base: 192.168.0.0/16, size: 20 }
+
+# Plan 12 R2: runtime OCI tambahan (digabung ke docker_daemon_json sebagai `runtimes`). `runtimes` ADALAH opsi reload
+# (daemon/reload_unix.go reloadPlatform) → cukup SIGHUP. Path runtime baru di-LookPath saat container dibuat
+# (daemon/runtime_unix.go), jadi mendaftarkan sebelum binari ada tidak merusak dockerd. Diisi di group_vars.
+docker_daemon_runtimes: {}
+
+# Aksi saat daemon.json berubah. `reload` (default, SIGHUP via ExecReload unit docker.service) = tanpa restart; opsi
+# non-reload (builder, bip, pool, dll.) baru berlaku pada restart TERJADWAL berikutnya. `restart` hanya boleh dipakai
+# eksplisit di jendela sepi (ADR 0004 §8.1) dengan konfirmasi Lead: -e docker_daemon_json_change_action=restart.
+docker_daemon_json_change_action: reload # reload | restart | none

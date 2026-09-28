@@ -75,15 +75,25 @@
     group: root
     mode: "0755"
 
+- name: Validasi docker_daemon_json_change_action
+  ansible.builtin.assert:
+    that:
+      - docker_daemon_json_change_action in ['reload', 'restart', 'none']
+    quiet: true
+
 - name: daemon.json (kunci diverifikasi docker/cli v29.8.1 docs/reference/dockerd.md; tanpa ipv6)
   ansible.builtin.copy:
     dest: /etc/docker/daemon.json
     owner: root
     group: root
     mode: "0644"
-    content: "{{ docker_daemon_json | to_nice_json(indent=2) }}\n"
-    validate: /usr/bin/python3 -m json.tool %s
-  notify: Restart docker
+    content: "{{ docker_daemon_json_effective | to_nice_json(indent=2) }}\n"
+    # `dockerd --validate` (docker 23+) memvalidasi kunci & nilai, bukan hanya sintaks JSON.
+    validate: /usr/bin/dockerd --validate --config-file %s
+  vars:
+    docker_daemon_json_effective: >-
+      {{ docker_daemon_json | combine({'runtimes': docker_daemon_runtimes} if docker_daemon_runtimes | length > 0 else {}) }}
+  notify: daemon.json changed
 
 - name: docker & containerd aktif
   ansible.builtin.systemd_service:
