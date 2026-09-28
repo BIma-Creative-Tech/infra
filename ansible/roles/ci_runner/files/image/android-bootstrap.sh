@@ -28,9 +28,16 @@ if [[ "$(cat "$SDK/cmdline-tools/latest/.rev" 2>/dev/null)" != "$CMDLINE_TOOLS_R
 fi
 SDKM="$SDK/cmdline-tools/latest/bin/sdkmanager"
 # Lisensi SDK Android (syarat build Gradle/AGP; setara GitHub-hosted image yang sudah menerima lisensi).
-yes | "$SDKM" --sdk_root="$SDK" --licenses >/dev/null
+# `yes` berakhir dengan SIGPIPE → jangan biarkan pipefail menggagalkan skrip.
+{ yes 2>/dev/null || true; } | "$SDKM" --sdk_root="$SDK" --licenses >/dev/null 2>&1 || true
 IFS=',' read -r -a pkgs <<<"$ANDROID_PACKAGES"
-"$SDKM" --sdk_root="$SDK" --install "${pkgs[@]}" | grep -v '^\[' || true
-"$SDKM" --sdk_root="$SDK" --list_installed
+{ yes 2>/dev/null || true; } | "$SDKM" --sdk_root="$SDK" --install "${pkgs[@]}" 2>&1 | grep -v '^\[' || true
+"$SDKM" --sdk_root="$SDK" --list_installed 2>/dev/null
+ls "$SDK/licenses" >/dev/null || { echo "android-bootstrap: $SDK/licenses missing" >&2; exit 1; }
+for p in "${pkgs[@]}"; do
+  d="$SDK/${p//;//}"
+  [[ -d "$d" ]] || { echo "android-bootstrap: package dir missing: $d" >&2; exit 1; }
+done
+ls "$SDK"/build-tools/*/apksigner >/dev/null
 echo "$WANT" > "$MARKER"
 echo "android-bootstrap: done"

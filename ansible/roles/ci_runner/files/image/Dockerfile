@@ -26,8 +26,12 @@ RUN curl -fsSL -o /tmp/gh.tgz "https://github.com/cli/cli/releases/download/v${G
  && rm -rf /tmp/gh.tgz "/tmp/gh_${GH_VERSION}_linux_amd64"
 
 # Tanpa sudo untuk job (NNP di container juga mematikannya): cabut grup sudo + sudoers runner.
+# npm bawaan externals node* runner dibuang: runner hanya memakai binari `node` untuk action JS; npm di dalamnya membawa
+# node-tar rentan (Trivy CRITICAL CVE-2026-59873, 2026-09-28). setup-node memakai Node sendiri dari tool cache.
 RUN gpasswd -d runner sudo \
  && rm -f /etc/sudoers.d/runner \
+ && rm -rf /home/runner/externals/node*/lib/node_modules/npm /home/runner/externals/node*/lib/node_modules/corepack \
+ && rm -f /home/runner/externals/node*/bin/npm /home/runner/externals/node*/bin/npx /home/runner/externals/node*/bin/corepack \
  && mkdir -p /etc/docker /opt/ci-runner/hooks
 
 COPY daemon.json /etc/docker/daemon.json
@@ -52,6 +56,7 @@ ENV RUNNER_TOOL_CACHE=/cache/toolcache \
 
 # Entrypoint jalan sebagai root-container (dipetakan sysbox ke uid host tak berhak) untuk dockerd dalam, lalu
 # turun ke uid 1001 (setpriv) untuk run.sh. JIT config dibaca dari STDIN (tidak di argv/env/inspect host).
+# hadolint ignore=DL3002
 USER root
 WORKDIR /home/runner
 ENTRYPOINT ["/opt/ci-runner/entrypoint.sh"]
