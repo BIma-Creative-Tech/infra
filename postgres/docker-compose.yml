@@ -52,6 +52,7 @@ services:
       - db-drms-stg       # 10.100.26.0/24 — drms-pk-stg (+worker, migrate, seed)
       - db-drms           # 10.100.25.0/24 — drms-pk-web (+worker, migrate, seed) — PROD (E10)
       - db-umami          # 10.100.28.0/24 — umami (plan 11, ADR 0013)
+      - db-datamart       # 10.100.27.0/24 — dbt runner datamart (ADR 0016)
     healthcheck:
       test: ["CMD", "pg_isready", "-U", "postgres", "-h", "/var/run/postgresql"]
       interval: 10s
@@ -101,4 +102,7 @@ networks:
   db-umami:
     external: true
     name: db-umami
-  # CADANGAN (belum dibuat): db-datamart 10.100.27.0/24.
+  db-datamart:
+    # ADR 0016. Live: bootstrap.sh + `docker network connect db-datamart postgres` (tanpa recreate).
+    external: true
+    name: db-datamart

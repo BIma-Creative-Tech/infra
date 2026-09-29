@@ -16,7 +16,9 @@ CONTAINER="${PG_CONTAINER:-postgres}"
 APPS=(
   "keycloak:keycloak:PG_KEYCLOAK_PASSWORD:30"
   "control_plane:control_plane:PG_CONTROL_PLANE_PASSWORD:20"
-  "datamart:datamart:PG_DATAMART_PASSWORD:10"
+  # ADR 0016: owner mart = runner dbt (threads ≤ 4). Limit 10 → 5 untuk memberi 5 slot ke datamart_reader tanpa menaikkan
+  # max_connections (Σ limit tetap 196).
+  "datamart:datamart:PG_DATAMART_PASSWORD:5"
   # T16b — control plane STAGING (cp.staging, realm platform-staging). Limit kecil (ESTIMASI).
   "control_plane_staging:control_plane_staging:PG_CONTROL_PLANE_STAGING_PASSWORD:10"
   # Plan 11 / ADR 0013 — Umami web analytics. Role `umami` = OWNER DB (Umami menjalankan `prisma migrate deploy` sendiri
@@ -46,6 +48,23 @@ GRANT CONNECT, TEMPORARY ON DATABASE ${db} TO ${role};
 SQL
   echo "ok: db=${db} role=${role} (password dari ${var}, connection limit ${limit})"
 done
+unset pw
+
+# ADR 0016 — pembaca data mart (control-plane web prod & staging). Tanpa DB sendiri; hanya SELECT di schema `mart`
+# (GRANT per tabel oleh post-hook dbt), NOBYPASSRLS → policy client_slug = current_setting('app.client') berlaku.
+pw="$(get_var PG_DATAMART_READER_PASSWORD)"
+[[ ${#pw} -ge 32 ]] || { echo "PG_DATAMART_READER_PASSWORD kosong/terlalu pendek di .env" >&2; exit 1; }
+docker exec -i "$CONTAINER" psql -X -q -v ON_ERROR_STOP=1 -U postgres -d datamart <<SQL
+\\set pw '${pw}'
+SELECT 'CREATE ROLE datamart_reader' WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'datamart_reader')
+\\gexec
+ALTER ROLE datamart_reader WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS
+  CONNECTION LIMIT 5 PASSWORD :'pw';
+GRANT CONNECT ON DATABASE datamart TO datamart_reader;
+CREATE SCHEMA IF NOT EXISTS mart AUTHORIZATION datamart;
+GRANT USAGE ON SCHEMA mart TO datamart_reader;
+SQL
+echo "ok: role=datamart_reader (connection limit 5, USAGE schema mart)"
 unset pw
 
 # T10 — role pool Odoo (tanpa DB sendiri). Odoo membuat DB tenant sendiri (`CREATE DATABASE …

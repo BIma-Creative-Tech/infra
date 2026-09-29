@@ -1,0 +1,20 @@
+# {{ ansible_managed }} — role datamart_refresh (ADR 0016)
+# Root: docker exec postgres (peer, COPY dari DB tenant) + docker run runner dbt (user nobody, network db-datamart).
+[Unit]
+Description=Refresh data mart (ingest tenant Odoo → dbt build)
+Documentation=file://{{ infra_root }}/docs/adr/0016-datamart-pipeline.md
+OnFailure=infra-unit-failure@%n.service
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart={{ datamart_refresh_script }}
+SyslogIdentifier=datamart-refresh
+UMask=0077
+TimeoutStartSec=15min
+Nice=10
+IOSchedulingClass=idle
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes

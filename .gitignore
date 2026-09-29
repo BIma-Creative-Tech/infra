@@ -17,3 +17,7 @@ __pycache__/
 # pylib Odoo (ADR 0015) — dibangun dari addons/platform/requirements.txt
 odoo/pool-a/pylib/
 staging/odoo/pylib/
+
+# data mart (ADR 0016): paket dbt dibangun dari datamart/requirements.txt; config lokal
+datamart/pylib/
+datamart/datamart.env

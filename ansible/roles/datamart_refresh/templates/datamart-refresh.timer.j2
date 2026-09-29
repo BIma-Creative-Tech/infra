@@ -1,0 +1,12 @@
+# {{ ansible_managed }} — role datamart_refresh (ADR 0016 #4: setiap 30 menit)
+[Unit]
+Description=Refresh data mart setiap 30 menit
+
+[Timer]
+OnCalendar={{ datamart_refresh_on_calendar }}
+RandomizedDelaySec=2min
+Persistent=true
+Unit=datamart-refresh.service
+
+[Install]
+WantedBy=timers.target
