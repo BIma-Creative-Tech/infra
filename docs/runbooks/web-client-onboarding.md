@@ -112,6 +112,18 @@ docker stats --no-stream web-<slug>-<env>
    `docker-compose.umami.yml` ke `COMPOSE_FILE` (env runtime `UMAMI_SCRIPT_URL`, `UMAMI_WEBSITE_ID`). Butuh image app yang
    merender skrip ber-nonce (bct-website ≥ v0.2.0). Verifikasi: HTML memuat `insight.js` + `data-website-id`, header CSP memuat
    origin analytics, event muncul di UI. Mematikan: provision ulang tanpa kedua flag.
+7. Opsional **lead CRM Odoo** (plan 13, default OFF, hanya bersama `--contact`; app web-expomedia ≥ 0.4.0): tiap pesan
+   form juga dibuat sebagai `crm.lead` di tenant Odoo client (API JSON-2 Odoo 19, bearer API key).
+   - Di DB tenant (`odoo shell`, lihat plan 13 §4): user teknis `website-leads` — grup `base.group_user` +
+     `sales_team.group_sale_salesman` saja, tanpa password — dan API key scope `rpc`, kedaluwarsa 365 hari. Key ditulis
+     langsung ke `secrets/odoo_api_key.secret` (tanpa newline, jangan dicetak).
+   - Provision ulang dengan semua opsi sebelumnya + `--odoo-url https://<host-odoo-tenant>` (tanpa path). Skrip menambah
+     `docker-compose.odoo.yml` ke `COMPOSE_FILE` (`ODOO_LEADS_ENABLED=true`, `ODOO_URL`, `ODOO_API_KEY_FILE=/run/secrets/odoo_api_key`,
+     owner `1001:1001` `0400`).
+   - Verifikasi: `curl -X POST https://<host-odoo>/json/2/crm.lead/search_count -H "Authorization: bearer $(cat …)" -d '{"domain":[]}'`
+     → 200; kirim form di website → lead baru `[Website] <subjek>` di CRM tenant; log web tanpa `gagal buat lead Odoo`.
+   - Rotasi (sebelum kedaluwarsa): generate key baru, timpa file, `docker compose up -d --force-recreate` di direktori stack,
+     hapus key lama di Odoo (Preferensi user → Keamanan akun). Mematikan: provision ulang tanpa `--odoo-url`.
 
 ## 4. Upgrade tag image
 

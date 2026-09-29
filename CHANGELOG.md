@@ -9,6 +9,13 @@ file `VERSION`.
 ## [Unreleased]
 
 ### Added
+- odoo (plan 13, ADR 0015, 2026-09-29): **modul platform Athera** — submodule `staging/odoo/addons/platform`
+  (`odoo-addons-athera` v19.0.1.1.0, 52 modul, subset terkurasi arsip `addons-full-20260928T231052Z`), `addons_path` +
+  `platform`, pylib (httpx, xmlschema) `PYTHONPATH=/mnt/extra-python`. Tenant **`expomedia_staging`**
+  (`expomedia-erp.staging.bimacreative.tech`, SSO `platform-staging`): company PT Expomedia, COA PSAK, AI off. Pool-a belum.
+- web client: `provision-web-client.sh --odoo-url <https>` (hanya bersama `--contact`) + template
+  `docker-compose.odoo.yml` → lead CRM Odoo dari form kontak (`ODOO_LEADS_ENABLED`, secret `odoo_api_key`).
+  Staging expomedia → `web-expomedia:dev-a173509` dengan lead ke `expomedia_staging`.
 - traefik (2026-09-29): domain tambahan `expomedia.co.id` + `www.expomedia.co.id` → 301 permanen ke
   `https://expomedia.id` (path & query dipertahankan) — `traefik/dynamic/clients/web-expomedia-prod-coid.yml`, file
   manual (provision-web-client.sh belum punya flag domain tambahan; tidak ditimpa saat provision ulang), sertifikat SAN
