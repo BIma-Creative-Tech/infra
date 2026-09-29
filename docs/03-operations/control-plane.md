@@ -294,3 +294,18 @@ Rollback sama dengan prod (`CONTROL_PLANE_TAG=<tag-lama> docker compose up -d`).
 - Realm export `platform-staging` (dan `platform`) memuat client `control-plane` — butuh admin (`manage-realm`).
 - Image di registry (GHCR) + `infra-deploy` wrapper untuk user `deploy` (CLAUDE.md §3.7) — image masih build lokal (TEMPORARY).
 - Plan 05 open items (backfill status environment tenant lama, CI AC-J13, dll.): `docs/plans/05-control-plane-odoo-sso-jobs.md` §9.4.
+
+## Dashboard SPK dari data mart (ADR 0016, plan 14)
+
+- **Env (hanya service `web`, file `.env.datamart` 600, tidak di git):**
+  - `DATAMART_URL=postgresql://datamart_reader:<PG_DATAMART_READER_PASSWORD>@postgres:5432/datamart`;
+  - `DATAMART_ENV=staging|prod`.
+  Keduanya atau tidak sama sekali. Kosong = `/dashboard` tetap "Belum ada data".
+- **Siapa melihat apa:** Odoo adalah sumber kebenarannya.
+  - User login SSO; `sub` Keycloak = `res_users.oauth_uid` di DB tenant.
+  - Grup sales (`sales_team.group_sale_salesman`) = melihat nilai. Selain itu hanya status.
+  - AE murni (`cl_expomedia_sale.group_ae`) hanya melihat SPK miliknya.
+  - User juga butuh client role `client_user` pada client Keycloak `control-plane`.
+- **Uji peran:** E2E plan 14 §4 (login OIDC sungguhan dengan user uji sementara).
+- Staging `98e823c` sejak 2026-09-29; prod belum.
+

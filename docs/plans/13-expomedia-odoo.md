@@ -60,7 +60,7 @@ importer idempoten `tools/run-import.sh` (satu transaksi, `--dry-run`, `--reset-
 - **Go-live:** `run-import.sh <pool> <db> --reset-mockup` → impor file asli (dataset `asli` ditolak selama mockup ada).
   User mockup **tidak** diberi undangan SSO.
 
-## 3b. Dashboard SPK + data operasional 2026 (2026-09-29)
+## 3b. Dashboard SPK + data operasional 2026 (2026-09-29) — **DIGANTIKAN plan 14** (alur standar, data mart)
 
 - Modul client `cl_expomedia_spk` (repo `/opt/src/odoo-addons-expomedia` v19.0.1.0.0, submodule
   `staging/odoo/addons/clients/expomedia`; staging di-recreate untuk glob `clients/*`):

@@ -6,6 +6,9 @@
 > sheet `spk-giat-2026-gsheet.xlsx`. Label: **[V]** = TERVERIFIKASI (path/field disebut), **[A]** = ASUMSI.
 > Hanya gap yang disetujui di dokumen ini boleh menjadi kode custom (modul client `cl_expomedia_sale`).
 
+> **Status 2026-09-29:** diimplementasikan di staging — plan 14 (G1, G2, G3, G5; G7 = dashboard control-plane dari data
+> mart ADR 0016). G4/G6 ditunda.
+
 ## 1. Alur target & peran
 
 ```

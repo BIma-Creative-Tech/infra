@@ -27,6 +27,7 @@
 | DNS mail di zona client | **BELUM** — zona `expomedia.id` di NS Dewaweb kosong | client (pemilik zona) harus mengisi record §3; sampai saat itu mail keluar ke domain luar gagal SPF/DKIM/DMARC dan mail masuk tidak sampai |
 | Secret SMTP form kontak | tersedia | prod `web/clients/expomedia/secrets/smtp_password.secret` + staging `staging/web-clients/expomedia/secrets/…` (400, uid 1001) = password **`noreply@expomedia.id`** (sejak 2026-09-25, plan 08) |
 | Odoo staging `https://expomedia-erp.staging.bimacreative.tech` | **AKTIF** 2026-09-29 (plan 13) | DB `expomedia_staging`, 52 modul platform (SPK, BAST, CRM, HR/payroll ID, akuntansi PSAK, Coretax), SSO Keycloak `platform-staging`; form kontak website staging → lead CRM |
+| Dashboard SPK `https://cp.staging.bimacreative.tech/dashboard` | **AKTIF (staging)** 2026-09-29 | data mart ADR 0016, plan 14; Owner/Finance nilai, PM status, AE miliknya |
 | Odoo prod `https://expomedia.erp.bimacreative.tech` | **BELUM** | langkah plan 13 §6, menunggu persetujuan deploy prod; data demo tenant lama wajib direset sebelum go-live |
 | Webmail `https://webmail.expomedia.id` | **AKTIF** 2026-09-25 | Roundcube 1.7.4 + ganti password self-service (ADR 0012, §11) |
 
