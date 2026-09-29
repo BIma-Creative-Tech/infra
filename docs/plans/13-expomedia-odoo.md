@@ -48,6 +48,18 @@ Selisih dengan tenant lama: `custom_athera_sso` tidak dipasang; tambahan di luar
 Log install: 1 ERROR upstream `pdp_field_classification_model_field_uniq` (19 pasangan duplikat di CSV `custom_pdp`,
 1206/1225 baris termuat) — modul tetap terpasang.
 
+## 3a. Data master: template + mockup (2026-09-29)
+
+Keputusan user: pakai **data mockup** sampai data asli dari user masuk; template isian dari data perusahaan sampai master.
+Repo `/opt/src/odoo-data-expomedia`: `dist/Template-Data-Master-Expomedia.xlsx` (dikirim ke user, 17 sheet + petunjuk,
+kamus kolom, dropdown dari COA/satuan/termin Odoo), `dist/Mockup-Data-Master-Expomedia.xlsx` (fiktif, `@example.com`),
+importer idempoten `tools/run-import.sh` (satu transaksi, `--dry-run`, `--reset-mockup`).
+- `expomedia_staging`: mockup diimpor — 142 baris, 0 error (company, 2 rekening/jurnal, 8 departemen, 13 jabatan,
+  15 karyawan, 9 user mockup, 7 pelanggan, 6 vendor, 5 venue, 8 kategori, 7 satuan, 23 produk, gudang WS + 3 lokasi,
+  3 shift, 2 template estimasi, 5 akun). Siklus impor → reset → impor ulang diuji.
+- **Go-live:** `run-import.sh <pool> <db> --reset-mockup` → impor file asli (dataset `asli` ditolak selama mockup ada).
+  User mockup **tidak** diberi undangan SSO.
+
 ## 4. User teknis & API key (per DB)
 
 ```python
