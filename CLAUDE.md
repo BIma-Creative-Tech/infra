@@ -51,6 +51,7 @@ Subagent didefinisikan di `.claude/agents/`:
 |---|---|---|
 | Business & System Analyst | `analyst.md` | Discovery env, requirement, desain solusi, ADR, acceptance criteria |
 | Infra/DevOps Engineer | `infra-engineer.md` | Ansible, Docker Compose per stack, Traefik, Postgres, Keycloak, mail, CrowdSec, backup, observability |
+| Odoo Functional Consultant | `odoo-functional.md` | Fit-gap kebutuhan client vs fitur standar Odoo CE 19.0 (alur CRM→Sales→Project→Invoice, konfigurasi, hak akses) — **wajib sebelum modul custom client** |
 | Odoo Developer | `odoo-developer.md` | Odoo CE 19.0, addons (shared/client-specific), multi-DB, SSO, data mart source |
 | Next.js Developer | `nextjs-developer.md` | Control plane, portal login/SSO, dashboard data mart, API |
 | QA & Security Engineer | `qa-security.md` | Test, DevSecOps pipeline, pentest ringan, review keamanan |
