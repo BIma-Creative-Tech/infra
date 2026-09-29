@@ -60,6 +60,22 @@ importer idempoten `tools/run-import.sh` (satu transaksi, `--dry-run`, `--reset-
 - **Go-live:** `run-import.sh <pool> <db> --reset-mockup` → impor file asli (dataset `asli` ditolak selama mockup ada).
   User mockup **tidak** diberi undangan SSO.
 
+## 3b. Dashboard SPK + data operasional 2026 (2026-09-29)
+
+- Modul client `cl_expomedia_spk` (repo `/opt/src/odoo-addons-expomedia` v19.0.1.0.0, submodule
+  `staging/odoo/addons/clients/expomedia`; staging di-recreate untuk glob `clients/*`):
+  - SPK multi-project dan multi-lokasi; kegiatan lapangan; absensi per SPK;
+  - menu **Dashboard SPK**: Owner/Finance (`group_spk_price_viewer`) melihat nilai, PM/Supervisor status saja;
+  - `group_spk_price_viewer` diberi baca semua SPK.
+  Tes modul: 6/6 lulus.
+- Sheet Google "SPK 2026 / GIAT 2026" (data operasional asli, tanpa nilai) diimpor ke `expomedia_staging` dengan
+  `odoo-data-expomedia/tools/run-import-spk.sh`:
+  - 742 SPK dan 744 project, dengan **nilai mockup**;
+  - 734 kegiatan, 361 di antaranya tanpa nomor SPK;
+  - 108 crew dan 716 absensi.
+  Verifikasi per peran: Owner/Finance melihat nilai; PM/Supervisor ditolak baca `x_amount_total` (AccessError).
+- Prod: modul client belum dipasang (ikut langkah §6 + submodule `odoo/pool-a/addons/clients/expomedia`).
+
 ## 4. User teknis & API key (per DB)
 
 ```python
