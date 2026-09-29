@@ -4,3 +4,6 @@
 [submodule "staging/odoo/addons/shared"]
 	path = staging/odoo/addons/shared
 	url = https://github.com/bctech-adm/odoo-addons-shared.git
+[submodule "staging/odoo/addons/platform"]
+	path = staging/odoo/addons/platform
+	url = /opt/src/odoo-addons-athera

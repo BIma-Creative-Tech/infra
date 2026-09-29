@@ -13,3 +13,7 @@ backups/
 ansible/collections/
 __pycache__/
 *.pyc
+
+# pylib Odoo (ADR 0015) — dibangun dari addons/platform/requirements.txt
+odoo/pool-a/pylib/
+staging/odoo/pylib/

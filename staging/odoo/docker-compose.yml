@@ -30,6 +30,9 @@ services:
       # (bukan ${VAR}): nilai kosong/rusak = fail-closed untuk semua tenant. HARUS aktif di recreate yang SAMA dengan
       # perpindahan network pool ini (plan 06 S4) — bila pool masih dijangkau Traefik dari subnet lain, semua tenant 303 →
       # /web/database/selector. Modul < 19.0.1.1.0 mengabaikan env ini. Rollback: hapus baris ini + `docker compose up -d`.
+      # ADR 0015: dependensi Python modul platform (httpx, xmlschema) yang tidak ada di image resmi — pure-Python, dipin
+      # ber-hash di addons/platform/requirements.txt, dibangun `addons/platform/tools/build-pylib.sh ./pylib` (image sama).
+      PYTHONPATH: /mnt/extra-python
       SH_DBFILTER_TRUSTED_PROXIES: "10.100.13.0/24"
     # Entry point image: wait-for-psql.py (PG* dari env) lalu `odoo`. Opsi di odoo.conf.
     command: ["odoo"]
@@ -41,6 +44,13 @@ services:
       - ./addons:/mnt/extra-addons:ro
       # filestore + sessions — volume terpisah per pool
       - filestore:/var/lib/odoo
+      # pylib (ADR 0015): di luar git (.gitignore), dibangun ulang dari requirements.txt submodule platform.
+      - type: bind
+        source: ./pylib
+        target: /mnt/extra-python
+        read_only: true
+        bind:
+          create_host_path: false
       # secret client OIDC per DB (plan 04): host secrets/oidc (0750 root:101, file 0440, di luar git) → ro.
       # create_host_path: false → `up` gagal bila direktori belum ada (odoo-pool-bootstrap.sh membuatnya dengan
       # mode benar) daripada Docker membuatnya 0755 root:root.
