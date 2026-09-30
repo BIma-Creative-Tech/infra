@@ -8,7 +8,7 @@ name: staging-control-plane
 x-hardening: &hardening
   # Tag pin (short SHA commit main repo control-plane). Override sementara:
   #   CONTROL_PLANE_TAG=<tag> docker compose up -d
-  image: control-plane:${CONTROL_PLANE_TAG:-98e823c}   # v0.3.0 dashboard SPK data mart (plan 14, 2026-09-29; rollback 6d94d2b — tanpa migrasi baru)
+  image: control-plane:${CONTROL_PLANE_TAG:-eb5ab2d}   # v0.4.0 Quotation Tracker (plan 15, 2026-09-30; rollback 98e823c — tanpa migrasi baru)
   env_file:
     - .env
   user: "1001:1001"
@@ -55,6 +55,8 @@ services:
     environment:
       SERVICE_NAME: control-plane-staging-web
       INFRA_JOBS_INSTANCE: staging   # plan 05 / ADR 0009
+      # plan 15: tombol "Buka Odoo" Quotation Tracker (bukan secret). Ganti ke demo-erp.expomedia.id setelah alias aktif.
+      DASHBOARD_ODOO_URLS: expomedia=https://expomedia-erp.staging.bimacreative.tech
     tmpfs:
       - /tmp:uid=1001,gid=1001,mode=0700
       - /app/.next/cache:uid=1001,gid=1001,mode=0700

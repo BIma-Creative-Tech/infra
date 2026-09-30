@@ -27,6 +27,14 @@ WITH loc AS (
   FROM {{ ref('stg_invoice_order') }} io
   JOIN {{ ref('stg_invoice') }} i ON i.client_slug = io.client_slug AND i.env = io.env AND i.id = io.invoice_id
   WHERE i.state = 'posted' GROUP BY 1, 2, 3
+), inv_detail AS (
+  SELECT client_slug, env, so_id, count(*) FILTER (WHERE state = 'posted') AS invoice_count,
+         min(invoice_date_due) FILTER (WHERE state = 'posted' AND amount_residual > 0) AS next_due_date,
+         coalesce(sum(amount_residual) FILTER (WHERE is_overdue), 0) AS overdue
+  FROM {{ ref('mart_spk_invoice') }} GROUP BY 1, 2, 3
+), pay AS (
+  SELECT client_slug, env, so_id, count(DISTINCT payment_id) AS payment_count, max(date) AS last_payment_date
+  FROM {{ ref('mart_spk_payment') }} GROUP BY 1, 2, 3
 )
 SELECT so.client_slug, so.env, so.id AS so_id,
        so.name AS spk_no, so.quotation_name, so.legacy_ref,
@@ -37,7 +45,17 @@ SELECT so.client_slug, so.env, so.id AS so_id,
        le.label AS last_status, le.at AS last_status_at,
        coalesce(loc.crew_hours, 0) AS crew_hours, coalesce(pp.crew_people, 0) AS crew_people,
        so.amount_untaxed AS value, coalesce(inv.invoiced, 0) AS invoiced, coalesce(inv.paid, 0) AS paid,
-       coalesce(inv.due, 0) AS due, so.invoice_status, so.is_mockup, now() AS refreshed_at
+       coalesce(inv.due, 0) AS due, so.invoice_status,
+       -- Quotation Tracker (plan 15): tahap terjauh alur Penawaran → SPK → Produksi → Ditagih → Lunas.
+       CASE WHEN so.state = 'cancel' THEN 'batal'
+            WHEN so.state <> 'sale' THEN 'penawaran'
+            WHEN coalesce(inv.invoiced, 0) > 0 AND coalesce(inv.due, 0) <= 0 THEN 'lunas'
+            WHEN coalesce(inv.invoiced, 0) > 0 THEN 'ditagih'
+            WHEN coalesce(loc.progress_pct, 0) > 0 OR coalesce(loc.crew_hours, 0) > 0 THEN 'produksi'
+            ELSE 'spk' END AS tracker_stage,
+       coalesce(ivd.invoice_count, 0) AS invoice_count, ivd.next_due_date, coalesce(ivd.overdue, 0) AS overdue,
+       coalesce(pay.payment_count, 0) AS payment_count, pay.last_payment_date,
+       so.is_mockup, now() AS refreshed_at
 FROM {{ ref('stg_sale_order') }} so
 LEFT JOIN {{ ref('stg_partner') }} grp ON grp.client_slug = so.client_slug AND grp.env = so.env AND grp.id = so.partner_invoice_id
 LEFT JOIN {{ ref('stg_partner') }} brand ON brand.client_slug = so.client_slug AND brand.env = so.env AND brand.id = so.partner_id
@@ -47,3 +65,5 @@ LEFT JOIN stage_name sn ON sn.client_slug = so.client_slug AND sn.env = so.env A
 LEFT JOIN last_event le ON le.client_slug = so.client_slug AND le.env = so.env AND le.so_id = so.id
 LEFT JOIN people pp ON pp.client_slug = so.client_slug AND pp.env = so.env AND pp.so_id = so.id
 LEFT JOIN inv ON inv.client_slug = so.client_slug AND inv.env = so.env AND inv.so_id = so.id
+LEFT JOIN inv_detail ivd ON ivd.client_slug = so.client_slug AND ivd.env = so.env AND ivd.so_id = so.id
+LEFT JOIN pay ON pay.client_slug = so.client_slug AND pay.env = so.env AND pay.so_id = so.id

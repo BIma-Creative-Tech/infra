@@ -10,6 +10,10 @@ CREATE TABLE IF NOT EXISTS {{schema}}.project_task (id int PRIMARY KEY, name tex
 CREATE TABLE IF NOT EXISTS {{schema}}.project_task_type (id int PRIMARY KEY, name text, sequence int, fold boolean);
 CREATE TABLE IF NOT EXISTS {{schema}}.invoice (id int PRIMARY KEY, name text, state text, move_type text, invoice_date date,
   amount_untaxed numeric, amount_total numeric, amount_residual numeric, payment_state text);
+-- plan 15: kolom baru ditambah di AKHIR (COPY tanpa daftar kolom = urutan kolom tabel; raw lama tidak di-DROP).
+ALTER TABLE {{schema}}.invoice ADD COLUMN IF NOT EXISTS invoice_date_due date;
+CREATE TABLE IF NOT EXISTS {{schema}}.payment (payment_id int, invoice_id int, name text, state text, date date,
+  journal text, memo text, amount numeric, PRIMARY KEY (payment_id, invoice_id));
 CREATE TABLE IF NOT EXISTS {{schema}}.invoice_order (invoice_id int, order_id int, PRIMARY KEY (invoice_id, order_id));
 CREATE TABLE IF NOT EXISTS {{schema}}.timesheet (id int PRIMARY KEY, date date, employee_id int, task_id int, project_id int,
   order_id int, hours numeric, cost numeric, giat_type text, giat_slot text, description text, write_date timestamp);

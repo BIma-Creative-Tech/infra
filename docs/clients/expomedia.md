@@ -28,7 +28,8 @@
 | Secret SMTP form kontak | tersedia | prod `web/clients/expomedia/secrets/smtp_password.secret` + staging `staging/web-clients/expomedia/secrets/…` (400, uid 1001) = password **`noreply@expomedia.id`** (sejak 2026-09-25, plan 08) |
 | Odoo staging `https://expomedia-erp.staging.bimacreative.tech` | **AKTIF** 2026-09-29 (plan 13) | DB `expomedia_staging`, 52 modul platform (SPK, BAST, CRM, HR/payroll ID, akuntansi PSAK, Coretax), SSO Keycloak `platform-staging`; form kontak website staging → lead CRM |
 | Dashboard SPK `https://cp.staging.bimacreative.tech/dashboard` | **AKTIF (staging)** 2026-09-29 | data mart ADR 0016, plan 14; Owner/Finance nilai, PM status, AE miliknya |
-| Odoo prod `https://expomedia.erp.bimacreative.tech` | **BELUM** | langkah plan 13 §6, menunggu persetujuan deploy prod; data demo tenant lama wajib direset sebelum go-live |
+| Login Odoo bermerek + Quotation Tracker | **AKTIF (staging/Demo)** 2026-09-30 | plan 15: `cl_expomedia_web`, `cp.staging/dashboard/quotation` |
+| Odoo prod `https://erp.expomedia.id` | **BELUM** | plan 15 §4 (host diganti dari `expomedia.erp.bimacreative.tech`); menunggu DNS `erp` + persetujuan deploy prod |
 | Webmail `https://webmail.expomedia.id` | **AKTIF** 2026-09-25 | Roundcube 1.7.4 + ganti password self-service (ADR 0012, §11) |
 
 ## 3. Instruksi DNS untuk client (siap kirim)
