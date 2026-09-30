@@ -10,3 +10,9 @@
 [submodule "staging/odoo/addons/clients/expomedia"]
 	path = staging/odoo/addons/clients/expomedia
 	url = /opt/src/odoo-addons-expomedia
+[submodule "odoo/pool-a/addons/platform"]
+	path = odoo/pool-a/addons/platform
+	url = /opt/src/odoo-addons-athera
+[submodule "odoo/pool-a/addons/clients/expomedia"]
+	path = odoo/pool-a/addons/clients/expomedia
+	url = /opt/src/odoo-addons-expomedia

@@ -1,6 +1,6 @@
 # Plan 15 — Expomedia: erp.expomedia.id, login bermerek Demo/Production, Quotation Tracker
 
-Status 2026-09-30: **staging (Demo) AKTIF**. DNS `erp`/`demo-erp` dan prod **BELUM**.
+Status 2026-09-30: **Demo (`demo-erp.expomedia.id` → staging) dan Production (`erp.expomedia.id`) AKTIF**.
 Kelanjutan plan 13/14 (alur standar CRM → PNW → SPK = sale.order → task → timesheet → invoice → payment).
 
 ## 1. Keputusan user (2026-09-30)
@@ -23,7 +23,7 @@ Kelanjutan plan 13/14 (alur standar CRM → PNW → SPK = sale.order → task �
 | control-plane | v0.4.0 branch `feat/quotation-tracker` (`5e7cafc` + fix `eb5ab2d`), image `control-plane:eb5ab2d` di `cp.staging`. `/dashboard/quotation` + detail Penagihan/Pembayaran; env `DASHBOARD_ODOO_URLS`. E2E SSO `uji-dash-fin` (nilai) / `uji-dash-pm` (tanpa Rp) lulus. Rollback: tag `98e823c`. |
 | User | `am.ademaryadi@gmail.com` di `expomedia_staging` (id 99, **sudah ada sejak 2026-09-29**, tertaut Keycloak `platform-staging`, role control-plane `superadmin`): ditambah grup admin semua privilege + SPK PM/price viewer + PMO admin + Dashboard; `sh_oidc_password_exempt` (admin boleh password lokal). Password Keycloak tidak diubah; password lokal Odoo baru diserahkan ke user. Login lokal → `/expomedia/landing` → `cp.staging/dashboard/quotation` (diuji). |
 
-## 3. Menunggu DNS (user)
+## 3. DNS + alias Demo (SELESAI 2026-09-30)
 
 Di panel DNS `expomedia.id`, tanpa AAAA:
 
@@ -38,8 +38,12 @@ Setelah `dns_precheck` lulus (1.1.1.1 & 8.8.8.8):
    `provision-odoo-sso.sh expomedia staging --host expomedia-erp.staging.bimacreative.tech --host demo-erp.expomedia.id`;
    `web.base.url` → `https://demo-erp.expomedia.id`; `DASHBOARD_ODOO_URLS` staging → `demo-erp`.
    **Jangan** buat router sebelum DNS resolve (ACME HTTP-01 gagal berulang → rate limit LE).
+   File di `dynamic/clients/` tidak di-watch → setelah menaruh file manual: `docker exec traefik kill -HUP 1`.
 
-## 4. Prod (BELUM — butuh izin deploy produksi eksplisit)
+Hasil: zona serial `2026093001`; `demo-erp` LE (YE1, s/d 2026-12-29), `/web/login` 200, `/web/database` 403; SSO
+`odoo-expomedia-staging` redirect URI dua host; `web.base.url` staging = `https://demo-erp.expomedia.id`.
+
+## 4. Prod (SELESAI 2026-09-30, izin user eksplisit)
 
 Plan 14 §5 dengan host **erp.expomedia.id** dan modul `cl_expomedia_web`:
 1. `restic-backup.service`.
@@ -53,6 +57,20 @@ Plan 14 §5 dengan host **erp.expomedia.id** dan modul `cl_expomedia_web`:
 5. control-plane prod: merge `feat/quotation-tracker` (berisi `feat/lead-spk-dashboard`) → main, tag v0.4.0, backup
    `control_plane`, `.env.datamart` (`DATAMART_ENV=prod`), `DASHBOARD_ODOO_URLS=expomedia=https://erp.expomedia.id`.
 6. Rollback: plan 14 §5.7 (+ uninstall `cl_expomedia_web` bila perlu; hook tidak menghapus logo company).
+
+### Hasil prod
+
+| Langkah | Bukti |
+|---|---|
+| Backup | restic 2026-09-30 14:55 WIB, semua DB ok, snapshot `f392a23e`; dump `control_plane` pra-v0.4.0 di scratchpad sesi |
+| Pool-a | submodule `platform` v19.0.1.1.1 + `clients/expomedia` v19.0.2.1.0, `addons_path`/`PYTHONPATH`/pylib (6 paket); recreate → healthy, `demo.erp…/web/login` 200 |
+| Tenant | `expomedia_prod` (`provision-odoo-db.sh --host erp.expomedia.id`, admin secret `odoo/pool-a/secrets/tenants/expomedia_prod.admin-password`); route `expomedia-prod.yml` LE s/d 2026-12-29; SSO provider 4 realm `platform` (Odoo.com off, signup b2b) |
+| Modul | 195 = set staging (0 selisih); ERROR tunggal = bug `custom_pdp` duplikat klasifikasi (dikenal, non-fatal) |
+| Konfigurasi | company PT Expomedia Indo Karya (Kota Tangerang, BT, IDR, id_ID), COA `id_psak` (60 akun, 5 pajak, income 41000; generic_coa diganti — belum ada jurnal), `custom_ai.enabled=False`, vertical BOOTH/EVENT/ACTIVATION, `configure_standard.py`. **NPWP tidak diisi** (staging memakai placeholder). Tanpa data mockup. |
+| User | Keycloak `platform` SUDAH ADA: username `ademaryadi` (Stefanus Ade Maryadi, OTP aktif, control-plane `superadmin`) → + role `odoo_access`; res.users 5 `am.ademaryadi@gmail.com` admin semua modul + Dashboard, tertaut (oauth_uid = id Keycloak), `sh_oidc_password_exempt`. `odoo-sso-user.sh` tidak dipakai (mencari username = email). |
+| control-plane | main `c4c1051` (merge `feat/quotation-tracker`), tag v0.4.0 (lokal, belum di-push), `.env.datamart` DATAMART_ENV=prod, `DASHBOARD_ODOO_URLS=expomedia=https://erp.expomedia.id`; healthy |
+| Data mart | `raw_expomedia_prod` ter-ingest, 21/21 PASS, `mart_user_access` prod berisi user ini (nilai=ya) |
+| E2E | login lokal prod → `/expomedia/landing` → `https://cp.bimacreative.tech/dashboard/quotation`; Demo → cp.staging |
 
 ## 5. Catatan
 
