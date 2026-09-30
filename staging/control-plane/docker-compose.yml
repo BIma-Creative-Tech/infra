@@ -8,7 +8,7 @@ name: staging-control-plane
 x-hardening: &hardening
   # Tag pin (short SHA commit main repo control-plane). Override sementara:
   #   CONTROL_PLANE_TAG=<tag> docker compose up -d
-  image: control-plane:${CONTROL_PLANE_TAG:-cb5e8a1}   # Quotation Tracker + lead CRM & supply chain (plan 16, 2026-09-30; rollback eb5ab2d — tanpa migrasi baru)
+  image: control-plane:${CONTROL_PLANE_TAG:-4309281}   # v0.5.0 Quotation Tracker + lead CRM & supply chain (plan 16, 2026-09-30; rollback eb5ab2d — tanpa migrasi baru)
   env_file:
     - .env
   user: "1001:1001"

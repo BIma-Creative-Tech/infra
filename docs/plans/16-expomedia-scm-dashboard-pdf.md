@@ -1,6 +1,6 @@
 # Plan 16 — Expomedia: modul tak terpakai dicabut, supply chain per SPK, dashboard real-time, PDF bermerek
 
-Status 2026-09-30: **STAGING SELESAI**; prod: PMO sudah dicabut, sisanya menunggu izin (§7). Kelanjutan plan 13/14/15.
+Status 2026-09-30: **STAGING & PROD SELESAI** (§6, §7). Kelanjutan plan 13/14/15.
 
 ## 1. Permintaan user (2026-09-30)
 
@@ -16,8 +16,8 @@ Status 2026-09-30: **STAGING SELESAI**; prod: PMO sudah dicabut, sisanya menungg
 | Modul | Alasan | Staging | Prod |
 |---|---|---|---|
 | `custom_project_portfolio` (PMO) | Tidak dipakai; stage/SLA bentrok dengan template Booth/Event | uninstall ✔ | uninstall ✔ |
-| `point_of_sale` + `pos_hr pos_mrp pos_sale pos_online_payment spreadsheet_dashboard_pos_hr` | Tidak dipakai (0 POS order) | uninstall ✔ | **menunggu** (§7) |
-| `custom_operating_unit` | Depends wajib ke `point_of_sale`; 0 operating unit. Workshop = `stock.warehouse` (mis. `Workshop Benda`/WS) | uninstall ✔ | **menunggu** (§7) |
+| `point_of_sale` + `pos_hr pos_mrp pos_sale pos_online_payment spreadsheet_dashboard_pos_hr` | Tidak dipakai (0 POS order) | uninstall ✔ | uninstall ✔ |
+| `custom_operating_unit` | Depends wajib ke `point_of_sale`; 0 operating unit. Workshop = `stock.warehouse` (mis. `Workshop Benda`/WS) | uninstall ✔ | uninstall ✔ |
 
 Backup sebelum uninstall: `pg_dump -Fc` di scratchpad sesi (600).
 
@@ -64,16 +64,18 @@ setiap install/upgrade; `uninstall_hook` memulihkan template `custom_report_temp
 | Data mart | ingest + dbt 30/30 PASS (timer 20:05, 20:35, 21:05); mart: 454 SPK berpengadaan, 450 terkirim, biaya material Rp 7,0 M, hutang vendor Rp 2,4 M |
 | control-plane | `feat/tracker-crm-scm` `cb5e8a1`: 328 unit test, tsc, eslint lulus; image `control-plane:cb5e8a1` di cp.staging (healthy; rollback `eb5ab2d`, tanpa migrasi) |
 
-Belum: timer 2 menit (role sudah diubah, `--check --diff` bersih) — `ansible-playbook … --tags datamart_refresh`
-ditolak auto mode; skrip baru kompatibel dengan timer 30 menit yang masih aktif. BAST otomatis per SPK ditunda.
-DB uji `rpttest_staging` boleh di-drop.
+| BAST | importer `handover()`: 540 BAST draft per lokasi (tahap BAST); PDF BAST Expomedia (`cl_expomedia_report` 19.0.1.1.0, addons `v19.0.2.4.0`), 7/7 tes |
+| Real-time | timer tiap 2 menit diterapkan (Ansible); run `skip` bila sidik jari sama. Uji: lead baru di CRM staging → muncul di `mart.mart_lead` **41 detik** kemudian (lead uji dihapus) |
 
-## 7. Prod (menunggu izin eksplisit — aksi prod ditolak auto mode)
+DB uji `rpttest_staging` sudah di-drop.
 
-1. `pg_dump -Fc expomedia_prod` → uninstall POS (+OU) dengan skrip yang sama (`button_immediate_uninstall` pada
-   `point_of_sale`), cek daftar modul tercabut = 7.
-2. Pool-a: submodule `odoo/pool-a/addons/clients/expomedia` → `v19.0.2.3.0`; `-i cl_expomedia_report -u cl_expomedia_web`;
-   `tools/run-odoo-script.sh odoo-pool-a expomedia_prod tools/configure_standard.py` (FG-BOOTH; pricelist sudah IDR).
-3. control-plane prod: merge `feat/tracker-crm-scm` → main, tag v0.5.0, image SHA main, `docker compose up -d`
-   (data mart prod sudah punya tabel baru — ingest tenant `expomedia:prod` jalan tiap refresh).
-4. Timer: `cd /opt/infra/ansible && /opt/ansible-venv/bin/ansible-playbook site.yml --tags datamart_refresh`.
+## 7. Prod (SELESAI 2026-09-30, setelah user keluar dari auto mode)
+
+| Langkah | Bukti |
+|---|---|
+| Backup | `pg_dump` `expomedia_prod` pra-uninstall PMO & pra-uninstall POS, `control_plane` pra-v0.5.0 (scratchpad sesi, 600) |
+| Modul | PMO lalu POS + OU (7 modul) di-uninstall; 187 modul → + `cl_expomedia_report`; `/web/login` 200 |
+| Addons | submodule `odoo/pool-a/addons/clients/expomedia` → `v19.0.2.4.0`; `-i cl_expomedia_report -u cl_expomedia_web`; 9 action Print terarah |
+| Konfigurasi | `configure_standard.py`: FG-BOOTH dibuat, pricelist sudah IDR. Uji render Penawaran dalam transaksi rollback: judul Indonesia, Rp, logo; counter PNW dikembalikan ke 1 (sequence standar tidak ikut rollback) |
+| control-plane | main `4309281` (merge `feat/tracker-crm-scm` + rilis), tag annotated **v0.5.0**, image `control-plane:4309281` di prod & staging (healthy; rollback prod `c4c1051`, staging `eb5ab2d`, tanpa migrasi) |
+| Data mart | tenant `expomedia:prod` ter-ingest dengan tabel baru; dbt PASS |

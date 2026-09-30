@@ -11,7 +11,7 @@ name: web-control-plane
 x-hardening: &hardening
   # Tag pin (short SHA commit main repo control-plane). Override sementara untuk rollback:
   #   CONTROL_PLANE_TAG=<tag-lama> docker compose up -d   (lihat docs)
-  image: control-plane:${CONTROL_PLANE_TAG:-c4c1051}   # v0.4.0 dashboard SPK + Quotation Tracker (plan 14/15, 2026-09-30; rollback 6d94d2b — tanpa migrasi baru)
+  image: control-plane:${CONTROL_PLANE_TAG:-4309281}   # v0.5.0 Quotation Tracker lead CRM & supply chain (plan 16, 2026-09-30; rollback c4c1051 — tanpa migrasi baru)
   env_file:
     - .env
   user: "1001:1001"
