@@ -21,3 +21,17 @@ CREATE TABLE IF NOT EXISTS {{schema}}.employee (id int PRIMARY KEY, name text);
 CREATE TABLE IF NOT EXISTS {{schema}}.partner (id int PRIMARY KEY, name text, parent_id int, is_company boolean);
 CREATE TABLE IF NOT EXISTS {{schema}}.odoo_user (id int PRIMARY KEY, name text, login text, keycloak_sub text,
   active boolean, can_see_value boolean, is_project_user boolean, is_ae boolean);
+-- plan 16: CRM + SCM (pengadaan, logistik, produksi, tagihan vendor) per SPK.
+CREATE TABLE IF NOT EXISTS {{schema}}.crm_lead (id int PRIMARY KEY, name text, type text, stage text, status text,
+  user_id int, partner_id int, expected_revenue numeric, create_date timestamp, date_closed timestamp, so_id int,
+  is_mockup boolean, write_date timestamp);
+CREATE TABLE IF NOT EXISTS {{schema}}.purchase_order (id int PRIMARY KEY, name text, state text, date_approve timestamp,
+  date_planned timestamp, vendor text, so_id int, amount_untaxed numeric, amount_total numeric, receipt_status text,
+  invoice_status text, effective_date timestamp, write_date timestamp);
+CREATE TABLE IF NOT EXISTS {{schema}}.stock_picking (id int PRIMARY KEY, name text, picking_type text, state text,
+  origin text, scheduled_date timestamp, date_done timestamp, so_id int, purchase_id int, write_date timestamp);
+CREATE TABLE IF NOT EXISTS {{schema}}.mrp_production (id int PRIMARY KEY, name text, state text, origin text,
+  product_qty numeric, date_start timestamp, date_finished timestamp, so_id int, write_date timestamp);
+CREATE TABLE IF NOT EXISTS {{schema}}.vendor_bill (id int, purchase_id int, name text, state text, move_type text,
+  invoice_date date, amount_untaxed numeric, amount_total numeric, amount_residual numeric, payment_state text,
+  PRIMARY KEY (id, purchase_id));

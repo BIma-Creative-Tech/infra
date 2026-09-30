@@ -169,7 +169,8 @@ Gap kecil: jenis kegiatan terstruktur (Loading/Unloading/…) → field selectio
 | `custom_spk_workforce` (`custom.spk.attendance`, `work.log`, alokasi) | **Pensiun untuk biaya SPK** | Model paralel timesheet; alokasi tenaga tetap bulanan [A] bisa dievaluasi nanti |
 | `custom_spk_delivery` | Hold; kandidat jembatan G6 | Punya loading/instalasi/dismantle/BAST per venue (`custom_spk_delivery/models/custom_spk_delivery.py:48-91`) yang CE tidak punya, tetapi terikat `custom.spk` |
 | `custom_spk_estimation`, `_costing`, `_material`, `_change_order`, `_survey`, `_shopfloor` | Hold (fase berikut) | Semua terikat `custom.spk`, bukan SO [V] |
-| `custom_project_portfolio` | Tidak dipakai untuk Expomedia [A] | Stage/SLA sendiri di `project.task.type` bisa bentrok dengan template |
+| `custom_project_portfolio` | **Uninstall** (plan 16, 2026-09-30) | Stage/SLA sendiri di `project.task.type` bisa bentrok dengan template; PMO bukan kebutuhan client |
+| `custom_operating_unit` (+ `point_of_sale`) | **Uninstall** (plan 16) | Depends wajib ke POS yang tidak dipakai. "Workshop center yang terbagi" = `stock.warehouse` per workshop (standar), bukan operating unit/cabang |
 | `custom_field_service` | Tidak dipakai | `fsm.work.order` paralel, tanpa link task/SO [V] |
 | `custom_planning` | Tidak dipakai (sekarang) | `planning.slot` tanpa link project/task [V] |
 | `custom_dashboards` | Opsional | Tile KPI generik; fence tetap dari ACL |

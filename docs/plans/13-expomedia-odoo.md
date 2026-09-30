@@ -26,6 +26,10 @@ custom_documents custom_quality_full custom_product_barcode custom_barcode custo
 custom_object_storage custom_operating_unit` (+ dependensi: core, pdp, pdp_audit, ai_bridge, home_console, approval_engine,
 bast, coretax, coretax_bupot, pph_witholding, tax_id, accounting_full/asset/recurring). Python: `httpx`, `xmlschema` via pylib.
 
+> **Plan 16 (2026-09-30):** `custom_project_portfolio` (PMO) dan `custom_operating_unit` (+ `point_of_sale` & turunan
+> POS yang menjadi dependensinya) **dicabut** — tidak dipakai Expomedia. Workshop yang terbagi = `stock.warehouse` per
+> workshop, bukan operating unit/cabang. Jangan dipasang ulang untuk tenant ini.
+
 Selisih dengan tenant lama: `custom_athera_sso` tidak dipasang; tambahan di luar dokumen owner yang tetap dipasang:
 `custom_doc_numbering`, `custom_project_portfolio`, `custom_hr_leave_id`, `custom_petty_cash`, `custom_accounting_menu`
 (+asset/recurring), `custom_account_ee_features`, `l10n_id_psak_custom`.

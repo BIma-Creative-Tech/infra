@@ -1,4 +1,4 @@
--- depends_on: {{ ref("mart_spk") }} {{ ref("mart_spk_location") }} {{ ref("mart_spk_activity") }} {{ ref("mart_user_access") }} {{ ref("mart_spk_invoice") }} {{ ref("mart_spk_payment") }}
+-- depends_on: {{ ref("mart_spk") }} {{ ref("mart_spk_location") }} {{ ref("mart_spk_activity") }} {{ ref("mart_user_access") }} {{ ref("mart_spk_invoice") }} {{ ref("mart_spk_payment") }} {{ ref("mart_lead") }} {{ ref("mart_spk_scm") }}
 -- Gagal bila ada tabel di schema mart tanpa RLS aktif atau tanpa policy client_isolation (ADR 0016 #3).
 SELECT c.relname FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
 WHERE n.nspname = 'mart' AND c.relkind = 'r'

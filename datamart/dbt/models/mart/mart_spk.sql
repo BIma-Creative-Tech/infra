@@ -13,6 +13,15 @@ WITH loc AS (
   UNION ALL
   SELECT client_slug, env, so_id, stage_updated_at, 'Tahap ' || stage || ': ' || location
   FROM {{ ref('mart_spk_location') }} WHERE stage_updated_at IS NOT NULL
+  UNION ALL
+  -- plan 16: dokumen supply chain selesai/terbit menjadi status terakhir SPK
+  SELECT client_slug, env, so_id, doc_date,
+         CASE kind WHEN 'po' THEN 'PO ' || doc_no || coalesce(' · ' || party, '')
+                   WHEN 'receipt' THEN 'Material diterima ' || doc_no
+                   WHEN 'mo' THEN 'Produksi ' || doc_no || CASE WHEN state = 'done' THEN ' selesai' ELSE ' berjalan' END
+                   WHEN 'delivery' THEN 'Surat jalan ' || doc_no || CASE WHEN state = 'done' THEN ' terkirim' ELSE '' END
+                   ELSE 'Tagihan vendor ' || doc_no END
+  FROM {{ ref('mart_spk_scm') }} WHERE doc_date IS NOT NULL AND (kind IN ('po', 'bill') OR state = 'done')
 ), last_event AS (
   SELECT DISTINCT ON (client_slug, env, so_id) client_slug, env, so_id, at, label
   FROM events ORDER BY client_slug, env, so_id, at DESC
@@ -32,6 +41,22 @@ WITH loc AS (
          min(invoice_date_due) FILTER (WHERE state = 'posted' AND amount_residual > 0) AS next_due_date,
          coalesce(sum(amount_residual) FILTER (WHERE is_overdue), 0) AS overdue
   FROM {{ ref('mart_spk_invoice') }} GROUP BY 1, 2, 3
+), scm AS (
+  SELECT client_slug, env, so_id,
+         count(*) FILTER (WHERE kind = 'po') AS po_count,
+         coalesce(sum(amount) FILTER (WHERE kind = 'po'), 0) AS po_amount,
+         count(*) FILTER (WHERE kind = 'receipt') AS receipt_count,
+         count(*) FILTER (WHERE kind = 'receipt' AND state = 'done') AS receipt_done,
+         count(*) FILTER (WHERE kind = 'mo') AS mo_count,
+         count(*) FILTER (WHERE kind = 'mo' AND state = 'done') AS mo_done,
+         count(*) FILTER (WHERE kind = 'delivery') AS delivery_count,
+         count(*) FILTER (WHERE kind = 'delivery' AND state = 'done') AS delivery_done,
+         coalesce(sum(amount) FILTER (WHERE kind = 'bill' AND state = 'posted'), 0) AS bill_amount,
+         coalesce(sum(amount_paid) FILTER (WHERE kind = 'bill' AND state = 'posted'), 0) AS bill_paid
+  FROM {{ ref('mart_spk_scm') }} GROUP BY 1, 2, 3
+), lead_first AS (
+  SELECT client_slug, env, so_id, min(id) AS lead_id, min(create_date) AS lead_date
+  FROM {{ ref('stg_crm_lead') }} WHERE so_id IS NOT NULL GROUP BY 1, 2, 3
 ), pay AS (
   SELECT client_slug, env, so_id, count(DISTINCT payment_id) AS payment_count, max(date) AS last_payment_date
   FROM {{ ref('mart_spk_payment') }} GROUP BY 1, 2, 3
@@ -55,7 +80,14 @@ SELECT so.client_slug, so.env, so.id AS so_id,
             ELSE 'spk' END AS tracker_stage,
        coalesce(ivd.invoice_count, 0) AS invoice_count, ivd.next_due_date, coalesce(ivd.overdue, 0) AS overdue,
        coalesce(pay.payment_count, 0) AS payment_count, pay.last_payment_date,
-       so.is_mockup, now() AS refreshed_at
+       so.is_mockup, now() AS refreshed_at,
+       -- plan 16: CRM + supply chain (biaya material = PO; nilai hanya dipilih app untuk grup sales)
+       ld.lead_id, ld.lead_date,
+       coalesce(scm.po_count, 0) AS po_count, coalesce(scm.po_amount, 0) AS material_cost,
+       coalesce(scm.receipt_count, 0) AS receipt_count, coalesce(scm.receipt_done, 0) AS receipt_done,
+       coalesce(scm.mo_count, 0) AS mo_count, coalesce(scm.mo_done, 0) AS mo_done,
+       coalesce(scm.delivery_count, 0) AS delivery_count, coalesce(scm.delivery_done, 0) AS delivery_done,
+       coalesce(scm.bill_amount, 0) AS vendor_billed, coalesce(scm.bill_paid, 0) AS vendor_paid
 FROM {{ ref('stg_sale_order') }} so
 LEFT JOIN {{ ref('stg_partner') }} grp ON grp.client_slug = so.client_slug AND grp.env = so.env AND grp.id = so.partner_invoice_id
 LEFT JOIN {{ ref('stg_partner') }} brand ON brand.client_slug = so.client_slug AND brand.env = so.env AND brand.id = so.partner_id
@@ -66,4 +98,6 @@ LEFT JOIN last_event le ON le.client_slug = so.client_slug AND le.env = so.env A
 LEFT JOIN people pp ON pp.client_slug = so.client_slug AND pp.env = so.env AND pp.so_id = so.id
 LEFT JOIN inv ON inv.client_slug = so.client_slug AND inv.env = so.env AND inv.so_id = so.id
 LEFT JOIN inv_detail ivd ON ivd.client_slug = so.client_slug AND ivd.env = so.env AND ivd.so_id = so.id
+LEFT JOIN scm ON scm.client_slug = so.client_slug AND scm.env = so.env AND scm.so_id = so.id
+LEFT JOIN lead_first ld ON ld.client_slug = so.client_slug AND ld.env = so.env AND ld.so_id = so.id
 LEFT JOIN pay ON pay.client_slug = so.client_slug AND pay.env = so.env AND pay.so_id = so.id
