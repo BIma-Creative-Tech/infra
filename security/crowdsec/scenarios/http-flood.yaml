@@ -1,0 +1,23 @@
+# 2026-10-01 (keputusan user) — ban berbasis frekuensi: >1000 request/menit dari satu IP ke host mana pun di Traefik.
+# Kalibrasi access log 23 Sep–1 Okt: puncak pengguna Odoo asli 109 req/menit (82 dalam 10 dtk saat muat halaman);
+# satu-satunya IP kantor di atas 1000/menit = loop `/karier` tambang.staging 26 Sep (situs dihapus 1 Okt).
+# Ambang ±10× puncak manusia agar NAT Wi-Fi kantor (banyak user satu IP) tetap aman.
+# MULAI DALAM SIMULASI (simulation.yaml): alert tercatat (`cscli alerts list -s infra/http-flood`) tanpa ban.
+# Lepas simulasi setelah beberapa hari tanpa alert pada IP sah. Durasi ban = profil `soft_ip_remediation`.
+type: leaky
+name: infra/http-flood
+description: "Lebih dari 1000 request HTTP/menit dari satu IP"
+filter: "evt.Meta.service == 'http' && evt.Meta.log_type == 'http_access-log'"
+groupby: evt.Meta.source_ip
+capacity: 1000       # overflow pada request ke-1001
+leakspeed: "60ms"    # 1000 token bocor / menit
+blackhole: 5m
+labels:
+  confidence: 2
+  spoofable: 0
+  classification:
+    - attack.T1498
+  behavior: "http:dos"
+  label: "HTTP Flood"
+  service: http
+  remediation: true

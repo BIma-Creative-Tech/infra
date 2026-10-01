@@ -1,0 +1,12 @@
+# 2026-10-01 (keputusan user, kebijakan ban berbasis perilaku). Di-mount ro ke /etc/crowdsec/simulation.yaml →
+# `cscli simulation enable/disable` tidak bisa dipakai; ubah file ini lalu `docker exec crowdsec kill -HUP 1`.
+# simulation: false + exclusions = HANYA skenario di bawah yang disimulasikan (alert tercatat, decision tidak ditegakkan).
+simulation: false
+exclusions:
+  # Menghitung ulang 403 yang dibuat WAF sendiri (POST 403 ×6/10 dtk) → ban ganda atas satu false positive
+  # (IP kantor, 1 Okt 07:05). Odoo tidak memakai 403 untuk login gagal.
+  - LePresidente/http-generic-403-bf
+  # Diganti infra/appsec-block-burst (ambang >30 blok/menit).
+  - crowdsecurity/appsec-native
+  # Skenario baru — observasi dulu sebelum ditegakkan.
+  - infra/http-flood

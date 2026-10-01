@@ -1,0 +1,22 @@
+# 2026-10-01 (keputusan user, kebijakan ban berbasis perilaku) — PENGGANTI ban dari crowdsecurity/appsec-native
+# (hub: capacity 3, leakspeed 30s → 4 blok WAF dalam ±1,5 menit = ban). False positive CRS pada pengguna Odoo
+# asli memuncak ±5 blok/menit (IP kantor, 1 Okt), scanner 52–210 blok/menit (access log Traefik 23 Sep–1 Okt).
+# Blok in-band (403 per request) TIDAK berubah — skenario ini hanya menentukan kapan IP di-ban.
+# appsec-native disimulasikan di simulation.yaml. Durasi ban = profil `soft_ip_remediation` (profiles.yaml).
+type: leaky
+name: infra/appsec-block-burst
+description: "Burst blok WAF (CRS native rule) >30/menit dari satu IP"
+filter: "evt.Meta.log_type == 'appsec-block' && evt.Meta.rule_name startsWith 'native_rule'"
+groupby: evt.Meta.source_ip
+capacity: 30         # overflow pada blok ke-31
+leakspeed: "2s"      # 30 token bocor / menit
+blackhole: 1m
+labels:
+  confidence: 2
+  spoofable: 0
+  classification:
+    - attack.T1595
+  behavior: "http:exploit"
+  label: "WAF Block Burst"
+  service: http
+  remediation: true

@@ -1,6 +1,8 @@
 # Plan 09 — Website company profile client pertambangan (`web-tambang`, demo staging)
 
-- Status: **STAGING LIVE 2026-09-26** — `https://tambang.staging.bimacreative.tech`, image lokal `web-tambang:dev-59dcd4c`
+- Status: **DIHAPUS 2026-10-01** (keputusan user: `provision-web-client.sh tambang staging --remove`; router & container
+  dihapus, render dir + `.env` + image `web-tambang:dev-59dcd4c` + repo tetap ada → hidupkan lagi dengan provision ulang).
+  Sebelumnya: **STAGING LIVE 2026-09-26** — `https://tambang.staging.bimacreative.tech`, image lokal `web-tambang:dev-59dcd4c`
   (repo `/opt/src/web-tambang` main `59dcd4c`, 117 test lulus). Lighthouse mobile (12.8.2, 6 halaman): perf 86–94, A11y 100, BP 100,
   SEO 66–69 **hanya** karena `noindex` staging (audit is-crawlable, disengaja); CLS 0. RAM idle ±69 MiB.
   Sertifikat sempat gagal (CAA accounturi tidak cocok akun ACME baru; ditangani infra Lead, CAA di-unpin 2026-09-26).
