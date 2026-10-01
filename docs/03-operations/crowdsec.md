@@ -265,7 +265,8 @@ Efek: Traefik ≤ 30 s (sinkron stream), nftables ≤ 10 s (`update_frequency`).
 
 - Firewall host menerapkan decision ban **kecuali** yang scenario-nya mengandung `crowdsecurity/appsec-`
   (`appsec-native`, `appsec-vpatch`, `appsec-generic-test`). Blocklist CAPI (scenario `http:scan`), sshd, `http-*`
-  (dari access log Traefik), mail, dan decision manual `cscli` tetap host-wide.
+  (dari access log Traefik), mail, dan decision manual `cscli` tetap host-wide. **Sejak 2026-10-01** skenario HTTP
+  tingkat soft juga dikecualikan — lihat §Kebijakan ban berbasis perilaku.
 - Bouncer Traefik (plugin) tetap menerapkan **semua** decision termasuk AppSec → IP yang memicu WAF tetap 403 di HTTP
   selama ban, tetapi SSH 2221/mail tidak terputus.
 - Mekanisme: `scenarios_not_containing` di `crowdsec-firewall-bouncer.yaml.local` (var Ansible
@@ -278,6 +279,39 @@ Efek: Traefik ≤ 30 s (sinkron stream), nftables ≤ 10 s (`update_frequency`).
   dihapus → set kosong. (`cscli decisions add` tidak punya `--scenario`; `--reason` disimpan di kolom `scenario`.)
 - Restart otomatis: unit paket sudah `Restart=always` + `RestartSec=10` (bouncer keluar fatal bila LAPI belum siap lalu
   pulih sendiri). Role memeriksa `Restart` ∈ {always, on-failure}; drop-in `on-failure` sengaja tidak dipasang (lebih sempit).
+
+### Kebijakan ban berbasis perilaku (keputusan user 2026-10-01)
+
+Latar: IP kantor Expomedia (dinamis: seluler + Wi-Fi kantor → allowlist tidak praktis) ter-ban 4 jam karena false positive
+CRS di Odoo (`appsec-native`, lalu `LePresidente/http-generic-403-bf` menghitung ulang 403 buatan WAF). Prinsip baru: ban
+ditentukan oleh **apa** yang dilakukan + **seberapa sering**; blok WAF per request (403 in-band) tidak berubah.
+Kalibrasi access log 23 Sep–1 Okt: pengguna Odoo asli puncak 109 req/menit & ±5 blok WAF/menit; scanner 52–210 blok
+WAF/menit (tetapi sering hanya ±50 req/menit — tertangkap oleh *apa* yang diakses, bukan laju).
+
+| Tingkat | Skenario | Durasi (profil) | Firewall host |
+|---|---|---|---|
+| 1 hard | `http-sensitive-files`, `http-admin-interface-probing`, `http-cve-probing`, `http-bad-user-agent`, vpatch, `ssh-bf`, CAPI, dll. | 4h, +4h per ulang dalam 7 hari, maks 24h (`default_ip_remediation`) | ya |
+| 2 soft | `infra/appsec-block-burst` (>30 blok WAF/menit), `infra/http-flood` (>1000 req/menit), `http-probing`, `http-crawl-non_statics` | 15m → 1h → 4h (ulang dalam 24 jam, `soft_ip_remediation`) | **tidak** (hanya Traefik) |
+| 2 soft (mail) | `dovecot-spam`, `infra/mail-postfix-sasl-bf` | 15m → 1h → 4h | ya (port mail tidak lewat Traefik) |
+| simulasi | `crowdsecurity/appsec-native`, `LePresidente/http-generic-403-bf`, `infra/http-flood` | alert saja | — |
+
+File (git, di-mount ro sejak recreate berikutnya; penerapan pertama = salinan ke `data/config` + HUP):
+`security/crowdsec/profiles.yaml`, `simulation.yaml`, `scenarios/appsec-block-burst.yaml`, `scenarios/http-flood.yaml`;
+filter firewall = `crowdsec_fw_bouncer_scenarios_not_containing` (ansible `group_vars/all.yml`, host file disamakan manual).
+Karena di-mount ro, `cscli simulation enable/disable` tidak dipakai — ubah `simulation.yaml` → `kill -HUP 1`.
+
+Uji 2026-10-01: `crowdsec -t` di container sementara (salinan config+db) lolos; kontrol negatif (nama fungsi salah di
+`duration_expr`) → `fatal … failed to compile profiles`. Alert sintetis via LAPI `POST /v1/alerts` (TEST-NET):
+`http-probing` ×3 → 15m / 1h / 4h; `http-sensitive-files` ×2 → 4h / 8h. Firewall: `decisions add -R crowdsecurity/http-probing`
+→ tidak ada di `nft list table ip crowdsec`; `-R crowdsecurity/http-sensitive-files` → ada. Reload HUP: 403 ±10 dtk.
+
+Tindak lanjut: tinjau `cscli alerts list -s infra/http-flood` (simulasi) beberapa hari; bila tidak ada IP sah, hapus
+`infra/http-flood` dari `simulation.yaml`.
+
+> **JANGAN** bersihkan data uji dengan `cscli alerts delete --ip <ip>`: di v1.8.1 perintah itu juga menghapus alert
+> agregat blocklist komunitas/lists (tanpa IP sumber) beserta seluruh decision-nya (insiden 2026-10-01 11:49 UTC: 85 alert
+> CAPI/lists terhapus, blocklist kosong sampai pull berikutnya ±2 jam; alert lokal utuh). Pakai `cscli decisions delete --ip`
+> saja; alert uji yang tersisa tidak berbahaya. Blocklist komunitas diganti penuh tiap pull (`added 15000, deleted ~14950`).
 
 ### Terkunci dari SSH (IP admin ter-ban)
 Firewall bouncer menerapkan decision ban (kecuali AppSec, H6), termasuk blocklist komunitas (CAPI) dan skenario sshd.

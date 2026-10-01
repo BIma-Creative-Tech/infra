@@ -59,6 +59,13 @@ services:
       # T11: skenario lokal brute force SASL submission (infra/mail-postfix-sasl-bf). Log mail dibaca lewat
       # /var/log/host/mailserver/dms/ (mount /var/log di bawah) — acquis.d/mail.yaml.
       - ./scenarios/mail-postfix-sasl-bf.yaml:/etc/crowdsec/scenarios/mail-postfix-sasl-bf.yaml:ro
+      # 2026-10-01 kebijakan ban berbasis perilaku (docs/03-operations/crowdsec.md §Kebijakan ban): skenario lokal
+      # burst WAF & banjir request, durasi bertingkat, simulasi. Diterapkan pertama kali lewat salinan ke data/config + HUP
+      # (tanpa recreate); mount ini membuat git sumber kebenaran sejak recreate berikutnya (isi identik).
+      - ./scenarios/appsec-block-burst.yaml:/etc/crowdsec/scenarios/appsec-block-burst.yaml:ro
+      - ./scenarios/http-flood.yaml:/etc/crowdsec/scenarios/http-flood.yaml:ro
+      - ./profiles.yaml:/etc/crowdsec/profiles.yaml:ro
+      - ./simulation.yaml:/etc/crowdsec/simulation.yaml:ro
       - ../../traefik/logs:/var/log/traefik:ro
       - /var/log:/var/log/host:ro
     read_only: true

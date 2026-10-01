@@ -109,8 +109,16 @@ crowdsec_fw_bouncer_key_file: /etc/crowdsec/bouncers/crowdsec-firewall-bouncer.k
 # StreamBouncer; crowdsec v1.8.1 pkg/database/decisionfilter.go = NOT(scenario ILIKE %v% OR ...)).
 # `crowdsecurity/appsec-` = appsec-native, appsec-vpatch, appsec-generic-test. CAPI (`http:scan`), sshd,
 # http-* & mail tetap diterapkan host-wide.
+# 2026-10-01 (keputusan user, kebijakan ban berbasis perilaku): skenario HTTP tingkat soft (bisa mengenai pengguna sah)
+# juga hanya ditegakkan bouncer Traefik — firewall host (SSH 2221, mail) hanya untuk perilaku jelas jahat. Mail
+# (dovecot-spam, infra/mail-postfix-sasl-bf) TETAP di firewall karena port mail tidak lewat Traefik.
 crowdsec_fw_bouncer_scenarios_not_containing:
   - crowdsecurity/appsec-
+  - infra/appsec-block-burst
+  - infra/http-flood
+  - crowdsecurity/http-probing
+  - crowdsecurity/http-crawl-non_statics
+  - LePresidente/http-generic-403-bf
 
 # ---------------------------------------------------------------------------
 # Backup restic (T13, ADR 0006). Binary resmi GitHub release v0.19.1 (2026-07-05):

@@ -1,0 +1,49 @@
+# 2026-10-01 (keputusan user) — durasi ban bertingkat. Di-mount ro ke /etc/crowdsec/profiles.yaml; ubah file ini lalu
+# `docker exec crowdsec kill -HUP 1`. Basis: profil default paket (ban 4h IP/Range).
+#
+# Tingkat 2 (soft): skenario yang bisa mengenai pengguna sah (salah deteksi WAF, 404 beruntun, password mail lama di HP,
+# banjir request dari bug halaman) → 15 menit, ulang dalam 24 jam → 1 jam, ulang ke-3+ → 4 jam.
+# Tingkat 1 (hard, profil default): perilaku yang tidak pernah dilakukan pengguna (.env/.git, wp-admin, CVE, virtual
+# patching, ssh-bf, user-agent scanner, CAPI) → 4 jam, naik 4 jam per pengulangan dalam 7 hari, maks 24 jam.
+# Firewall host hanya menegakkan soft-tier mail (dovecot/postfix); soft-tier HTTP dikecualikan di
+# ansible group_vars crowdsec_fw_bouncer_scenarios_not_containing (bouncer Traefik tetap menegakkan semuanya).
+# GetDecisionsSinceCount menghitung decision lama untuk IP yang sama (termasuk yang sudah kedaluwarsa) sejak durasi tsb.
+name: soft_ip_remediation
+filters:
+  - >-
+    Alert.Remediation == true && Alert.GetScope() == "Ip" && Alert.GetScenario() in [
+      "infra/appsec-block-burst",
+      "infra/http-flood",
+      "crowdsecurity/appsec-native",
+      "LePresidente/http-generic-403-bf",
+      "crowdsecurity/http-probing",
+      "crowdsecurity/http-crawl-non_statics",
+      "crowdsecurity/dovecot-spam",
+      "infra/mail-postfix-sasl-bf"
+    ]
+decisions:
+  - type: ban
+    duration: 15m
+duration_expr: >-
+  GetDecisionsSinceCount(Alert.GetValue(), "24h") >= 2 ? "4h" :
+  (GetDecisionsSinceCount(Alert.GetValue(), "24h") == 1 ? "1h" : "15m")
+on_success: break
+---
+name: default_ip_remediation
+filters:
+  - Alert.Remediation == true && Alert.GetScope() == "Ip"
+decisions:
+  - type: ban
+    duration: 4h
+duration_expr: >-
+  Sprintf("%dh", GetDecisionsSinceCount(Alert.GetValue(), "168h") >= 5 ? 24 :
+  (GetDecisionsSinceCount(Alert.GetValue(), "168h") + 1) * 4)
+on_success: break
+---
+name: default_range_remediation
+filters:
+  - Alert.Remediation == true && Alert.GetScope() == "Range"
+decisions:
+  - type: ban
+    duration: 4h
+on_success: break
