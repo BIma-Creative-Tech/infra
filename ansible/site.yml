@@ -75,6 +75,8 @@
     # QA-T17B-02 / B18: ekspor HANYA sertifikat mail.* dari acme.json (unit path+timer). Butuh infra-unit-failure@ (healthcheck).
     #   --tags mail_tls_export (--check --diff dulu). Rollback: mail_tls_export_state=absent.
     - { role: mail_tls_export, tags: [mail_tls_export] }
+    # ADR 0016 / plan 14 — refresh data mart (ingest → dbt) tiap 2 menit bila ada perubahan (plan 16). Rollback: datamart_refresh_state=absent.
+    - { role: datamart_refresh, tags: [datamart_refresh] }
     # Plan 12 (ADR 0014): runner GitHub Actions ephemeral (sysbox) untuk bctech-adm/drms. Butuh role docker (bip/pool/
     #   runtime sysbox-runc) lebih dulu. --tags ci_runner_<task> (--check --diff dulu). Rollback: ci_runner_state=absent.
     - { role: ci_runner, tags: [ci_runner] }

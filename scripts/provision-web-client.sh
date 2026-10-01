@@ -5,6 +5,7 @@
 #       [--contact --smtp-host <fqdn> --smtp-user <email> --smtp-from <email> [--smtp-port <port>]
 #        [--turnstile-site-key <key>]]
 #       [--umami-script-url <https-url> --umami-website-id <uuid>]
+#       [--odoo-url <https-url>]   (hanya bersama --contact)
 #   scripts/provision-web-client.sh <slug> <prod|staging> --remove
 #
 # Urutan provision:
@@ -26,6 +27,9 @@
 # Analytics Umami (plan 11 §3.7, ADR 0013; default OFF): --umami-script-url + --umami-website-id BERPASANGAN → .env
 # UMAMI_SCRIPT_URL/UMAMI_WEBSITE_ID (bukan secret) + override docker-compose.umami.yml di COMPOSE_FILE. Tanpa flag → .env &
 # COMPOSE_FILE identik dengan sebelumnya (website tidak di-recreate).
+# Lead CRM Odoo (--odoo-url, hanya bersama --contact; default OFF): URL https tenant Odoo → .env ODOO_URL + override
+# docker-compose.odoo.yml (ODOO_LEADS_ENABLED=true). API key user teknis Odoo di <dir>/secrets/odoo_api_key.secret
+# (sama perlakuannya dengan SMTP: 1001:1001 0400, runbook web-client-onboarding.md §Lead Odoo).
 # Output baris terakhir: RESULT host=<fqdn|-> container=<nama> route=<file> changed=<yes|no|removed>
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -52,7 +56,7 @@ pemakaian: $0 <slug> <prod|staging> --host <fqdn> --image <ref> [--www]
              [--contact --smtp-host <fqdn> --smtp-user <email> --smtp-from <email> [--smtp-port <port>]
               [--turnstile-site-key <key>]]
              [--lead-webhook <https-url>]
-             [--umami-script-url <https-url> --umami-website-id <uuid>]
+             [--umami-script-url <https-url> --umami-website-id <uuid>] [--odoo-url <https-url>]
            $0 <slug> <prod|staging> --remove
 EOF
   exit 2
@@ -68,6 +72,7 @@ HOST=""; IMAGE=""; WWW=no; CONTACT=no; REMOVE=no
 SMTP_HOST=""; SMTP_PORT=587; SMTP_USER=""; SMTP_FROM=""
 TURNSTILE_SITE_KEY=""   # opsional (bct G-43): Cloudflare Turnstile, butuh --contact + secrets/turnstile_secret.secret
 UMAMI_SCRIPT_URL=""; UMAMI_WEBSITE_ID=""   # opsional (plan 11): web analytics Umami, berpasangan
+ODOO_URL=""   # opsional (plan 13): lead CRM Odoo dari form kontak, butuh --contact + secrets/odoo_api_key.secret
 LEAD_WEBHOOK=""   # opsional (bct 2026-09-26): URL webhook lead tambahan; .env 600 root, tidak di git (URL bisa memuat token)
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -83,6 +88,7 @@ while [[ $# -gt 0 ]]; do
     --turnstile-site-key) [[ $# -ge 2 ]] || usage; TURNSTILE_SITE_KEY="$2"; shift 2 ;;
     --umami-script-url) [[ $# -ge 2 ]] || usage; UMAMI_SCRIPT_URL="$2"; shift 2 ;;
     --umami-website-id) [[ $# -ge 2 ]] || usage; UMAMI_WEBSITE_ID="$2"; shift 2 ;;
+    --odoo-url) [[ $# -ge 2 ]] || usage; ODOO_URL="$2"; shift 2 ;;
     --remove) REMOVE=yes; shift ;;
     *) usage ;;
   esac
@@ -123,7 +129,7 @@ container_state() {   # → "<status> <health>" atau "absent"
 
 # ------------------------------------------------------------------------------------------------ remove
 if [[ "$REMOVE" == yes ]]; then
-  [[ -z "$HOST$IMAGE$UMAMI_SCRIPT_URL$UMAMI_WEBSITE_ID" && "$WWW$CONTACT" == nono ]] || die "--remove tidak menerima opsi lain"
+  [[ -z "$HOST$IMAGE$UMAMI_SCRIPT_URL$UMAMI_WEBSITE_ID$ODOO_URL" && "$WWW$CONTACT" == nono ]] || die "--remove tidak menerima opsi lain"
   changed=no
   if [[ -e "$OUT" ]]; then
     rm -f -- "$OUT"; traefik_hup "$ROUTE"; changed=removed
@@ -182,6 +188,17 @@ elif [[ -s "$TURNSTILE_SECRET" ]]; then
   echo "catatan: ${TURNSTILE_SECRET} ada tapi --turnstile-site-key tidak diberikan → Turnstile OFF (secret tidak di-mount)" >&2
 fi
 
+ODOO_SECRET="$STACK_DIR/secrets/odoo_api_key.secret"
+if [[ -n "$ODOO_URL" ]]; then
+  [[ "$CONTACT" == yes ]] || die "--odoo-url hanya bersama --contact"
+  # Kontrak env app (Zod): URL https; tanpa path/query agar ${ODOO_URL}/json/2/… tetap benar.
+  [[ ${#ODOO_URL} -le 255 && "$ODOO_URL" =~ ^https://[a-z0-9.-]+(:[0-9]{1,5})?$ ]] \
+    || die "--odoo-url harus https://<host>[:port] tanpa path (mis. https://expomedia.erp.bimacreative.tech)"
+  [[ -s "$ODOO_SECRET" ]] || die "--odoo-url: file API key belum ada: ${ODOO_SECRET} (lihat runbook)"
+elif [[ -s "$ODOO_SECRET" ]]; then
+  echo "catatan: ${ODOO_SECRET} ada tapi --odoo-url tidak diberikan → lead Odoo OFF (secret tidak di-mount)" >&2
+fi
+
 # Umami (plan 11 §3.7): keduanya atau tidak sama sekali; regex = kontrak env app (Zod) — URL https ke file .js, UUID huruf kecil.
 if [[ -n "$UMAMI_SCRIPT_URL$UMAMI_WEBSITE_ID" ]]; then
   [[ -n "$UMAMI_SCRIPT_URL" && -n "$UMAMI_WEBSITE_ID" ]] \
@@ -194,7 +211,7 @@ fi
 
 for f in "$COMPOSE_TEMPLATE_DIR/docker-compose.yml" "$COMPOSE_TEMPLATE_DIR/docker-compose.contact.yml" \
          "$COMPOSE_TEMPLATE_DIR/docker-compose.turnstile.yml" "$COMPOSE_TEMPLATE_DIR/docker-compose.umami.yml" \
-         "$COMPOSE_TEMPLATE_DIR/.gitignore" "$ROUTE_TEMPLATE"; do
+         "$COMPOSE_TEMPLATE_DIR/docker-compose.odoo.yml" "$COMPOSE_TEMPLATE_DIR/.gitignore" "$ROUTE_TEMPLATE"; do
   [[ -f "$f" ]] || die "template tidak ada: $f"
 done
 
@@ -242,6 +259,7 @@ compose_files="docker-compose.yml"
 [[ "$CONTACT" == no ]] || compose_files="docker-compose.yml:docker-compose.contact.yml"
 [[ -z "$TURNSTILE_SITE_KEY" ]] || compose_files="${compose_files}:docker-compose.turnstile.yml"
 [[ -z "$UMAMI_WEBSITE_ID" ]] || compose_files="${compose_files}:docker-compose.umami.yml"
+[[ -z "$ODOO_URL" ]] || compose_files="${compose_files}:docker-compose.odoo.yml"
 {
   echo "${MARKER} — jangan edit manual (render ulang). Tidak ada secret."
   echo "COMPOSE_PROJECT_NAME=${ROUTE}"
@@ -262,12 +280,14 @@ compose_files="docker-compose.yml"
     echo "UMAMI_SCRIPT_URL=${UMAMI_SCRIPT_URL}"
     echo "UMAMI_WEBSITE_ID=${UMAMI_WEBSITE_ID}"
   fi
+  [[ -z "$ODOO_URL" ]] || echo "ODOO_URL=${ODOO_URL}"
 } > "$tmpdir/env"
 
 install_if_changed "$COMPOSE_TEMPLATE_DIR/docker-compose.yml" "$STACK_DIR/docker-compose.yml" 0644
 install_if_changed "$COMPOSE_TEMPLATE_DIR/docker-compose.contact.yml" "$STACK_DIR/docker-compose.contact.yml" 0644
 install_if_changed "$COMPOSE_TEMPLATE_DIR/docker-compose.turnstile.yml" "$STACK_DIR/docker-compose.turnstile.yml" 0644
 install_if_changed "$COMPOSE_TEMPLATE_DIR/docker-compose.umami.yml" "$STACK_DIR/docker-compose.umami.yml" 0644
+install_if_changed "$COMPOSE_TEMPLATE_DIR/docker-compose.odoo.yml" "$STACK_DIR/docker-compose.odoo.yml" 0644
 install_if_changed "$COMPOSE_TEMPLATE_DIR/.gitignore" "$STACK_DIR/.gitignore" 0644
 install_if_changed "$tmpdir/env" "$STACK_DIR/.env" 0600
 if [[ "$CONTACT" == yes ]]; then
@@ -275,6 +295,7 @@ if [[ "$CONTACT" == yes ]]; then
   # Compose non-swarm mem-bind file apa adanya → owner harus uid container (1001).
   chown 1001:1001 "$SECRET_FILE"; chmod 0400 "$SECRET_FILE"
   if [[ -n "$TURNSTILE_SITE_KEY" ]]; then chown 1001:1001 "$TURNSTILE_SECRET"; chmod 0400 "$TURNSTILE_SECRET"; fi
+  if [[ -n "$ODOO_URL" ]]; then chown 1001:1001 "$ODOO_SECRET"; chmod 0400 "$ODOO_SECRET"; fi
 fi
 if [[ -e "$STACK_DIR/.removed" ]]; then rm -f -- "$STACK_DIR/.removed"; stack_changed=yes; fi
 

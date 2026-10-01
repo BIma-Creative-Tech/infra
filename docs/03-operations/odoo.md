@@ -27,6 +27,8 @@ Isi tiap direktori pool:
 | `docker-compose.yml` | service `odoo`, network `db-odoo-pool-a` + `odoo-edge` (prod) / `db-odoo-staging` + `odoo-edge-stg` (staging) — ADR 0010, tanpa port publish | ya |
 | `odoo.conf` | opsi server — **tanpa secret** (lihat §Secret) | ya |
 | `addons/shared` | **git submodule** `odoo-addons-shared` ter-pin (prod & staging `4bd278a` sejak plan 06 S4/S9, 2026-09-25: `sh_dbfilter_header` 19.0.1.1.0 trusted proxy; sebelumnya `35e6a99` plan 04) | gitlink |
+| `addons/platform` | **git submodule** `odoo-addons-athera` (modul platform Athera `custom_*`, ADR 0015) — staging `v19.0.1.1.0` sejak 2026-09-29 (plan 13); pool-a **belum** | gitlink |
+| `pylib/` | dependensi Python modul platform (httpx, xmlschema), dibangun `addons/platform/tools/build-pylib.sh ./pylib`, mount ro `/mnt/extra-python` + `PYTHONPATH` | **tidak** |
 | `addons/clients/<slug>` | repo addons client (`odoo-addons-<slug>`) — kosong saat ini | ya (per client) |
 | `.env` | `PGHOST/PGPORT/PGUSER/PGPASSWORD`, `ODOO_ADMIN_PASSWD` (hash) — 600 root | **tidak** |
 | `secrets/master-password` | master password plaintext (48 char) — 600 root | **tidak** |
@@ -134,6 +136,7 @@ Tenant uji:
 |---|---|---|---|---|---|
 | demo | demo | `demo_demo` (data demo) | pool-a | `demo.erp.bimacreative.tech` | `/opt/infra/odoo/pool-a/secrets/tenants/demo_demo.admin-password` |
 | demo | staging | `demo_staging` | staging | `demo.staging.bimacreative.tech` | `/opt/infra/staging/odoo/secrets/tenants/demo_staging.admin-password` |
+| expomedia | staging | `expomedia_staging` (52 modul platform, plan 13) | staging | `expomedia-erp.staging.bimacreative.tech` | `/opt/infra/staging/odoo/secrets/tenants/expomedia_staging.admin-password` |
 | ssotest | staging | `ssotest_staging` (tenant regresi SSO lintas tenant, permanen) | staging | `ssotest.staging.bimacreative.tech` | `/opt/infra/staging/odoo/secrets/tenants/ssotest_staging.admin-password` |
 
 ## Router Traefik per tenant (`templates/traefik-client.yml`)
@@ -413,3 +416,16 @@ ter-install); kembali penuh: `git -C <pool>/addons/shared checkout 35e6a99` + re
   `max-age=604800` (`traefik.md` §HSTS bertahap) + redirect HTTP→HTTPS.
 - Semua modul di `addons/clients/*` terlihat oleh semua DB di pool (tenant admin bisa meng-install modul
   client lain). Prefix `cl_<slug>_` + review; pertimbangkan pool terpisah bila modul client sensitif.
+
+## Addons platform (`addons/platform`, ADR 0015)
+
+- Repo `odoo-addons-athera` (lokal `/opt/src/odoo-addons-athera`): subset terkurasi modul Athera, isi = closure dependensi
+  root yang disetujui (`tools/closure.py --check --ce tools/ce-modules-19.0-20260908.txt`). **Jangan** menambah `_tenants/*`,
+  `control_plane/*`, `operations/*`, `custom_demo_seed`, `_vendor/*`.
+- Upgrade: tag baru di repo platform → `git -C <pool>/addons/platform fetch --tags && git checkout <tag>` (staging dulu) →
+  modul baru: `-i`, modul berubah: `-u <modul> -d <db>` per DB yang meng-install (`--stop-after-init --no-http --workers=0`)
+  → bila `requirements.txt` berubah: `addons/platform/tools/build-pylib.sh <pool>/pylib` + `docker compose up -d --force-recreate`.
+- Per tenant: `ir.config_parameter` `custom_ai.enabled=False` (belum ada gateway AI platform).
+- Tes: `--test-enable --test-tags /<modul>,… --http-port=8099 --gevent-port=8098` pada DB sementara `<x>_staging`
+  (tanpa `--no-http`: tes butuh server HTTP; port default dipakai pool), lalu `dropdb`.
+

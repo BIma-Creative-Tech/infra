@@ -1,0 +1,17 @@
+# Override lead CRM Odoo untuk form kontak (plan 13, default OFF) — hanya dimuat bila `.env` berisi COMPOSE_FILE yang
+# menyertakan docker-compose.odoo.yml (ditulis provision-web-client.sh --contact --odoo-url <https-url>).
+# App (web-expomedia >= 0.4.0) membuat crm.lead lewat POST ${ODOO_URL}/json/2/crm.lead/create (bearer API key); DB dipilih
+# Traefik dari host tenant (X-Sh-Odoo-Db). API key: file ./secrets/odoo_api_key.secret (TIDAK di git), owner 1001:1001 mode
+# 0400 (sama dengan SMTP). Key milik user teknis Odoo `website-leads` (grup Sales / own documents saja, tanpa password).
+# Egress: hairpin ke IP publik host Odoo lewat network `web-edge` (sama dengan SMTP).
+services:
+  web:
+    environment:
+      ODOO_LEADS_ENABLED: "true"
+      ODOO_URL: ${ODOO_URL:?ODOO_URL wajib bila lead Odoo aktif}
+      ODOO_API_KEY_FILE: /run/secrets/odoo_api_key
+    secrets: [odoo_api_key]
+
+secrets:
+  odoo_api_key:
+    file: ./secrets/odoo_api_key.secret

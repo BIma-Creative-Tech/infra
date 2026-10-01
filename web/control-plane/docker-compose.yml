@@ -11,7 +11,7 @@ name: web-control-plane
 x-hardening: &hardening
   # Tag pin (short SHA commit main repo control-plane). Override sementara untuk rollback:
   #   CONTROL_PLANE_TAG=<tag-lama> docker compose up -d   (lihat docs)
-  image: control-plane:${CONTROL_PLANE_TAG:-6d94d2b}   # plan 05 J6 (2026-09-25; rollback 4fc3828 — migrasi 0001-0003 additive)
+  image: control-plane:${CONTROL_PLANE_TAG:-4309281}   # v0.5.0 Quotation Tracker lead CRM & supply chain (plan 16, 2026-09-30; rollback c4c1051 — tanpa migrasi baru)
   env_file:
     - .env
   user: "1001:1001"
@@ -47,6 +47,10 @@ services:
   web:
     <<: *hardening
     container_name: control-plane
+    # ADR 0016: DATAMART_URL (role datamart_reader, secret) + DATAMART_ENV=prod hanya untuk web — bukan worker/migrate.
+    env_file:
+      - .env
+      - .env.datamart
     restart: unless-stopped
     depends_on:
       migrate:
@@ -54,6 +58,8 @@ services:
     environment:
       SERVICE_NAME: control-plane-web
       INFRA_JOBS_INSTANCE: prod   # plan 05 / ADR 0009
+      # plan 15: tombol "Buka Odoo" Quotation Tracker (bukan secret).
+      DASHBOARD_ODOO_URLS: expomedia=https://erp.expomedia.id
     tmpfs:
       - /tmp:uid=1001,gid=1001,mode=0700
       - /app/.next/cache:uid=1001,gid=1001,mode=0700

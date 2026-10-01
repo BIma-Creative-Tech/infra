@@ -1,0 +1,23 @@
+# Data mart platform (ADR 0016). Dijalankan datamart/datamart-refresh.sh; tenant dari var `tenants`.
+name: platform_datamart
+version: "1.0.0"
+config-version: 2
+profile: datamart
+model-paths: ["models"]
+macro-paths: ["macros"]
+test-paths: ["tests"]
+packages-install-path: /tmp/dbt-packages
+vars:
+  # [slug, env] — hanya schema raw_<slug>_<env> yang ADA yang di-union (tenant tanpa DB dilewati).
+  tenants: [["expomedia", "staging"], ["expomedia", "prod"]]
+models:
+  platform_datamart:
+    staging:
+      +schema: stg
+      +materialized: view
+    mart:
+      +schema: mart
+      +materialized: table
+      +post-hook: ["{{ secure_mart() }}"]
+on-run-end:
+  - "GRANT USAGE ON SCHEMA mart TO datamart_reader"

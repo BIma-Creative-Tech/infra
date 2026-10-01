@@ -28,7 +28,7 @@ Nama container = project compose = router = `web-<slug>-<env>`; hanya network `w
 |---|---|---|---|
 | `starter.staging.bimacreative.tech` | `staging/web-clients/starter/` (container `web-starter-staging`) | `web-starter:dev-d5f6148` (lokal) | Demo plan 03. **TEMPORARY(2026-09-25):** image dibangun lokal di VPS karena VPS belum punya token baca GHCR (menunggu user). Setelah token ada dan tag `v0.1.0` di-push + CI hijau: `docker login ghcr.io` lalu upgrade ke `ghcr.io/bctech-adm/web-starter:0.1.0` (§Upgrade) |
 | `expomedia.id` (+ `www` → 301) | `web/clients/expomedia/` (container `web-expomedia-prod`) | `web-expomedia:dev-148b002` (lokal, repo `/opt/src/web-expomedia`) | Client Expomedia Indo Karya (plan 07). **Mode coming soon** (`src/config/launch.ts`, host prod) sampai konten asli dikonfirmasi client; form kontak ON (SMTP `info@expomedia.id`). **TEMPORARY(2026-09-25):** image lokal (tanpa GHCR). |
-| `expomedia.staging.bimacreative.tech` | `staging/web-clients/expomedia/` (container `web-expomedia-staging`) | `web-expomedia:dev-148b002` (lokal) | Website lengkap (konten PLACEHOLDER) untuk review client; form kontak ON. TEMPORARY sama dengan prod. |
+| `expomedia.staging.bimacreative.tech` | `staging/web-clients/expomedia/` (container `web-expomedia-staging`) | `web-expomedia:dev-a173509` (lokal, v0.4.0 branch `feat/contact-odoo-lead`) | Website lengkap (konten PLACEHOLDER) untuk review client; form kontak ON + lead CRM ke `expomedia_staging` (plan 13). TEMPORARY sama dengan prod. |
 
 Cek image yang sedang berjalan: `docker inspect -f '{{.Config.Image}}' web-<slug>-<env>`.
 

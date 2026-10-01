@@ -1,0 +1,11 @@
+---
+# Role datamart_refresh (ADR 0016, plan 14/16): timer refresh data mart (ingest tenant → dbt build). Plan 16: timer
+# tiap 2 menit; skrip melewati run bila sidik jari tabel sumber tidak berubah (paksa tiap DATAMART_FORCE_EVERY=1800 s).
+# Prasyarat: /opt/infra/datamart/pylib (datamart/build-pylib.sh), role datamart + datamart_reader (postgres/init-roles.sh),
+# network db-datamart (postgres/scripts/bootstrap.sh).
+# Terapkan:  ansible-playbook site.yml --tags datamart_refresh --check --diff  lalu tanpa --check.
+# Rollback:  datamart_refresh_state: absent → unit dihapus; DB datamart tidak disentuh.
+datamart_refresh_state: present # present | absent
+datamart_refresh_script: "{{ infra_root }}/datamart/datamart-refresh.sh"
+datamart_refresh_on_calendar: "*:0/2"
+datamart_refresh_random_delay: "20s"

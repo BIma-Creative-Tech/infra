@@ -8,7 +8,7 @@ name: staging-control-plane
 x-hardening: &hardening
   # Tag pin (short SHA commit main repo control-plane). Override sementara:
   #   CONTROL_PLANE_TAG=<tag> docker compose up -d
-  image: control-plane:${CONTROL_PLANE_TAG:-6d94d2b}   # plan 05 J5 fixes (2026-09-25; rollback 7b85a78/4fc3828 — migrasi 0001-0003 additive)
+  image: control-plane:${CONTROL_PLANE_TAG:-4309281}   # v0.5.0 Quotation Tracker + lead CRM & supply chain (plan 16, 2026-09-30; rollback eb5ab2d — tanpa migrasi baru)
   env_file:
     - .env
   user: "1001:1001"
@@ -45,12 +45,18 @@ services:
     <<: *hardening
     container_name: control-plane-staging
     restart: unless-stopped
+    # ADR 0016: DATAMART_URL (role datamart_reader, secret) + DATAMART_ENV hanya untuk web — bukan worker/migrate.
+    env_file:
+      - .env
+      - .env.datamart
     depends_on:
       migrate:
         condition: service_completed_successfully
     environment:
       SERVICE_NAME: control-plane-staging-web
       INFRA_JOBS_INSTANCE: staging   # plan 05 / ADR 0009
+      # plan 15: tombol "Buka Odoo" Quotation Tracker (bukan secret). Host Demo = alias demo-erp.expomedia.id.
+      DASHBOARD_ODOO_URLS: expomedia=https://demo-erp.expomedia.id
     tmpfs:
       - /tmp:uid=1001,gid=1001,mode=0700
       - /app/.next/cache:uid=1001,gid=1001,mode=0700

@@ -1,0 +1,69 @@
+# MANUAL (plan 15) — alias `demo-erp.expomedia.id` untuk tenant expomedia STAGING (= "Demo" di halaman login Odoo).
+# Salinan 6 router expomedia-staging.yml (hasil render-client-route.sh) dengan Host alias; middleware header DB
+# `odoo-expomedia-staging-db` dipakai ulang dari file render (tidak didefinisikan ulang di sini). Tidak ditimpa
+# render ulang — bila template router berubah, samakan file ini. Sertifikat HTTP-01 per host (A demo-erp → IP VPS).
+http:
+  routers:
+    # Database manager/selector (/web/database*): TIDAK PERNAH lewat :443 publik (H5b, 2026-09-23).
+    # Dulu ipallowlist-admin di websecure — hairpin dari container mana pun ke IP publik :443 tiba sebagai
+    # 10.100.0.1 (gateway `proxy`) dan lolos. Kini websecure → deny-all (403) → deny-sink (tidak pernah tercapai,
+    # 502 bila deny-all terlepas); pola sama dengan auth-admin-deny (dynamic/platform/auth.yml).
+    # Lapisan tambahan saja: Odoo list_db=False tetap menolak DB manager ("disabled by the administrator").
+    odoo-expomedia-staging-demo-dbmanager-deny:
+      entryPoints: [websecure]
+      rule: "Host(`demo-erp.expomedia.id`) && PathPrefix(`/web/database`)"
+      priority: 300
+      middlewares: [crowdsec, deny-all]
+      service: deny-sink   # middlewares/deny-all.yml
+      tls:
+        certResolver: le-http
+    # Operator: HANYA entrypoint `admin` (127.0.0.1:8443 host, SSH tunnel) →
+    #   https://demo-erp.expomedia.id:8443/web/database/... ; ipallowlist-admin tetap (defense-in-depth: container yang
+    #   menghubungi traefik:8443 langsung membawa IP-nya sendiri → 403). Hanya path /web/database* yang di-route
+    #   di :8443 (aset /web/static/* → 404 di :8443). Sertifikat sama dengan router :443 (HTTP-01 via `web`).
+    odoo-expomedia-staging-demo-dbmanager:
+      entryPoints: [admin]
+      rule: "Host(`demo-erp.expomedia.id`) && PathPrefix(`/web/database`)"
+      priority: 300
+      middlewares: [crowdsec, ipallowlist-admin, odoo-security-headers, ratelimit-default, strip-odoo-db-headers, odoo-expomedia-staging-db]
+      service: odoo-staging-http
+      tls:
+        certResolver: le-http
+    # Websocket/bus → gevent :8072. Header DB yang sama dengan router utama.
+    odoo-expomedia-staging-demo-websocket:
+      entryPoints: [websecure]
+      rule: "Host(`demo-erp.expomedia.id`) && PathPrefix(`/websocket`)"
+      priority: 200
+      middlewares: [crowdsec, odoo-security-headers, ratelimit-default, strip-odoo-db-headers, odoo-expomedia-staging-db]
+      service: odoo-staging-ws
+      tls:
+        certResolver: le-http
+    # Endpoint autentikasi (form login, JSON-RPC session/authenticate, reset password, signup).
+    odoo-expomedia-staging-demo-login:
+      entryPoints: [websecure]
+      rule: "Host(`demo-erp.expomedia.id`) && (Path(`/web/login`) || Path(`/web/session/authenticate`) || PathPrefix(`/web/reset_password`) || PathPrefix(`/web/signup`))"
+      priority: 200
+      middlewares: [crowdsec, odoo-security-headers, ratelimit-default, ratelimit-login, strip-odoo-db-headers, odoo-expomedia-staging-db]
+      service: odoo-staging-http
+      tls:
+        certResolver: le-http
+    # SSO sh_auth_oidc (plan 04 S3, F9/AC-S7): /sh_auth_oidc/authorize (303 → Keycloak) & /sh_auth_oidc/callback
+    # (303 → /web; memicu 1 exchange token back-channel). Header DB sama dengan router utama; rate limit per IP
+    # tersendiri `ratelimit-oidc` (middlewares/ratelimit.yml) di samping ratelimit-default.
+    odoo-expomedia-staging-demo-oidc:
+      entryPoints: [websecure]
+      rule: "Host(`demo-erp.expomedia.id`) && PathPrefix(`/sh_auth_oidc/`)"
+      priority: 200
+      middlewares: [crowdsec, odoo-security-headers, ratelimit-default, ratelimit-oidc, strip-odoo-db-headers, odoo-expomedia-staging-db]
+      service: odoo-staging-http
+      tls:
+        certResolver: le-http
+    odoo-expomedia-staging-demo:
+      entryPoints: [websecure]
+      rule: "Host(`demo-erp.expomedia.id`)"
+      priority: 100
+      middlewares: [crowdsec, odoo-security-headers, ratelimit-default, strip-odoo-db-headers, odoo-expomedia-staging-db]
+      service: odoo-staging-http
+      tls:
+        certResolver: le-http
+

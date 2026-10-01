@@ -1,0 +1,58 @@
+---
+- name: Validasi variabel datamart_refresh
+  ansible.builtin.assert:
+    that:
+      - datamart_refresh_state in ['present', 'absent']
+      - datamart_refresh_script is match('^/opt/infra/datamart/[a-z-]+\\.sh$')
+    fail_msg: "datamart_refresh: state/script tidak valid"
+    quiet: true
+
+- name: Terapkan (present)
+  when: datamart_refresh_state == 'present'
+  block:
+    - name: Skrip refresh milik root, tidak writable grup/lain
+      ansible.builtin.stat:
+        path: "{{ datamart_refresh_script }}"
+      register: datamart_refresh_script_stat
+    - name: Guard skrip refresh
+      ansible.builtin.assert:
+        that:
+          - datamart_refresh_script_stat.stat.exists
+          - datamart_refresh_script_stat.stat.pw_name == 'root'
+          - not datamart_refresh_script_stat.stat.woth
+          - not datamart_refresh_script_stat.stat.wgrp
+        fail_msg: "{{ datamart_refresh_script }} tidak ada / bukan milik root / writable grup-lain (dijalankan sebagai root)"
+        quiet: true
+    - name: Unit systemd datamart-refresh
+      ansible.builtin.template:
+        src: "{{ item }}.j2"
+        dest: "/etc/systemd/system/{{ item }}"
+        owner: root
+        group: root
+        mode: "0644"
+      loop: [datamart-refresh.service, datamart-refresh.timer]
+      notify: Reload systemd (datamart_refresh)
+    - name: Terapkan daemon-reload sebelum mengaktifkan timer
+      ansible.builtin.meta: flush_handlers
+    - name: Timer aktif
+      ansible.builtin.systemd_service:
+        name: datamart-refresh.timer
+        enabled: true
+        state: started
+      ignore_errors: "{{ ansible_check_mode }}"
+
+- name: Hapus (absent)
+  when: datamart_refresh_state == 'absent'
+  block:
+    - name: Timer berhenti
+      ansible.builtin.systemd_service:
+        name: datamart-refresh.timer
+        enabled: false
+        state: stopped
+      failed_when: false
+    - name: Unit dihapus
+      ansible.builtin.file:
+        path: "/etc/systemd/system/{{ item }}"
+        state: absent
+      loop: [datamart-refresh.service, datamart-refresh.timer]
+      notify: Reload systemd (datamart_refresh)
