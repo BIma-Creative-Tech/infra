@@ -35,3 +35,14 @@ CREATE TABLE IF NOT EXISTS {{schema}}.mrp_production (id int PRIMARY KEY, name t
 CREATE TABLE IF NOT EXISTS {{schema}}.vendor_bill (id int, purchase_id int, name text, state text, move_type text,
   invoice_date date, amount_untaxed numeric, amount_total numeric, amount_residual numeric, payment_state text,
   PRIMARY KEY (id, purchase_id));
+-- 2026-10-01: detail dokumen SCM per SPK (baris PO/move/tagihan) + pembayaran ke vendor per tagihan.
+CREATE TABLE IF NOT EXISTS {{schema}}.vendor_payment (payment_id int, bill_id int, name text, state text, date date,
+  journal text, memo text, amount numeric, PRIMARY KEY (payment_id, bill_id));
+CREATE TABLE IF NOT EXISTS {{schema}}.purchase_line (id int PRIMARY KEY, order_id int, sequence int, default_code text,
+  product text, description text, qty numeric, qty_received numeric, qty_invoiced numeric, uom text,
+  price_unit numeric, price_subtotal numeric);
+CREATE TABLE IF NOT EXISTS {{schema}}.stock_move (id int PRIMARY KEY, picking_id int, production_id int,
+  raw_material_production_id int, sequence int, default_code text, product text, qty numeric, qty_done numeric,
+  uom text, state text);
+CREATE TABLE IF NOT EXISTS {{schema}}.vendor_bill_line (id int PRIMARY KEY, move_id int, purchase_line_id int,
+  default_code text, product text, description text, qty numeric, uom text, price_subtotal numeric);

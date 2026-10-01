@@ -18,7 +18,7 @@ pw=$(grep -E '^PG_DATAMART_PASSWORD=' /opt/infra/postgres/.env | cut -d= -f2-)
 start=$(date +%s)
 tables="'crm_lead','sale_order','sale_order_line','project_task','account_analytic_line','account_move',\
 'account_payment','account_partial_reconcile','purchase_order','stock_picking','mrp_production','res_partner',\
-'res_users','res_groups_users_rel','hr_employee'"
+'res_users','res_groups_users_rel','hr_employee','purchase_order_line','stock_move'"
 fp=""
 for t in $DATAMART_TENANTS; do
   n=$(docker exec postgres psql -U postgres -d "${t%%:*}_${t##*:}" -XtAc \
