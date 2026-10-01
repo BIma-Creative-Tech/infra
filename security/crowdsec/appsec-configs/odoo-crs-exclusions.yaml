@@ -34,3 +34,25 @@ pre_eval:
       )
     apply:
       - RemoveInBandRuleByTag("attack-xss")
+  # 2026-10-01 (keputusan user: tag attack-rce): chatter/systray Odoo `POST /mail/data` → 932260 (21× 403 dari
+  # IP user 29 Sep–1 Okt) dan onchange `base.document.layout` (preview layout PDF berisi HTML/CSS) → 921130 +
+  # 932230/932235 → 403 → skenario `http-generic-403-bf` ban IP 4 jam → seluruh Odoo "koneksi terputus".
+  # Payload JSON-RPC Odoo berisi teks bebas (deskripsi, CSS, domain ORM) yang rawan heuristik RCE CRS; endpoint
+  # ini auth='user' dan Odoo tidak mengeksekusi shell dari parameter RPC. Cakupan: path hook pertama + /mail/data
+  # & /mail/action; HANYA tag `attack-rce` (REQUEST-932) + rule 921130 (response splitting) — SQLi/LFI/protocol
+  # lain/virtual patching tetap aktif. Rollback: hapus entri ini → `docker exec crowdsec kill -HUP 1`.
+  - filter: >-
+      IsInBand && req.Method == "POST" && (
+        req.URL.Path startsWith "/web/dataset/call_kw/" ||
+        req.URL.Path startsWith "/web/dataset/call_button/" ||
+        req.URL.Path == "/mail/data" ||
+        req.URL.Path == "/mail/action" ||
+        req.URL.Path startsWith "/mail/message/" ||
+        req.URL.Path startsWith "/mail/thread/" ||
+        req.URL.Path startsWith "/discuss/channel/" ||
+        req.URL.Path startsWith "/html_editor/" ||
+        req.URL.Path startsWith "/web_editor/"
+      )
+    apply:
+      - RemoveInBandRuleByTag("attack-rce")
+      - RemoveInBandRuleByID(921130)

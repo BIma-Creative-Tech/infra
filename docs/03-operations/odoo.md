@@ -183,6 +183,15 @@ docker exec crowdsec cscli alerts inspect <id> -d     # rule_name, matched_zones
 Tambah path hanya bila FP nyata terbukti; catat di sini. Diketahui masih mungkin FP: teks berisi pola SQL
 (mis. "UNION SELECT") pada field biasa (rule 942 tetap aktif).
 
+**2026-10-01 — hook kedua (tag `attack-rce` + rule 921130).** Gejala user: chatter "Connection to
+/mail/thread/messages couldn't be established", update kadang gagal. Penyebab: `POST /mail/data` → 932260 (21× 403
+dari IP user 29 Sep–1 Okt) dan onchange `base.document.layout` → 921130/932230/932235 → 403 → skenario
+`LePresidente/http-generic-403-bf` + `appsec-native` mem-ban IP user 4 jam → semua request Odoo 403 (Origin 0).
+Keputusan user: matikan seluruh tag `attack-rce` (bukan per-ID) + 921130 untuk path di atas ditambah
+`/mail/data` & `/mail/action`. Uji pasca-reload: `x; whoami` di `/mail/data` & `call_kw` → sampai Odoo (200);
+idem di `/web/session/authenticate` → 403; SQLi di `/mail/data` → 403. Cek cepat user terblokir:
+`docker exec crowdsec cscli decisions list --ip <ip>`; unban: `cscli decisions delete --ip <ip>`.
+
 ## SSO — `sh_auth_oidc` ↔ Keycloak, multi-tenant (plan 04, ADR 0008)
 
 Desain: ADR 0003 D2 + **ADR 0008** (satu realm, satu client per tenant-env, secret per DB dari file) + README modul
