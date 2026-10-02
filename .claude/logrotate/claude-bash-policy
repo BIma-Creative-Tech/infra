@@ -1,0 +1,11 @@
+# Rotasi log keputusan hook Claude Code (.claude/hooks/bash-policy.sh).
+# Pasang: install -m 644 .claude/logrotate/claude-bash-policy /etc/logrotate.d/claude-bash-policy
+/var/log/claude-bash-policy.log {
+    weekly
+    rotate 8
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 0600 root root
+}
