@@ -91,11 +91,16 @@ def deep_merge(base, over):
 
 
 def load_desired(path, overrides=None):
-    with open(path, encoding='utf-8') as f:
-        desired = json.load(f)
-    if overrides and os.path.exists(overrides):
-        with open(overrides, encoding='utf-8') as f:
-            ov = json.load(f)
+    try:
+        with open(path, encoding='utf-8') as f:
+            desired = json.load(f)
+        ov = {}
+        if overrides and os.path.exists(overrides):
+            with open(overrides, encoding='utf-8') as f:
+                ov = json.load(f)
+    except ValueError as e:
+        raise PlanError(f'desired-state bukan JSON valid: {e}') from e
+    if ov:
         unknown = set(ov) - TOP_KEYS
         if unknown:
             raise PlanError(f'override: kunci tidak dikenal {sorted(unknown)}')
@@ -234,7 +239,7 @@ def plan_browser_flow(p, desired, realm, state):
             continue
         body = {**e, 'requirement': 'DISABLED'}
         # PUT /authentication/flows/{alias}/executions body = AuthenticationExecutionInfoRepresentation
-        # UNVERIFIED (KC 26.7 docs): status 202 (Accepted) atau 204.
+        # → 204 (diverifikasi KC 26.7.4 sekali pakai 2026-10-03; 202 tetap diterima untuk versi lain).
         p.op('PUT', f'/authentication/flows/{urllib.parse.quote(alias, safe="")}/executions', body, [202, 204],
              f'flow {alias}: eksekusi {name!r} {e.get("requirement")} → DISABLED')
 
@@ -243,9 +248,35 @@ def _subset_differs(cur, want):
     return [k for k, v in want.items() if cur.get(k) != v]
 
 
+# Label user profile bawaan KC 26 memakai placeholder pesan `${username}` dst. PUT /users/profile mengirim KONFIGURASI
+# LENGKAP → body memuat `${` → diblok CrowdSec AppSec CRS 932130 (keycloak.md §T16b) dan oleh guard keycloak-admin.sh.
+# Diverifikasi pada Keycloak 26.7.4 sekali pakai (2026-10-03): hanya 4 placeholder ini di konfigurasi default.
+# Diganti teks literal = pesan bawaan messages_en (realm platform* tanpa internationalization → tampilan identik).
+# Placeholder lain → blocker (fail-closed, perbaiki manual).
+LITERAL_LABELS = {'${username}': 'Username', '${email}': 'Email', '${firstName}': 'First name',
+                  '${lastName}': 'Last name'}
+
+
+def _literalize(obj, hits):
+    if isinstance(obj, dict):
+        return {k: _literalize(v, hits) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_literalize(v, hits) for v in obj]
+    if isinstance(obj, str) and obj in LITERAL_LABELS:
+        hits.append(obj)
+        return LITERAL_LABELS[obj]
+    return obj
+
+
 def plan_user_profile(p, desired, profile):
     want_attrs = (desired.get('userProfile') or {}).get('attributes', [])
     if not want_attrs:
+        return
+    hits = []
+    profile = _literalize(profile, hits)
+    if '${' in json.dumps(profile):
+        p.blockers.append("user profile memuat placeholder '${…}' selain label bawaan — tidak bisa di-PUT lewat WAF; "
+                          'ganti dengan teks literal secara manual')
         return
     attrs = list(profile.get('attributes') or [])
     changed = []
@@ -260,8 +291,10 @@ def plan_user_profile(p, desired, profile):
                 attrs[idx] = {**attrs[idx], **want}
                 changed.append(f'atribut {want["name"]}: {", ".join(sorted(diff))}')
     if changed:
+        if hits:
+            changed.append(f'label {",".join(sorted(set(hits)))} → teks literal (WAF CRS 932130)')
         # PUT /users/profile body = UPConfig lengkap (atribut lain, groups, unmanagedAttributePolicy dipertahankan)
-        # → 200 + konfigurasi baru (UNVERIFIED (KC 26.7 docs): status 200).
+        # → 200 + konfigurasi baru.
         p.op('PUT', '/users/profile', {**profile, 'attributes': attrs}, [200], 'user profile: ' + '; '.join(changed))
 
 

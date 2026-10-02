@@ -113,6 +113,8 @@
       "_comment": [
         "cp-admin: job harian user/org (kc-org.sh, kc-user.sh, odoo-user.sh, odoo-tenant-config.sh). Secret dibuat Keycloak, diambil SEKALI ke identity/keycloak/secrets/cp-admin-<realm>.secret (keycloak.md) — tidak pernah lewat sync.",
         "Role realm-management PERSIS allowlist (keputusan Lead S1, KC 26.7: menambah anggota org butuh manage-organizations + manage-users). TANPA manage-realm / realm-admin.",
+        "+ view-clients (DEVIASI dari allowlist Lead, diverifikasi Keycloak 26.7.4 sekali pakai 2026-10-03): tanpa itu GET /clients?clientId=, GET /clients/{id}/roles, GET /users/{id}/role-mappings/clients/{id} → 403 (query-clients saja mengembalikan daftar TANPA id) → kc-user.sh roles/enabled tidak bisa berjalan.",
+        "Uji S1.5 (KC 26.7.4): SA dengan set ini TIDAK bisa memberi realm-admin/manage-realm/manage-clients/impersonation (403), TIDAK bisa PUT realm/impersonate (403), TETAPI bisa memberi role yang ia pegang (manage-users, view-*) ke user lain dan reset password user mana pun (204).",
         "PERINGATAN: manage-users efektif setara admin realm untuk user (bisa reset password / menonaktifkan user mana pun) → secret cp-admin = kredensial admin.",
         "fullScopeAllowed=true seperti client `automation` (izin Admin REST dievaluasi dari role user SA yang juga harus berada dalam scope client)."
       ],
@@ -140,7 +142,7 @@
           "standard.token.exchange.enabled": "false"
         }
       },
-      "realmManagementRoles": ["manage-organizations", "manage-users", "query-users", "view-users", "query-groups"]
+      "realmManagementRoles": ["manage-organizations", "manage-users", "query-users", "view-users", "query-groups", "view-clients"]
     }
   ]
 }

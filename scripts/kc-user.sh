@@ -208,7 +208,7 @@ print(json.dumps(rep))' "$EMAIL" "$TENANT_ID" "$NAME")"
   fi
   # keanggotaan org
   if [[ -n "$ORG_ID" && -n "$KC_UID" ]]; then
-    # GET /organizations/{org}/members/{user} → 200 anggota / 404 bukan (UNVERIFIED (KC 26.7 docs))
+    # GET /organizations/{org}/members/{user} → 200 anggota / 404 bukan (diverifikasi KC 26.7.4 sekali pakai)
     kc_request GET "/organizations/${ORG_ID}/members/${KC_UID}"
     case "$KC_STATUS" in
       200) log "user sudah anggota organization ${SLUG}" ;;

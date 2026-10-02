@@ -6,6 +6,7 @@
 #   - `docker` / `dig` → shim di PATH (psql/odoo shell/HUP diemulasikan, argv dicatat).
 # WAJIB dijalankan di container sekali pakai TANPA socket Docker dan tanpa jaringan (scripts/tests/test-kc-scripts.sh):
 # setUpClass menolak berjalan bila /var/run/docker.sock ada (shim salah → perintah docker sungguhan ke prod).
+import json
 import os
 import re
 import shutil
@@ -134,6 +135,14 @@ class Base(unittest.TestCase):
         cls.infra = os.path.join(cls.tmp, 'infra')
         shutil.copytree(os.path.join(REPO, 'identity', 'keycloak', 'realm'),
                         os.path.join(cls.infra, 'identity', 'keycloak', 'realm'))
+        if cls.SEED_CP_ADMIN:
+            # kelas uji user/org = kondisi setelah W2: Organizations aktif lewat override staging (bukan console)
+            ov = os.path.join(cls.infra, 'identity', 'keycloak', 'realm', 'platform-staging.overrides.json')
+            with open(ov) as f:
+                data = json.load(f)
+            data['realm'] = {'organizationsEnabled': True}
+            with open(ov, 'w') as f:
+                json.dump(data, f)
         shutil.copytree(os.path.join(REPO, 'templates'), os.path.join(cls.infra, 'templates'))
         os.makedirs(os.path.join(cls.infra, 'traefik', 'dynamic', 'clients'))
         cls.state = os.path.join(cls.tmp, 'state')
@@ -215,6 +224,8 @@ class T01RealmSync(Base):
         self.assertIs(R['rep']['organizationsEnabled'], False)
         self.assertTrue(any(a['name'] == 'tenant_id' and a['permissions'] == {'view': ['admin'], 'edit': ['admin']}
                             for a in R['profile']['attributes']))
+        self.assertNotIn('${', json.dumps(R['profile']), 'label placeholder diganti literal (WAF CRS 932130)')
+        self.assertEqual(R['profile']['attributes'][0]['displayName'], 'Username')
         scope = next(s for s in R['scopes'].values() if s['name'] == 'tenant')
         self.assertEqual(scope['protocolMappers'][0]['config']['claim.name'], 'tenant_id')
         org_scope = next(sid for sid, s in R['scopes'].items() if s['name'] == 'organization')
@@ -229,7 +240,8 @@ class T01RealmSync(Base):
         cp = self.client('cp-admin')
         self.assertTrue(cp['rep']['serviceAccountsEnabled'])
         self.assertEqual(self.user_roles(cp['sa_user'], 'realm-management'),
-                         sorted(['manage-organizations', 'manage-users', 'query-users', 'view-users', 'query-groups']))
+                         sorted(['manage-organizations', 'manage-users', 'query-users', 'view-users', 'query-groups',
+                                 'view-clients']))
         org_exec = next(e for e in R['flows']['browser'] if e['displayName'] == 'Organization')
         self.assertEqual(org_exec['requirement'], 'DISABLED')
         # tidak pernah menulis user biasa / kc-realm-sync / automation
@@ -258,6 +270,15 @@ class T01RealmSync(Base):
         self.assertEqual(res['changed'], '2', out)
         self.assertNotIn('manage-realm', self.user_roles(cp['sa_user'], 'realm-management'))
 
+    def test_4_unknown_placeholder_blocks(self):
+        R = self.realm('platform')
+        R['profile']['attributes'][0]['displayName'] = '$' + '{customLabel}'
+        res, out = self.ok('kc-realm-sync.sh', 'platform', 'prod', '--dry-run')
+        self.assertEqual(res['blockers'], '1', out)
+        rc, out, _ = self.run_script('kc-realm-sync.sh', 'platform', 'prod', '--approve')
+        self.assertEqual(rc, 1, out)
+        R['profile']['attributes'][0]['displayName'] = '$' + '{username}'
+
     def test_3_prod_needs_approve_and_platform_slug(self):
         rc, out, _ = self.run_script('kc-realm-sync.sh', 'platform', 'prod')
         self.assertEqual(rc, 3, out)
@@ -270,6 +291,14 @@ class T01RealmSync(Base):
 
 
 class T02Org(Base):
+    def test_0_org_feature_disabled(self):
+        R = self.realm('platform')
+        R['rep']['organizationsEnabled'] = False
+        rc, out, _ = self.run_script('kc-org.sh', 'acme', 'prod', '--tenant-id', T_ACME, '--dry-run')
+        self.assertEqual(rc, 1, out)
+        self.assertIn('Organizations belum aktif', out)
+        R['rep']['organizationsEnabled'] = True
+
     def test_org_create_idempotent_and_conflicts(self):
         before = len(self.writes())
         res, out = self.ok('kc-org.sh', 'acme', 'staging', '--tenant-id', T_ACME, '--dry-run')

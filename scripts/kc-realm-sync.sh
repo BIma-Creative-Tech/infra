@@ -60,10 +60,13 @@ STATE="$(mktemp -d)"
 trap 'rm -rf -- "$STATE"' EXIT
 chmod 0700 "$STATE"
 
-# save <file> <path> — GET path → JSON tanpa secret ke $STATE/<file>
+# save <file> <path> — GET path → JSON tanpa secret ke $STATE/<file> (status ≠ 200 → die dengan pesan jelas)
 save() {
   mkdir -p "$(dirname "$STATE/$1")"
-  kc_get "$2" | python3 "$PY" sanitize > "$STATE/$1"
+  kc_request GET "$2"
+  [[ "$KC_STATUS" == 200 ]] || die "GET ${2:-<realm>}: HTTP ${KC_STATUS} — hak client kc-realm-sync kurang? (keycloak.md §Realm sebagai kode)"
+  printf '%s' "$KC_BODY" | python3 "$PY" sanitize > "$STATE/$1"
+  KC_BODY=""
 }
 
 gather() {

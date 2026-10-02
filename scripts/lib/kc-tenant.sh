@@ -53,7 +53,13 @@ take_lock() {
 ORG_ID=""; ORG_ALIAS=""; ORG_JSON=""; ORG_ALIAS_OWNER=""
 kc_org_by_slug() {
   local slug="$1" want_alias="${2:-}" all out
-  all="$(kc_get "/organizations?briefRepresentation=false&first=0&max=1000")"
+  kc_request GET "/organizations?briefRepresentation=false&first=0&max=1000"
+  if [[ "$KC_STATUS" == 404 && "$KC_BODY" == *"not enabled"* ]]; then
+    # KC 26.7.4 (diverifikasi): {"errorMessage":"Organizations not enabled for this realm."}
+    die "Organizations belum aktif di realm ${KC_REALM} (organizationsEnabled=false; W2 setelah S1 — platform.json)"
+  fi
+  [[ "$KC_STATUS" == 200 ]] || die "GET /organizations: HTTP ${KC_STATUS} — ${KC_BODY:0:200}"
+  all="$KC_BODY"
   out="$(printf '%s' "$all" | python3 -c '
 import json, sys
 slug, want = sys.argv[1], sys.argv[2]

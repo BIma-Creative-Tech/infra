@@ -53,8 +53,8 @@ print(json.dumps({"name": slug, "alias": tid, "enabled": True,
                   "description": "Tenant " + slug + " (dikelola control-plane, jangan edit manual)",
                   "attributes": {"slug": [slug]}}))' "$SLUG" "$TENANT_ID")"
   if change "organization ${SLUG} dibuat (alias=${TENANT_ID})"; then
-    # KC 26: POST /organizations → 201 + Location …/organizations/<id>. Domain tidak diisi (opsional sejak 26.x;
-    # UNVERIFIED (KC 26.7 docs) — bila server menolak tanpa domain, respons 400 dicetak oleh kc_send).
+    # KC 26: POST /organizations → 201 + Location …/organizations/<id>. Tanpa domain diterima (diverifikasi
+    # Keycloak 26.7.4 sekali pakai, 2026-10-03).
     kc_send POST /organizations "$body" 201
     ORG_ID="${KC_LOCATION##*/}"
     [[ "$ORG_ID" =~ $UUID_RE ]] || die "id organization baru tidak dikenali dari Location"
@@ -69,7 +69,7 @@ else
     log "organization ${SLUG} ada (id ${ORG_ID}, alias cocok) — tidak ada perubahan"
   elif change "organization ${SLUG}: ${diff}"; then
     body="$(kc_json '{**d, "enabled": True, "attributes": {**(d.get("attributes") or {}), "slug": ["'"$SLUG"'"]}}' "$ORG_JSON")"
-    # PUT /organizations/{id} — representasi penuh (UNVERIFIED (KC 26.7 docs): status 204).
+    # PUT /organizations/{id} — representasi penuh → 204 (diverifikasi KC 26.7.4; alias tidak boleh berubah).
     kc_send PUT "/organizations/${ORG_ID}" "$body" 204
   fi
 fi

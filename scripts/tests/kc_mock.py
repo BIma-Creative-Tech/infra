@@ -46,7 +46,9 @@ def default_realm(name, seed_cp_admin=False):
             'smtpServer': {'host': 'mail.example', 'password': MOCK_SECRET_MARKER},
         },
         'profile': {'attributes': [
-            {'name': n, 'displayName': n, 'permissions': {'view': ['admin', 'user'], 'edit': ['admin', 'user']}}
+            # label placeholder pesan seperti konfigurasi default KC 26.7.4 (diverifikasi container sekali pakai)
+            {'name': n, 'displayName': '$' + '{' + n + '}',
+             'permissions': {'view': ['admin', 'user'], 'edit': ['admin', 'user']}}
             for n in ('username', 'email', 'firstName', 'lastName')
         ], 'groups': [{'name': 'user-metadata', 'displayHeader': 'User metadata'}]},
         'flows': {'browser': [
@@ -98,7 +100,8 @@ def default_realm(name, seed_cp_admin=False):
     if seed_cp_admin:   # seperti setelah kc-realm-sync pertama (kelas uji selain realm sync)
         cu = add_client('cp-admin', sa=True)
         rm = next(c for c in r['clients'].values() if c['rep']['clientId'] == 'realm-management')
-        allow = {'manage-users', 'view-users', 'query-users', 'query-groups', 'manage-organizations'}
+        allow = {'manage-users', 'view-users', 'query-users', 'query-groups', 'manage-organizations', 'view-clients'}
+        r['rep']['organizationsEnabled'] = True   # kelas uji user/org: kondisi setelah W2
         r['role_maps'][(r['clients'][cu]['sa_user'], rm['rep']['id'])] = {
             rid for rid, role in rm['roles'].items() if role['name'] in allow}
     return r
@@ -343,7 +346,9 @@ class Handler(BaseHTTPRequestHandler):
             if not u:
                 return self._send(404, {'error': 'User not found'})
             return self._user(R, u, method, m.group(2) or '', q, body)
-        # ---- organizations
+        # ---- organizations (KC 26.7.4: realm tanpa Organizations → 404 "Organizations not enabled for this realm.")
+        if path.startswith('/organizations') and not R['rep'].get('organizationsEnabled'):
+            return self._send(404, {'errorMessage': 'Organizations not enabled for this realm.'})
         if path == '/organizations':
             if method == 'GET':
                 return self._send(200, list(copy.deepcopy(o) for o in R['orgs'].values()))
