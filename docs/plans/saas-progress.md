@@ -108,3 +108,31 @@ Append per sesi, bertanggal. Pertanyaan pemblokir selalu di bagian **Butuh keput
   `manage-organizations`, D7 sub-flow `Organization` DISABLED); uji live menyusul setelah freeze. K11 baru.
 - Pengerjaan paralel di branch (belum merge/deploy): infra `feat/infra-saas-p1-dispatcher`, `feat/infra-saas-p1-scripts`,
   `feat/infra-saas-p1-odoo-user`; odoo-addons-shared `feat/sh-auth-oidc-tenant-check`; control-plane `feat/saas-p1-users`.
+
+## 2026-10-03 — Fase 1 kode selesai di branch (menunggu QA + "FREEZE DICABUT")
+
+**Berubah (branch, belum di-merge ke main / belum deploy)**
+- infra `feat/infra-saas-p1` (integrasi `c2868eb`; gabungan `feat/infra-saas-p1-dispatcher` 3f75141,
+  `feat/infra-saas-p1-scripts` 5f6f358, `feat/infra-saas-p1-odoo-user` 445ac51): dispatcher 1.1.0 (10 tipe baru, allowlist
+  per instance), skrip `kc-org`/`kc-user`/`kc-realm-sync`/`tenant-state`/`odoo-user`/`odoo-tenant-config`, desired-state realm,
+  middleware `tenant-suspended`, role Ansible `infra_jobs` (`job_types`), helper `odoo_user_ensure.py`, kontrak v1.1.
+- control-plane `feat/saas-p1-users` (5c93ac7): migrasi 0004, kontrak TS 10 tipe, rantai job, rekonsiliasi `users`, halaman
+  `/users`, izin `users:view|manage|manage_own`, `realm:sync`, tenant `platform`.
+- odoo-addons-shared `feat/sh-auth-oidc-tenant-check` (5ba6ef9): `sh_auth_oidc` 19.0.1.3.0 `tenant_check`.
+- Alasan belum merge infra ke `main`: checkout `/opt/infra` dipakai job prod — branch mengubah `keycloak-admin.sh`,
+  `odoo_sso_kc.py`, template route, dan menambah file middleware Traefik (komponen freeze).
+
+**Diuji (container sekali pakai, tanpa menyentuh layanan berjalan)**
+- Dispatcher 372 OK; skrip kc 18 OK (mock) + uji end-to-end ke **Keycloak 26.7.4 dan Traefik v3.7.13 sekali pakai**
+  (sync plan/apply/apply-kedua changed=0, flow `Organization` DISABLED, klaim `tenant_id` ada, `organization` tidak);
+  `odoo_user_ensure` 62 ok (Odoo 19 + Postgres sekali pakai); `sh_auth_oidc` 151 tes 3 modul 0 gagal; control-plane lint/typecheck,
+  486 unit + 20 integrasi (migrasi 0000–0004, rantai, lintas tenant), build OK.
+- **Syarat owner #2 terjawab**: `users` prod kosong karena baris dihapus cleanup QA 2026-09-25 & 09-26 (dokumen
+  `docs/qa/2026-09-25-plan05-prod-backfill.md:75`, `2026-09-26-plan06-prod.md:165`; `pg_stat` ins=2 del=2; FK `ON DELETE SET
+  NULL`); sejak 09-26 tidak ada sign-in CP prod. Bukan bug kode. Perbaikan: baris `users` dibuat dari RESULT `kc_user_ensure`,
+  tidak pernah di-DELETE (nonaktif = `status=disabled`); usulan FK `RESTRICT` di migrasi 0005.
+
+**Belum**
+- Review QA/security (berjalan).
+- Deploy staging (W2–W5), uji live S1, gate — menunggu "FREEZE DICABUT". Urutan: kontrak v1.1 §4.
+- Fase 1 sisa: W6 portal client, W7 subscription/invoice/tick, rekonsiliasi `tenant_suspend|resume`, UI `kc_realm_sync`.
