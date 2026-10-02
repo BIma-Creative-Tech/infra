@@ -1,6 +1,6 @@
 # Plan 19 — Expomedia: progres SPK, biaya produksi & margin, tanda tangan & GPS BAST
 
-Status 2026-10-02: data mart **LIVE** (staging & prod tenant), control-plane v0.8.0 **STAGING** (prod belum), modul Odoo siap (tes lulus) — **belum di-deploy** (upgrade staging ditolak auto mode).
+Status 2026-10-02: **STAGING & PROD SELESAI** — data mart, control-plane v0.8.0 (`3d4aa7c`), Odoo platform `v19.0.1.3.1` + client `v19.0.2.7.0`.
 Pemicu: umpan balik uji user di staging (SPK uji `SPK/2026/10/02-001751`, so_id 2250):
 
 1. progres SPK berhenti di 17 %;
@@ -41,22 +41,24 @@ wkhtmltopdf timeout di container terisolasi, tidak terkait perubahan). Chromium 
 palsu): wizard → GPS `-6.225300, 106.799100 (±12 m)` otomatis, nama default, gambar tanda tangan → Adopt → Simpan → status
 "Signed (one side)", tombol GPS muncul; `get_fonts` 1× / 71 KB; 0 error konsol. Konteks non-secure → pesan HTTPS tampil.
 
-### Deploy Odoo staging (BELUM — upgrade ditolak auto mode)
+### Temuan lanjutan: "TTD satu pihak" padahal kedua pihak sudah
 
-```bash
-f=/opt/infra/backups/odoo/expomedia_staging-$(date +%Y%m%d-%H%M%S)-pre-plan19.dump
-(umask 077; docker exec postgres pg_dump -U postgres -Fc expomedia_staging > "$f")
-cd /opt/infra
-git -C staging/odoo/addons/platform checkout v19.0.1.3.0
-git -C staging/odoo/addons/clients/expomedia checkout v19.0.2.7.0
-docker exec odoo-staging odoo -c /etc/odoo/odoo.conf -d expomedia_staging -u custom_bast,cl_expomedia_report \
-  -i cl_expomedia_progress --stop-after-init --no-http --workers=0 --max-cron-threads=0
-docker restart odoo-staging
-```
+BAST/2026/01081: To lewat wizard (09:49:12), From **diunggah langsung** di tab Signatures (attachment 329 KB, 09:49:54) →
+gambar tersimpan tanpa waktu/nama dan tanpa hitung ulang status. Platform `v19.0.1.3.1` (`c6c2191`, masih `custom_bast`
+19.0.0.3.0): `write()` mengisi waktu/nama penanda tangan dan menghitung ulang status untuk jalur mana pun; tanda tangan BAST
+completed/voided terkunci; status hanya ditulis bila berubah; migrasi `19.0.0.3.0` mengisi waktu dari attachment lalu
+menghitung ulang (hanya BAST bertanda tangan). Tes terisolasi 23/23.
 
-Lalu SPK 001751 (dan SPK uji lain): Sales → SPK → Aksi → Perbarui progres dari dokumen (atau `env['sale.order']
-.browse(2250).action_cl_progress_sync()`), commit pin submodule staging. Prod: sama untuk `odoo/pool-a` + `expomedia_prod`.
-Backup staging sudah dibuat: `expomedia_staging-20261002-171700-pre-plan19.dump`.
+### Deploy (2026-10-02 sore)
+
+| Langkah | Staging (`expomedia_staging`) | Prod (`expomedia_prod`, pool-a) |
+|---|---|---|
+| Backup (600) | `expomedia_staging-20261002-172918-pre-plan19.dump` | `expomedia_prod-20261002-173716-pre-plan19.{dump,filestore.tgz}`, `control_plane-20261002-173904-pre-v0.8.0.dump` |
+| Submodule | platform `v19.0.1.3.1`, clients/expomedia `v19.0.2.7.0` | sama (`odoo/pool-a/addons/*`) |
+| Odoo | `-u custom_bast,cl_expomedia_report -i cl_expomedia_progress` exit 0, restart `odoo-staging` | sama, restart `odoo-pool-a`; hanya `expomedia_prod` yang memasang `custom_bast` di pool-a (`demo_demo` tidak) |
+| Verifikasi | BAST/2026/01081 → `completed` (From 09:49:54 Ade Maryadi); sinkron progres SPK non-mockup 2247/2250: 001751 **Selesai 100 %** (BAST lengkap + lunas), 001750 Produksi 33 %; mart refresh ok | `/web/login` 200, stage `expomedia_data.cfg_stage_*` ada, 0 SO (tidak ada sinkron); control-plane prod `3d4aa7c` healthy, `cp.bimacreative.tech/api/health` 200 |
+
+Rollback: checkout pin lama (platform `v19.0.1.2.1`, client `v19.0.2.6.1`) + restore dump; control-plane `CONTROL_PLANE_TAG=8b0bf5e`.
 
 ## Data mart
 
@@ -114,6 +116,6 @@ control-plane **v0.8.0** (`main` `3d4aa7c`, merge `feat/spk-cost-bast` `240afd2`
 
 ### Sisa untuk prod
 
-- Pin `web/control-plane/docker-compose.yml` ke `3d4aa7c` lalu `docker compose up -d` (aksi prod — keluar dari auto mode).
+- ~~Pin control-plane prod ke `3d4aa7c`~~ — selesai (lihat Deploy).
 - Data mart prod sudah membawa kolom/tabel baru (tenant `expomedia:prod` kosong SO).
 - Isi `hourly_cost` karyawan (staging admin & prod) agar biaya tenaga kerja kiosk tidak Rp 0.
