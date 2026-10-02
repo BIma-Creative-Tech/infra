@@ -966,11 +966,41 @@ class TestPhase1Validators(unittest.TestCase):
                   "kc_realm_sync apply", "kc_user_set_enabled_false": "kc_user_set_enabled enabled=false",
                   "odoo_tenant_config_strict": "odoo_tenant_config strict", "tenant_suspend_staging": "tenant_suspend",
                   "kc_user_set_roles_platform_superadmin": "kc_user_set_roles cp_role=superadmin",
-                  "kc_user_set_roles_platform_ops": "kc_user_set_roles cp_role=ops"}
+                  "kc_user_set_roles_platform_ops": "kc_user_set_roles cp_role=ops",
+                  "kc_user_ensure_platform_adopt": "kc_user_ensure adopt"}
         for c in FX["valid"]:
             if c["job"]["type"] in PHASE1:
                 job = ij.validate_job(c["job"], c["instance"], c["job"]["job_id"], ALL_TYPES)
                 self.assertEqual(job.alert_reason, expect.get(c["name"]), c["name"])
+
+    def test_kc_user_ensure_adopt(self) -> None:
+        """Kontrak v1.2 (QA F1a): `adopt` opsional bool (default false) → argv `--adopt`; apply → alert."""
+        base = {"email": "a@b.co", "tenant_id": "7c9e6679-7425-40de-944b-e07fc1f90ae7", "invite": False}
+        for slug in ("platform", "acme-co"):
+            for dry in (False, True):
+                for adopt in (None, False, True):
+                    args = dict(base) if adopt is None else {**base, "adopt": adopt}
+                    with self.subTest(slug=slug, dry=dry, adopt=adopt):
+                        job = self.validate(self.job("kc_user_ensure", slug, args, dry_run=dry))
+                        self.assertIs(job.args["adopt"], adopt is True)
+                        self.assertEqual(job.alert_reason, "kc_user_ensure adopt" if adopt and not dry else None)
+                        self.assertFalse(job.sends_email)
+                        argv = ij.build_argv(self.CFG, job, dry)
+                        self.assertEqual(argv.count("--adopt"), 1 if adopt else 0)
+                        self.assertEqual(argv[:8], ["/s/kc-user.sh", "ensure", slug, "staging", "--email", "a@b.co",
+                                                    "--tenant-id", "7c9e6679-7425-40de-944b-e07fc1f90ae7"])
+                        self.assertEqual(argv[8:], ["--no-invite", *(["--adopt"] if adopt else []),
+                                                    *(["--dry-run"] if dry else [])])
+        for bad in ("true", "false", 1, 0, None, [], {}):
+            with self.subTest(bad=bad), self.assertRaises(ij.Reject) as cm:
+                self.validate(self.job("kc_user_ensure", "acme-co", {**base, "adopt": bad}))
+            self.assertEqual((cm.exception.code, cm.exception.detail),
+                             ("rejected_validation", "args.adopt harus boolean"))
+        # adopt hanya untuk kc_user_ensure (tipe user lain menolak kunci tambahan)
+        for jtype, args in (("kc_user_set_roles", {"email": "a@b.co", "cp_role": "client_user"}),
+                            ("kc_user_set_enabled", {"email": "a@b.co", "enabled": True})):
+            with self.subTest(jtype=jtype), self.assertRaises(ij.Reject):
+                self.validate(self.job(jtype, "acme-co", {**args, "adopt": True}))
 
     def test_disallowed_type_rejected_before_args(self) -> None:
         obj = self.job("kc_user_set_roles", "acme-co", {"email": "a@b.co", "cp_role": "client_user"})

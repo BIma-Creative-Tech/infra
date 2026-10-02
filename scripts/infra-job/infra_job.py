@@ -618,15 +618,21 @@ def v_kc_org_ensure(job: Job, args: dict[str, Any]) -> None:
 
 
 def v_kc_user_ensure(job: Job, args: dict[str, Any]) -> None:
-    _keys(args, {"email", "tenant_id", "invite"}, {"name"}, "args")
+    _keys(args, {"email", "tenant_id", "invite"}, {"name", "adopt"}, "args")
     _email(job, args)
     job.args["tenant_id"] = _str(args, "tenant_id", UUID_RE, "args.tenant_id", 36)
     job.args["invite"] = _bool(args, "invite", "args.invite")
     if "name" in args:
         job.args["name"] = _str(args, "name", NAME_RE, "args.name", 100)
+    # Kontrak v1.2 (QA F1): adopt=true → skrip boleh mengikat user LAMA (tanpa tenant_id, tetapi sudah punya role/
+    # org) ke tenant slug. Hanya superadmin yang mengirimnya (ditegakkan CP); skrip tetap menolak staf platform
+    # (superadmin/ops) lewat slug ≠ platform.
+    job.args["adopt"] = _bool(args, "adopt", "args.adopt") if "adopt" in args else False
     job.pre_dry_run = not job.dry_run
     # Undangan (execute-actions-email) benar-benar terkirim → ikut kuota email (keputusan Lead 2026-10-03).
     job.sends_email = job.args["invite"] and not job.dry_run
+    if job.args["adopt"] and not job.dry_run:
+        job.alert_reason = "kc_user_ensure adopt"
 
 
 def v_kc_user_set_roles(job: Job, args: dict[str, Any]) -> None:
@@ -757,6 +763,8 @@ def build_argv(cfg: Config, job: Job, dry: bool) -> list[str]:
             argv += ["--name", a["name"]]
         if not a["invite"]:
             argv.append("--no-invite")
+        if a["adopt"]:
+            argv.append("--adopt")
     elif job.type == "kc_user_set_roles":
         argv += ["--email", a["email"], "--cp-role", a["cp_role"]]
         if "odoo" in a:
