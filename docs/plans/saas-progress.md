@@ -20,7 +20,7 @@ Append per sesi, bertanggal. Pertanyaan pemblokir selalu di bagian **Butuh keput
 | K1 | `restic unlock` + ulang restore-test | **selesai** 23:03 — lock basi dihapus; `restic check` **ok**; `db_compare=failed` (lihat log sesi) |
 | K2 | stop `ci-runner-supervisor` selama demo, start saat freeze dicabut | **selesai** — supervisor stop, container job idle ikut berhenti |
 | K3 | repo privat GitHub + push semua branch/tag hari ini; `/opt/src` ke restic (apply setelah freeze) | sebagian — key/remote siap, menunggu repo dibuat owner; restic di branch belum di-merge |
-| K4 | setelah freeze: hapus 21 image per `repo:tag` tanpa `-f` (pre-check daftar ID/tag, keluarkan yang dipakai container/compose/.env + 4 basis), `builder prune --filter until=72h`, `volume prune` anonim (lampirkan `volume ls -f dangling=true` sebelum/sesudah); §11.3 TIDAK; `docker-host-gc.timer` via Ansible dry-run dulu | menunggu freeze |
+| K4 | setelah freeze: hapus 21 image (**kecuali `axllent/mailpit:v1.31.2` — dipakai Mailpit staging Fase 1**) per `repo:tag` tanpa `-f` (pre-check daftar ID/tag, keluarkan yang dipakai container/compose/.env + 4 basis), `builder prune --filter until=72h`, `volume prune` anonim (lampirkan `volume ls -f dangling=true` sebelum/sesudah); §11.3 TIDAK; `docker-host-gc.timer` via Ansible dry-run dulu | menunggu freeze |
 | K5 | tag ulang `42682f7f2d09` → `proyekkas-web:0.4.1`; pin `proyekkas-*:0.3.0` | menunggu freeze |
 | K6 | owner ubah DMARC `expomedia.id` → `p=quarantine; pct=25` setelah demo; **ingatkan seminggu kemudian** untuk hapus `pct` | menunggu owner (pengingat: 7 hari setelah owner mengonfirmasi perubahan DNS) |
 | K7–K10 | ADR 0009 tetap; client OIDC per tenant-env; role CP yang ada + label; domain/mailbox di gate Fase 2/4 | dimasukkan ke ADR 0017/0018/0009 |
@@ -165,3 +165,29 @@ W2 staging. Langkah pertama setelah `kc_realm_sync` pertama: adopsi staf ke tena
 - Dikerjakan di branch control-plane (bercabang dari `feat/saas-p1-users`): `feat/saas-p1-billing` (migrasi 0005, langganan/
   invoice/plan, tick harian, email pengingat, halaman `/suspended`, rekonsiliasi status tenant) dan `feat/saas-p1-tenants`
   (onboarding tenant satu form, detail tenant + suspend/resume, halaman Audit, UI sync realm, pintasan adopsi staf).
+
+## 2026-10-03 — Fase 1 kode LENGKAP (W3–W7) di branch, QA ronde 2 lulus; menunggu "FREEZE DICABUT"
+
+**Branch final (belum merge ke main / belum deploy)**
+- control-plane `feat/saas-p1` (worktree `/opt/src/wt/cp-p1`, HEAD `8c50916`) = Users + billing + tenants + portal + domain:
+  migrasi 0004–0005, onboarding tenant satu form (rantai 14 langkah, opsional plan → subscription `implementation`),
+  detail tenant + suspend/resume, Users + adopsi staf, subscriptions/invoices (Go-live, invoice `INV/YYYY/MM/NNNN`, tandai
+  lunas, override harga), tick harian 00:15 WIB + email pengingat (staging → Mailpit), `/suspended`, portal client
+  (`/portal`, `/portal/users`, `/portal/domains`; client_user tetap mendarat di `/dashboard`), domain + checklist DNS,
+  `/audit`, `/realm`. Uji: 740 unit, 82 integrasi, lint/typecheck/build OK.
+- infra `feat/infra-saas-p1` (worktree `/opt/infra-wt/p1-int`, HEAD `8db6578`): + compose CP staging (allowlist job,
+  SMTP→Mailpit, `PLATFORM_PUBLIC_IPV4`) dan **runbook deploy staging** `docs/plans/saas-phase-1-deploy-staging.md`.
+- odoo-addons-shared `feat/sh-auth-oidc-tenant-check` (`5ba6ef9`); infra `feat/backup-opt-src` (`9a3ce82`).
+
+**QA ronde 2** (billing/onboarding/portal/domain/compose): staging GO, tanpa High; tidak ada IDOR/kebocoran lintas
+tenant; F1–F8 tidak regresi. Diperbaiki: N1 retry apply sync realm melewati gerbang (Medium), N2 aksi billing tanpa cek
+aktor nonaktif (Medium), N3 retry suspend/resume, N4 invoice/harga 0, N5 portal hanya akses Odoo `none|user`, N6 portal
+cek role DB, N7 `blockers` wajib ada, N8 tick cek job lawan + lewati tenant terminated, N10; N9 → runbook (`users`
+tidak pernah di-DELETE).
+
+**Keputusan Lead (dicatat)**: urutan invoice global; jatuh tempo = akhir periode; email "tenant tanpa admin" hanya saat
+daftar berubah; DNS wildcard `*.erp|staging.bimacreative.tech` sudah ada (smoke SSO onboarding aman); domain di bawah
+`bimacreative.tech` ditolak sebagai domain tenant.
+
+**Berikutnya** (setelah "FREEZE DICABUT"): jalankan runbook deploy staging §0–§6 → gate §7 → plan migrasi prod (M3–M10,
+K11 upgrade Keycloak 26.7.5) → owner approval.
