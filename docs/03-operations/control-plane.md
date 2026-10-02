@@ -80,6 +80,11 @@ Network tidak berubah oleh plan 05 (worker hanya network DB; sejak plan 06: `db-
   `job.result_inconsistent`. Aktor = `user:<sub Keycloak>` + `actor_user_id` sejak `6d94d2b` (BUG-J5-02); sebelum itu aktor = UUID
   acak per login (job/audit staging lama dari QA J5 tidak bisa ditelusuri).
 - `users` di-upsert saat login (keycloak_sub, email, role cache, `last_login_at`).
+- **Baris `users` TIDAK PERNAH di-DELETE** (SaaS Fase 1, migrasi 0005: FK `audit_logs`/`provision_jobs.actor_user_id`,
+  `invoices.confirmed_by` → `ON DELETE RESTRICT`). Cleanup uji/QA = nonaktifkan (`/users` → Nonaktifkan, atau
+  `status='disabled'`), bukan `DELETE` — DELETE kini gagal, dan sebelum 0005 justru mengosongkan `actor_user_id` audit
+  (penyebab temuan "users prod kosong" 2026-10-03). Tenant uji dengan baris `notification_log` juga tidak bisa dihapus →
+  `clients.status='terminated'`.
 - Mutasi dengan header `Origin` asing → `403` di `proxy.ts` (sejak `6d94d2b`; sebelumnya 500 dari Next.js).
 
 ### Versi, migrasi, backup
