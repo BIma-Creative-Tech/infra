@@ -64,6 +64,9 @@ WITH loc AS (
 SELECT so.client_slug, so.env, so.id AS so_id,
        so.name AS spk_no, so.quotation_name, so.legacy_ref,
        CASE so.state WHEN 'sale' THEN 'spk' WHEN 'cancel' THEN 'batal' ELSE 'penawaran' END AS status,
+       -- Penawaran dibuat (draft) vs terkirim (sent: tombol Send / "Mark Quotation as Sent"); NULL untuk SPK/batal.
+       -- Kolom tambahan — nilai `status` tetap agar control-plane v0.5.0 kompatibel.
+       CASE so.state WHEN 'draft' THEN 'dibuat' WHEN 'sent' THEN 'terkirim' END AS quotation_state,
        so.date_order, grp.name AS customer, brand.name AS brand, ae.name AS ae, ae.login AS ae_login,
        coalesce(loc.locations, 0) AS locations, coalesce(sn.stage, 'Belum ada lokasi') AS stage,
        coalesce(loc.stage_min_seq, 0) AS stage_seq, coalesce(loc.progress_pct, 0) AS progress_pct,
