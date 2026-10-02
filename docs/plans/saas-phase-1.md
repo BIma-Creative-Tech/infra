@@ -1,7 +1,10 @@
-# SaaS Fase 1 — Identitas + control-plane inti (RENCANA, menunggu persetujuan)
+# SaaS Fase 1 — Identitas + control-plane inti
 
-Status 2026-10-02: **DRAFT — BELUM ADA IMPLEMENTASI.** Eksekusi dimulai hanya setelah (1) owner menyetujui dokumen ini
-dan keputusan di `saas-progress.md` §Butuh keputusan, dan (2) FREEZE DEMO expomedia dicabut. Dasar: brief owner
+Status 2026-10-02: **DISETUJUI owner dengan dua syarat** — (1) spike S1 menjawab tertulis apakah
+`organizationsEnabled=true` mengubah isi token/sesi client `odoo-*` dan `control-plane`, hasilnya masuk ADR 0017 sebelum
+W2 langkah 2; (2) temuan `users` prod kosong (inventaris §2.1) terjawab (penyebab + perbaikan) di W3, tidak dibawa ke M4.
+**W1 (ADR) selesai sebagai draft** (`docs/adr/0017`, `0018`, amandemen `0009`). W0, W2–W8 menunggu **"FREEZE DICABUT"**
+dari owner (paling cepat Senin 2026-10-06). Keputusan owner K7–K10, Q1–Q6 sudah dimasukkan ke ADR. Dasar: brief owner
 2026-10-02 §2, §2a, §5.1–5.3, §6, §6a; fakta dari `docs/plans/saas-inventory.md`.
 
 Prinsip: **adopsi, bukan bangun ulang** — perluas `clients`/`users`/`provision_jobs`/dispatcher yang ada; semua di
