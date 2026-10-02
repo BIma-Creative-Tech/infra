@@ -35,6 +35,11 @@ trap 'rm -f "$tmp"' EXIT
     table=$(basename "$f" .sql)
     query=$(grep -v '^[[:space:]]*--' "$f" | tr '\n' ' ')
     echo "TRUNCATE $schema.$table;"
+    # plan 18: `-- optional-table: <tabel>` = tabel milik modul opsional; tidak ada di DB sumber → raw dibiarkan kosong.
+    opt=$(sed -n 's/^--[[:space:]]*optional-table:[[:space:]]*\([a-z0-9_]*\).*/\1/p' "$f" | head -1)
+    if [[ -n "$opt" && $(psql_src -tAc "SELECT to_regclass('public.$opt') IS NOT NULL") != t ]]; then
+      continue
+    fi
     echo "COPY $schema.$table FROM STDIN;"
     psql_src -c "COPY ($query) TO STDOUT"
     echo '\.'

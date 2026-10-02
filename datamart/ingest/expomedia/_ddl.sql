@@ -46,3 +46,8 @@ CREATE TABLE IF NOT EXISTS {{schema}}.stock_move (id int PRIMARY KEY, picking_id
   uom text, state text);
 CREATE TABLE IF NOT EXISTS {{schema}}.vendor_bill_line (id int PRIMARY KEY, move_id int, purchase_line_id int,
   default_code text, product text, description text, qty numeric, uom text, price_subtotal numeric);
+-- plan 18 (custom_doc_trace): kunci SPK tagihan vendor (kolom di AKHIR) + isu link dokumen.
+ALTER TABLE {{schema}}.vendor_bill ADD COLUMN IF NOT EXISTS so_id int;
+CREATE TABLE IF NOT EXISTS {{schema}}.doc_trace_issue (id int PRIMARY KEY, rule_code text, severity text, res_model text,
+  res_id int, so_id int, state text, message text, doc_no text, first_seen timestamp, last_seen timestamp,
+  fixed_at timestamp, write_date timestamp);
