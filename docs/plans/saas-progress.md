@@ -10,11 +10,6 @@ Append per sesi, bertanggal. Pertanyaan pemblokir selalu di bagian **Butuh keput
   `odoo-addons-athera`, `odoo-addons-expomedia`, `web-tambang`; **nonaktifkan Actions** dulu (web-expomedia/web-tambang punya
   `ci.yml` yang langsung jalan saat push tag/branch); pasang deploy key **write** (public key di laporan sesi; file
   `~/.ssh/deploy_<repo>.pub` root di host). Setelah itu Claude menjalankan push semua branch + tag.
-- **K3 pengecualian** — `proyekkas-private` **TIDAK** di-push: bukan repo git dan berisi keystore Android
-  `proyekkas-staging.jks` + **password-nya dalam file teks**, `pseudonym-map.md`, bundle history pra-publik. Diamankan lewat
-  restic (`/opt/src`, branch `feat/backup-opt-src`). Konfirmasi owner bahwa ini diterima.
-- **Q5 (sisa)** — alamat email billing internal untuk pengingat tagihan.
-- **Review ADR** — `0017-identity-organizations.md`, `0018-tenant-lifecycle-billing.md`, amandemen `0009` (status proposed).
 - **FREEZE** — berlaku sampai owner menulis "FREEZE DICABUT". Setelah itu: K2 start ulang CI runner, K4–K5, apply K3 restic,
   W0–W8.
 
@@ -33,9 +28,10 @@ Append per sesi, bertanggal. Pertanyaan pemblokir selalu di bagian **Butuh keput
 | Q1 | Fase 1 tetap `<slug>.erp.bimacreative.tech` / `<slug>.staging.bimacreative.tech`; pola host = parameter inventory Fase 5 | — |
 | Q2/Q3 | mail suspended = terima-saja (kirim mati); web suspended = tetap tayang | ADR 0018 D6 |
 | Q4 | plan awal 7 kode, harga nullable | ADR 0018 D7 |
-| Q5 | pengirim `noreply@bimacreative.tech`; penerima tenant-admin + billing internal; staging → Mailpit | ADR 0018 D8 (alamat billing belum) |
+| Q5 | pengirim `noreply@bimacreative.tech`; penerima tenant-admin + billing internal; staging → Mailpit | ADR 0018 D8; mailbox `billing@bimacreative.tech` dibuat 2026-10-02 |
 | Q6 | `ssotest_staging` hapus setelah Fase 1 lulus (dump dulu); `demo_staging` tenant uji; `demo_demo` dipertahankan | ADR 0018 D10 |
 | Q11 | freeze berlaku sampai owner menulis "FREEZE DICABUT" | — |
+| Lanjutan | owner: "lanjutkan sesuai rekomendasi" → `proyekkas-private` tidak di-push (restic saja); ADR 0017/0018 accepted (S1 tetap syarat) | selesai |
 | Fase 1 | draft disetujui dengan syarat S1 → ADR 0017 sebelum W2#2, dan `users` prod kosong terjawab di W3 | W1 selesai (draft ADR) |
 
 ---
@@ -86,3 +82,16 @@ Append per sesi, bertanggal. Pertanyaan pemblokir selalu di bagian **Butuh keput
 **Belum**
 - Push K3 (menunggu repo + deploy key dari owner).
 - Spike S1, W0, W2–W8 (menunggu "FREEZE DICABUT").
+
+## 2026-10-02 (larut) — billing@ + tindak lanjut rekomendasi
+
+**Berubah**
+- Mailserver (permintaan eksplisit owner, walau dalam freeze; tanpa restart — changedetector DMS): mailbox
+  `billing@bimacreative.tech` kuota 2G lewat `mail/scripts/mailbox-add.sh` (password acak → `mail/secrets/…password`, 600 root,
+  tidak dicetak). Verifikasi: `setup email list` memuat akun, `doveadm user` → home `/var/mail/bimacreative.tech/billing/home`.
+- Repo infra: ADR 0017/0018 → accepted; ADR 0018 D8 alamat billing; `mail.md` daftar akun; hook `bash-policy.sh` pola
+  baca-secret per segmen (false-deny `grep …; ls …/secrets/…`), 91 kasus.
+
+**Belum**
+- Password `billing@` perlu diserahkan ke owner lewat kanal aman (file secret di host; tidak dikirim lewat chat).
+- K3 push menunggu repo GitHub dari owner; sisanya menunggu "FREEZE DICABUT".

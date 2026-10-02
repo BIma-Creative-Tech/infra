@@ -34,6 +34,8 @@ deny|/|iptables -t nat -F
 deny|/|ip link set eth0 down
 deny|/|ip route del default
 deny|/|cat /opt/infra/web/clients/bct/secrets/smtp_password.secret
+deny|/|grep -F x a.txt; cat /opt/infra/mail/secrets/x@y.tech.password
+ask|/|docker exec mailserver setup email list | grep -F x; ls -la /opt/infra/mail/secrets/x@y.tech.password
 deny|/|jq . /opt/infra/traefik/acme/acme.json
 deny|/|grep PASSWORD /opt/infra/postgres/.env
 deny|/opt/infra/postgres|cat .env

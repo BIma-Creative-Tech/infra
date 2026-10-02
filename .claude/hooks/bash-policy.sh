@@ -108,7 +108,7 @@ hasi "(dropdb( [^;&|]*)? (${PROD_DBS})( |$|[;&|\"'])|drop database (if exists )?
 has '(^|[;&| ])(sudo )?(ufw (allow|deny|reject|limit|delete|insert|disable|reset|default|route)|iptables(-legacy|-nft)? .*-[ADIRFXPNZE]( |$)|iptables-restore|nft (add|delete|destroy|flush|insert|replace|create|-f)|ip (-[a-z0-9]+ )*(l|link|a|addr|address|r|route|rule|n|neigh) (set|del|delete|add|flush|change|replace|append))' \
   && deny "perubahan firewall/routing harus lewat repo infra + persetujuan"
 # mencetak / menyalin / menimpa secret
-hasi "(^|[;&| ]|docker exec [^ ]+ )(cat|tac|less|more|head|tail|strings|base64|xxd|od|hexdump|jq|yq|awk|sed|cut|sort|diff|cp|scp|rsync|tee|dd|vi|vim|nano|grep|rg)( [^|]*)?${SECRET_RE}" \
+hasi "(^|[;&| ]|docker exec [^ ]+ )(cat|tac|less|more|head|tail|strings|base64|xxd|od|hexdump|jq|yq|awk|sed|cut|sort|diff|cp|scp|rsync|tee|dd|vi|vim|nano|grep|rg)( [^|;&]*)?${SECRET_RE}" \
   && deny "mencetak/menyalin isi secret dilarang (brief §0.1); nama file/variabel boleh"
 has ">>? ?[^ ]*${SECRET_RE}" \
   && deny "menimpa file secret lewat redirect dilarang; ubah secret manual di luar sesi"
