@@ -18,6 +18,7 @@ cd /opt/infra/ansible
 | Env (tanpa secret) | `/etc/ci-runner/supervisor.env` | dari template role |
 | PAT | `/etc/ci-runner/pat` (root 600) | dipasang OWNER; tidak pernah dibaca operator/agent; masuk ke service lewat `LoadCredential` |
 | Container job | `ci-runner-job` (label `ci-runner.role=job`), image `ci-runner:<runner>-<build>` | sysbox, 2 vCPU, 5 GiB tanpa swap, pids 4096, `oom_score_adj 800`, io.max |
+| DNS container bersarang | `daemon.json` dockerd dalam: `dns: [1.1.1.1, 9.9.9.9]` (image build ≥ 4) | tanpa ini Docker memakai fallback 8.8.8.8/8.8.4.4 (resolver job = 127.0.0.11 tak terjangkau dari dalam); dari VPS ini 8.8.8.8 gagal ±35% → lookup A gagal, AAAA berhasil → Go hanya mencoba IPv6 → `connect: network is unreachable` (insiden 2026-10-02, image job drms bff95ac & 3dd8a96) |
 | Disk | `/var/lib/ci-runner/disk.img` → loop ext4 `/srv/ci` (40 GiB, `srv-ci.mount`) | `docker/` = data-root dockerd dalam, `cache/` = cache Flutter/Gradle/pub/npm/Android SDK/Trivy |
 | GC | `ci-runner-gc.timer` (harian) | prune dockerd dalam / reset cache di atas ambang |
 | Metrik | `/var/lib/node-exporter-textfile/ci_runner*.prom` | dibaca healthcheck §6 (`scripts/infra-healthcheck.sh`) |

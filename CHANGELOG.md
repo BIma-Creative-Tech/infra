@@ -8,6 +8,12 @@ file `VERSION`.
 
 ## [Unreleased]
 
+### Fixed
+- ci_runner image **build 4** (2026-10-02): dockerd dalam memakai DNS `1.1.1.1` + `9.9.9.9`. Container bersarang
+  (buildkitd, trivy, `docker run` di job) sebelumnya jatuh ke fallback Docker 8.8.8.8/8.8.4.4; dari VPS ini 8.8.8.8 gagal
+  14/40 lookup A (1.1.1.1 & 9.9.9.9: 0/40) → Go hanya punya AAAA → `dial tcp [v6]:443: network is unreachable`; job image
+  `drms` gagal 2× (bff95ac, 3dd8a96). Runbook `docs/03-operations/ci-runner.md` §1.
+
 ### Added
 - plan 14 (2026-09-29): Expomedia pindah ke **alur standar Odoo**:
   - CRM → PNW → SPK (sale.order) → task per lokasi → milestone/DP → invoice → payment; timesheet = absensi per SPK;
