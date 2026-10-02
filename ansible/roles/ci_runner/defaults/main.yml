@@ -62,7 +62,8 @@ ci_runner_egress_drop:
 ci_runner_version: 2.337.0
 # 2 (R12): entrypoint meneruskan hasil job sebagai kode keluar.
 # 3 (R12b): janitor root — sisa milik root di _work/_temp & /cache di-chown ke uid 1001.
-ci_runner_image_build: 3
+# 4 (2026-10-02): dockerd dalam memakai DNS 1.1.1.1 + 9.9.9.9 (fallback default Docker 8.8.8.8 gagal ±35% dari VPS ini).
+ci_runner_image_build: 4
 ci_runner_image: "ci-runner:{{ ci_runner_version }}-{{ ci_runner_image_build }}"
 ci_runner_base_image: "ghcr.io/actions/actions-runner:{{ ci_runner_version }}@sha256:e5496277be5d09bc968b3d64911b74e219ac4a3f2edce956a3ecf9271bea1ef4"
 ci_runner_gh_version: 2.101.0
