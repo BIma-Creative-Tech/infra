@@ -55,6 +55,9 @@ services:
     environment:
       SERVICE_NAME: control-plane-staging-web
       INFRA_JOBS_INSTANCE: staging   # plan 05 / ADR 0009
+      # SaaS Fase 1 (kontrak v1.2): tipe job yang boleh di-enqueue CP staging = allowlist dispatcher staging.conf.
+      INFRA_JOBS_TYPES: odoo_db_provision,odoo_route,odoo_sso_provision,odoo_sso_disable,odoo_sso_user,kc_realm_sync,kc_org_ensure,kc_user_ensure,kc_user_set_roles,kc_user_set_enabled,kc_user_action_email,odoo_user_ensure,odoo_tenant_config,tenant_suspend,tenant_resume
+      PLATFORM_PUBLIC_IPV4: 31.97.50.221   # checklist DNS domain tenant (bukan secret)
       # plan 15: tombol "Buka Odoo" Quotation Tracker (bukan secret). Host Demo = alias demo-erp.expomedia.id.
       DASHBOARD_ODOO_URLS: expomedia=https://demo-erp.expomedia.id
     tmpfs:
@@ -89,6 +92,13 @@ services:
       INFRA_JOBS_INSTANCE: staging
       INFRA_JOBS_SPOOL_DIR: /jobs/spool
       INFRA_JOBS_RESULTS_DIR: /jobs/results
+      INFRA_JOBS_TYPES: odoo_db_provision,odoo_route,odoo_sso_provision,odoo_sso_disable,odoo_sso_user,kc_realm_sync,kc_org_ensure,kc_user_ensure,kc_user_set_roles,kc_user_set_enabled,kc_user_action_email,odoo_user_ensure,odoo_tenant_config,tenant_suspend,tenant_resume
+      # ADR 0018 D8: email pengingat staging HANYA ke Mailpit (tanpa TLS/auth, network internal stack ini).
+      SMTP_HOST: mailpit
+      SMTP_PORT: "1025"
+      SMTP_TLS: "off"   # hanya diterima kode bila INFRA_JOBS_INSTANCE=staging
+      SMTP_FROM: noreply@bimacreative.tech
+      BILLING_EMAIL: billing@bimacreative.tech
     tmpfs:
       - /tmp:uid=951,gid=951,mode=0700
     volumes:
@@ -104,6 +114,7 @@ services:
         bind: { create_host_path: false }
     networks:
       - db-cp-stg   # hanya DB; tidak butuh egress
+      - cp-stg-mail   # → mailpit:1025 (SaaS Fase 1, email pengingat staging)
     healthcheck:
       test: ["CMD", "node", "-e", "const t=+require('fs').readFileSync('/tmp/worker-heartbeat','utf8');process.exit(Date.now()-t<60000?0:1)"]
       interval: 30s
@@ -113,7 +124,35 @@ services:
     mem_limit: 128m   # ADR 0004 (staging)
     cpus: 0.10
 
+  # SaaS Fase 1 (ADR 0018 D8): penampung email staging. Tanpa port di-publish; UI/API 8025 hanya dari dalam
+  # container (cek: docker exec control-plane-staging-mailpit wget -qO- http://127.0.0.1:8025/api/v1/messages).
+  mailpit:
+    image: axllent/mailpit:v1.31.2@sha256:74d609a42ec279aa63c6b4622a6fa9b5408d1ad5b1d76a1c4be40a265ce0863d
+    container_name: control-plane-staging-mailpit
+    restart: unless-stopped
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      MP_MAX_MESSAGES: "500"
+    tmpfs:
+      - /tmp
+      - /data
+    networks:
+      - cp-stg-mail
+    mem_limit: 48m
+    cpus: 0.05
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
 networks:
+  cp-stg-mail:
+    internal: true   # hanya worker ↔ mailpit; tanpa egress
   db-cp-stg:
     # postgres/scripts/bootstrap.sh: 10.100.24.0/24 --internal — anggota hanya postgres + migrate/web/worker stack ini (ADR 0010).
     external: true
