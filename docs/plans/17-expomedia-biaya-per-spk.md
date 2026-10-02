@@ -49,7 +49,15 @@ Status 2026-10-02: **STAGING & PROD SELESAI**. Kelanjutan plan 16. Pemicu: umpan
 - Backup pra-deploy (600): `backups/odoo/expomedia_staging-20261002-102106-pre-scm.dump`,
   `expomedia_prod-20261002-104926-pre-plan17.{dump,filestore.tgz}`, `control_plane-20261002-104926-pre-v0.6.0.dump`.
 
-## 5. Sisa / catatan
+## 5. Perbaikan lanjutan (2026-10-02 siang)
+
+Laporan user: admin sudah check-in di SPK/2026/10/02-001751 tetapi datanya tidak tampil. Penyebab: timesheet kiosk baru
+dibuat saat check-out. `cl_expomedia_kiosk` 19.0.1.1.0 (addons `v19.0.2.6.1`): timesheet dibuat sejak check-in (0 jam,
+"masuk HH:MM, sedang bekerja"), diperbarui menjadi ½/1 hari saat check-out; migrasi mengisi absensi berjalan. Tes 11/11
+(salinan DB). Staging & prod di-upgrade (backup `*-pre-kiosk-fix.dump`); mart staging SPK 001751: `crew_people = 1`,
+status terakhir = absensi sedang bekerja.
+
+## 6. Sisa / catatan
 
 - Prod: gudang masih bernama "My Company" (`WH`) dan belum ada master material → BoM `PRD-BOOTH-M2` kosong; isi master
   gudang Workshop & material sebelum produksi nyata. Karyawan prod perlu `hourly_cost` (upah harian ÷ 8) dan badge.
