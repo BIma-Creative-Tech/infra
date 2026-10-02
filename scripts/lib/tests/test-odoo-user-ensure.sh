@@ -8,7 +8,8 @@
 # Kasus: dry-run create (tidak menulis), create, rerun idempoten, role user→admin→user, nonaktif/aktif, dry-run
 # perubahan, user admin/__system__ ditolak, oauth_uid konflik ditolak, user tertaut subject lain ditolak, login
 # dipakai user lain ditolak, user portal ditolak, tidak ada + active=false = no-op, parameter tidak valid, provider
-# tidak ada, signal_changes (orm_signaling_*) hanya saat apply, pergantian email/login via KC id.
+# tidak ada, signal_changes (orm_signaling_*) hanya saat apply, pergantian email/login via KC id, user lokal admin
+# ditemukan by login dengan role user ditolak (QA F7).
 set -euo pipefail
 
 ADDONS="${1:-/opt/src/odoo-addons-shared}"
@@ -16,7 +17,7 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$HERE/../odoo_user_ensure.py"
 ODOO_IMAGE=odoo:19.0-20260908
 PG_IMAGE=postgres:16.15-bookworm
-TAG="p1test-c-oue-$$"
+TAG="${TEST_TAG_PREFIX:-p1test-c-oue}-$$"   # prefix nama container/jaringan uji (bisa dioverride)
 NET="$TAG-net"; DBC="$TAG-db"; DB=t_oue
 [[ -f "$ADDONS/sh_auth_oidc/__manifest__.py" ]] || { echo "sh_auth_oidc tidak ada di $ADDONS" >&2; exit 2; }
 [[ -f "$SCRIPT" ]] || { echo "$SCRIPT tidak ada" >&2; exit 2; }
@@ -71,6 +72,9 @@ U.create({'name': 'Dave', 'login': 'dave@example.com', 'email': 'dave@example.co
           'group_ids': [Command.set(g_user.ids)]})
 U.create({'name': 'Pat', 'login': 'pat@example.com', 'email': 'pat@example.com',
           'group_ids': [Command.set(env.ref('base.group_portal').ids)]})
+# user LOKAL admin (tanpa tautan OIDC) — kasus 12 (QA F7)
+U.create({'name': 'Gina', 'login': 'gina@example.com', 'email': 'gina@example.com',
+          'group_ids': [Command.set((g_user | env.ref('base.group_system')).ids)]})
 env.cr.commit()
 print('FIXTURE_OK provider=%d' % prov.id)
 PY
@@ -234,6 +238,29 @@ ensure alice.new@example.com user true "$KC" false ODOO_USER_OIDC_CLIENT_ID=odoo
 check "provider tidak ada" "$RC" 2
 ensure alice.new@example.com admin true "$KC" false ODOO_USER_OIDC_CLIENT_ID=odoo-acme-staging
 check "provider by client id" "$RC" 0
+
+echo "== 12. user LOKAL admin ditemukan by login (oauth_uid kosong) — QA F7"
+KG=99999999-9999-4999-8999-999999999999
+GID="$(psql_q "SELECT id FROM res_users WHERE login = 'gina@example.com'")"
+before="$(psql_q "SELECT md5(string_agg(id||login||active::text||coalesce(oauth_uid,''), ',' ORDER BY id)) FROM res_users")"
+ensure gina@example.com user true "$KG" true
+check "dry-run role user → ditolak" "$RC" 3
+out_has '^ERROR: .*user lokal admin; tautkan dengan role admin atau tangani manual' "ERROR user lokal admin"
+out_lacks '^RESULT' "tanpa RESULT"
+ensure gina@example.com user true "$KG" false
+check "apply role user → ditolak" "$RC" 3
+check "hak admin lokal tetap" "$(has_group "$GID" group_system)" t
+check "tidak ditautkan" "$(psql_q "SELECT coalesce(oauth_uid, '') FROM res_users WHERE id = $GID")" ""
+check "res.users tidak berubah oleh penolakan" \
+  "$(psql_q "SELECT md5(string_agg(id||login||active::text||coalesce(oauth_uid,''), ',' ORDER BY id)) FROM res_users")" "$before"
+ensure gina@example.com admin true "$KG" false
+check "role admin → ditautkan (exit 0)" "$RC" 0
+check "tautan saja changed=1" "$(field changed)" 1
+check "user sama" "$(field odoo_user)" "$GID"
+check "group_system tetap" "$(has_group "$GID" group_system)" t
+ensure gina@example.com user true "$KG" false
+check "setelah tertaut: turun ke role user diizinkan (by KC id)" "$RC" 0
+check "group_system dicabut eksplisit" "$(has_group "$GID" group_system)" f
 
 echo
 echo "HASIL: $PASS ok, $FAIL gagal"

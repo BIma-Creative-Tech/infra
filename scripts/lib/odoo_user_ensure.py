@@ -41,7 +41,9 @@
 #   5. Menolak (exit 3, baris `ERROR:`) bila target = base.user_root/__system__, base.user_admin, base.public_user,
 #      template user (base.default_user, base.template_portal_user_id); target user portal/public (share=True,
 #      konversi ke internal harus manual); oauth_uid sudah tertaut ke res.users LAIN (provider mana pun); user yang
-#      ditemukan by login sudah tertaut ke subject Keycloak lain; login baru sudah dipakai res.users lain.
+#      ditemukan by login sudah tertaut ke subject Keycloak lain; login baru sudah dipakai res.users lain; user LOKAL
+#      (ditemukan by login, oauth_uid kosong) yang punya base.group_system (langsung/implikasi) dengan role ≠ admin
+#      (QA F7 — tautan otomatis tidak boleh diam-diam mencabut hak admin lokal; tautkan dengan role admin atau manual).
 #   6. Apply: env.cr.commit() eksplisit (odoo shell me-rollback di akhir), lalu env.registry.signal_changes() —
 #      write group_ids/active membersihkan ormcache (has_group, session token) HANYA di proses shell ini; tanpa sinyal
 #      worker pool tetap memakai cache lama (pelajaran: ubah grup via odoo shell wajib signal_changes()).
@@ -170,6 +172,12 @@ def _find_target(params, provider, protected):
     if target and target.share:
         raise EnsureError(f'res.users {target.id} adalah user portal/public (share) — konversi ke user internal '
                           f'harus manual', EXIT_REFUSED)
+    # QA F7: tautan otomatis user LOKAL (ditemukan by login, oauth_uid kosong) yang admin (base.group_system, langsung
+    # atau lewat implikasi) dengan role ≠ admin akan diam-diam mencabut hak admin user lokal → tolak.
+    if (target and not by_uid and not target.oauth_uid and params['role'] != 'admin'
+            and env.ref('base.group_system') in target.all_group_ids):
+        raise EnsureError(f'res.users {target.id}: user lokal admin; tautkan dengan role admin atau tangani manual',
+                          EXIT_REFUSED)
     return target
 
 
