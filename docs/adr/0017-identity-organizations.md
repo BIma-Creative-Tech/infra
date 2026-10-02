@@ -39,7 +39,8 @@ Fakta (inventaris 2026-10-02, read-only):
 3. **Atribut user `tenant_id`** (= `clients.id`) dideklarasikan di user profile realm: hanya admin yang boleh view/edit,
    user tidak bisa mengubah. Client scope baru `tenant` (mapper `oidc-usermodel-attribute-mapper` → klaim `tenant_id`,
    di ID token, access token, userinfo) menjadi **default scope** pada `control-plane` dan setiap `odoo-<slug>-<env>`.
-   Scope `organization` dijadikan default pada client yang sama (klaim `organization`). User internal memakai
+   Scope `organization` **tidak** dijadikan default dan tidak diminta client (S1.1: scope default mengikat refresh token ke
+   org → refresh gagal saat keanggotaan berubah); identitas tenant hanya dari klaim `tenant_id`. User internal memakai
    `tenant_id` tenant khusus `platform` (ADR 0018).
 4. **Odoo tetap satu client per tenant-env** (ADR 0008, keputusan owner K8). Klaim `tenant_id` adalah **lapisan kedua**:
    `sh_auth_oidc` 19.0.1.3.0 membandingkan klaim dengan ICP `sh_auth_oidc.expected_tenant_id` per DB, mode
@@ -50,9 +51,9 @@ Fakta (inventaris 2026-10-02, read-only):
    Client `odoo-<slug>-<env>`: `odoo_access` (tetap) + `odoo_admin` (baru → group Settings/Administration oleh job
    `odoo_user_ensure`). Tidak ada realm role baru.
 6. **Dua service account** (keputusan owner K7: kredensial di host, bukan di CP):
-   - `cp-admin` — job harian (user/org): `manage-users`, `view-users`, `query-users`, `query-groups` + hak minimum
-     Organizations hasil S1. **Bukan** `realm-admin`, **bukan** `manage-realm` kecuali S1 membuktikan wajib (lalu dicatat
-     di §Spike S1 dan Security).
+   - `cp-admin` — job harian (user/org): `manage-organizations`, `manage-users`, `view-users`, `query-users`,
+     `query-groups` (S1.4: role org khusus sejak 26.7.0; tambah member = `manage-organizations` + `manage-users`).
+     **Bukan** `realm-admin`, **bukan** `manage-realm`.
    - `kc-realm-sync` — **hanya** job `kc_realm_sync`: `manage-realm`, `manage-clients`, `view-realm`. Prod hanya dengan
      flag persetujuan eksplisit di job.
    - Secret: `identity/keycloak/secrets/{cp-admin,kc-realm-sync}-<realm>.secret` (600 root, tidak di-commit), dibaca skrip
@@ -60,7 +61,9 @@ Fakta (inventaris 2026-10-02, read-only):
 7. **Realm sebagai kode**: desired-state `identity/keycloak/realm/platform.json` (tanpa secret, tanpa user) +
    `platform-staging.overrides.json` (redirect URI, hostname, SMTP). Skrip `kc_realm_sync.py` (Python stdlib, pola
    `scripts/lib/odoo_sso_kc.py`) menerapkan: atribut realm (termasuk `organizationsEnabled`), user profile, client scope &
-   mapper, client non-tenant, role client. Selalu `dry-run` (diff) dulu; apply idempoten (diff kedua kosong). Client
+   mapper, client non-tenant, role client, dan **requirement sub-flow `Organization` di flow `browser` = DISABLED**
+   (S1.3: tanpa ini, begitu org pertama ada, SEMUA user realm mendapat halaman identity-first; routing IdP per org tidak
+   dipakai). Selalu `dry-run` (diff) dulu; apply idempoten (diff kedua kosong). Client
    `odoo-<slug>-<env>` tetap dikelola `provision-odoo-sso.sh` (bukan file realm). **Staging tidak diedit manual.**
 8. **Administrasi user/org hanya lewat job dispatcher** (ADR 0009 amandemen 2026-10-02): `kc_org_ensure`,
    `kc_user_ensure`, `kc_user_set_enabled`, `kc_user_set_roles`, `kc_user_action_email`, `kc_realm_sync`. Console
@@ -69,20 +72,30 @@ Fakta (inventaris 2026-10-02, read-only):
 
 ## Spike S1 (WAJIB sebelum W2 langkah 2 — syarat owner)
 
-Status: **BELUM DIJAWAB.** Diisi dari dokumentasi resmi Keycloak 26.7 + uji di `platform-staging` (setelah freeze dicabut).
+Status: **TERJAWAB dari dokumentasi resmi + kode sumber Keycloak tag `26.7.4`** (riset 2026-10-03, tanpa menyentuh server);
+**uji live di `platform-staging` menyusul setelah freeze dicabut** (W2 langkah 2 baru jalan setelah uji live §Uji live lulus).
+Sumber: `github.com/keycloak/keycloak/blob/26.7.4/…`, server_admin "Managing organizations", release notes 26.7.0, upgrading 26.6.1.
 
-| # | Pertanyaan | Jawaban | Bukti |
-|---|---|---|---|
-| S1.1 | Apakah `organizationsEnabled=true` mengubah **isi ID/access token** client `odoo-*` dan `control-plane` yang ada (tanpa menambah scope `organization`)? | UNVERIFIED | — |
-| S1.2 | Apakah mengaktifkan Organizations **memutus/mengubah sesi** yang sedang berjalan (SSO session, refresh token) client tersebut? | UNVERIFIED | — |
-| S1.3 | Apakah browser flow berubah (authenticator `organization` / identity-first) bila tidak dikonfigurasi eksplisit? | UNVERIFIED | — |
-| S1.4 | Hak realm-management minimum untuk `GET/POST /organizations` dan `/organizations/{id}/members` | UNVERIFIED | — |
-| S1.5 | Bisakah `manage-users` (tanpa `manage-realm`) memberi role `realm-management` ke user lain (eskalasi)? | UNVERIFIED | — |
+| # | Pertanyaan | Jawaban | Bukti utama | Keyakinan |
+|---|---|---|---|---|
+| S1.1 | Isi token client lama berubah? | **Tidak**, selama client tidak meminta / tidak punya default scope `organization` (scope dibuat realm default-*optional*; klaim hanya dari mapper scope itu). Bila scope dijadikan default: klaim `organization: ["alias"]` hanya untuk user dengan tepat 1 org, alias org ditulis ke refresh token → refresh gagal bila user dikeluarkan/org dinonaktifkan; perilaku multi-org belum pasti (issue #39298) | `OIDCLoginProtocolFactory.java#L395-L403`, `TokenManager.java#L563-L717`, `OrganizationMembershipMapper.java`, `OrganizationTokenPostProcessor.java` | tinggi (tanpa scope) / sedang (default scope) |
+| S1.2 | Sesi/refresh token lama terputus? | **Tidak** — hanya atribut realm; tidak ada logout massal/revoke | `DefaultExportImportManager.java#L837`, `TokenManager.java#L1637-L1660` | tinggi (kode) |
+| S1.3 | Browser flow berubah? | **Ya, setelah org pertama dibuat**: flow `browser` bawaan 26.6.1+ memuat sub-flow `Organization` (identity-first). Realm disabled → dilewati; enabled tanpa org → login biasa; enabled + ≥ 1 org → halaman "username dulu" untuk **semua** user (member atau bukan) di semua client. **Keputusan: sub-flow di-set DISABLED lewat realm-as-code (D7)** | `DefaultAuthenticationFlows.java#L837-L893`, `MigrateTo26_6_1.java`, `OrganizationAuthenticator.java`, docs `authenticating-members.adoc` | tinggi |
+| S1.4 | Hak minimum Admin API org | `manage-organizations` (create/update), `view-organizations`/`query-organizations` (baca), tambah member = `manage-organizations` + `manage-users`; **tidak perlu `manage-realm`**. Org disabled → 404 | `AdminRoles.java`, `MigrateTo26_7_0.java`, `OrganizationMemberResource.java#L106-L110`, release notes 26.7.0 | tinggi |
+| S1.5 | Eskalasi via `manage-users`? | Role `realm-management` hanya bisa dipetakan bila pemanggil memegangnya (FGAP v2 default). **Namun** `manage-users` bisa reset password user mana pun (termasuk admin realm), memasukkan user ke grup ber-role admin, dan memetakan composite kustom berisi role admin → **secret `cp-admin` diperlakukan setara kredensial admin realm** | `RolePermissionsV2.java#L49-L196`, `UserPermissionsV2.java`, `GroupPermissionsV2.java`, docs `fine-grain-v2.adoc` | sedang-tinggi (kode, belum diuji) |
+| S1.6 | Bentuk klaim org | `organization: ["alias"]` (default, ID+access token, tanpa userinfo); objek per alias bila opsi id/atribut/domain diaktifkan | `OrganizationMembershipMapper.java#L60-L229`, docs `mapping-organization-claims.adoc` | tinggi |
+| S1.7 | Bug terkenal 26.x | #52309 (filter admin permission bocor ke lookup org saat login) **fix 26.7.5**; CVE-2026-4633 enumerasi via identity-first (fix lengkap 26.8.0; dimitigasi bila sub-flow DISABLED); #50882 (500 bila scope default diminta eksplisit) fix 26.7.1 — sudah termasuk; #50458 jangan matikan fitur di level server | issue tracker keycloak/keycloak | sedang |
 
-Metode uji S1.1–S1.3: decode ID token (header + klaim, tanpa signature) `control-plane` dan `odoo-expomedia-staging` untuk
-user uji sebelum/sesudah toggle di `platform-staging`; sesi browser aktif dibiarkan terbuka melewati toggle; flow
-dibandingkan via export realm sebelum/sesudah. **Bila S1.1–S1.3 menunjukkan perubahan yang memutus client lama**, D2 diganti
-fallback **grup** `/tenants/<slug>` + atribut `tenant_id` (D3 tetap), dan ADR ini direvisi sebelum W2 lanjut.
+### Uji live (setelah freeze, `platform-staging`, sebelum W2 langkah 2)
+1. Pastikan flow `browser` yang ter-bind memuat sub-flow `Organization`; set DISABLED via `kc_realm_sync` (plan → apply → diff kosong).
+2. Toggle `organizationsEnabled=true` → login `control-plane-staging` + `odoo-expomedia-staging`: tidak ada perubahan halaman/klaim.
+3. Buat 1 org uji → login member & non-member: tetap form username+password biasa; SSO antar-client normal.
+4. Decode ID/access/refresh token user 0/1 org: tidak ada klaim `organization`, klaim `tenant_id` ada setelah scope `tenant`.
+5. Endpoint org/member dengan SA berole minimal S1.4; rollback toggle → login normal.
+
+Hasil: **D2 (Organizations) tetap**, fallback grup tidak diperlukan, dengan dua penyesuaian: scope `organization` tidak
+default (D3) dan sub-flow `Organization` DISABLED (D7). **Keputusan baru untuk owner (K11)**: upgrade Keycloak ke
+26.7.5 (fix #52309) sebelum Organizations diaktifkan di realm prod `platform`.
 
 ## Alternatives
 
@@ -109,8 +122,9 @@ fallback **grup** `/tenants/<slug>` + atribut `tenant_id` (D3 tetap), dan ADR in
 - `cp-admin` dan `kc-realm-sync` hanya dibaca root di host; CP tertembus tetap terbatas pada job allowlist + kuota (ADR 0009).
 - `manage-users` mampu menonaktifkan/mengubah user mana pun di realm (termasuk internal) — mitigasi: kuota per tipe job,
   alert email untuk disable massal, user `superadmin` tidak bisa dinonaktifkan lewat job (validator dispatcher).
-- S1.5 menentukan apakah `cp-admin` bisa eskalasi; bila ya → fine-grained admin permissions atau batasi role yang boleh
-  dipetakan di validator dispatcher (allowlist role).
+- S1.5: `manage-users` praktis setara admin realm (reset password user mana pun) → secret `cp-admin` = kredensial admin;
+  role yang boleh dipetakan job dibatasi allowlist di dispatcher + skrip; tidak ada grup/composite kustom berisi role
+  `realm-management` di realm `platform*` (dicek `kc_realm_sync` plan).
 - Atribut `tenant_id` hanya bisa ditulis admin (user profile); klaim tidak bisa dipalsukan user.
 
 ## Rollback
@@ -129,3 +143,4 @@ client; `sh_auth_oidc.tenant_check=off`; nonaktifkan client `cp-admin`/`kc-realm
 
 - 2026-10-02: dibuat (proposed) — SaaS Fase 1 W1; arah disetujui owner (K7–K9).
 - 2026-10-02: proposed → accepted (owner "lanjutkan sesuai rekomendasi"); D2 dan hak org D6 tetap menunggu spike S1.
+- 2026-10-03: spike S1 terjawab dari dokumen + kode 26.7.4 — D3 scope `organization` tidak default, D6 role `manage-organizations`, D7 sub-flow `Organization` DISABLED; uji live menyusul (freeze); K11 upgrade 26.7.5.

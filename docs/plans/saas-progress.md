@@ -10,6 +10,10 @@ Append per sesi, bertanggal. Pertanyaan pemblokir selalu di bagian **Butuh keput
   `odoo-addons-athera`, `odoo-addons-expomedia`, `web-tambang`; **nonaktifkan Actions** dulu (web-expomedia/web-tambang punya
   `ci.yml` yang langsung jalan saat push tag/branch); pasang deploy key **write** (public key di laporan sesi; file
   `~/.ssh/deploy_<repo>.pub` root di host). Setelah itu Claude menjalankan push semua branch + tag.
+- **K11 (baru, dari spike S1)** — upgrade Keycloak 26.7.4 → **26.7.5** (fix #52309: filter admin permission ikut diterapkan
+  ke lookup org saat login end-user) sebelum Organizations diaktifkan di realm **prod** `platform`. Butuh restart Keycloak
+  (jendela perawatan, setelah freeze) — menggantikan R1 brief. 26.8.0 (fix lengkap CVE-2026-4633) dinilai setelah rilis
+  stabil; risiko CVE itu dimitigasi karena sub-flow identity-first di-DISABLED (ADR 0017 D7). Setuju?
 - **FREEZE** — berlaku sampai owner menulis "FREEZE DICABUT". Setelah itu: K2 start ulang CI runner, K4–K5, apply K3 restic,
   W0–W8.
 
@@ -95,3 +99,12 @@ Append per sesi, bertanggal. Pertanyaan pemblokir selalu di bagian **Butuh keput
 **Belum**
 - Password `billing@` perlu diserahkan ke owner lewat kanal aman (file secret di host; tidak dikirim lewat chat).
 - K3 push menunggu repo GitHub dari owner; sisanya menunggu "FREEZE DICABUT".
+
+## 2026-10-03 — Fase 1 dimulai (kode di branch, freeze tetap)
+
+**Berubah**
+- Kontrak Fase 1 `docs/plans/saas-phase-1-contract.md` (merge `3f67537`), urutan "Users dulu".
+- Spike S1 terjawab dari dokumen + kode Keycloak 26.7.4 → ADR 0017 (D3 scope `organization` tidak default, D6 role
+  `manage-organizations`, D7 sub-flow `Organization` DISABLED); uji live menyusul setelah freeze. K11 baru.
+- Pengerjaan paralel di branch (belum merge/deploy): infra `feat/infra-saas-p1-dispatcher`, `feat/infra-saas-p1-scripts`,
+  `feat/infra-saas-p1-odoo-user`; odoo-addons-shared `feat/sh-auth-oidc-tenant-check`; control-plane `feat/saas-p1-users`.
