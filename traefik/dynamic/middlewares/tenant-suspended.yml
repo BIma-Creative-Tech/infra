@@ -1,0 +1,33 @@
+# SaaS Fase 1 (ADR 0018 #6, kontrak saas-phase-1-contract.md §1.1) — middleware `tenant-suspended`: tenant Odoo yang
+# disuspend (job tenant_suspend → scripts/tenant-state.sh → render-client-route.sh --suspended) di-redirect 302 ke
+# halaman control plane `/suspended/<slug>`. DB/filestore utuh; resume = render ulang tanpa --suspended.
+# Dipakai router main/login/oidc/websocket hasil render (`tenant-suspended@file`, setelah crowdsec).
+#
+# Middleware ini STATIS (satu definisi untuk semua tenant), jadi slug + host control plane diturunkan dari Host request:
+#   1. tenant-suspended-default-host: host default render (lib/odoo-pools.sh default_host)
+#        <slug>.erp.bimacreative.tech      → https://cp.bimacreative.tech/suspended/<slug>          (prod)
+#        <slug>.staging.bimacreative.tech  → https://cp.staging.bimacreative.tech/suspended/<slug>  (staging)
+#   2. tenant-suspended-fallback: host lain (env demo dengan --host eksplisit, domain milik client) → tidak ada pemetaan
+#      host→slug/env yang statis, jadi diarahkan GENERIK ke https://cp.bimacreative.tech/suspended (tanpa slug).
+#      Fail-closed: redirectRegex yang tidak cocok meneruskan request, karena itu fallback `^.*$` WAJIB ada di rantai.
+# Catatan: label pertama host env demo `<x>.erp.bimacreative.tech` juga cocok pola 1 → /suspended/<x> (x belum tentu slug);
+# halaman CP harus memperlakukan <slug> sebagai petunjuk tampilan saja (tidak dipercaya untuk otorisasi).
+# Sintaks: docs Traefik v3.7 middlewares/http/redirectregex.md + chain.md (regex Go RE2; replacement `${n}`).
+# Reload: file di subdirektori tidak di-watch → `docker exec traefik kill -HUP 1` (traefik.md §Reload) saat deploy.
+http:
+  middlewares:
+    tenant-suspended:
+      chain:
+        middlewares:
+          - tenant-suspended-default-host
+          - tenant-suspended-fallback
+    tenant-suspended-default-host:
+      redirectRegex:
+        regex: '^https?://([a-z0-9][a-z0-9-]{1,28}[a-z0-9])\.(?:erp\.)?((?:staging\.)?bimacreative\.tech)(?::[0-9]+)?(?:[/?].*)?$'
+        replacement: 'https://cp.${2}/suspended/${1}'
+        permanent: false
+    tenant-suspended-fallback:
+      redirectRegex:
+        regex: '^.*$'
+        replacement: 'https://cp.bimacreative.tech/suspended'
+        permanent: false
