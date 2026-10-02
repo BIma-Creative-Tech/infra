@@ -6,6 +6,7 @@
 #   - `docker` / `dig` → shim di PATH (psql/odoo shell/HUP diemulasikan, argv dicatat).
 # WAJIB dijalankan di container sekali pakai TANPA socket Docker dan tanpa jaringan (scripts/tests/test-kc-scripts.sh):
 # setUpClass menolak berjalan bila /var/run/docker.sock ada (shim salah → perintah docker sungguhan ke prod).
+import hashlib
 import json
 import os
 import re
@@ -14,6 +15,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import uuid
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(os.path.dirname(HERE))
@@ -349,6 +351,8 @@ class T03User(Base):
         self.assertEqual((res['created'], res['invite'], res['tenant']), ('1', '1', T_ACME), out)
         self.assertEqual(res['changed'], '3', out)   # buat + anggota org + undangan
         self.assertNotIn('acme.test', out.split('RESULT', 1)[1])  # RESULT tanpa PII
+        self.assertNotIn('acme.test', out, 'log tanpa email mentah (QA F5)')
+        self.assertIn('email#' + hashlib.sha256(b'a@acme.test').hexdigest()[:8], out)
         u = self.user_by_email('a@acme.test')
         self.assertEqual((u['username'], u['attributes'], u['requiredActions'], u['emailVerified']),
                          ('a@acme.test', {'tenant_id': [T_ACME]}, ['UPDATE_PASSWORD'], False))
@@ -407,11 +411,18 @@ class T03User(Base):
         self.assertEqual(res['changed'], '0', out)
         # role tambahan manual di control-plane → dibuang (persis)
         cp = self.client('control-plane')
-        ops = next(r for r in cp['roles'].values() if r['name'] == 'ops')
-        self.realm()['role_maps'][(uid, cp['rep']['id'])].add(ops['id'])
+        extra = next(r for r in cp['roles'].values() if r['name'] == 'client_user')
+        self.realm()['role_maps'][(uid, cp['rep']['id'])].add(extra['id'])
         res, out = self.ok('kc-user.sh', 'roles', 'acme', 'staging', '--email', 'r@acme.test', '--cp-role',
                            'client_user', '--odoo', 'user')
         self.assertEqual(self.user_roles(uid, 'control-plane'), ['client_user'])
+        # drift role platform (ops) pada user tenant → DITOLAK lewat slug tenant (QA F1c), tangani manual
+        ops = next(r for r in cp['roles'].values() if r['name'] == 'ops')
+        self.realm()['role_maps'][(uid, cp['rep']['id'])].add(ops['id'])
+        rc, out, _ = self.run_script('kc-user.sh', 'roles', 'acme', 'staging', '--email', 'r@acme.test', '--cp-role',
+                                     'client_user')
+        self.assertEqual(rc, 3, out)
+        self.realm()['role_maps'][(uid, cp['rep']['id'])].discard(ops['id'])
         self.assertEqual(self.user_roles(uid, 'odoo-acme-staging'), ['odoo_access'])
         res, out = self.ok('kc-user.sh', 'roles', 'acme', 'staging', '--email', 'r@acme.test', '--cp-role', 'none',
                            '--odoo', 'none')
@@ -493,6 +504,179 @@ class T03User(Base):
         self.assertEqual(rc, 1, out)
 
 
+class T07Adopt(Base):
+    """Kontrak v1.2 §5 (QA F1): user LAMA tanpa tenant_id tidak bisa diambil alih lewat slug tenant.
+
+    Regresi temuan QA (scratchpad qa/test_qa_adopt.py): superadmin lama tanpa atribut tenant_id dulu bisa diikat ke
+    tenant `acme` lewat `kc-user.sh ensure acme`, lalu di-downgrade/dinonaktifkan oleh rantai job tenant.
+    """
+
+    def setUp(self):
+        if not any(o['name'] == 'acme' for o in self.realm()['orgs'].values()):
+            self.ok('kc-realm-sync.sh', 'platform', 'staging')
+            self.ok('kc-org.sh', 'acme', 'staging', '--tenant-id', T_ACME)
+            self.ok('kc-org.sh', 'beta', 'staging', '--tenant-id', T_BETA)
+            self.ok('kc-org.sh', 'platform', 'staging', '--tenant-id', T_PLATFORM)
+            # superadmin lain yang terikat platform → guard "superadmin aktif terakhir" tidak menutupi hasil uji
+            self.ok('kc-user.sh', 'ensure', 'platform', 'staging', '--email', 's0@plat.test', '--tenant-id',
+                    T_PLATFORM, '--no-invite')
+            self.ok('kc-user.sh', 'roles', 'platform', 'staging', '--email', 's0@plat.test', '--cp-role', 'superadmin')
+
+    def grant(self, uid, cid, *names):
+        c = self.client(cid)
+        rids = {rid for rid, r in c['roles'].items() if r['name'] in names}
+        self.assertEqual(len(rids), len(names), names)
+        self.realm()['role_maps'].setdefault((uid, c['rep']['id']), set()).update(rids)
+
+    def role_id(self, cid, name):
+        return next(rid for rid, r in self.client(cid)['roles'].items() if r['name'] == name)
+
+    def legacy(self, email, tid=None):
+        """User lama yang dibuat di luar Fase 1 (tanpa tenant_id) — langsung di store mock."""
+        uid = str(uuid.uuid4())
+        self.realm()['users'][uid] = {'id': uid, 'username': email, 'email': email, 'enabled': True,
+                                      'attributes': {'tenant_id': [tid]} if tid else {}, 'requiredActions': []}
+        return uid
+
+    def realm_role(self, name, *composites):
+        rid = str(uuid.uuid4())
+        self.realm()['realm_roles'][rid] = {'id': rid, 'name': name, 'composites': set(composites)}
+        return rid
+
+    def refused(self, *argv, contains=None):
+        before = len(self.writes())
+        rc, out, _ = self.run_script(*argv)
+        self.assertEqual(rc, 3, f'{argv}: {out}')
+        if contains:
+            self.assertIn(contains, out)
+        self.assertEqual(len(self.writes()), before, f'{argv}: penolakan tidak boleh menulis')
+        return out
+
+    def test_1_qa_tenant_cannot_adopt_unbound_platform_superadmin(self):
+        R = self.realm()
+        uid = self.legacy('boss@athera.test')
+        self.grant(uid, 'control-plane', 'superadmin')
+        email = ('--email', 'boss@athera.test')
+        # rantai CP untuk tenant acme (ensure → roles → enabled) — semuanya DITOLAK, tanpa tulis
+        out = self.refused('kc-user.sh', 'ensure', 'acme', 'staging', *email, '--tenant-id', T_ACME,
+                           contains='staf platform')
+        self.refused('kc-user.sh', 'ensure', 'acme', 'staging', *email, '--tenant-id', T_ACME, '--dry-run')
+        self.refused('kc-user.sh', 'ensure', 'acme', 'staging', *email, '--tenant-id', T_ACME, '--adopt',
+                     contains='staf platform')
+        self.refused('kc-user.sh', 'roles', 'acme', 'staging', *email, '--cp-role', 'client_user',
+                     contains='staf platform')
+        self.refused('kc-user.sh', 'enabled', 'acme', 'staging', *email, '--enabled', 'false',
+                     contains='staf platform')
+        self.refused('kc-user.sh', 'email', 'acme', 'staging', *email, '--action', 'UPDATE_PASSWORD')
+        self.assertEqual((R['users'][uid]['attributes'], R['users'][uid]['enabled']), ({}, True))
+        self.assertEqual(self.user_roles(uid, 'control-plane'), ['superadmin'])
+        # slug platform tanpa --adopt juga ditolak (adopsi = keputusan eksplisit superadmin)
+        self.refused('kc-user.sh', 'ensure', 'platform', 'staging', *email, '--tenant-id', T_PLATFORM, '--no-invite',
+                     contains='user lama tanpa tenant_id — butuh adopt oleh superadmin')
+        # adopsi oleh superadmin lewat slug platform
+        res, out = self.ok('kc-user.sh', 'ensure', 'platform', 'staging', *email, '--tenant-id', T_PLATFORM,
+                           '--no-invite', '--adopt', '--dry-run')
+        self.assertEqual((res['changed'], res['blockers'], res['created']), ('2', '0', '0'), out)
+        self.assertIn('control-plane:superadmin', out)
+        res, out = self.ok('kc-user.sh', 'ensure', 'platform', 'staging', *email, '--tenant-id', T_PLATFORM,
+                           '--no-invite', '--adopt')
+        self.assertEqual((res['changed'], res['kc_user'], res['invite']), ('2', uid, '0'), out)
+        self.assertEqual(R['users'][uid]['attributes'], {'tenant_id': [T_PLATFORM]})
+        org = next(o for o in R['orgs'].values() if o['name'] == 'platform')
+        self.assertIn(uid, R['members'][org['id']])
+        self.assertNotIn('boss@athera.test', out, 'log tanpa email mentah (QA F5)')
+        # setelah terikat: idempoten tanpa --adopt; role platform tetap bisa dikelola lewat slug platform
+        res, out = self.ok('kc-user.sh', 'ensure', 'platform', 'staging', *email, '--tenant-id', T_PLATFORM,
+                           '--no-invite')
+        self.assertEqual(res['changed'], '0', out)
+        res, out = self.ok('kc-user.sh', 'roles', 'platform', 'staging', *email, '--cp-role', 'superadmin')
+        self.assertEqual(res['changed'], '0', out)
+        # tetap tidak bisa disentuh dari slug tenant (lintas tenant + staf platform)
+        self.refused('kc-user.sh', 'ensure', 'acme', 'staging', *email, '--tenant-id', T_ACME, '--adopt')
+
+    def test_2_legacy_tenant_sso_user_needs_adopt(self):
+        # user era odoo-sso-user.sh: role odoo_access di odoo-acme-staging, tanpa tenant_id
+        uid = self.legacy('sso@acme.test')
+        self.grant(uid, 'odoo-acme-staging', 'odoo_access')
+        args = ('kc-user.sh', 'ensure', 'acme', 'staging', '--email', 'sso@acme.test', '--tenant-id', T_ACME)
+        out = self.refused(*args, contains='butuh adopt oleh superadmin')
+        self.assertIn('odoo-acme-staging:odoo_access', out)
+        self.refused(*args, '--dry-run')
+        res, out = self.ok(*args, '--adopt')
+        self.assertEqual((res['created'], res['changed'], res['invite']), ('0', '2', '0'), out)
+        self.assertEqual(self.realm()['users'][uid]['attributes'], {'tenant_id': [T_ACME]})
+        res, out = self.ok('kc-user.sh', 'roles', 'acme', 'staging', '--email', 'sso@acme.test', '--cp-role',
+                           'client_user', '--odoo', 'user')
+        self.assertEqual(self.user_roles(uid, 'odoo-acme-staging'), ['odoo_access'])
+        # adopsi lintas tenant tetap ditolak (adopt tidak pernah menimpa tenant_id yang sudah ada)
+        self.refused('kc-user.sh', 'ensure', 'beta', 'staging', '--email', 'sso@acme.test', '--tenant-id', T_BETA,
+                     '--adopt', contains='lintas tenant')
+
+    def test_3_each_legacy_signal_requires_adopt(self):
+        R = self.realm()
+        beta = next(oid for oid, o in R['orgs'].items() if o['name'] == 'beta')
+        cases = {
+            'cp@legacy.test': lambda u: self.grant(u, 'control-plane', 'client_user'),
+            'odoo@legacy.test': lambda u: self.grant(u, 'odoo-demo-staging', 'odoo_admin'),
+            'rm@legacy.test': lambda u: self.grant(u, 'realm-management', 'view-users'),
+            'org@legacy.test': lambda u: R['members'][beta].add(u),
+            # role efektif lewat realm role komposit (grup/composite) — bukan mapping langsung
+            'comp@legacy.test': lambda u: R['realm_role_maps'].setdefault(u, set()).add(
+                self.realm_role('legacy-odoo', self.role_id('odoo-demo-staging', 'odoo_access'))),
+        }
+        for email, setup in cases.items():
+            with self.subTest(email=email):
+                uid = self.legacy(email)
+                setup(uid)
+                args = ('kc-user.sh', 'ensure', 'acme', 'staging', '--email', email, '--tenant-id', T_ACME,
+                        '--no-invite')
+                self.refused(*args, contains='user lama tanpa tenant_id — butuh adopt oleh superadmin')
+                self.refused(*args, '--dry-run')
+                res, out = self.ok(*args, '--adopt')
+                self.assertEqual(R['users'][uid]['attributes'], {'tenant_id': [T_ACME]}, out)
+        # tanpa penanda hak lama → diisi tanpa --adopt (perilaku v1.1 tetap)
+        uid = self.legacy('plain@legacy.test')
+        res, out = self.ok('kc-user.sh', 'ensure', 'acme', 'staging', '--email', 'plain@legacy.test', '--tenant-id',
+                           T_ACME, '--no-invite')
+        self.assertEqual((res['changed'], R['users'][uid]['attributes']), ('2', {'tenant_id': [T_ACME]}), out)
+
+    def test_4_effective_platform_role_refused_from_tenant_slug(self):
+        R = self.realm()
+        ops = self.role_id('control-plane', 'ops')
+        sa = self.role_id('control-plane', 'superadmin')
+        # user tenant acme (terikat) yang mendapat ops LEWAT realm role komposit (tidak terlihat di mapping langsung)
+        self.ok('kc-user.sh', 'ensure', 'acme', 'staging', '--email', 'grp@acme.test', '--tenant-id', T_ACME,
+                '--no-invite')
+        uid = self.user_by_email('grp@acme.test')['id']
+        R['realm_role_maps'].setdefault(uid, set()).add(self.realm_role('staff-group', ops))
+        self.assertEqual(self.user_roles(uid, 'control-plane'), [], 'tidak ada mapping langsung')
+        e = ('--email', 'grp@acme.test')
+        self.refused('kc-user.sh', 'roles', 'acme', 'staging', *e, '--cp-role', 'client_user', contains='staf platform')
+        self.refused('kc-user.sh', 'enabled', 'acme', 'staging', *e, '--enabled', 'false', contains='staf platform')
+        self.refused('kc-user.sh', 'email', 'acme', 'staging', *e, '--action', 'UPDATE_PASSWORD', '--dry-run',
+                     contains='staf platform')
+        self.refused('kc-user.sh', 'ensure', 'acme', 'staging', *e, '--tenant-id', T_ACME, contains='staf platform')
+        # superadmin efektif lewat komposit berlapis, user lama: adopt lewat tenant ditolak, lewat platform boleh
+        uid2 = self.legacy('nested@athera.test')
+        inner = self.realm_role('inner', sa)
+        R['realm_role_maps'].setdefault(uid2, set()).add(self.realm_role('outer', inner))
+        e2 = ('--email', 'nested@athera.test')
+        self.refused('kc-user.sh', 'ensure', 'acme', 'staging', *e2, '--tenant-id', T_ACME, '--adopt',
+                     contains='staf platform')
+        self.refused('kc-user.sh', 'enabled', 'acme', 'staging', *e2, '--enabled', 'false', contains='staf platform')
+        _res, out = self.ok('kc-user.sh', 'ensure', 'platform', 'staging', *e2, '--tenant-id', T_PLATFORM, '--adopt',
+                           '--no-invite')
+        self.assertEqual(R['users'][uid2]['attributes'], {'tenant_id': [T_PLATFORM]}, out)
+
+    def test_5_new_user_unaffected_by_adopt(self):
+        res, out = self.ok('kc-user.sh', 'ensure', 'acme', 'staging', '--email', 'fresh@acme.test', '--tenant-id',
+                           T_ACME, '--adopt')
+        self.assertEqual((res['created'], res['invite'], res['changed']), ('1', '1', '3'), out)
+        rc, out, _ = self.run_script('kc-user.sh', 'roles', 'acme', 'staging', '--email', 'fresh@acme.test',
+                                     '--cp-role', 'client_user', '--adopt')
+        self.assertEqual(rc, 2, 'opsi --adopt hanya untuk ensure')
+
+
 class T04Odoo(Base):
     def setUp(self):
         if not any(o['name'] == 'acme' for o in self.realm()['orgs'].values()):
@@ -509,6 +693,8 @@ class T04Odoo(Base):
             os.remove(log)
         res, out = self.ok('odoo-user.sh', 'acme', 'staging', '--email', 'u@acme.test', '--role', 'admin',
                            '--active', 'true', '--dry-run')
+        self.assertNotIn('u@acme.test', out, 'log tanpa email mentah (QA F5)')
+        self.assertIn('user=email#' + hashlib.sha256(b'u@acme.test').hexdigest()[:8], out)
         self.assertEqual((res['db'], res['odoo_user'], res['kc_user'], res['created'], res['blockers']),
                          ('acme_staging', '7', uid, '1', '0'), out)
         with open(os.path.join(self.state, 'helper-env.txt')) as f:
@@ -560,6 +746,34 @@ class T04Odoo(Base):
         self.assertEqual(rc, 3, out)
 
 
+    def test_3_tenant_config_invalid_alias(self):
+        # QA F4: alias org kosong / bukan UUID → compat/strict tidak pernah ditulis (dry-run BLOKIR, apply exit 3)
+        R = self.realm()
+        for slug, alias in (('gamma', ''), ('delta', 'NOT-A-UUID')):
+            oid = str(uuid.uuid4())
+            R['orgs'][oid] = {'id': oid, 'name': slug, 'alias': alias, 'attributes': {'slug': [slug]}, 'domains': []}
+            R['members'][oid] = set()
+        icp = os.path.join(self.state, 'icp.json')
+
+        def icp_now():
+            if not os.path.exists(icp):
+                return None
+            with open(icp) as f:
+                return f.read()
+        before = icp_now()
+        for slug in ('gamma', 'delta'):
+            for mode in ('strict', 'compat'):
+                with self.subTest(slug=slug, mode=mode):
+                    res, out = self.ok('odoo-tenant-config.sh', slug, 'staging', '--tenant-check', mode, '--dry-run')
+                    self.assertEqual((res['blockers'], res['tenant'], res['changed']), ('1', '-', '0'), out)
+                    self.assertIn('bukan UUID', out)
+                    rc, out, _ = self.run_script('odoo-tenant-config.sh', slug, 'staging', '--tenant-check', mode)
+                    self.assertEqual(rc, 3, out)
+            res, out = self.ok('odoo-tenant-config.sh', slug, 'staging', '--tenant-check', 'off', '--dry-run')
+            self.assertEqual((res['blockers'], res['tenant'], res['mode']), ('0', '-', 'off'), out)
+        self.assertEqual(icp_now(), before, 'ICP tidak berubah')
+
+
 class T05TenantState(Base):
     def setUp(self):
         self.route = os.path.join(self.infra, 'traefik', 'dynamic', 'clients', 'expomedia-staging.yml')
@@ -604,6 +818,37 @@ class T06Lib(Base):
         full = {'PATH': os.environ.get('PATH', '/usr/bin:/bin'), 'INFRA_DIR': self.infra, **env}
         return subprocess.run(['/bin/bash', '-c', cmd], capture_output=True, text=True, env=full,  # noqa: S603
                               check=False)
+
+    def test_test_mode_secrets_dir_guard(self):
+        # QA F3: mode uji wajib KC_SECRETS_DIR eksplisit di bawah /tmp/ (realpath) — secret sungguhan tidak pernah
+        # dikirim ke listener uji loopback
+        tm = {'INFRA_TEST_MODE': '1', 'KC_TEST_BASE_URL': 'http://127.0.0.1:1'}
+        p = self._source(tm)
+        self.assertNotEqual(p.returncode, 0)
+        self.assertIn('wajib diisi eksplisit', p.stderr)
+        link = os.path.join(self.tmp, 'link-etc')
+        if not os.path.lexists(link):
+            os.symlink('/etc', link)
+        bad_dirs = ('/opt/infra/identity/keycloak/secrets', '/tmp/../opt/infra/identity/keycloak/secrets',  # noqa: S108
+                    '/etc', '/tmp', link, '')  # noqa: S108 — kasus uji negatif (path yang harus ditolak)
+        for bad in bad_dirs:
+            with self.subTest(dir=bad):
+                p = self._source({**tm, 'KC_SECRETS_DIR': bad})
+                self.assertNotEqual(p.returncode, 0, p.stdout)
+                self.assertIn('di bawah /tmp/', p.stderr)
+        p = self._source({**tm, 'KC_SECRETS_DIR': self.secrets})
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertIn('BASE=http://127.0.0.1:1', p.stdout)
+        # file secret symlink ke luar /tmp → ditolak sebelum dikirim ke mock
+        sym = os.path.join(self.tmp, 'secrets-symlink')
+        os.makedirs(sym, exist_ok=True)
+        target = os.path.join(sym, 'cp-admin-platform-staging.secret')
+        if not os.path.lexists(target):
+            os.symlink('/etc/hostname', target)
+        rc, out, _ = self.run_script('kc-user.sh', 'email', 'acme', 'staging', '--email', 'a@acme.test', '--action',
+                                     'UPDATE_PASSWORD', '--dry-run', extra_env={'KC_SECRETS_DIR': sym})
+        self.assertEqual(rc, 1, out)
+        self.assertIn('file secret harus ber-realpath di bawah /tmp/', out)
 
     def test_test_mode_guard(self):
         p = self._source({'KC_TEST_BASE_URL': 'http://127.0.0.1:1'})

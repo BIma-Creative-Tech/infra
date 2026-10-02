@@ -10,8 +10,11 @@
 #   argv/log).
 # - Mode uji (HANYA scripts/tests/): bila `INFRA_TEST_MODE=1` DAN `KC_TEST_BASE_URL=http://127.0.0.1:<port>`, token +
 #   Admin REST diarahkan ke mock lokal (tanpa --resolve, proto http). KC_TEST_BASE_URL tanpa INFRA_TEST_MODE=1 →
-#   diabaikan (peringatan stderr); INFRA_TEST_MODE=1 dengan URL selain loopback 127.0.0.1 → die. Dispatcher
-#   infra-job menjalankan skrip dengan environment bersih (variabel ini tidak pernah datang dari job).
+#   diabaikan (peringatan stderr); INFRA_TEST_MODE=1 dengan URL selain loopback 127.0.0.1 → die. Mode uji juga
+#   WAJIB `KC_SECRETS_DIR` eksplisit yang (setelah realpath) berada di bawah /tmp/, dan setiap file secret yang dibaca
+#   harus ber-realpath di bawah /tmp/ (QA F3): secret sungguhan (identity/keycloak/secrets di /opt/infra) tidak pernah
+#   terkirim ke listener uji loopback — juga tidak lewat symlink. Dispatcher infra-job menjalankan skrip dengan
+#   environment bersih (variabel ini tidak pernah datang dari job).
 # - Admin REST HANYA via entrypoint Traefik `admin` :8443 (H5): `--resolve auth.bimacreative.tech:8443:127.0.0.1`.
 # - Header Authorization dikirim lewat `-H @<(printf …)` (builtin printf → tidak ada token di argv / `ps`).
 # - Body JSON dikirim dari stdin (`--data-binary @-`). Body yang memuat `${` ditolak sebelum dikirim:
@@ -32,7 +35,9 @@ KC_HOST="${KC_HOST:-auth.bimacreative.tech}"
 KC_ADMIN_PORT="${KC_ADMIN_PORT:-8443}"
 KC_BASE="https://${KC_HOST}:${KC_ADMIN_PORT}"
 KC_RESOLVE=(--resolve "${KC_HOST}:${KC_ADMIN_PORT}:127.0.0.1")
+KC_SECRETS_DIR_SET="${KC_SECRETS_DIR:+1}"   # mode uji mewajibkan KC_SECRETS_DIR eksplisit (bukan default /opt/infra)
 KC_SECRETS_DIR="${KC_SECRETS_DIR:-$INFRA_DIR/identity/keycloak/secrets}"
+KC_TEST_MODE=0
 # Client service account untuk token Admin REST (allowlist; default `automation` = perilaku lama).
 KC_ADMIN_CLIENT="${KC_ADMIN_CLIENT:-automation}"
 case "$KC_ADMIN_CLIENT" in
@@ -48,6 +53,12 @@ if [[ -n "${KC_TEST_BASE_URL:-}" ]]; then
   if [[ "${INFRA_TEST_MODE:-}" == 1 ]]; then
     [[ "$KC_TEST_BASE_URL" =~ ^http://127\.0\.0\.1:[0-9]{1,5}$ ]] \
       || die "INFRA_TEST_MODE=1: KC_TEST_BASE_URL harus http://127.0.0.1:<port>"
+    # QA F3: secret uji hanya dari direktori sementara — secret sungguhan tidak pernah dikirim ke listener uji.
+    [[ -n "$KC_SECRETS_DIR_SET" ]] || die "INFRA_TEST_MODE=1: KC_SECRETS_DIR wajib diisi eksplisit (di bawah /tmp/)"
+    _kc_sd="$(realpath -m -- "$KC_SECRETS_DIR")" || die "INFRA_TEST_MODE=1: KC_SECRETS_DIR tidak bisa di-resolve"
+    [[ "$_kc_sd" == /tmp/?* ]] || die "INFRA_TEST_MODE=1: KC_SECRETS_DIR harus di bawah /tmp/ (bukan secret sungguhan)"
+    unset _kc_sd
+    KC_TEST_MODE=1
     KC_BASE="$KC_TEST_BASE_URL"
     KC_RESOLVE=()
     KC_CURL_OPTS=(-sS --proto '=http' --max-time 30 --retry 0)
@@ -98,6 +109,10 @@ kc_login() {
   local realm="$1" secret_file resp code tok exp
   secret_file="$KC_SECRETS_DIR/${KC_ADMIN_CLIENT}-${realm}.secret"
   [[ -r "$secret_file" && -s "$secret_file" ]] || die "secret ${KC_ADMIN_CLIENT} tidak ada: $secret_file"
+  if [[ $KC_TEST_MODE -eq 1 ]]; then   # QA F3: symlink ke secret sungguhan juga ditolak
+    [[ "$(realpath -e -- "$secret_file")" == /tmp/?* ]] \
+      || die "INFRA_TEST_MODE=1: file secret harus ber-realpath di bawah /tmp/"
+  fi
   # respons token berisi access_token → tidak pernah dicetak; hanya status.
   resp="$(curl "${KC_CURL_OPTS[@]}" "${KC_RESOLVE[@]}" -w '\n%{http_code}' \
       -d grant_type=client_credentials -d "client_id=${KC_ADMIN_CLIENT}" \

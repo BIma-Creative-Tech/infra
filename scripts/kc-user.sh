@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # User Keycloak per tenant (job kc_user_*, kontrak saas-phase-1-contract.md §0/§1/§1.1, ADR 0017). IDEMPOTEN.
 #
-#   scripts/kc-user.sh ensure  <slug> <env> --email <e> --tenant-id <uuid> [--name <n>] [--no-invite] [--dry-run]
+#   scripts/kc-user.sh ensure  <slug> <env> --email <e> --tenant-id <uuid> [--name <n>] [--no-invite] [--adopt]
+#                                           [--dry-run]
 #   scripts/kc-user.sh roles   <slug> <env> --email <e> --cp-role <none|superadmin|ops|client_admin|client_user>
 #                                           [--odoo <none|user|admin>] [--dry-run]
 #   scripts/kc-user.sh enabled <slug> <env> --email <e> --enabled <true|false> [--dry-run]
@@ -14,6 +15,13 @@
 #         tenant_id, required action UPDATE_PASSWORD) + execute-actions-email (kecuali --no-invite; tautan kembali
 #         ke client control-plane). Ada → tenant_id kosong diisi; beda → exit 3 (lintas tenant). Pastikan member org.
 #         Nama (--name) hanya dipakai saat membuat (first word → firstName, sisanya → lastName).
+#         ADOPSI (kontrak v1.2 §5, QA F1b): user yang SUDAH ADA dengan tenant_id kosong tetapi punya penanda hak lama —
+#         role client EFEKTIF (composite: langsung/grup/role komposit) di `control-plane` atau `odoo-*`, role
+#         `realm-management`, atau keanggotaan Organization mana pun — ditolak (exit 3, "user lama tanpa tenant_id —
+#         butuh adopt oleh superadmin") kecuali `--adopt`. User lama tanpa penanda (belum pernah diberi akses) tetap
+#         diisi tanpa --adopt. User yang dibuat run ini tidak terpengaruh.
+#         Staf platform: slug ≠ platform dan role control-plane EFEKTIF memuat superadmin/ops → exit 3, juga dengan
+#         --adopt (staf platform hanya diikat lewat slug platform).
 # roles   client role `control-plane` PERSIS {cp_role} (kosong untuk none). §0.3: superadmin/ops hanya slug platform,
 #         client_admin/client_user hanya slug ≠ platform. --odoo (dilarang untuk slug platform): client
 #         `odoo-<slug>-<env>` PERSIS none → {} · user → {odoo_access} · admin → {odoo_access, odoo_admin}; role
@@ -24,6 +32,9 @@
 #         (Aturan "aktor bukan dirinya sendiri" ditegakkan control plane.)
 # email   PUT execute-actions-email [<action>] (client control-plane). User nonaktif → BLOKIR.
 # Semua subcommand selain ensure: user harus sudah terikat tenant slug (atribut tenant_id = alias org) → else exit 3.
+# Semua subcommand, slug ≠ platform: user dengan role control-plane EFEKTIF superadmin/ops → exit 3 (QA F1c), apa pun
+# atribut tenant_id-nya (staf platform tidak pernah diubah/dinonaktifkan/dikirimi email aksi lewat slug tenant).
+# Log tidak memuat email mentah: email#<8 hex sha256> (lib/kc-tenant.sh email_ref, QA F5) atau id user Keycloak.
 #
 # Kredensial: client `cp-admin` (identity/keycloak/secrets/cp-admin-<realm>.secret) — lib/keycloak-admin.sh.
 # Output baris terakhir (tanpa email — log job tanpa PII; format kunci = klarifikasi Lead untuk control-plane):
@@ -53,7 +64,7 @@ ODOO_ADMIN=odoo_admin
 
 usage() {
   cat >&2 <<EOF
-pemakaian: $0 ensure  <slug> <env> --email <e> --tenant-id <uuid> [--name <n>] [--no-invite] [--dry-run]
+pemakaian: $0 ensure  <slug> <env> --email <e> --tenant-id <uuid> [--name <n>] [--no-invite] [--adopt] [--dry-run]
            $0 roles   <slug> <env> --email <e> --cp-role <none|superadmin|ops|client_admin|client_user> [--odoo <none|user|admin>] [--dry-run]
            $0 enabled <slug> <env> --email <e> --enabled <true|false> [--dry-run]
            $0 email   <slug> <env> --email <e> --action <UPDATE_PASSWORD|VERIFY_EMAIL|CONFIGURE_TOTP> [--dry-run]
@@ -66,7 +77,7 @@ CMD="$1"; shift
 case "$CMD" in ensure|roles|enabled|email) ;; *) usage ;; esac
 validate_slug_env "$1" "$2"; shift 2
 
-EMAIL=""; TENANT_ID=""; NAME=""; INVITE=1; CP_ROLE=""; ODOO=""; ENABLED=""; ACTION=""
+EMAIL=""; TENANT_ID=""; NAME=""; INVITE=1; ADOPT=0; CP_ROLE=""; ODOO=""; ENABLED=""; ACTION=""
 opt_ok() { [[ " $1 " == *" $CMD "* ]] || usage; }
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -74,6 +85,7 @@ while [[ $# -gt 0 ]]; do
     --tenant-id) opt_ok ensure; [[ $# -ge 2 ]] || usage; TENANT_ID="$2"; shift 2 ;;
     --name) opt_ok ensure; [[ $# -ge 2 ]] || usage; NAME="$2"; shift 2 ;;
     --no-invite) opt_ok ensure; INVITE=0; shift ;;
+    --adopt) opt_ok ensure; ADOPT=1; shift ;;
     --cp-role) opt_ok roles; [[ $# -ge 2 ]] || usage; CP_ROLE="$2"; shift 2 ;;
     --odoo) opt_ok roles; [[ $# -ge 2 ]] || usage; ODOO="$2"; shift 2 ;;
     --enabled) opt_ok enabled; [[ $# -ge 2 ]] || usage; ENABLED="$2"; shift 2 ;;
@@ -83,6 +95,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 [[ ${#EMAIL} -le 254 && "$EMAIL" =~ $EMAIL_RE ]] || die "email tidak valid"
+EREF="$(email_ref "$EMAIL")"   # pengganti email di log (QA F5)
 case "$CMD" in
   ensure)
     [[ "$TENANT_ID" =~ $UUID_RE ]] || die "--tenant-id harus UUID huruf kecil"
@@ -107,7 +120,7 @@ REALM="$(kc_realm_for_env "$TENANT_ENV")"
 LOG_PREFIX="kc-user ${CMD} ${REALM}/${SLUG}"
 take_lock "kc-user-${REALM}"
 kc_init "$REALM"
-log "email=${EMAIL} mode=$([[ $DRY -eq 1 ]] && echo dry-run || echo apply)"
+log "user=${EREF} mode=$([[ $DRY -eq 1 ]] && echo dry-run || echo apply)"
 
 # ---- tenant: org slug (alias = tenant_id)
 kc_org_by_slug "$SLUG"
@@ -160,6 +173,49 @@ other_enabled_superadmins() {
   kc_json 'str(sum(1 for u in d if u.get("enabled") and u.get("id") != "'"$1"'"))' \
     "$(kc_get "/clients/$2/roles/superadmin/users?first=0&max=1000")"
 }
+# refuse_platform_staff <uid> — QA F1c: slug ≠ platform dan role control-plane EFEKTIF (endpoint /composite: mapping
+# langsung + grup + role komposit) memuat superadmin/ops → exit 3, apa pun atribut tenant_id user.
+refuse_platform_staff() {
+  [[ "$SLUG" != "$PLATFORM_SLUG" ]] || return 0
+  local eff
+  eff=" $(user_client_roles "$1" "$CP_UUID" composite) "
+  if [[ "$eff" == *" superadmin "* || "$eff" == *" ops "* ]]; then
+    refuse "user staf platform (role ${CP_CLIENT} efektif superadmin/ops) hanya bisa diubah lewat slug ${PLATFORM_SLUG}"
+  fi
+}
+# legacy_signals <uid> → LEGACY_SIGNALS = penanda hak lama (dipisah spasi; kosong = tidak ada; tanpa PII):
+#   control-plane:<role,…> · odoo-<slug>-<env>:<role,…> · realm-management:<role,…> · organizations:<n>
+# Role = EFEKTIF (/composite). Dipakai ensure untuk user lama tanpa tenant_id (QA F1b).
+LEGACY_SIGNALS=""
+legacy_signals() {
+  local uid="$1" sig=() r clients cuuid cid rm_uuid orgs
+  r="$(user_client_roles "$uid" "$CP_UUID" composite)"
+  [[ -z "$r" ]] || sig+=("${CP_CLIENT}:${r// /,}")
+  # semua client odoo-* — GET /clients?search=true = pencarian infix (KC), disaring awalan di sini. Representasi client
+  # memuat secret → kc_get_quiet, hanya id + clientId yang dipakai.
+  clients="$(kc_get_quiet "/clients?clientId=odoo-&search=true&first=0&max=1000")"
+  clients="$(kc_json '"\n".join(c["id"] + " " + c["clientId"] for c in d if c.get("clientId", "").startswith("odoo-"))' \
+              "$clients")"
+  while read -r cuuid cid; do
+    [[ -n "$cuuid" ]] || continue
+    r="$(user_client_roles "$uid" "$cuuid" composite)"
+    [[ -z "$r" ]] || sig+=("${cid}:${r// /,}")
+  done <<<"$clients"
+  rm_uuid="$(kc_client_uuid realm-management)"
+  if [[ -n "$rm_uuid" ]]; then
+    r="$(user_client_roles "$uid" "$rm_uuid" composite)"
+    [[ -z "$r" ]] || sig+=("realm-management:${r// /,}")
+  fi
+  # GET /organizations/members/{id}/organizations → [OrganizationRepresentation] (KC 26.7.4 OrganizationsResource:
+  # query/view-organizations + view-users — cp-admin punya manage-organizations + view-users)
+  orgs="$(kc_get "/organizations/members/${uid}/organizations?briefRepresentation=true")"
+  orgs="$(kc_json 'str(len(d))' "$orgs")"
+  [[ "$orgs" == 0 ]] || sig+=("organizations:${orgs}")
+  LEGACY_SIGNALS="${sig[*]}"
+}
+
+CP_UUID="$(kc_client_uuid "$CP_CLIENT")"
+[[ -n "$CP_UUID" ]] || die "client ${CP_CLIENT} tidak ada di realm ${REALM}"
 
 case "$CMD" in
 # ======================================================================================== ensure
@@ -185,7 +241,7 @@ if parts:
 if len(parts) > 1:
     rep["lastName"] = parts[1]
 print(json.dumps(rep))' "$EMAIL" "$TENANT_ID" "$NAME")"
-    if change "user ${EMAIL} dibuat (tenant_id=${TENANT_ID}, required action UPDATE_PASSWORD)"; then
+    if change "user ${EREF} dibuat (tenant_id=${TENANT_ID}, required action UPDATE_PASSWORD)"; then
       kc_send POST /users "$body" 201
       KC_UID="${KC_LOCATION##*/}"
       [[ "$KC_UID" =~ $UUID_RE ]] || die "id user baru tidak dikenali dari Location"
@@ -193,15 +249,26 @@ print(json.dumps(rep))' "$EMAIL" "$TENANT_ID" "$NAME")"
     fi
   else
     tid="$(user_tenant_id "$KC_USER_JSON")"
+    # staf platform tidak pernah diikat/diubah lewat slug tenant — juga dengan --adopt (QA F1b/F1c)
+    refuse_platform_staff "$KC_UID"
     if [[ -z "$tid" ]]; then
-      if change "user ${EMAIL} (id ${KC_UID}): atribut tenant_id diisi ${TENANT_ID}"; then
+      # user lama (dibuat sebelum Fase 1 / era odoo-sso-user.sh) yang sudah punya akses → hanya lewat --adopt (QA F1b)
+      legacy_signals "$KC_UID"
+      if [[ -n "$LEGACY_SIGNALS" ]]; then
+        log "user ${EREF} (id ${KC_UID}) tanpa tenant_id, penanda hak lama: ${LEGACY_SIGNALS}"
+        [[ $ADOPT -eq 1 ]] || refuse "user lama tanpa tenant_id — butuh adopt oleh superadmin (args.adopt=true)"
+        log "ADOPSI: user lama diikat ke tenant ${SLUG} (--adopt)"
+      elif [[ $ADOPT -eq 1 ]]; then
+        log "--adopt: user tanpa penanda hak lama — adopsi tidak diperlukan"
+      fi
+      if change "user ${EREF} (id ${KC_UID}): atribut tenant_id diisi ${TENANT_ID}"; then
         kc_send PUT "/users/${KC_UID}" "$(user_put_body "$KC_USER_JSON" \
           '{**d, "attributes": {**(d.get("attributes") or {}), "tenant_id": ["'"$TENANT_ID"'"]}}')" 204
       fi
     elif [[ "$tid" != "$TENANT_ID" ]]; then
       refuse "user milik tenant lain (tenant_id user ≠ --tenant-id) — lintas tenant"
     else
-      log "user ${EMAIL} ada (id ${KC_UID}), tenant_id cocok"
+      log "user ${EREF} ada (id ${KC_UID}), tenant_id cocok"
     fi
   fi
   # verifikasi tulis: atribut tenimpan (user profile membuang atribut tak terdeklarasi tanpa error)
@@ -215,7 +282,7 @@ print(json.dumps(rep))' "$EMAIL" "$TENANT_ID" "$NAME")"
     kc_request GET "/organizations/${ORG_ID}/members/${KC_UID}"
     case "$KC_STATUS" in
       200) log "user sudah anggota organization ${SLUG}" ;;
-      404) if change "user ${EMAIL} → anggota organization ${SLUG}"; then
+      404) if change "user ${EREF} → anggota organization ${SLUG}"; then
              # POST /organizations/{org}/members, body = id user sebagai JSON string → 201
              kc_send POST "/organizations/${ORG_ID}/members" "\"${KC_UID}\"" 201
            fi ;;
@@ -226,7 +293,7 @@ print(json.dumps(rep))' "$EMAIL" "$TENANT_ID" "$NAME")"
   fi
   # undangan (hanya user baru)
   if [[ $INVITE -eq 1 && ( $NEW -eq 1 || ( $DRY -eq 1 && -z "$KC_UID" ) ) ]]; then
-    if change "execute-actions-email [UPDATE_PASSWORD] → ${EMAIL} (client ${CP_CLIENT})"; then
+    if change "execute-actions-email [UPDATE_PASSWORD] → ${EREF} (client ${CP_CLIENT})"; then
       kc_send PUT "/users/${KC_UID}/execute-actions-email?client_id=${CP_CLIENT}&lifespan=${ACTION_LIFESPAN_S}" '["UPDATE_PASSWORD"]' 204
       INVITE_STATE=1
     fi
@@ -236,12 +303,11 @@ print(json.dumps(rep))' "$EMAIL" "$TENANT_ID" "$NAME")"
 # ======================================================================================== roles
 roles)
   if [[ -z "$KC_UID" ]]; then
-    block "user ${EMAIL} tidak ada — jalankan dulu kc-user.sh ensure"
-  elif [[ -n "$ORG_ID" ]]; then
-    require_same_tenant "$KC_USER_JSON" "$ORG_ALIAS"
+    block "user ${EREF} tidak ada — jalankan dulu kc-user.sh ensure"
+  else
+    refuse_platform_staff "$KC_UID"
+    [[ -z "$ORG_ID" ]] || require_same_tenant "$KC_USER_JSON" "$ORG_ALIAS"
   fi
-  CP_UUID="$(kc_client_uuid "$CP_CLIENT")"
-  [[ -n "$CP_UUID" ]] || die "client ${CP_CLIENT} tidak ada di realm ${REALM}"
   if [[ -n "$KC_UID" ]]; then
     CP_ROLES="$(client_roles_json "$CP_UUID")"
     want=(); [[ "$CP_ROLE" == none ]] || want=("$CP_ROLE")
@@ -296,12 +362,11 @@ roles)
 # ======================================================================================== enabled
 enabled)
   if [[ -z "$KC_UID" ]]; then
-    block "user ${EMAIL} tidak ada"
+    block "user ${EREF} tidak ada"
   else
-    [[ -n "$ORG_ID" ]] && require_same_tenant "$KC_USER_JSON" "$ORG_ALIAS"
+    refuse_platform_staff "$KC_UID"
+    [[ -z "$ORG_ID" ]] || require_same_tenant "$KC_USER_JSON" "$ORG_ALIAS"
     if [[ "$ENABLED" == false ]]; then
-      CP_UUID="$(kc_client_uuid "$CP_CLIENT")"
-      [[ -n "$CP_UUID" ]] || die "client ${CP_CLIENT} tidak ada di realm ${REALM}"
       eff=" $(user_client_roles "$KC_UID" "$CP_UUID" composite) "
       if [[ "$eff" == *" superadmin "* ]]; then
         [[ "$SLUG" == "$PLATFORM_SLUG" ]] || refuse "user ber-role superadmin hanya bisa dinonaktifkan lewat slug ${PLATFORM_SLUG}"
@@ -311,11 +376,11 @@ enabled)
     fi
     cur="$(kc_json 'str(d.get("enabled") is True).lower()' "$KC_USER_JSON")"
     if [[ "$cur" != "$ENABLED" ]]; then
-      if change "user ${EMAIL} (id ${KC_UID}): enabled ${cur} → ${ENABLED}"; then
+      if change "user ${EREF} (id ${KC_UID}): enabled ${cur} → ${ENABLED}"; then
         kc_send PUT "/users/${KC_UID}" "$(user_put_body "$KC_USER_JSON" '{**d, "enabled": '"${ENABLED^}"'}')" 204
       fi
     else
-      log "user ${EMAIL}: enabled sudah ${ENABLED}"
+      log "user ${EREF}: enabled sudah ${ENABLED}"
     fi
     if [[ "$ENABLED" == false ]]; then
       if [[ $DRY -eq 1 ]]; then
@@ -332,12 +397,13 @@ enabled)
 email)
   INVITE_STATE=0
   if [[ -z "$KC_UID" ]]; then
-    block "user ${EMAIL} tidak ada"
+    block "user ${EREF} tidak ada"
   else
-    [[ -n "$ORG_ID" ]] && require_same_tenant "$KC_USER_JSON" "$ORG_ALIAS"
+    refuse_platform_staff "$KC_UID"
+    [[ -z "$ORG_ID" ]] || require_same_tenant "$KC_USER_JSON" "$ORG_ALIAS"
     if [[ "$(kc_json 'str(d.get("enabled") is True).lower()' "$KC_USER_JSON")" != true ]]; then
-      block "user ${EMAIL} nonaktif — email aksi tidak dikirim"
-    elif change "execute-actions-email [${ACTION}] → ${EMAIL} (client ${CP_CLIENT})"; then
+      block "user ${EREF} nonaktif — email aksi tidak dikirim"
+    elif change "execute-actions-email [${ACTION}] → ${EREF} (client ${CP_CLIENT})"; then
       kc_send PUT "/users/${KC_UID}/execute-actions-email?client_id=${CP_CLIENT}&lifespan=${ACTION_LIFESPAN_S}" "[\"${ACTION}\"]" 204
       INVITE_STATE=1
     fi

@@ -11,6 +11,8 @@
 # pool memuat ulang cache (pelajaran: ubah via odoo shell wajib signal_changes). Slug `platform` ditolak (exit 3).
 # strict butuh sh_auth_oidc ≥ 19.0.1.3.0 ter-install (BLOKIR bila lebih lama — modul lama mengabaikan ICP ini, strict
 # palsu); compat dengan modul lama hanya PERINGATAN (pra-staging nilai).
+# Alias org kosong/bukan UUID + mode compat|strict → dry-run BLOKIR / apply exit 3 (QA F4); mode off → expected
+# dikosongkan.
 # Output baris terakhir: RESULT db=<db> mode=<off|compat|strict> tenant=<uuid|-> changed=<n> [blockers=<n>]
 # (dry-run: `mode` tetap = mode yang diminta; penanda dry-run hanya `blockers=`.)
 set -euo pipefail
@@ -75,7 +77,18 @@ kc_init "$REALM"
 kc_org_by_slug "$SLUG"
 [[ -n "$ORG_ID" ]] || block "organization ${SLUG} belum ada (job kc_org_ensure)"
 TENANT_ID="$ORG_ALIAS"
-[[ -z "$TENANT_ID" || "$TENANT_ID" =~ $UUID_RE ]] || die "alias organization ${SLUG} bukan UUID"
+# QA F4: tenant_id kosong/bukan UUID TIDAK PERNAH ditulis bersama mode compat/strict (strict dengan expected kosong =
+# cek palsu). Dry-run → BLOKIR; apply → exit 3. Mode off: expected_tenant_id dikosongkan (nilai alias tidak dipakai).
+if [[ -n "$ORG_ID" && ! "$TENANT_ID" =~ $UUID_RE ]]; then
+  TENANT_ID=""
+  if [[ "$MODE" == off ]]; then
+    log "PERINGATAN: alias organization ${SLUG} kosong/bukan UUID — expected_tenant_id dikosongkan (mode off)"
+  elif [[ $DRY -eq 1 ]]; then
+    block "alias organization ${SLUG} kosong/bukan UUID — tenant_check ${MODE} butuh tenant_id valid (kc_org_ensure)"
+  else
+    refuse "alias organization ${SLUG} kosong/bukan UUID — tenant_check ${MODE} tidak ditulis tanpa tenant_id valid"
+  fi
+fi
 
 if [[ $BLOCKERS -gt 0 ]]; then
   log "odoo shell TIDAK dijalankan (ada blocker)"

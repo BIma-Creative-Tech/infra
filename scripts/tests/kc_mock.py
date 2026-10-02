@@ -9,7 +9,11 @@
 #   - GET /clients mengembalikan field `secret` (seperti KC) → uji bahwa skrip tidak pernah mencetaknya;
 #   - izin kasar per client service account (cp-admin tanpa manage-clients/manage-realm, kc-realm-sync tanpa akses
 #     user biasa/organization) → 403;
-#   - execute-actions-email ke user nonaktif → 400.
+#   - execute-actions-email ke user nonaktif → 400;
+#   - role EFEKTIF (/role-mappings/clients/{c}/composite): mapping client langsung + realm role (`realm_role_maps`)
+#     diekspansi transitif lewat `composites` (set id role) — model "role komposit/grup" untuk uji adopsi (QA F1);
+#   - GET /clients?clientId=..&search=true = pencarian infix (case-insensitive) seperti KC;
+#   - GET /organizations/members/{user}/organizations (KC 26.7.4 OrganizationsResource).
 # Jalankan: python3 kc_mock.py --port 0 --secrets DIR  (mencetak "PORT <n>"); atau impor `start(secrets_dir)`.
 import argparse
 import copy
@@ -66,6 +70,8 @@ def default_realm(name, seed_cp_admin=False):
         ]},
         'scopes': {}, 'clients': {}, 'users': {}, 'orgs': {}, 'members': {},
         'role_maps': {},          # (uid, client_uuid) -> set(role_id)
+        'realm_roles': {},        # role_id -> {'id', 'name', 'composites': set(role_id klien/realm)}
+        'realm_role_maps': {},    # uid -> set(realm role_id)
         'events': [],             # (client_id, method, path) penulisan + email/logout
     }
     for s in ('acr', 'basic', 'email', 'profile', 'roles', 'web-origins', 'organization', 'offline_access'):
@@ -143,6 +149,25 @@ def allowed(client_id, realm, method, path):
             return bool(m and realm['users'].get(m.group(1), {}).get('serviceAccountClientId'))
         return True
     return False
+
+
+def effective_role_ids(realm, uid):
+    """Id role efektif user: mapping client langsung + realm role, diekspansi transitif lewat `composites`."""
+    by_id = dict(realm['realm_roles'])
+    for c in realm['clients'].values():
+        by_id.update(c['roles'])
+    todo = set(realm['realm_role_maps'].get(uid, set()))
+    for (u, _cu), rids in realm['role_maps'].items():
+        if u == uid:
+            todo |= rids
+    seen = set()
+    while todo:
+        rid = todo.pop()
+        if rid in seen:
+            continue
+        seen.add(rid)
+        todo |= set(by_id.get(rid, {}).get('composites', ()))
+    return seen
 
 
 def user_view(realm, u):
@@ -304,7 +329,9 @@ class Handler(BaseHTTPRequestHandler):
         if path == '/clients':
             if method == 'GET':
                 reps = [c['rep'] for c in R['clients'].values()]
-                if 'clientId' in q:
+                if 'clientId' in q and q.get('search') == 'true':
+                    reps = [c for c in reps if q['clientId'].lower() in c['clientId'].lower()]
+                elif 'clientId' in q:
                     reps = [c for c in reps if c['clientId'] == q['clientId']]
                 return self._send(200, reps)
             if method == 'POST':
@@ -359,6 +386,12 @@ class Handler(BaseHTTPRequestHandler):
                 R['orgs'][oid] = {**copy.deepcopy(body), 'id': oid, 'domains': body.get('domains', [])}
                 R['members'][oid] = set()
                 return self._send(201, None, {'Location': f'http://mock/admin/realms/x/organizations/{oid}'})
+        m = re.fullmatch(rf'/organizations/members/({UUID})/organizations', path)
+        if m and method == 'GET':
+            if m.group(1) not in R['users']:
+                return self._send(404, {'error': 'User not found'})
+            return self._send(200, [copy.deepcopy(o) for oid, o in R['orgs'].items()
+                                    if m.group(1) in R['members'].get(oid, set())])
         m = re.fullmatch(rf'/organizations/({UUID})(/members(?:/({UUID}))?)?', path)
         if m:
             o = R['orgs'].get(m.group(1))
@@ -468,7 +501,8 @@ class Handler(BaseHTTPRequestHandler):
             key = (u['id'], m.group(1))
             have = R['role_maps'].setdefault(key, set())
             if method == 'GET':
-                return self._send(200, [c['roles'][r] for r in sorted(have) if r in c['roles']])
+                ids = effective_role_ids(R, u['id']) if m.group(2) else have
+                return self._send(200, [c['roles'][r] for r in sorted(ids) if r in c['roles']])
             if m.group(2):
                 return self._send(405, {'error': 'composite read-only'})
             ids = []

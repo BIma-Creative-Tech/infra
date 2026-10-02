@@ -30,6 +30,7 @@
 # -------------------------------------------------------------------------------------------------------------------
 # Output baris terakhir: RESULT db=<db> odoo_user=<id|-> kc_user=<id|-> created=<0|1> changed=<n>
 #                        [blockers=<n> pada --dry-run]
+# Log tidak memuat email/login mentah: email#<8 hex sha256> (lib/kc-tenant.sh email_ref, QA F5); helper juga tanpa PII.
 # JANGAN jalankan dengan `bash -x`.
 set -euo pipefail
 LIB="$(dirname "${BASH_SOURCE[0]}")/lib"
@@ -72,7 +73,9 @@ done
 [[ "$ACTIVE" == true || "$ACTIVE" == false ]] || die "--active harus true|false"
 REALM="$(kc_realm_for_env "$TENANT_ENV")"
 LOG_PREFIX="odoo-user ${DB_NAME}"
-log "email=${EMAIL} login=${LOGIN} role=${ROLE} active=${ACTIVE} mode=$([[ $DRY -eq 1 ]] && echo dry-run || echo apply)"
+EREF="$(email_ref "$EMAIL")"   # log tanpa email/login mentah (QA F5)
+LREF=email; [[ "$LOGIN" == "$EMAIL" ]] || LREF="lain#$(email_ref "$LOGIN" | cut -d'#' -f2)"
+log "user=${EREF} login=${LREF} role=${ROLE} active=${ACTIVE} mode=$([[ $DRY -eq 1 ]] && echo dry-run || echo apply)"
 
 [[ -r "$HELPER" ]] || die "helper ${HELPER} belum ada (odoo-developer, branch feat/infra-saas-p1-odoo-user)"
 container_running "$PG_CONTAINER" || die "container $PG_CONTAINER tidak berjalan"
@@ -93,7 +96,7 @@ kc_org_by_slug "$SLUG"
 [[ -n "$ORG_ID" ]] || block "organization ${SLUG} belum ada (job kc_org_ensure)"
 kc_user_by_email "$EMAIL"
 if [[ -z "$KC_UID" ]]; then
-  block "user Keycloak ${EMAIL} tidak ada (job kc_user_ensure dulu)"
+  block "user Keycloak ${EREF} tidak ada (job kc_user_ensure dulu)"
 else
   [[ -n "$ORG_ID" ]] && require_same_tenant "$KC_USER_JSON" "$ORG_ALIAS"
   if [[ -z "$NAME" ]]; then

@@ -5,7 +5,8 @@
 # (butuh: die, kc_get, kc_json, kc_urlencode). Tidak ada secret di file ini; tidak pernah mencetak token.
 #
 # Kode keluar: 0 sukses · 1 gagal/precondition (die) · 2 pemakaian · 3 DITOLAK kebijakan (§0.2/§0.3: lintas
-# tenant, org slug terikat tenant lain, role terlarang, superadmin) — dispatcher memperlakukan ≠0 sebagai gagal.
+# tenant, org slug terikat tenant lain, role terlarang, superadmin, user lama tanpa adopt — kontrak §5 v1.2) —
+# dispatcher memperlakukan ≠0 sebagai gagal.
 #
 # Rencana/penerapan (global DRY=0|1, CHANGED, BLOCKERS — pola lib/odoo-exec.sh, prefix log berbeda):
 #   change <desk>  → 0 bila perubahan DITERAPKAN; dry-run: cetak PLAN, return 1. Selalu menambah CHANGED.
@@ -31,6 +32,11 @@ block() {
   BLOCKERS=$((BLOCKERS+1)); log "BLOKIR: $*"
 }
 refuse() { echo "ERROR: DITOLAK: $*" >&2; exit 3; }
+
+# email_ref <email> → "email#<8 hex>" = 8 hex pertama sha256(email huruf kecil). Log/tail skrip job TIDAK PERNAH
+# memuat email mentah (QA F5, log job tanpa PII); hash pendek cukup untuk mencocokkan baris log dengan user tertentu
+# (hitung ulang: printf '%s' "<email huruf kecil>" | sha256sum | cut -c1-8).
+email_ref() { printf 'email#%s' "$(printf '%s' "${1,,}" | sha256sum | cut -c1-8)"; }
 
 # result_tail → " blockers=N" pada dry-run, "" pada apply (pre dry-run dispatcher wajib membaca blockers=; kunci `mode`
 # sengaja TIDAK dipakai di sini — maknanya khusus kc_realm_sync plan|apply / odoo_tenant_config off|compat|strict)
