@@ -224,6 +224,17 @@ Tenant SSO aktif (2026-09-25):
 gid 101 = grup `odoo` di container (uid 100:101); di host gid 101 bernama `messagebus` (`ls -l` menampilkan
 `root:messagebus`) — ADR 0008 §Security implications.
 
+### Cek tenant lapis kedua (`sh_auth_oidc.tenant_check`, SaaS Fase 1 / ADR 0017 D4)
+
+ICP `sh_auth_oidc.expected_tenant_id` (= alias Organization slug) + `sh_auth_oidc.tenant_check` (`off|compat|strict`)
+ditulis job `odoo_tenant_config` (`scripts/odoo-tenant-config.sh`). Alias org kosong/bukan UUID → `compat`/`strict`
+tidak pernah ditulis (dry-run BLOKIR, apply exit 3 — QA F4).
+
+**Risiko diterima (QA F6):** ICP ini bisa diubah oleh user ber-`base.group_system` di DB itu sendiri (Settings →
+Technical → System Parameters), mis. admin tenant (`odoo_admin`). Ini **lapis kedua saja**: lapis utama tetap client
+Keycloak per tenant-env (`odoo-<slug>-<env>`) + role gate `odoo_access` + redirect URI eksak. Deteksi drift (bandingkan ICP
+vs alias org berkala) = pekerjaan mendatang.
+
 ### Env pool (compose, kedua pool — `08739f4`)
 
 | Variabel | prod `pool-a` | staging |

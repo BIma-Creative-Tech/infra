@@ -225,12 +225,42 @@ diperlakukan seperti password admin (rotasi = regenerate di console + tulis ulan
   `odoo_admin` di client baru) → `kc_org_ensure` → `kc_user_ensure` → `kc_user_set_roles` → `odoo_user_ensure`.
   `kc_user_set_roles --odoo admin` sebelum sync gagal 403 (cp-admin tidak boleh membuat role client) — pesan menunjuk sync.
 
+### Adopsi user lama / backfill `tenant_id` (kontrak v1.2 §5, QA F1)
+
+User yang dibuat **sebelum** Fase 1 (staf platform yang login ke control-plane, user tenant era `odoo-sso-user.sh`) tidak
+punya atribut `tenant_id`. `kc-user.sh ensure` (job `kc_user_ensure`) **menolak** (exit 3, *user lama tanpa tenant_id —
+butuh adopt oleh superadmin*) mengikat user yang sudah ada dengan `tenant_id` kosong bila user itu punya penanda hak lama:
+role client **efektif** (langsung, lewat grup, atau role komposit) di `control-plane` atau `odoo-*`, role
+`realm-management`, atau keanggotaan Organization mana pun — kecuali job membawa `args.adopt=true` (`--adopt`). Penanda
+yang ditemukan dicetak di log job (tanpa email). User lama tanpa penanda apa pun (belum pernah diberi akses) tetap diisi
+tanpa adopt; user yang dibuat job itu sendiri tidak terpengaruh. Staf platform (role `control-plane` efektif `superadmin`
+/`ops`) **tidak pernah** bisa diikat/diubah lewat slug tenant — juga dengan `adopt=true`; `roles`/`enabled`/`email` dari
+slug tenant menolaknya apa pun `tenant_id`-nya. `adopt=true` apply memicu email alert dispatcher.
+
+Prosedur (dikerjakan **superadmin** dari control plane; CP hanya mengizinkan `adopt` untuk superadmin):
+
+1. Setelah `kc_realm_sync` **pertama** di sebuah realm (user profile memuat `tenant_id`) dan `kc_org_ensure` slug
+   `platform`: **langkah pertama** = ikat setiap user staf platform dengan `kc_user_ensure` slug `platform`, tenant_id org
+   platform, `invite=false`, `adopt=true` (dry-run dulu: log menampilkan penanda, mis. `control-plane:superadmin`). Lalu
+   `kc_user_set_roles` slug `platform` untuk menyamakan role CP (persis). Sebelum diikat, job `kc_user_set_roles`/
+   `kc_user_set_enabled`/`kc_user_action_email` slug `platform` untuk staf itu ditolak (`tenant_id` kosong, exit 3).
+2. User SSO tenant lama (dari `odoo-sso-user.sh`, role `odoo_access`/`odoo_admin` di `odoo-<slug>-<env>`): per tenant,
+   superadmin menjalankan `kc_user_ensure` slug tenant itu dengan `adopt=true` setelah memastikan user memang milik tenant
+   tersebut (email/domain, role `odoo-<slug>-*` di log dry-run). Adopsi tidak pernah menimpa `tenant_id` yang sudah ada
+   (beda → exit 3 lintas tenant) dan tidak mencabut keanggotaan org lain — periksa penanda `organizations:<n>` di log.
+3. Verifikasi: rerun `kc_user_ensure` tanpa `adopt` → `changed=0`.
+4. Anomali (user tenant dengan role `superadmin`/`ops` efektif, mis. drift manual) tidak bisa diperbaiki lewat job tenant
+   mana pun (exit 3) — tangani manual di console (lepas role/grup), lalu ulangi job.
+
 ### Uji tanpa Keycloak sungguhan
 
 `scripts/tests/test-kc-scripts.sh` — unittest di container sekali pakai (`odoo:19.0-20260908`, `--network none`, tanpa
 socket Docker) dengan mock Admin API in-memory (`scripts/tests/kc_mock.py`, 127.0.0.1 port acak) + shim `docker`/`dig`.
 Override base URL hanya bila `INFRA_TEST_MODE=1` **dan** `KC_TEST_BASE_URL=http://127.0.0.1:<port>` (lib menolak URL lain;
-tanpa `INFRA_TEST_MODE` variabel diabaikan); dispatcher menjalankan skrip dengan environment bersih.
+tanpa `INFRA_TEST_MODE` variabel diabaikan); dispatcher menjalankan skrip dengan environment bersih. Mode uji juga
+**wajib** `KC_SECRETS_DIR` eksplisit yang realpath-nya di bawah `/tmp/`, dan tiap file secret harus ber-realpath di bawah
+`/tmp/` (QA F3) — secret sungguhan (`/opt/infra/identity/keycloak/secrets`) tidak pernah terkirim ke listener uji, juga
+lewat symlink.
 
 ## Info untuk T12 (Next.js/Auth.js) & T15 (Odoo `sh_auth_oidc`)
 

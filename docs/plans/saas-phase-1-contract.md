@@ -1,6 +1,6 @@
 # SaaS Fase 1 — Kontrak job, skrip, dan model data (acuan bersama tim)
 
-Status 2026-10-03: **KONTRAK v1.1 (Lead)** — v1.1: hasil uji gabungan (lihat §4). Mengikat: dispatcher `scripts/infra-job/infra_job.py` (infra-engineer), skrip
+Status 2026-10-03: **KONTRAK v1.2 (Lead)** — v1.1: hasil uji gabungan (lihat §4); v1.2: temuan QA (lihat §5). Mengikat: dispatcher `scripts/infra-job/infra_job.py` (infra-engineer), skrip
 `scripts/kc-*.sh`, `scripts/odoo-user.sh`, `scripts/tenant-state.sh` (infra-engineer), helper Odoo
 `scripts/lib/odoo_user_ensure.py` (odoo-developer), control-plane `src/lib/job-contract.ts` + migrasi `0004`
 (nextjs-developer). Perubahan kontrak = ubah dokumen ini dulu (Lead), lalu fixture `scripts/infra-job/contract/fixtures.json`.
@@ -38,7 +38,7 @@ spasi/`-`. Nilai boolean wajib `true|false` JSON.
 |---|---|---|---|---|---|
 | `kc_realm_sync` | `kc-realm-sync.sh platform <env> [--approve] [--dry-run]` | wajib `{}` ; opsional `approve: bool` | `slug == "platform"`; `approve` wajib `true` bila env ∈ {prod, demo} dan `dry_run=false`; alert bila apply | ya | 300 |
 | `kc_org_ensure` | `kc-org.sh <slug> <env> --tenant-id <uuid> [--dry-run]` | `{tenant_id}` | slug ≠ `platform` **atau** slug = `platform` (org internal juga dibuat) — keduanya boleh | ya | 120 |
-| `kc_user_ensure` | `kc-user.sh ensure <slug> <env> --email <e> --tenant-id <uuid> [--name <n>] [--no-invite] [--dry-run]` | `{email, tenant_id, invite}` ; opsional `name` | `invite` bool → `--no-invite` bila false | ya | 120 |
+| `kc_user_ensure` | `kc-user.sh ensure <slug> <env> --email <e> --tenant-id <uuid> [--name <n>] [--no-invite] [--adopt] [--dry-run]` | `{email, tenant_id, invite}` ; opsional `name`, `adopt` (v1.2) | `invite` bool → `--no-invite` bila false; `adopt` bool (default false) → `--adopt` bila true; `adopt=true` apply → alert | ya | 120 |
 | `kc_user_set_roles` | `kc-user.sh roles <slug> <env> --email <e> --cp-role <r> [--odoo <none|user|admin>] [--dry-run]` | `{email, cp_role}` ; opsional `odoo` | `cp_role` ∈ `none, superadmin, ops, client_admin, client_user` dengan aturan §0.3; `odoo` ∈ `none,user,admin`, **dilarang** bila slug = `platform`; role Odoo berlaku untuk client `odoo-<slug>-<env>` (env job) | ya | 120 |
 | `kc_user_set_enabled` | `kc-user.sh enabled <slug> <env> --email <e> --enabled <true|false> [--dry-run]` | `{email, enabled}` | `enabled=false` → `alert_reason` | ya | 120 |
 | `kc_user_action_email` | `kc-user.sh email <slug> <env> --email <e> --action <A> [--dry-run]` | `{email, action}` | `action` ∈ `UPDATE_PASSWORD, VERIFY_EMAIL, CONFIGURE_TOTP` | ya | 120 |
@@ -64,7 +64,8 @@ lanjut apply hanya bila exit 0.
 - **`kc-user.sh ensure`**: cari user by email (exact); tidak ada → buat (username=email, `emailVerified=false`, atribut
   `tenant_id`, required action `UPDATE_PASSWORD`, kirim `execute-actions-email` kecuali `--no-invite`); ada → bila
   `tenant_id` kosong isi, bila beda → exit 3 (lintas tenant); pastikan member org slug. RESULT `realm kc_user created
-  changed invite`.
+  changed invite`. v1.2: user lama (tenant_id kosong) dengan penanda hak lama → exit 3 kecuali `--adopt`; staf platform
+  dari slug ≠ platform → exit 3 (§5).
 - **`kc-user.sh roles`**: set **persis** client role `control-plane` = `{cp_role}` (atau kosong untuk `none`); bila `--odoo`:
   client `odoo-<slug>-<env>` → `none`: hapus `odoo_access`+`odoo_admin`; `user`: `odoo_access` saja; `admin`: keduanya.
   Role `odoo_admin` dibuat di client bila belum ada. RESULT `kc_user roles changed`.
@@ -152,3 +153,44 @@ prod kosong" untuk user yang dibuat lewat CP.
 - Urutan deploy W2 (staging, setelah "FREEZE DICABUT"): bootstrap `kc-realm-sync` → `kc_realm_sync` (sub-flow `Organization`
   DISABLED, scope `tenant`, `cp-admin`) → uji live S1 → ubah override staging `organizationsEnabled: true` → `kc_realm_sync`
   → HUP Traefik sekali (middleware `tenant-suspended`) → job org/user.
+
+## 5. Perubahan v1.2 (QA, 2026-10-03)
+
+Temuan QA atas integrasi Fase 1 (branch `feat/infra-saas-p1`). Mengikat dispatcher, skrip, dan CP (fixture
+`scripts/infra-job/contract/fixtures.json` diperbarui — CP menyalin ulang).
+
+- **F1a — arg baru `adopt` pada `kc_user_ensure`:** opsional, boolean JSON, default `false`. Validator dispatcher menolak
+  nilai non-bool (`rejected_validation` "args.adopt harus boolean"); argv `--adopt` (setelah `--no-invite`) hanya bila
+  `true`; `adopt=true` + `dry_run=false` → `alert_reason` `"kc_user_ensure adopt"`. Tipe user lain tetap menolak kunci
+  `adopt`. CP: hanya **superadmin** yang boleh mengirim `adopt=true` (UI adopsi/backfill), `idempotency_key` tidak berubah.
+  Fixture: valid `kc_user_ensure_platform_adopt`, `kc_user_ensure_adopt_false`, `kc_user_ensure_tenant_adopt_dry_run`;
+  invalid `kc_user_ensure_adopt_string`, `kc_user_ensure_adopt_int`, `kc_user_ensure_adopt_null`.
+- **F1b — adopsi user lama (`kc-user.sh ensure`):** user yang SUDAH ADA dengan atribut `tenant_id` kosong ditolak exit 3
+  ("user lama tanpa tenant_id — butuh adopt oleh superadmin") bila punya salah satu penanda: role client **efektif**
+  (endpoint `role-mappings/clients/{c}/composite`: langsung + grup + role komposit) di `control-plane` atau client
+  `odoo-*` mana pun, role efektif `realm-management`, atau keanggotaan Organization mana pun
+  (`GET /organizations/members/{id}/organizations`). Dengan `--adopt` → diikat. Walau dengan `--adopt`: slug ≠ `platform`
+  dan role `control-plane` efektif memuat `superadmin`/`ops` → exit 3 (aturan ini juga berlaku untuk user yang sudah
+  terikat). User baru (dibuat run itu) dan user lama tanpa penanda tidak terpengaruh. `--adopt` tidak pernah menimpa
+  `tenant_id` yang sudah terisi (beda → lintas tenant, exit 3).
+- **F1c — staf platform dari slug tenant (`kc-user.sh roles|enabled|email`):** slug ≠ `platform` dan role
+  `control-plane` **efektif** user memuat `superadmin`/`ops` → exit 3, apa pun atribut `tenant_id`-nya (dicek sebelum
+  aturan lintas tenant). Drift (user tenant dengan role platform) diperbaiki manual di console.
+- **F1d — prosedur adopsi/backfill:** `docs/03-operations/keycloak.md` §Adopsi user lama — langkah pertama setelah
+  `kc_realm_sync` pertama di sebuah realm: ikat setiap staf platform dengan `kc_user_ensure` slug `platform`
+  `adopt=true` (superadmin, dari CP); user SSO tenant lama (era `odoo-sso-user.sh`) diadopsi per tenant oleh superadmin
+  dengan `adopt=true`.
+- **F3 — mode uji lib Keycloak:** `INFRA_TEST_MODE=1` + `KC_TEST_BASE_URL` mewajibkan `KC_SECRETS_DIR` eksplisit yang
+  realpath-nya di bawah `/tmp/`, dan setiap file secret harus ber-realpath di bawah `/tmp/` (else die) — secret
+  sungguhan tidak pernah terkirim ke listener uji loopback.
+- **F4 — `odoo-tenant-config.sh`:** alias org kosong/bukan UUID dan mode ≠ `off` → dry-run BLOKIR (`blockers=1`), apply
+  exit 3; tidak pernah menulis `compat`/`strict` dengan `expected_tenant_id` kosong. Mode `off` → expected dikosongkan.
+- **F5 — log tanpa email:** skrip job baru (`kc-user.sh`, `odoo-user.sh`) tidak menulis email/login mentah ke log/tail;
+  yang dicatat `email#<8 hex pertama sha256(email huruf kecil)>` (`email_ref`, `scripts/lib/kc-tenant.sh`) atau id user
+  Keycloak. Format RESULT tidak berubah.
+- **F7 — `odoo_user_ensure.py`:** target ditemukan by `login` dengan `oauth_uid` kosong (tautan otomatis user lokal) yang
+  punya `base.group_system` (langsung/implikasi) dan role ≠ `admin` → exit 3 ("user lokal admin; tautkan dengan role admin
+  atau tangani manual").
+- **F6 — risiko diterima:** ICP `sh_auth_oidc.tenant_check`/`expected_tenant_id` bisa diubah user `group_system` DB itu;
+  lapis kedua saja, deteksi drift = pekerjaan mendatang (`docs/03-operations/odoo.md` §Cek tenant lapis kedua).
+- Dispatcher `VERSION` tetap `"1.1.0"` (perubahan aditif dan kompatibel ke belakang: job tanpa `adopt` = perilaku v1.1).
