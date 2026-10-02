@@ -43,7 +43,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
-VERSION = "1.1.0"
+VERSION = "1.2.0"
 
 # ------------------------------------------------------------------------------------------------ konstanta (kontrak)
 # Instance → env yang boleh disentuh + user host penulis job.

@@ -846,7 +846,7 @@ class TestPhase1Fixtures(unittest.TestCase):
             self.assertGreaterEqual(len([c for c in FX["invalid"] if c.get("job", {}).get("type") == t]), 3, t)
 
     def test_scripts_map_and_versions(self) -> None:
-        self.assertEqual(ij.VERSION, "1.1.0")
+        self.assertEqual(ij.VERSION, "1.2.0")
         self.assertEqual(set(ij.VALIDATORS), set(ALL_TYPES))
         self.assertEqual(set(ij.SCRIPTS), set(ALL_TYPES))
         self.assertTrue(set(ALL_TYPES) - {"dry_run"} <= set(ij.DEFAULT_TIMEOUTS))
