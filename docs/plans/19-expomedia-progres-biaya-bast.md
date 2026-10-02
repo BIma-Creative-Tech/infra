@@ -1,6 +1,6 @@
 # Plan 19 — Expomedia: progres SPK, biaya produksi & margin, tanda tangan & GPS BAST
 
-Status 2026-10-02: data mart **LIVE** (staging & prod tenant), control-plane v0.8.0 **STAGING** (prod belum).
+Status 2026-10-02: data mart **LIVE** (staging & prod tenant), control-plane v0.8.0 **STAGING** (prod belum), modul Odoo siap (tes lulus) — **belum di-deploy** (upgrade staging ditolak auto mode).
 Pemicu: umpan balik uji user di staging (SPK uji `SPK/2026/10/02-001751`, so_id 2250):
 
 1. progres SPK berhenti di 17 %;
@@ -10,6 +10,53 @@ Pemicu: umpan balik uji user di staging (SPK uji `SPK/2026/10/02-001751`, so_id 
 5. dashboard tidak menunjukkan apakah BAST sudah ditandatangani.
 
 Butir 1 & 4 (Odoo) dicatat di bagian Odoo; butir 2, 3, 5 di bagian Data mart & Dashboard.
+
+## Odoo — progres SPK (butir 1)
+
+Akar masalah: progres dashboard = urutan stage task (Desain 1/6 = 17 %), dan stage hanya diubah manual. SPK 001751
+sudah punya MO selesai, surat jalan terkirim, invoice lunas — task tetap "Desain". Modul baru client
+**`cl_expomedia_progress` 19.0.1.0.0** (addons `v19.0.2.7.0`, `e47e645`): stage task SPK **hanya maju** dari dokumen nyata,
+dengan alasan di chatter task — Produksi (PO/MO SPK dikonfirmasi), Instalasi (surat jalan keluar selesai), Laporan (BAST
+dibuat, menunggu TTD), BAST (BAST lengkap kedua pihak), Selesai (BAST lengkap + SPK lunas). Dokumen SPK = kunci Lacak
+Dokumen `x_custom_trace_order_id` atau proyek SPK; BAST ber-lokasi hanya memajukan task lokasinya. Tanpa backfill otomatis
+saat install (data mockup mengikuti gsheet): SPK lama lewat Aksi → **Perbarui progres dari dokumen**; importer bisa
+memakai konteks `cl_expomedia_progress_skip`. Data mart tidak berubah (tetap membaca stage task).
+
+## Odoo — tanda tangan & GPS BAST (butir 4)
+
+Akar masalah tanda tangan (log Traefik 2026-10-02 09:30–09:32, IP kantor): membuka kotak tanda tangan memanggil
+`/web/sign/get_fonts/` yang mengirim **semua** font tanda tangan (±1,3 MB); dialog lambat muncul → klik berulang → 100+
+permintaan paralel ke pool staging (2 worker) → 502/504, tanda tangan tidak tersimpan. GPS: wizard hanya punya isian
+angka manual, tidak ada pengambilan lokasi.
+
+Platform **`custom_bast` 19.0.0.3.0** (`v19.0.1.3.0`, `9edf2ec`): wizard memakai `default_font` (satu font ±70 KB),
+widget `bast_gps` mengambil lokasi browser otomatis saat wizard dibuka (+ tombol "Ambil lokasi", pesan bila izin ditolak /
+bukan HTTPS; `Permissions-Policy: geolocation=(self)` sudah ada di Traefik), field `gps_accuracy`, `gps_captured_at`,
+`gps_map_url` + tombol GPS (Google Maps) di form; wizard berbahasa Indonesia, pihak & nama penanda tangan terisi otomatis.
+**`cl_expomedia_report` 19.0.1.2.0**: PDF BAST memuat waktu tanda tangan per pihak + lokasi GPS (±akurasi).
+
+Bukti: Odoo sekali pakai terisolasi (Postgres + Odoo di network docker privat, DB baru, modul dari working copy):
+**21/21 tes** (`/custom_bast` 7, `/cl_expomedia_progress` 8, `/cl_expomedia_report` 6; `test_pdf_renders` dikecualikan —
+wkhtmltopdf timeout di container terisolasi, tidak terkait perubahan). Chromium headless (Playwright 1.55, geolocation
+palsu): wizard → GPS `-6.225300, 106.799100 (±12 m)` otomatis, nama default, gambar tanda tangan → Adopt → Simpan → status
+"Signed (one side)", tombol GPS muncul; `get_fonts` 1× / 71 KB; 0 error konsol. Konteks non-secure → pesan HTTPS tampil.
+
+### Deploy Odoo staging (BELUM — upgrade ditolak auto mode)
+
+```bash
+f=/opt/infra/backups/odoo/expomedia_staging-$(date +%Y%m%d-%H%M%S)-pre-plan19.dump
+(umask 077; docker exec postgres pg_dump -U postgres -Fc expomedia_staging > "$f")
+cd /opt/infra
+git -C staging/odoo/addons/platform checkout v19.0.1.3.0
+git -C staging/odoo/addons/clients/expomedia checkout v19.0.2.7.0
+docker exec odoo-staging odoo -c /etc/odoo/odoo.conf -d expomedia_staging -u custom_bast,cl_expomedia_report \
+  -i cl_expomedia_progress --stop-after-init --no-http --workers=0 --max-cron-threads=0
+docker restart odoo-staging
+```
+
+Lalu SPK 001751 (dan SPK uji lain): Sales → SPK → Aksi → Perbarui progres dari dokumen (atau `env['sale.order']
+.browse(2250).action_cl_progress_sync()`), commit pin submodule staging. Prod: sama untuk `odoo/pool-a` + `expomedia_prod`.
+Backup staging sudah dibuat: `expomedia_staging-20261002-171700-pre-plan19.dump`.
 
 ## Data mart
 
