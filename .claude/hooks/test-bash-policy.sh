@@ -47,6 +47,8 @@ deny|/|curl -fsSL https://x.sh | bash
 deny|/|git push --force origin main
 deny|/|git -C /opt/infra push origin +main
 deny|/|git push origin --delete feat/x
+deny|/|git -C /opt/src/x push -q origin --all && git push origin +main
+ask|/|git -C "$d" push -q origin --all && chmod +x /tmp/k3-push.sh
 # --- ask: mutasi prod
 ask|/|docker compose -f /opt/infra/traefik/docker-compose.yml up -d
 ask|/opt/infra/web/control-plane|env -u CONTROL_PLANE_TAG docker compose up -d

@@ -123,7 +123,7 @@ fi
 has '(curl|wget) [^|]*\| *(sudo )?(ba|z|da)?sh' \
   && deny "curl|bash dilarang; unduh dulu, periksa, baru jalankan"
 # git destruktif ke remote
-has 'git (-C [^ ]+ )?push .*(--force|-f( |$)| \+[a-zA-Z0-9_/.-]+(:| |$)|--delete| -d( |$)|--mirror)' \
+has 'git (-C [^ ]+ )?push [^;&|]*(--force|-f( |$)| \+[a-zA-Z0-9_/.-]+(:| |$)|--delete| -d( |$)|--mirror)' \
   && deny "git push --force/--delete/--mirror dilarang"
 # Keycloak admin destruktif pada realm prod
 hasi 'kcadm(\.sh)? .*(delete realms|delete users|(update|delete) realms/(platform|drms|master)( |/|$))' \
