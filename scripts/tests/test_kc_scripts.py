@@ -810,6 +810,22 @@ class T05TenantState(Base):
         rc, out, _ = self.run_script('render-client-route.sh', 'expomedia', 'staging', '--remove', '--suspended')
         self.assertEqual(rc, 1, out)
 
+    def test_3_rerender_keeps_suspended(self):
+        # Render ulang tanpa flag (mis. job odoo_route) TIDAK boleh membuka tenant yang ditangguhkan (Fase 2 D8).
+        self.ok('tenant-state.sh', 'expomedia', 'staging', '--suspend')
+        with open(self.route, 'rb') as f:
+            suspended = f.read()
+        res, out = self.ok('render-client-route.sh', 'expomedia', 'staging', '--host', self.host)
+        self.assertEqual(res['changed'], 'no', out)
+        with open(self.route, 'rb') as f:
+            self.assertEqual(f.read(), suspended, 'status suspended harus dipertahankan')
+        rc, out, _ = self.run_script('render-client-route.sh', 'expomedia', 'staging', '--suspended', '--resume')
+        self.assertEqual(rc, 1, out)
+        res, out = self.ok('render-client-route.sh', 'expomedia', 'staging', '--host', self.host, '--resume')
+        self.assertEqual(res['changed'], 'yes', out)
+        with open(self.route, 'rb') as f:
+            self.assertEqual(f.read(), self.original)
+
 
 class T06Lib(Base):
     def _source(self, env):

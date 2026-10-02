@@ -6,7 +6,7 @@
 #
 # Render ulang route traefik/dynamic/clients/<slug>-<env>.yml lewat scripts/render-client-route.sh:
 #   --suspend → `--suspended` (router main/login/oidc/websocket → middleware tenant-suspended@file, redirect 302 ke
-#               halaman control plane /suspended/<slug>); --resume → render tanpa flag.
+#               halaman control plane /suspended/<slug>); --resume → render dengan `--resume` (tanpa flag, status suspended dipertahankan).
 # Host dibaca dari route yang ada (harus hasil render-client-route.sh, tepat satu host). DB, filestore, user Keycloak,
 # mail, dan web profile TIDAK disentuh (ADR 0018 #6). Slug `platform` ditolak (exit 3).
 # Route alias manual (mis. expomedia-staging-alias.yml) TIDAK ikut disuspend — lihat traefik.md §Tenant suspended.
@@ -57,10 +57,10 @@ if [[ "$CUR" == "$WANT" ]]; then
   log "sudah ${WANT} — tidak ada perubahan"
 elif [[ $DRY -eq 1 ]]; then
   CHANGED=1
-  log "PLAN: render-client-route.sh ${SLUG} ${TENANT_ENV} --host ${HOST}$([[ "$WANT" == suspended ]] && echo ' --suspended')"
+  log "PLAN: render-client-route.sh ${SLUG} ${TENANT_ENV} --host ${HOST}$([[ "$WANT" == suspended ]] && echo ' --suspended' || echo ' --resume')"
 else
   args=("$SLUG" "$TENANT_ENV" --host "$HOST")
-  [[ "$WANT" == suspended ]] && args+=(--suspended)
+  if [[ "$WANT" == suspended ]]; then args+=(--suspended); else args+=(--resume); fi
   out="$("$(dirname "${BASH_SOURCE[0]}")/render-client-route.sh" "${args[@]}")" || { echo "$out"; die "render-client-route.sh gagal"; }
   echo "$out" | grep -v '^RESULT ' || true
   rres="$(grep '^RESULT ' <<<"$out" | tail -n1 || true)"

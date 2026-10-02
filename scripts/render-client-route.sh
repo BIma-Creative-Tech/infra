@@ -8,7 +8,9 @@
 # --suspended (job tenant_suspend lewat scripts/tenant-state.sh, ADR 0018 #6): router main/login/oidc/websocket
 # mendapat middleware `tenant-suspended@file` (dynamic/middlewares/tenant-suspended.yml) → redirect 302 ke halaman
 # control plane /suspended/<slug>; DB/filestore utuh, router dbmanager (:8443 operator) tidak berubah. Render tanpa
-# --suspended = aktif kembali (resume). Tanpa --suspended hasil render identik byte-per-byte dengan versi sebelumnya.
+# --resume (job tenant_resume) = aktif kembali. Tanpa --suspended/--resume, status suspended pada file yang ADA
+# DIPERTAHANKAN (render ulang lewat odoo_route tidak pernah membuka tenant yang ditangguhkan; plan Fase 2 D8). Tenant
+# aktif: hasil render identik byte-per-byte dengan versi sebelumnya.
 #
 # Menulis traefik/dynamic/clients/<slug>-<env>.yml lalu `docker exec traefik kill -HUP 1`
 # (file di subdirektori tidak di-watch file provider). Isi identik → tidak ditulis, tidak HUP.
@@ -27,22 +29,31 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib/odoo-pools.sh"
 source "$(dirname "${BASH_SOURCE[0]}")/lib/traefik-route.sh"   # VPS_IP, dns_precheck, traefik_hup
 TEMPLATE="$INFRA_DIR/templates/traefik-client.yml"
 
-usage() { echo "pemakaian: $0 <slug> <prod|demo|staging> [--host <fqdn>] [--suspended] | --remove" >&2; exit 2; }
+usage() { echo "pemakaian: $0 <slug> <prod|demo|staging> [--host <fqdn>] [--suspended|--resume] | --remove" >&2; exit 2; }
 [[ $EUID -eq 0 ]] || die "harus root"
 [[ $# -ge 2 ]] || usage
 validate_slug_env "$1" "$2"; shift 2
-HOST=""; REMOVE=no; SUSPENDED=no
+HOST=""; REMOVE=no; SUSPENDED=no; RESUME=no
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --host) [[ $# -ge 2 ]] || usage; HOST="$2"; shift 2 ;;
     --remove) REMOVE=yes; shift ;;
     --suspended) SUSPENDED=yes; shift ;;
+    --resume) RESUME=yes; shift ;;
     *) usage ;;
   esac
 done
 [[ "$REMOVE" == no || "$SUSPENDED" == no ]] || die "--remove dan --suspended saling eksklusif"
-SUSPEND_MW=""; [[ "$SUSPENDED" == yes ]] && SUSPEND_MW="tenant-suspended@file, "
+[[ "$SUSPENDED" == no || "$RESUME" == no ]] || die "--suspended dan --resume saling eksklusif"
+[[ "$REMOVE" == no || "$RESUME" == no ]] || die "--remove dan --resume saling eksklusif"
 OUT="$TRAEFIK_CLIENTS_DIR/${SLUG}-${TENANT_ENV}.yml"
+# Pertahankan status suspended file yang ada kecuali --resume eksplisit.
+if [[ "$SUSPENDED" == no && "$RESUME" == no && "$REMOVE" == no && -f "$OUT" ]] \
+   && grep -q 'tenant-suspended@file' "$OUT"; then
+  SUSPENDED=yes
+  echo "INFO: ${SLUG}-${TENANT_ENV} sedang suspended — status dipertahankan (pakai --resume untuk membuka)" >&2
+fi
+SUSPEND_MW=""; [[ "$SUSPENDED" == yes ]] && SUSPEND_MW="tenant-suspended@file, "
 # Nama file bisa bentrok dengan router website (provision-web-client.sh: web-<slug>-<env>.yml) bila slug
 # Odoo diawali `web-` → jangan pernah menimpa/menghapus file milik skrip lain.
 if [[ -f "$OUT" ]] && ! grep -q '^# DIRENDER OTOMATIS oleh scripts/render-client-route.sh' "$OUT"; then
