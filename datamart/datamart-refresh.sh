@@ -2,8 +2,8 @@
 # Refresh data mart (ADR 0016 #4): ingest semua tenant (DATAMART_TENANTS) → dbt build (model + test) di container
 # python resmi dengan pylib ro, user nobody, network db-datamart saja. Dipanggil datamart-refresh.timer (tiap 2 menit).
 # Plan 16 — berbasis perubahan: sidik jari = jumlah insert/update/delete (pg_stat_user_tables) tabel alur CRM →
-# penawaran/SPK → project/timesheet → SCM → invoice/payment per tenant. Sama dengan run sukses terakhir dan belum
-# DATAMART_FORCE_EVERY detik (default 1800) → skip. `--force` = selalu jalan.
+# penawaran/SPK → project/timesheet → SCM → invoice/payment (+ isu link dokumen, plan 18) per tenant. Sama dengan
+# run sukses terakhir dan belum DATAMART_FORCE_EVERY detik (default 1800) → skip. `--force` = selalu jalan.
 # Baris terakhir: RESULT status=ok|skip|fail …  (journald: `journalctl -u datamart-refresh -n 20`)
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
@@ -18,7 +18,7 @@ pw=$(grep -E '^PG_DATAMART_PASSWORD=' /opt/infra/postgres/.env | cut -d= -f2-)
 start=$(date +%s)
 tables="'crm_lead','sale_order','sale_order_line','project_task','account_analytic_line','account_move',\
 'account_payment','account_partial_reconcile','purchase_order','stock_picking','mrp_production','res_partner',\
-'res_users','res_groups_users_rel','hr_employee','purchase_order_line','stock_move'"
+'res_users','res_groups_users_rel','hr_employee','purchase_order_line','stock_move','custom_doc_trace_issue'"
 fp=""
 for t in $DATAMART_TENANTS; do
   n=$(docker exec postgres psql -U postgres -d "${t%%:*}_${t##*:}" -XtAc \

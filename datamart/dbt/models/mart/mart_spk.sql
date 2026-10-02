@@ -57,6 +57,10 @@ WITH loc AS (
 ), lead_first AS (
   SELECT client_slug, env, so_id, min(id) AS lead_id, min(create_date) AS lead_date
   FROM {{ ref('stg_crm_lead') }} WHERE so_id IS NOT NULL GROUP BY 1, 2, 3
+), iss AS (
+  -- plan 18: isu link dokumen terbuka per SPK (custom_doc_trace)
+  SELECT client_slug, env, so_id, count(*) AS issue_count
+  FROM {{ ref('mart_spk_issue') }} WHERE state = 'open' AND so_id IS NOT NULL GROUP BY 1, 2, 3
 ), pay AS (
   SELECT client_slug, env, so_id, count(DISTINCT payment_id) AS payment_count, max(date) AS last_payment_date
   FROM {{ ref('mart_spk_payment') }} GROUP BY 1, 2, 3
@@ -90,7 +94,8 @@ SELECT so.client_slug, so.env, so.id AS so_id,
        coalesce(scm.receipt_count, 0) AS receipt_count, coalesce(scm.receipt_done, 0) AS receipt_done,
        coalesce(scm.mo_count, 0) AS mo_count, coalesce(scm.mo_done, 0) AS mo_done,
        coalesce(scm.delivery_count, 0) AS delivery_count, coalesce(scm.delivery_done, 0) AS delivery_done,
-       coalesce(scm.bill_amount, 0) AS vendor_billed, coalesce(scm.bill_paid, 0) AS vendor_paid
+       coalesce(scm.bill_amount, 0) AS vendor_billed, coalesce(scm.bill_paid, 0) AS vendor_paid,
+       coalesce(iss.issue_count, 0) AS issue_count
 FROM {{ ref('stg_sale_order') }} so
 LEFT JOIN {{ ref('stg_partner') }} grp ON grp.client_slug = so.client_slug AND grp.env = so.env AND grp.id = so.partner_invoice_id
 LEFT JOIN {{ ref('stg_partner') }} brand ON brand.client_slug = so.client_slug AND brand.env = so.env AND brand.id = so.partner_id
@@ -104,3 +109,4 @@ LEFT JOIN inv_detail ivd ON ivd.client_slug = so.client_slug AND ivd.env = so.en
 LEFT JOIN scm ON scm.client_slug = so.client_slug AND scm.env = so.env AND scm.so_id = so.id
 LEFT JOIN lead_first ld ON ld.client_slug = so.client_slug AND ld.env = so.env AND ld.so_id = so.id
 LEFT JOIN pay ON pay.client_slug = so.client_slug AND pay.env = so.env AND pay.so_id = so.id
+LEFT JOIN iss ON iss.client_slug = so.client_slug AND iss.env = so.env AND iss.so_id = so.id

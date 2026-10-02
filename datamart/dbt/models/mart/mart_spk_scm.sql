@@ -19,10 +19,15 @@ SELECT client_slug, env, so_id, 'mo', id, name, state, coalesce(date_finished, d
        trim(to_char(product_qty, 'FM999990.##')) || ' unit', NULL::int
 FROM {{ ref('stg_mrp_production') }} WHERE so_id IS NOT NULL AND state <> 'cancel'
 UNION ALL
-SELECT b.client_slug, b.env, po.so_id, 'bill', b.id, b.name, b.state, b.invoice_date::timestamp, po.vendor,
+-- plan 18: tagihan tanpa baris PO tetapi berkunci SPK (purchase_id = 0 di raw) ikut, po_id NULL; SPK dari PO bila ada
+-- (baris per PO), selain itu kunci SPK tagihan. Tagihan batal dan tagihan posted bertotal 0 (mis. "Create Bill" ganda
+-- pada PO yang sudah tertagih penuh) tidak tampil.
+SELECT b.client_slug, b.env, coalesce(po.so_id, b.so_id), 'bill', b.id, b.name, b.state, b.invoice_date::timestamp,
+       po.vendor,
        CASE WHEN b.move_type = 'in_refund' THEN -1 ELSE 1 END * b.amount_untaxed,
        CASE WHEN b.move_type = 'in_refund' THEN -1 ELSE 1 END * (b.amount_total - b.amount_residual),
-       b.payment_state, b.purchase_id
+       b.payment_state, nullif(b.purchase_id, 0)
 FROM {{ ref('stg_vendor_bill') }} b
-JOIN po ON po.client_slug = b.client_slug AND po.env = b.env AND po.id = b.purchase_id
-WHERE b.state <> 'cancel'
+LEFT JOIN po ON po.client_slug = b.client_slug AND po.env = b.env AND po.id = b.purchase_id
+WHERE b.state <> 'cancel' AND NOT (b.state = 'posted' AND b.amount_total = 0)
+  AND coalesce(po.so_id, b.so_id) IS NOT NULL
