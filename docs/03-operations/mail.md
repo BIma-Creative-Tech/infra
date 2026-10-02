@@ -185,7 +185,9 @@ docker exec mailserver setup email del user@bimacreative.tech # DESTRUKTIF (tany
 - Akun saat ini: `postmaster@`, `dmarc@` (penerima `rua` DMARC), `alerts@` (H7: pengirim alert `infra-healthcheck`, kuota
   256M — password `secrets/alerts@bimacreative.tech.password` **dibaca sistem, jangan di-`shred`**; rotasi `--rotate` aman,
   skrip membaca file tiap kirim) — mailbox; `abuse@` → alias ke `postmaster@`. Penerima alert default = `postmaster@`
-  (`observability.md` §Healthcheck & alert email).
+  (`observability.md` §Healthcheck & alert email). `billing@` (2G, dibuat 2026-10-02 atas permintaan owner, Q5 SaaS):
+  penerima internal pengingat tagihan control-plane (ADR 0018 D8) — mailbox biasa, password diserahkan ke owner lewat kanal
+  aman.
 
 ## DKIM
 

@@ -1,6 +1,6 @@
 # ADR 0018 — Model tenant & siklus langganan di control-plane (implementasi → go-live → garansi → maintenance)
 
-- **Status:** proposed — keputusan owner 2026-10-02 (K9, K10, Q2–Q6) sudah dimasukkan; menunggu review Fase 1 W1.
+- **Status:** accepted (owner 2026-10-02: "lanjutkan sesuai rekomendasi") — keputusan owner K9, K10, Q2–Q6 dimasukkan.
 - **Tanggal:** 2026-10-02
 - **Penulis:** Lead (SaaS Fase 1 W1)
 - **Terkait:** brief owner 2026-10-02 §2 #1, #7, #8, §2a, §5.2; `docs/plans/saas-inventory.md` §2; `docs/plans/saas-phase-1.md`
@@ -62,7 +62,7 @@ Fakta (inventaris 2026-10-02):
    `mail-5` (5 mailbox × 2 GB), `mail-20` (20 mailbox × 2 GB), `web-profile` (1 site + CMS), `insight-basic` (dashboard
    standar). Kolom `plans.price_amount` diubah menjadi nullable; `+ service`.
 8. **Email pengingat** (Q5): pengirim `noreply@bimacreative.tech` via submission 587; penerima tenant-admin + alamat billing
-   internal (**alamat belum ditetapkan owner**); H-14 sebelum garansi berakhir, H+0/H+14/H+45 setelah `ends_at`. Staging
+   internal `billing@bimacreative.tech` (mailbox dibuat 2026-10-02); H-14 sebelum garansi berakhir, H+0/H+14/H+45 setelah `ends_at`. Staging
    **hanya ke Mailpit** (container uji baru di network staging, ±30 MB RAM). Password SMTP dari secret file
    `SMTP_PASSWORD_FILE` di CP (bukan secret infra; ADR 0009 tidak dilanggar).
 9. **Portal client** (tenant-admin): Ringkasan, Users, Domain & Mail. Setiap server action memeriksa `client_id` sesi ==
@@ -101,3 +101,4 @@ dibalik dengan `tenant_resume`.
 ## Riwayat revisi
 
 - 2026-10-02: dibuat (proposed) — SaaS Fase 1 W1; memuat keputusan owner Q2–Q6.
+- 2026-10-02: proposed → accepted; Q5 alamat billing = `billing@bimacreative.tech`.

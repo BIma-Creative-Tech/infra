@@ -1,6 +1,6 @@
 # ADR 0017 — Identitas platform: Organizations per tenant, atribut `tenant_id`, realm sebagai kode, admin hanya lewat job
 
-- **Status:** proposed — arah disetujui owner 2026-10-02 (K7, K8, K9, §13 usulan 1–8). Bagian **Organizations (D2, D6
+- **Status:** accepted (owner 2026-10-02: "lanjutkan sesuai rekomendasi") — arah disetujui owner 2026-10-02 (K7, K8, K9, §13 usulan 1–8). Bagian **Organizations (D2, D6
   hak org)** tetap *proposed* sampai **spike S1** (§Spike S1) dijawab tertulis di ADR ini (syarat owner Fase 1 #1).
 - **Tanggal:** 2026-10-02
 - **Penulis:** Lead (SaaS Fase 1 W1)
@@ -128,3 +128,4 @@ client; `sh_auth_oidc.tenant_check=off`; nonaktifkan client `cp-admin`/`kc-realm
 ## Riwayat revisi
 
 - 2026-10-02: dibuat (proposed) — SaaS Fase 1 W1; arah disetujui owner (K7–K9).
+- 2026-10-02: proposed → accepted (owner "lanjutkan sesuai rekomendasi"); D2 dan hak org D6 tetap menunggu spike S1.
