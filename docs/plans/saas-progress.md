@@ -136,3 +136,27 @@ Append per sesi, bertanggal. Pertanyaan pemblokir selalu di bagian **Butuh keput
 - Review QA/security (berjalan).
 - Deploy staging (W2–W5), uji live S1, gate — menunggu "FREEZE DICABUT". Urutan: kontrak v1.1 §4.
 - Fase 1 sisa: W6 portal client, W7 subscription/invoice/tick, rekonsiliasi `tenant_suspend|resume`, UI `kc_realm_sync`.
+
+## 2026-10-03 — QA/security Fase 1 + perbaikan
+
+**Review QA** (read-only, 3 branch): staging GO bersyarat, prod NO-GO sampai F1 diperbaiki. Temuan: **F1 High** — tenant-admin
+bisa "mengadopsi" user Keycloak lama tanpa `tenant_id` (termasuk superadmin) lalu mencabut role/menonaktifkan (dibuktikan uji
+negatif); F2 Medium — aturan satu tenant-admin tidak atomik; F3–F5, F7 Low (secret di mode uji, strict dengan alias kosong, email
+di log, auto-link admin lokal Odoo); F6 Low (ICP tenant_check bisa diubah admin tenant — risiko diterima); F8 Info.
+
+**Perbaikan (semua di branch, belum merge/deploy)**
+- infra `feat/infra-saas-p1` (`437d5a6`, `0fa2bad`, `cb1cfad`, `447c801`, `6355383`): kontrak **v1.2** — arg `adopt` pada
+  `kc_user_ensure` (alert saat apply); skrip menolak user lama tanpa `tenant_id` kecuali `--adopt`, dan menolak mengubah user
+  ber-role superadmin/ops (efektif/composite) dari slug tenant; mode uji wajib `KC_SECRETS_DIR` di `/tmp`; `strict` diblok bila
+  alias org kosong; log email → `email#<hash8>`; auto-link admin lokal Odoo ditolak; dispatcher VERSION 1.2.0.
+- control-plane `feat/saas-p1-users` (`aabbc45`, `2cc4a93`, `666d12b`): `adopt` hanya superadmin (enqueue + guard worker);
+  aturan email (tanpa tenant / staf / tenant lain → tolak); `users:manage_own` dimatikan sampai portal W6; alur "Ikat ke
+  tenant…" untuk baris lama (backfill F8); satu tenant-admin dengan advisory lock per tenant saat enqueue.
+
+**Diuji**: uji QA pembukti F1 kini **gagal sesuai harapan** (exit 3) dan dijadikan regresi `T07Adopt`; dispatcher 379 OK;
+skrip kc 25 OK; `odoo_user_ensure` 75 ok; control-plane 527 unit (227 kasus kontrak) + 28 integrasi (termasuk uji konkurensi F2:
+tanpa lock gagal 3/3, dengan lock lulus 3/3); lint/typecheck/build OK.
+
+**Belum**: endpoint Keycloak baru di perbaikan F1 (`/organizations/members/{id}/organizations`, role composite) diverifikasi dari
+kode sumber 26.7.4, belum live (permintaan pengecualian hook untuk menyalin secret uji **ditolak** Lead) → konfirmasi saat deploy
+W2 staging. Langkah pertama setelah `kc_realm_sync` pertama: adopsi staf ke tenant `platform` dari CP.
