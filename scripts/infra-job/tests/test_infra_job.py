@@ -900,6 +900,10 @@ class TestPhase1Validators(unittest.TestCase):
                             self.assertEqual(cm.exception.code, "rejected_validation")
                             continue
                         job = self.validate(self.job("kc_user_set_roles", slug, args))
+                        self.assertEqual(job.alert_reason, f"kc_user_set_roles cp_role={role}"
+                                         if role in ("superadmin", "ops") else None)
+                        dry = self.validate(self.job("kc_user_set_roles", slug, args, dry_run=True))
+                        self.assertIsNone(dry.alert_reason)
                         argv = ij.build_argv(self.CFG, job, False)
                         self.assertEqual(argv[:6], ["/s/kc-user.sh", "roles", slug, "staging", "--email", "a@b.co"])
                         self.assertEqual(argv[6:8], ["--cp-role", role])
@@ -960,7 +964,9 @@ class TestPhase1Validators(unittest.TestCase):
     def test_alert_reasons(self) -> None:
         expect = {"kc_realm_sync_staging_apply": "kc_realm_sync apply", "kc_realm_sync_prod_approved":
                   "kc_realm_sync apply", "kc_user_set_enabled_false": "kc_user_set_enabled enabled=false",
-                  "odoo_tenant_config_strict": "odoo_tenant_config strict", "tenant_suspend_staging": "tenant_suspend"}
+                  "odoo_tenant_config_strict": "odoo_tenant_config strict", "tenant_suspend_staging": "tenant_suspend",
+                  "kc_user_set_roles_platform_superadmin": "kc_user_set_roles cp_role=superadmin",
+                  "kc_user_set_roles_platform_ops": "kc_user_set_roles cp_role=ops"}
         for c in FX["valid"]:
             if c["job"]["type"] in PHASE1:
                 job = ij.validate_job(c["job"], c["instance"], c["job"]["job_id"], ALL_TYPES)
@@ -1167,6 +1173,23 @@ class TestPhase1Execution(Base):
             self.assertIn(word, body)
         self.assertNotIn("budi@", body)
 
+    def test_platform_role_grant_alerts(self) -> None:
+        self.env.put_job(fx_job("kc_user_set_roles_platform_superadmin"))
+        self.env.put_job(fx_job("kc_user_set_roles_platform_ops", env="staging"))
+        self.env.run()
+        self.assertEqual(len(self.env.alerts), 1)
+        body = self.env.alerts[0][1]
+        self.assertIn("kc_user_set_roles cp_role=superadmin", body)
+        self.assertIn("kc_user_set_roles cp_role=ops", body)
+        self.assertNotIn("ops@bimacreative", body)
+
+    def test_platform_role_grant_dry_run_no_alert(self) -> None:
+        self.env.put_job(fx_job("kc_user_set_roles_platform_superadmin", dry_run=True))
+        self.env.put_job(fx_job("kc_user_set_roles_platform_ops", env="staging", dry_run=True))
+        self.env.put_job(fx_job("kc_user_set_roles_none_odoo_none", env="staging"))
+        self.env.run()
+        self.assertEqual(self.env.alerts, [])
+
     def test_non_sensitive_no_alert(self) -> None:
         for n in ("kc_user_ensure_invite_name", "kc_user_set_roles_client_admin_odoo_admin",
                   "kc_user_action_email_update_password", "odoo_user_ensure_admin_full", "kc_org_ensure_tenant"):
@@ -1237,7 +1260,32 @@ class TestPhase1Quota(Base):
     def test_kc_action_email_per_hour(self) -> None:
         self.fill(20, ("kc_user_action_email",))
         self.assertEqual(self.state("kc_user_action_email_update_password"), ("failed", "rejected_quota"))
+        self.assertEqual(self.state("kc_user_ensure_invite_name"), ("failed", "rejected_quota"))  # undangan = email
+        self.assertEqual(self.state("kc_user_set_roles_client_admin_odoo_admin")[0], "succeeded")
+
+    def test_invite_counts_toward_action_email(self) -> None:
+        self.fill(20, ("kc_user_action_email",))
+        self.assertEqual(self.state("kc_user_ensure_invite_name"), ("failed", "rejected_quota"))
+        # tanpa undangan / dry-run: tidak mengirim email → tidak terkena kuota email
+        self.assertEqual(self.state("kc_user_ensure_no_invite", env="staging")[0], "succeeded")
+        self.assertEqual(self.state("kc_user_ensure_invite_name", dry_run=True)[0], "succeeded")
+
+    def test_invite_apply_consumes_action_email_quota(self) -> None:
+        self.fill(20, ("kc_user_ensure",), flags="accepted,email")
+        self.assertEqual(self.state("kc_user_action_email_update_password"), ("failed", "rejected_quota"))
+
+    def test_email_flag_written_only_for_invite_apply(self) -> None:
+        a = self.env.put_job(fx_job("kc_user_ensure_invite_name"))
+        b = self.env.put_job(fx_job("kc_user_ensure_invite_name", dry_run=True))
+        c = self.env.put_job(fx_job("kc_user_ensure_no_invite", env="staging"))
+        self.env.run()
+        flags = {ln[1]: ln[3] for ln in self.env.ledger_lines()}
+        self.assertEqual((flags[a], flags[b], flags[c]), ("accepted,email", "accepted", "accepted"))
+
+    def test_invite_email_quota_override(self) -> None:
+        self.env.conf({"job_types": list(ALL_TYPES), "quota": {"kc_action_email_per_hour": 1}})
         self.assertEqual(self.state("kc_user_ensure_invite_name")[0], "succeeded")
+        self.assertEqual(self.state("kc_user_action_email_update_password"), ("failed", "rejected_quota"))
 
     def test_kc_realm_sync_per_day(self) -> None:
         self.fill(10, ("kc_realm_sync",), age=7200)

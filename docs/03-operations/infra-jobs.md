@@ -127,8 +127,8 @@ Semua kunci top-level **wajib**, kunci lain ditolak; kunci JSON duplikat, float,
 | `odoo_sso_user` | `action` R `grant`\|`revoke`\|`resend_invite`, `email` R, `login` O, `admin` R bool, `create_kc` R bool | bebas | dry-run pendahulu untuk grant/resend_invite; `revoke` → `admin=false`, `create_kc=false`; `resend_invite` → `create_kc=false`; kuota 30/jam |
 | `kc_realm_sync` | `approve` O bool | bebas | slug **harus** `platform`; apply (`dry_run=false`) di `prod`/`demo` wajib `approve=true`; apply → email; kuota 10/24 jam |
 | `kc_org_ensure` | `tenant_id` R UUID | bebas | slug tenant atau `platform` |
-| `kc_user_ensure` | `email` R, `tenant_id` R UUID, `invite` R bool, `name` O | bebas | kuota `kc_user_*` 60/jam |
-| `kc_user_set_roles` | `email` R, `cp_role` R `none`\|`superadmin`\|`ops`\|`client_admin`\|`client_user`, `odoo` O `none`\|`user`\|`admin` | bebas | `superadmin`/`ops` hanya slug `platform`; `client_*` hanya slug ≠ `platform`; `odoo` dilarang untuk `platform` |
+| `kc_user_ensure` | `email` R, `tenant_id` R UUID, `invite` R bool, `name` O | bebas | kuota `kc_user_*` 60/jam; `invite=true` apply juga ikut kuota email 20/jam |
+| `kc_user_set_roles` | `email` R, `cp_role` R `none`\|`superadmin`\|`ops`\|`client_admin`\|`client_user`, `odoo` O `none`\|`user`\|`admin` | bebas | `superadmin`/`ops` hanya slug `platform`; `client_*` hanya slug ≠ `platform`; `odoo` dilarang untuk `platform`; apply `superadmin`/`ops` → email |
 | `kc_user_set_enabled` | `email` R, `enabled` R bool | bebas | `enabled=false` → email + kuota disable 20/jam |
 | `kc_user_action_email` | `email` R, `action` R `UPDATE_PASSWORD`\|`VERIFY_EMAIL`\|`CONFIGURE_TOTP` | bebas | kuota 20/jam |
 | `odoo_user_ensure` | `email` R, `role` R `user`\|`admin`, `active` R bool, `login` O, `name` O | bebas | slug ≠ `platform`; kuota 60/jam |
@@ -149,7 +149,8 @@ Semua tipe Fase 1 memakai **dry-run pendahulu** bila `dry_run=false`; email aler
 - Kuota (per instance, jendela bergulir; menghitung job yang **diterima**, termasuk job `dry_run` kecuali disebut lain):
   total 60/jam, `odoo_db_provision` 3/24 jam, `odoo_sso_user` 30/jam, `rotate_secret` 5/24 jam (hanya apply). Fase 1:
   `kc_user_per_hour` 60 (semua `kc_user_*`), `kc_user_disable_per_hour` 20 (`kc_user_set_enabled enabled=false`, hanya
-  apply), `kc_action_email_per_hour` 20, `kc_realm_sync_per_day` 10, `tenant_state_per_day` 20 (suspend + resume),
+  apply), `kc_action_email_per_hour` 20 (`kc_user_action_email` + `kc_user_ensure invite=true` apply, flag ledger `email`),
+  `kc_realm_sync_per_day` 10, `tenant_state_per_day` 20 (suspend + resume),
   `odoo_user_per_hour` 60. Kuota total 60/jam tetap berlaku di atas semuanya (satu "Tambah user" = 2–3+ job). Ubah di
   `/etc/infra-jobs/<inst>.conf` lewat var Ansible (`infra_jobs_quota`, `infra_jobs_overrides`); kunci Fase 1 tidak ada di
   `infra_jobs_quota` (default dispatcher berlaku) — override per instance lewat `infra_jobs_overrides`.
@@ -245,7 +246,8 @@ Dispatcher hanya menulis tujuh kode pertama; CP hanya mempercayai kode dispatche
   error exit dur_ms sha256(payload)` — **tanpa email**); log penuh `/var/log/infra-jobs/<inst>/<id>.log` (root).
 - Email alert (lewat `scripts/lib/infra_alert_mail.py` + `/etc/infra-healthcheck/alert.env`): semua `rejected_*`, nama file
   tidak valid, `job_id` duplikat, konfigurasi invalid, `odoo_sso_disable`, `rotate_secret`, `odoo_route remove`; sejak 1.1.0
-  juga apply `kc_realm_sync`, `kc_user_set_enabled enabled=false`, `odoo_tenant_config strict`, `tenant_suspend`. Satu email per
+  juga apply `kc_realm_sync`, `kc_user_set_roles cp_role=superadmin|ops`, `kc_user_set_enabled enabled=false`,
+  `odoo_tenant_config strict`, `tenant_suspend`. Satu email per
   run; maks 6 email/jam/instance (sisanya hanya journal, jumlahnya disebut di email berikutnya). Unit gagal
   (tata letak salah, trigger/start limit) → `OnFailure=infra-unit-failure@%n` → email healthcheck.
 - Kill switch (urut dari paling cepat): `touch /etc/infra-jobs/<inst>.disabled` (job ditolak `disabled`, CP langsung tahu) ·

@@ -168,7 +168,7 @@ DEFAULT_QUOTA = {
     # SaaS Fase 1 (kontrak §1.2)
     "kc_user_per_hour": 60,  # semua kc_user_* (termasuk dry_run)
     "kc_user_disable_per_hour": 20,  # kc_user_set_enabled enabled=false, dry_run=false
-    "kc_action_email_per_hour": 20,  # kc_user_action_email (termasuk dry_run)
+    "kc_action_email_per_hour": 20,  # kc_user_action_email (termasuk dry_run) + kc_user_ensure invite=true apply
     "kc_realm_sync_per_day": 10,  # kc_realm_sync (termasuk dry_run)
     "tenant_state_per_day": 20,  # tenant_suspend + tenant_resume (termasuk dry_run)
     "odoo_user_per_hour": 60,  # odoo_user_ensure (termasuk dry_run)
@@ -198,7 +198,6 @@ TYPE_QUOTAS: tuple[tuple[tuple[str, ...], int, str, str], ...] = (
     (("odoo_db_provision",), 86400, "odoo_db_provision_per_day", "kuota odoo_db_provision/24 jam habis"),
     (("odoo_sso_user",), 3600, "odoo_sso_user_per_hour", "kuota odoo_sso_user/jam habis"),
     (tuple(KC_USER_SUBCOMMANDS), 3600, "kc_user_per_hour", "kuota kc_user_*/jam habis"),
-    (("kc_user_action_email",), 3600, "kc_action_email_per_hour", "kuota kc_user_action_email/jam habis"),
     (("kc_realm_sync",), 86400, "kc_realm_sync_per_day", "kuota kc_realm_sync/24 jam habis"),
     (("tenant_suspend", "tenant_resume"), 86400, "tenant_state_per_day", "kuota tenant_suspend/resume/24 jam habis"),
     (("odoo_user_ensure",), 3600, "odoo_user_per_hour", "kuota odoo_user_ensure/jam habis"),
@@ -453,10 +452,15 @@ class Job:
     alert_reason: str | None = None  # aksi sensitif → email (plan 05 §6 sisa risiko)
     rotate: bool = False  # ledger flag "rotate" (kuota rotate_secret_per_day)
     disable: bool = False  # ledger flag "disable" (kuota kc_user_disable_per_hour)
+    sends_email: bool = False  # ledger flag "email": kc_user_ensure invite=true apply (kuota kc_action_email_per_hour)
 
     @property
     def ledger_flags(self) -> str:
-        return ",".join(["accepted", *(["rotate"] if self.rotate else []), *(["disable"] if self.disable else [])])
+        flags = ["accepted"]
+        for name, on in (("rotate", self.rotate), ("disable", self.disable), ("email", self.sends_email)):
+            if on:
+                flags.append(name)
+        return ",".join(flags)
 
 
 def validate_job(obj: dict[str, Any], instance: str, file_job_id: str,
@@ -621,6 +625,8 @@ def v_kc_user_ensure(job: Job, args: dict[str, Any]) -> None:
     if "name" in args:
         job.args["name"] = _str(args, "name", NAME_RE, "args.name", 100)
     job.pre_dry_run = not job.dry_run
+    # Undangan (execute-actions-email) benar-benar terkirim → ikut kuota email (keputusan Lead 2026-10-03).
+    job.sends_email = job.args["invite"] and not job.dry_run
 
 
 def v_kc_user_set_roles(job: Job, args: dict[str, Any]) -> None:
@@ -637,6 +643,8 @@ def v_kc_user_set_roles(job: Job, args: dict[str, Any]) -> None:
             raise Reject("rejected_validation", "args.odoo dilarang untuk slug platform")
         job.args["odoo"] = _enum(args, "odoo", ODOO_ACCESS, "args.odoo")
     job.pre_dry_run = not job.dry_run
+    if role in ("superadmin", "ops") and not job.dry_run:  # pemberian hak platform → email (keputusan Lead 2026-10-03)
+        job.alert_reason = f"kc_user_set_roles cp_role={role}"
 
 
 def v_kc_user_set_enabled(job: Job, args: dict[str, Any]) -> None:
@@ -855,6 +863,10 @@ def check_quota(job: Job, ledger: list[tuple[float, str, str, str]], quota: dict
         raise Reject("rejected_quota", "kuota rotate_secret/24 jam habis")
     if job.disable and count(3600, lambda jt, fl: "disable" in fl.split(",")) >= quota["kc_user_disable_per_hour"]:
         raise Reject("rejected_quota", "kuota kc_user disable/jam habis")
+    if (job.type == "kc_user_action_email" or job.sends_email) and count(
+            3600, lambda jt, fl: jt == "kc_user_action_email" or "email" in fl.split(",")) >= quota[
+            "kc_action_email_per_hour"]:
+        raise Reject("rejected_quota", "kuota email aksi Keycloak/jam habis")
 
 
 # ------------------------------------------------------------------------------------------------ eksekusi & hasil
