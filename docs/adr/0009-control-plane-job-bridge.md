@@ -121,3 +121,9 @@ durasi nyata tiap job (timeout), dan apakah proses di dalam container ikut berhe
   aksi job baru wajib uji "tidak pernah memberi hak lebih" (pelajaran BUG-J5-01) — termasuk role yang boleh dipetakan
   `kc_user_set_roles` (allowlist; tidak pernah `realm-management`/`superadmin` lewat portal); (e) host domain milik client
   (bukan `*.erp|staging.bimacreative.tech`) tetap di luar dispatcher sampai Fase 2.
+- 2026-10-03 (SaaS Fase 1 W4, dispatcher **1.1.0**, branch `feat/infra-saas-p1-dispatcher`, belum diterapkan): implementasi
+  kontrak `docs/plans/saas-phase-1-contract.md` §0–§1.2 — 10 tipe (daftar di atas + `odoo_tenant_config`); aturan (a) = kunci
+  conf `job_types` (tidak ada → 5 tipe lama, invalid → fail-closed); aturan (d) di validator: `superadmin`/`ops` hanya slug
+  `platform`, `client_*` hanya slug lain, `odoo` dilarang untuk `platform`, `kc_realm_sync` hanya `platform` dan apply
+  prod/demo wajib `approve=true`. "User `superadmin` tidak bisa dinonaktifkan" (ADR 0017 §Security) ditegakkan skrip, bukan
+  dispatcher (dispatcher tidak mengetahui role user target).

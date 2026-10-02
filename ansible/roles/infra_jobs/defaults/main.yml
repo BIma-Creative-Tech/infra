@@ -49,7 +49,15 @@ infra_jobs_timeouts:
   odoo_sso_user: 180
   dry_run: 60
 # Override per instance (mis. AC-J8 staging: {staging: {timeouts: {odoo_sso_provision: 5}}}). Digabung di atas default.
+# Kuota/timeout tipe SaaS Fase 1 (kc_user_per_hour, kc_realm_sync, …) TIDAK ditulis di sini: default dispatcher 1.1.0
+# berlaku; override per instance lewat infra_jobs_overrides bila perlu (kunci harus dikenal dispatcher).
 infra_jobs_overrides: {}
+
+# Allowlist tipe job per instance (kontrak SaaS Fase 1 §0.5) → kunci `job_types` di /etc/infra-jobs/<inst>.conf.
+# Instance tidak tercantum / daftar kosong → kunci TIDAK ditulis → dispatcher memakai default 5 tipe lama.
+# Nilai di group_vars/all.yml. Tipe tak dikenal/duplikat → dispatcher fail-closed (semua job instance itu disabled).
+# Skrip setiap tipe yang diizinkan WAJIB ada di /opt/infra/scripts (root, 0755) — kalau tidak, run dispatcher gagal.
+infra_jobs_job_types: {}
 
 # Retensi (systemd-tmpfiles age, dibersihkan systemd-tmpfiles-clean.timer harian)
 infra_jobs_results_age: 7d

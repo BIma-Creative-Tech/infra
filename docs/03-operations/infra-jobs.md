@@ -1,8 +1,9 @@
 # infra-job — jembatan job control plane → skrip root
 
 - **Status:** **berjalan (prod + staging)** sejak 2026-09-25 — plan 05 EXECUTED (`docs/plans/05-control-plane-odoo-sso-jobs.md` §9),
-  ADR 0009 (accepted). Dispatcher `infra-job` **1.0.0** (`VERSION` di `scripts/infra-job/infra_job.py`); salinan host = repo
-  (`cmp scripts/infra-job/infra_job.py /usr/local/sbin/infra-job` → sama, dicek 2026-09-25 J7).
+  ADR 0009 (accepted). Host: dispatcher `infra-job` **1.0.0** (dicek 2026-09-25 J7). Repo (branch
+  `feat/infra-saas-p1-dispatcher`, **belum diterapkan**): **1.1.0** — 10 tipe SaaS Fase 1 + allowlist tipe per instance
+  (kontrak `docs/plans/saas-phase-1-contract.md` §0–§1.2). `VERSION` di `scripts/infra-job/infra_job.py`.
 - **Terkait:** `docs/03-operations/control-plane.md` §Jembatan infra-job, `docs/runbooks/odoo-sso-tenant.md` §Jalur control plane,
   QA `docs/qa/2026-09-25-plan05-staging.md` (J5 + regresi J5R), repo `/opt/src/control-plane` (`src/lib/job-contract.ts`).
 
@@ -44,7 +45,7 @@ Role Ansible `infra_jobs` + `auditd` diterapkan 2026-09-25 ±13:00 WIB (run ulan
 | Dispatcher (root 0755, Python 3 stdlib) | `/usr/local/sbin/infra-job <prod\|staging>` | `scripts/infra-job/infra_job.py` |
 | Unit service (oneshot, hardening) | `/etc/systemd/system/infra-job@.service` | `ansible/roles/infra_jobs/templates/infra-job@.service.j2` |
 | Unit path per instance | `/etc/systemd/system/infra-job-{prod,staging}.path` (`DirectoryNotEmpty=` spool/new) | `…/templates/infra-job.path.j2` |
-| Kuota/timeout per instance (JSON) | `/etc/infra-jobs/<inst>.conf` (root 0644) | `…/templates/instance.conf.j2` (+ `infra_jobs_overrides`) |
+| Kuota/timeout/allowlist tipe per instance (JSON) | `/etc/infra-jobs/<inst>.conf` (root 0644) | `…/templates/instance.conf.j2` (+ `infra_jobs_overrides`, `infra_jobs_job_types`) |
 | Kill switch file | `/etc/infra-jobs/<inst>.disabled` | var `infra_jobs_instances.<inst>.disabled` |
 | Retensi + mode saat boot | `/etc/tmpfiles.d/infra-jobs.conf` | `…/templates/infra-jobs.tmpfiles.j2` |
 | Kontrak (fixture bersama CP) | — | `scripts/infra-job/contract/fixtures.json` |
@@ -108,7 +109,7 @@ Semua kunci top-level **wajib**, kunci lain ditolak; kunci JSON duplikat, float,
 |---|---|
 | `v` | integer `1` (bukan `true`/`1.0`) |
 | `job_id` | `[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}` = nama file |
-| `type` | `odoo_db_provision` · `odoo_route` · `odoo_sso_provision` · `odoo_sso_disable` · `odoo_sso_user` |
+| `type` | lama: `odoo_db_provision` · `odoo_route` · `odoo_sso_provision` · `odoo_sso_disable` · `odoo_sso_user`; SaaS Fase 1 (1.1.0): `kc_realm_sync` · `kc_org_ensure` · `kc_user_ensure` · `kc_user_set_roles` · `kc_user_set_enabled` · `kc_user_action_email` · `odoo_user_ensure` · `odoo_tenant_config` · `tenant_suspend` · `tenant_resume` — **dan** harus ada di allowlist instance (§Allowlist tipe per instance) |
 | `slug` | `[a-z0-9][a-z0-9-]{1,28}[a-z0-9]` (**lebih ketat** dari skrip: tidak diawali/diakhiri `-`) |
 | `env` | prod-inst: `prod`\|`demo`; staging-inst: `staging` (lintas instance = ditolak + email) |
 | `dry_run` | boolean |
@@ -124,6 +125,18 @@ Semua kunci top-level **wajib**, kunci lain ditolak; kunci JSON duplikat, float,
 | `odoo_sso_provision` | `hosts` R 1..5 unik, `rotate_secret` R bool, `skip_smoke` R bool | bebas | dry-run pendahulu; `rotate_secret` → email + kuota 5/24 jam |
 | `odoo_sso_disable` | `hosts` R 1..5 unik | bebas | dry-run pendahulu; selalu email |
 | `odoo_sso_user` | `action` R `grant`\|`revoke`\|`resend_invite`, `email` R, `login` O, `admin` R bool, `create_kc` R bool | bebas | dry-run pendahulu untuk grant/resend_invite; `revoke` → `admin=false`, `create_kc=false`; `resend_invite` → `create_kc=false`; kuota 30/jam |
+| `kc_realm_sync` | `approve` O bool | bebas | slug **harus** `platform`; apply (`dry_run=false`) di `prod`/`demo` wajib `approve=true`; apply → email; kuota 10/24 jam |
+| `kc_org_ensure` | `tenant_id` R UUID | bebas | slug tenant atau `platform` |
+| `kc_user_ensure` | `email` R, `tenant_id` R UUID, `invite` R bool, `name` O | bebas | kuota `kc_user_*` 60/jam |
+| `kc_user_set_roles` | `email` R, `cp_role` R `none`\|`superadmin`\|`ops`\|`client_admin`\|`client_user`, `odoo` O `none`\|`user`\|`admin` | bebas | `superadmin`/`ops` hanya slug `platform`; `client_*` hanya slug ≠ `platform`; `odoo` dilarang untuk `platform` |
+| `kc_user_set_enabled` | `email` R, `enabled` R bool | bebas | `enabled=false` → email + kuota disable 20/jam |
+| `kc_user_action_email` | `email` R, `action` R `UPDATE_PASSWORD`\|`VERIFY_EMAIL`\|`CONFIGURE_TOTP` | bebas | kuota 20/jam |
+| `odoo_user_ensure` | `email` R, `role` R `user`\|`admin`, `active` R bool, `login` O, `name` O | bebas | slug ≠ `platform`; kuota 60/jam |
+| `odoo_tenant_config` | `tenant_check` R `off`\|`compat`\|`strict` | bebas | slug ≠ `platform`; `strict` → email |
+| `tenant_suspend` | — (`{}`) | bebas | slug ≠ `platform`; selalu email; kuota suspend+resume 20/24 jam |
+| `tenant_resume` | — (`{}`) | bebas | slug ≠ `platform` |
+
+Semua tipe Fase 1 memakai **dry-run pendahulu** bila `dry_run=false`; email alert hanya untuk `dry_run=false`.
 
 - Host: `[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.erp\.bimacreative\.tech` (prod/demo) atau `…\.staging\.bimacreative\.tech`.
   `odoo_sso_*`: setiap host **harus** ada sebagai ``Host(`…`)`` di `traefik/dynamic/clients/<slug>-<env>.yml` (root-owned,
@@ -131,14 +144,32 @@ Semua kunci top-level **wajib**, kunci lain ditolak; kunci JSON duplikat, float,
   `<slug>.erp.bimacreative.tech` / `<slug>.staging.bimacreative.tech` (bukan demo).
 - Email: `[a-z0-9_%+][a-z0-9._%+-]{0,63}@(label\.)+[a-z]{2,63}`, ≤ 254, **huruf kecil** (CP wajib me-lowercase; huruf
   besar ditolak, tidak diubah diam-diam). Login: `[A-Za-z0-9._@+][A-Za-z0-9._@+-]{0,253}` (= CP `LOGIN_REGEX`).
-- Kuota (per instance, jendela bergulir; menghitung job yang **diterima**, termasuk job `dry_run`): total 60/jam,
-  `odoo_db_provision` 3/24 jam, `odoo_sso_user` 30/jam, `rotate_secret` 5/24 jam. Ubah di `/etc/infra-jobs/<inst>.conf`
-  lewat var Ansible (`infra_jobs_quota`, `infra_jobs_overrides`).
+- Nama (`name`, tipe Fase 1): `[A-Za-z0-9.,'][A-Za-z0-9 .,'-]{0,99}` — ASCII saja, tidak diawali spasi/`-` (CP: nama
+  beraksen harus ditolak/ditransliterasi sebelum job dibuat; file job wajib ASCII). `tenant_id`: regex UUID `job_id`.
+- Kuota (per instance, jendela bergulir; menghitung job yang **diterima**, termasuk job `dry_run` kecuali disebut lain):
+  total 60/jam, `odoo_db_provision` 3/24 jam, `odoo_sso_user` 30/jam, `rotate_secret` 5/24 jam (hanya apply). Fase 1:
+  `kc_user_per_hour` 60 (semua `kc_user_*`), `kc_user_disable_per_hour` 20 (`kc_user_set_enabled enabled=false`, hanya
+  apply), `kc_action_email_per_hour` 20, `kc_realm_sync_per_day` 10, `tenant_state_per_day` 20 (suspend + resume),
+  `odoo_user_per_hour` 60. Kuota total 60/jam tetap berlaku di atas semuanya (satu "Tambah user" = 2–3+ job). Ubah di
+  `/etc/infra-jobs/<inst>.conf` lewat var Ansible (`infra_jobs_quota`, `infra_jobs_overrides`); kunci Fase 1 tidak ada di
+  `infra_jobs_quota` (default dispatcher berlaku) — override per instance lewat `infra_jobs_overrides`.
+
+### Allowlist tipe per instance (1.1.0)
+
+Kunci opsional `job_types` (array string) di `/etc/infra-jobs/<inst>.conf`. Tidak ada → default **5 tipe lama**. Setiap elemen
+harus tipe yang dikenal dispatcher, tanpa duplikat; selain itu → conf invalid → **fail-closed** (semua job instance itu
+`disabled` + email). Daftar kosong = tidak ada tipe yang diizinkan. Tipe dikenal tetapi di luar allowlist →
+`rejected_validation` "tipe tidak diizinkan di instance ini" (tanpa eksekusi, email). Dispatcher memeriksa skrip
+(root, executable, tidak writable g/o) hanya untuk tipe yang diizinkan instance; skrip tipe yang diizinkan hilang → run gagal
+(`OnFailure` email, job tertahan di spool).
+
+Sumber: var Ansible `infra_jobs_job_types` (`ansible/group_vars/all.yml`): `staging` = semua 15 tipe, `prod` = `[]` (kunci
+tidak ditulis → `prod.conf` tidak berubah) sampai disetujui owner.
 
 ### Tipe job → argv (dispatcher `build_argv`)
 
-Semua skrip di `/opt/infra/scripts/`; argumen pertama selalu `<slug> <env>`; `--dry-run` ditambahkan bila `dry_run=true` atau
-fase dry-run pendahulu.
+Semua skrip di `/opt/infra/scripts/`; argumen pertama `<slug> <env>` (kecuali `kc-user.sh`: subperintah dulu, lalu
+`<slug> <env>`); `--dry-run` ditambahkan di akhir bila `dry_run=true` atau fase dry-run pendahulu.
 
 | type | argv |
 |---|---|
@@ -147,6 +178,15 @@ fase dry-run pendahulu.
 | `odoo_sso_provision` | `provision-odoo-sso.sh <slug> <env> --host <h>… [--rotate-secret] [--skip-smoke]` |
 | `odoo_sso_disable` | `provision-odoo-sso.sh <slug> <env> --host <h>… --disable` |
 | `odoo_sso_user` | `odoo-sso-user.sh <slug> <env> --email <e> [--login <l>] [--create-kc] [--admin] --grant\|--revoke\|--resend-invite` |
+| `kc_realm_sync` | `kc-realm-sync.sh platform <env> [--approve]` |
+| `kc_org_ensure` | `kc-org.sh <slug> <env> --tenant-id <uuid>` |
+| `kc_user_ensure` | `kc-user.sh ensure <slug> <env> --email <e> --tenant-id <uuid> [--name <n>] [--no-invite]` (`--no-invite` bila `invite=false`) |
+| `kc_user_set_roles` | `kc-user.sh roles <slug> <env> --email <e> --cp-role <r> [--odoo <none\|user\|admin>]` |
+| `kc_user_set_enabled` | `kc-user.sh enabled <slug> <env> --email <e> --enabled <true\|false>` |
+| `kc_user_action_email` | `kc-user.sh email <slug> <env> --email <e> --action <A>` |
+| `odoo_user_ensure` | `odoo-user.sh <slug> <env> --email <e> [--login <l>] [--name <n>] --role <user\|admin> --active <true\|false>` |
+| `odoo_tenant_config` | `odoo-tenant-config.sh <slug> <env> --tenant-check <off\|compat\|strict>` |
+| `tenant_suspend` / `tenant_resume` | `tenant-state.sh <slug> <env> --suspend` / `--resume` |
 
 `--grant`/`--revoke`/`--resend-invite` saling eksklusif sejak `3ca5501` (BUG-J5-01): `resend_invite` hanya mengirim ulang
 `execute-actions-email` dan **menolak** (blocker) user tanpa role `odoo_access` / tanpa tautan `res.users` aktif — tidak pernah
@@ -172,7 +212,7 @@ argv persis per tipe: lihat `valid[].argv` di `scripts/infra-job/contract/fixtur
 - `error_code` (lihat tabel §Kode error). `error_detail` = teks tetap dispatcher (tidak menggemakan nilai dari file job).
 - `type`/`dry_run` bisa `null` bila file tidak ter-parse.
 - `result`: baris `RESULT` terakhir fase terakhir, kunci allowlist `db realm client provider hosts changed kc_user odoo_user
-  action invite mode blockers route host created pool`, nilai `[A-Za-z0-9._,:@/=-]{0,512}`; `secret`, `secret_file` dibuang.
+  action invite mode blockers route host created pool org roles enabled state tenant` (5 terakhir sejak 1.1.0), nilai `[A-Za-z0-9._,:@/=-]{0,512}`; `secret`, `secret_file` dibuang.
 - `invite` (sejak `8226b7b`, OBS-J5-01): `odoo-sso-user.sh` menulis `invite=sent|none` — apakah email undangan
   (`execute-actions-email`) terkirim pada run itu. Ditampilkan CP di detail job (redaksi `tail` tidak dilonggarkan, sehingga baris log
   `UPDATE_PASSWORD` tetap `[redacted]`).
@@ -189,7 +229,7 @@ argv persis per tipe: lihat `valid[].argv` di `scripts/infra-job/contract/fixtur
 | `rejected_validation` | dispatcher | file/skema/regex/instance/host/uid/mode ditolak; tidak ada eksekusi | email alert; selidiki (bug atau kompromi) |
 | `rejected_quota` | dispatcher | kuota instance habis | email alert; tunggu jendela bergulir atau ubah kuota (Ansible) |
 | `disabled` | dispatcher | `/etc/infra-jobs/<inst>.disabled` ada, atau konfigurasi instance invalid (fail-closed) | cabut kill switch / perbaiki conf |
-| `blocked_dry_run` | dispatcher | dry-run pendahulu `blockers>0` → apply tidak dijalankan | baca `tail`/log; perbaiki prasyarat (mis. `res.users` belum ada) |
+| `blocked_dry_run` | dispatcher | dry-run pendahulu `blockers>0` → apply tidak dijalankan (tipe lama: `blockers` wajib ada; tipe Fase 1: opsional, bila ada harus 0; tanpa baris `RESULT` → `script_exit`) | baca `tail`/log; perbaiki prasyarat (mis. `res.users` belum ada) |
 | `locked` | dispatcher | lock skrip per DB/route sedang dipegang | boleh diulang |
 | `timeout_state_unknown` | dispatcher | timeout tipe job; grup proses host dibunuh | **cek dry-run dulu** (lihat §Keterbatasan AC-J8); ulang hanya superadmin |
 | `script_exit` | dispatcher | skrip exit ≠ 0, atau exit 0 tanpa `RESULT` | baca `tail`/log host |
@@ -204,14 +244,16 @@ Dispatcher hanya menulis tujuh kode pertama; CP hanya mempercayai kode dispatche
 - Log host: `journalctl -t infra-job` (satu baris START + satu baris selesai per job: `inst id type slug env actor state
   error exit dur_ms sha256(payload)` — **tanpa email**); log penuh `/var/log/infra-jobs/<inst>/<id>.log` (root).
 - Email alert (lewat `scripts/lib/infra_alert_mail.py` + `/etc/infra-healthcheck/alert.env`): semua `rejected_*`, nama file
-  tidak valid, `job_id` duplikat, konfigurasi invalid, `odoo_sso_disable`, `rotate_secret`, `odoo_route remove`. Satu email per
+  tidak valid, `job_id` duplikat, konfigurasi invalid, `odoo_sso_disable`, `rotate_secret`, `odoo_route remove`; sejak 1.1.0
+  juga apply `kc_realm_sync`, `kc_user_set_enabled enabled=false`, `odoo_tenant_config strict`, `tenant_suspend`. Satu email per
   run; maks 6 email/jam/instance (sisanya hanya journal, jumlahnya disebut di email berikutnya). Unit gagal
   (tata letak salah, trigger/start limit) → `OnFailure=infra-unit-failure@%n` → email healthcheck.
 - Kill switch (urut dari paling cepat): `touch /etc/infra-jobs/<inst>.disabled` (job ditolak `disabled`, CP langsung tahu) ·
   `systemctl disable --now infra-job-<inst>.path` (job tertahan, CP `no_result`) · Ansible `path_enabled: false` /
   `disabled: true` · `infra_jobs_state: absent`.
 - Timeout per tipe (detik): `odoo_db_provision` 900, `odoo_sso_provision` 300, `odoo_sso_user` 180, `odoo_sso_disable` 120,
-  `odoo_route` 60, dry-run pendahulu 60 (batas yang diterima dispatcher 5..7200 s). Timeout → SIGTERM grup proses, 30 s →
+  `odoo_route` 60; Fase 1: `kc_realm_sync`/`odoo_user_ensure`/`odoo_tenant_config` 300, `kc_org_ensure`/`kc_user_*` 120,
+  `tenant_suspend`/`tenant_resume` 60; dry-run pendahulu (dan job `dry_run=true`) 60 (batas yang diterima dispatcher 5..7200 s). Timeout → SIGTERM grup proses, 30 s →
   SIGKILL, `timeout_state_unknown`. Proses di **dalam** container tidak ikut berhenti — lihat §Keterbatasan.
 - Durasi nyata (staging, QA J5 OBS-J5-03): DB baru 28 s; DB idempoten ~5 s; route 6,7 s; SSO pertama (install modul) 23 s; SSO
   idempoten 8–15 s (dry-run ~3 s); `odoo_sso_user` ~2–5 s; disable ~8 s. Prod: dry-run `odoo_sso_provision demo demo` 3,4 s.
@@ -256,6 +298,10 @@ cd /opt/infra/ansible
 /opt/ansible-venv/bin/ansible-playbook site.yml --tags infra_jobs,auditd
 /opt/ansible-venv/bin/ansible-playbook site.yml --tags infra_jobs,auditd      # run kedua: changed=0
 ```
+
+Urutan task role (sejak 1.1.0): kill switch → **dispatcher** → assert `infra_jobs_job_types` → conf. Dispatcher dipasang sebelum
+conf karena dispatcher lama menolak kunci `job_types` (fail-closed). Mengaktifkan tipe Fase 1 di staging (`infra_jobs_job_types.staging`)
+hanya setelah skrip Fase 1 ada di `/opt/infra/scripts` (lihat §Allowlist tipe per instance).
 
 Override sementara per instance (contoh AC-J8, staging):
 `-e '{"infra_jobs_overrides":{"staging":{"timeouts":{"odoo_sso_provision":5}}}}'` → hanya `/etc/infra-jobs/staging.conf` berubah;
