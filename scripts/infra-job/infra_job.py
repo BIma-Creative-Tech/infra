@@ -10,7 +10,8 @@ Batas keamanan (plan 05 §6): apa pun isi control plane (CP), yang sampai ke roo
 "tipe job allowlist dengan argumen tervalidasi untuk env instance ini, dalam kuota". Per file job di spool/new:
   rename → work/ (root 0700) · lstat: reguler, uid cpjob-<inst>, nlink 1, mode ⊆ 0644, ≤ 8 KiB
   · open O_NOFOLLOW + fstat sama · ASCII · JSON ketat (kunci duplikat/tak dikenal, NaN, float = tolak)
-  · allowlist tipe + regex fullmatch (ASCII) · binding instance→env (hard-coded) · host tenant dari file route
+  · allowlist tipe (global + per instance, conf `job_types`) + regex fullmatch (ASCII) · binding instance→env
+  (hard-coded) · aturan slug `platform` (kontrak SaaS Fase 1 §0.3) · host tenant dari file route
   root-owned · kuota (ledger) · subprocess argv list tanpa shell,
   env bersih (PATH, LANG), cwd /opt/infra, stdin /dev/null, grup proses sendiri, timeout → SIGTERM grup, 30 s → SIGKILL
   · hasil JSON (RESULT allowlist + tail teredaksi) atomik ke results/ (0640 root:cpjob-<inst>) · log penuh root 0600.
@@ -42,7 +43,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 
 # ------------------------------------------------------------------------------------------------ konstanta (kontrak)
 # Instance → env yang boleh disentuh + user host penulis job.
@@ -51,7 +52,23 @@ INSTANCES: dict[str, dict[str, Any]] = {
     "prod": {"envs": ("prod", "demo"), "user": "cpjob-prod"},
     "staging": {"envs": ("staging",), "user": "cpjob-staging"},
 }
-JOB_TYPES = ("odoo_db_provision", "odoo_route", "odoo_sso_provision", "odoo_sso_disable", "odoo_sso_user")
+LEGACY_JOB_TYPES = ("odoo_db_provision", "odoo_route", "odoo_sso_provision", "odoo_sso_disable", "odoo_sso_user")
+# SaaS Fase 1 (docs/plans/saas-phase-1-contract.md §1). Aktif hanya bila tercantum di `job_types` conf instance.
+PHASE1_JOB_TYPES = (
+    "kc_realm_sync",
+    "kc_org_ensure",
+    "kc_user_ensure",
+    "kc_user_set_roles",
+    "kc_user_set_enabled",
+    "kc_user_action_email",
+    "odoo_user_ensure",
+    "odoo_tenant_config",
+    "tenant_suspend",
+    "tenant_resume",
+)
+JOB_TYPES = LEGACY_JOB_TYPES + PHASE1_JOB_TYPES
+# Allowlist per instance bila /etc/infra-jobs/<inst>.conf tidak memuat `job_types` (kontrak §0.5): hanya 5 tipe lama.
+DEFAULT_JOB_TYPES = LEGACY_JOB_TYPES
 ERROR_CODES = (
     "rejected_validation",
     "rejected_quota",
@@ -68,6 +85,23 @@ SCRIPTS = {
     "odoo_sso_provision": "provision-odoo-sso.sh",
     "odoo_sso_disable": "provision-odoo-sso.sh",
     "odoo_sso_user": "odoo-sso-user.sh",
+    "kc_realm_sync": "kc-realm-sync.sh",
+    "kc_org_ensure": "kc-org.sh",
+    "kc_user_ensure": "kc-user.sh",
+    "kc_user_set_roles": "kc-user.sh",
+    "kc_user_set_enabled": "kc-user.sh",
+    "kc_user_action_email": "kc-user.sh",
+    "odoo_user_ensure": "odoo-user.sh",
+    "odoo_tenant_config": "odoo-tenant-config.sh",
+    "tenant_suspend": "tenant-state.sh",
+    "tenant_resume": "tenant-state.sh",
+}
+# Subperintah kc-user.sh — argv: kc-user.sh <sub> <slug> <env> … (kontrak §1; tipe lain: <skrip> <slug> <env> …).
+KC_USER_SUBCOMMANDS = {
+    "kc_user_ensure": "ensure",
+    "kc_user_set_roles": "roles",
+    "kc_user_set_enabled": "enabled",
+    "kc_user_action_email": "email",
 }
 
 A = re.ASCII
@@ -92,6 +126,18 @@ EMAIL_RE = re.compile(r"[a-z0-9_%+][a-z0-9._%+-]{0,63}@(" + _LABEL + r"\.)+[a-z]
 LOGIN_RE = re.compile(r"[A-Za-z0-9._@+][A-Za-z0-9._@+-]{0,253}", A)
 TOP_KEYS = ("v", "job_id", "type", "slug", "env", "dry_run", "actor", "requested_at", "args")
 SSO_USER_ACTIONS = ("grant", "revoke", "resend_invite")
+# Kontrak §1: NAME_RE CP = [A-Za-z0-9À-ɏ .,'-]{1,100}; dispatcher ASCII saja, tidak diawali spasi/'-'.
+NAME_RE = re.compile(r"[A-Za-z0-9.,'][A-Za-z0-9 .,'-]{0,99}", A)
+# Tenant internal (kontrak §0.1). Aturan §0.3: superadmin/ops hanya slug platform; client_* hanya slug ≠ platform.
+PLATFORM_SLUG = "platform"
+CP_ROLES = ("none", "superadmin", "ops", "client_admin", "client_user")
+CP_ROLES_PLATFORM = ("none", "superadmin", "ops")
+CP_ROLES_TENANT = ("none", "client_admin", "client_user")
+ODOO_ACCESS = ("none", "user", "admin")
+ODOO_USER_ROLES = ("user", "admin")
+KC_EMAIL_ACTIONS = ("UPDATE_PASSWORD", "VERIFY_EMAIL", "CONFIGURE_TOTP")
+TENANT_CHECK_MODES = ("off", "compat", "strict")
+APPROVE_ENVS = ("prod", "demo")  # kc_realm_sync apply di env ini wajib args.approve=true
 MAX_HOSTS = 5
 
 MAX_JOB_BYTES = 8192
@@ -101,7 +147,8 @@ KILL_GRACE_S = 30
 LEDGER_KEEP_S = 7 * 86400
 
 RESULT_KEYS = frozenset(
-    "db realm client provider hosts changed kc_user odoo_user action invite mode blockers route host created pool".split()
+    "db realm client provider hosts changed kc_user odoo_user action invite mode blockers route host created pool "
+    "org roles enabled state tenant".split()
 )
 RESULT_VAL_RE = re.compile(r"[A-Za-z0-9._,:@/=-]{0,512}", A)
 TAIL_MAX_LINES = 40
@@ -118,6 +165,13 @@ DEFAULT_QUOTA = {
     "odoo_db_provision_per_day": 3,
     "odoo_sso_user_per_hour": 30,
     "rotate_secret_per_day": 5,
+    # SaaS Fase 1 (kontrak §1.2)
+    "kc_user_per_hour": 60,  # semua kc_user_* (termasuk dry_run)
+    "kc_user_disable_per_hour": 20,  # kc_user_set_enabled enabled=false, dry_run=false
+    "kc_action_email_per_hour": 20,  # kc_user_action_email (termasuk dry_run)
+    "kc_realm_sync_per_day": 10,  # kc_realm_sync (termasuk dry_run)
+    "tenant_state_per_day": 20,  # tenant_suspend + tenant_resume (termasuk dry_run)
+    "odoo_user_per_hour": 60,  # odoo_user_ensure (termasuk dry_run)
 }
 DEFAULT_TIMEOUTS = {
     "odoo_db_provision": 900,
@@ -125,8 +179,30 @@ DEFAULT_TIMEOUTS = {
     "odoo_sso_provision": 300,
     "odoo_sso_disable": 120,
     "odoo_sso_user": 180,
-    "dry_run": 60,  # dry-run pendahulu (odoo_sso_provision / odoo_sso_disable / odoo_sso_user grant|resend_invite)
+    "kc_realm_sync": 300,
+    "kc_org_ensure": 120,
+    "kc_user_ensure": 120,
+    "kc_user_set_roles": 120,
+    "kc_user_set_enabled": 120,
+    "kc_user_action_email": 120,
+    "odoo_user_ensure": 300,
+    "odoo_tenant_config": 300,
+    "tenant_suspend": 60,
+    "tenant_resume": 60,
+    # dry-run pendahulu (odoo_sso_provision / odoo_sso_disable / odoo_sso_user grant|resend_invite / semua tipe Fase 1)
+    # dan job dry_run=true
+    "dry_run": 60,
 }
+# Kuota per tipe: (tipe yang dihitung, jendela detik, kunci kuota, pesan). Kuota dihitung atas job yang DITERIMA.
+TYPE_QUOTAS: tuple[tuple[tuple[str, ...], int, str, str], ...] = (
+    (("odoo_db_provision",), 86400, "odoo_db_provision_per_day", "kuota odoo_db_provision/24 jam habis"),
+    (("odoo_sso_user",), 3600, "odoo_sso_user_per_hour", "kuota odoo_sso_user/jam habis"),
+    (tuple(KC_USER_SUBCOMMANDS), 3600, "kc_user_per_hour", "kuota kc_user_*/jam habis"),
+    (("kc_user_action_email",), 3600, "kc_action_email_per_hour", "kuota kc_user_action_email/jam habis"),
+    (("kc_realm_sync",), 86400, "kc_realm_sync_per_day", "kuota kc_realm_sync/24 jam habis"),
+    (("tenant_suspend", "tenant_resume"), 86400, "tenant_state_per_day", "kuota tenant_suspend/resume/24 jam habis"),
+    (("odoo_user_ensure",), 3600, "odoo_user_per_hour", "kuota odoo_user_ensure/jam habis"),
+)
 QUOTA_BOUNDS = (0, 10000)
 TIMEOUT_BOUNDS = (5, 7200)
 ALERT_MAX_PER_HOUR = 6
@@ -252,14 +328,24 @@ def write_atomic(cfg: Config, tmp_dir_fd: int, dst_dir_fd: int, name: str, data:
 
 
 # ------------------------------------------------------------------------------------------------ konfigurasi root
-def load_limits(cfg: Config) -> tuple[dict[str, int], dict[str, int]]:
-    """/etc/infra-jobs/<inst>.conf (JSON, opsional; root, tidak writable g/o). Invalid → LayoutError (fail-closed)."""
+@dataclass
+class Limits:
+    quota: dict[str, int]
+    timeouts: dict[str, int]
+    job_types: tuple[str, ...]  # allowlist tipe instance ini (⊆ JOB_TYPES)
+
+
+def load_limits(cfg: Config) -> Limits:
+    """/etc/infra-jobs/<inst>.conf (JSON, opsional; root, tidak writable g/o). Invalid → LayoutError (fail-closed).
+
+    Kunci: `quota` {kunci DEFAULT_QUOTA: int}, `timeouts` {kunci DEFAULT_TIMEOUTS: int},
+    `job_types` [tipe JOB_TYPES, unik] (tidak ada → DEFAULT_JOB_TYPES; daftar kosong = tidak ada tipe diizinkan)."""
     quota, timeouts = dict(DEFAULT_QUOTA), dict(DEFAULT_TIMEOUTS)
     path = os.path.join(cfg.etc_dir, f"{cfg.instance}.conf")
     try:
         check_root_file(cfg, path, max_bytes=4096)
     except FileNotFoundError:
-        return quota, timeouts
+        return Limits(quota, timeouts, DEFAULT_JOB_TYPES)
     with open(path, "rb") as fh:
         raw = fh.read(4097)
     try:
@@ -267,7 +353,7 @@ def load_limits(cfg: Config) -> tuple[dict[str, int], dict[str, int]]:
                           parse_constant=_no_const)
     except (ValueError, UnicodeDecodeError, RecursionError, Reject) as exc:
         raise LayoutError(f"{path}: JSON tidak valid") from exc
-    if not isinstance(conf, dict) or set(conf) - {"quota", "timeouts"}:
+    if not isinstance(conf, dict) or set(conf) - {"quota", "timeouts", "job_types"}:
         raise LayoutError(f"{path}: kunci tidak dikenal")
     for sect, target, bounds in (("quota", quota, QUOTA_BOUNDS), ("timeouts", timeouts, TIMEOUT_BOUNDS)):
         val = conf.get(sect, {})
@@ -277,7 +363,14 @@ def load_limits(cfg: Config) -> tuple[dict[str, int], dict[str, int]]:
             if type(v) is not int or not bounds[0] <= v <= bounds[1]:
                 raise LayoutError(f"{path}: {sect}.{k} di luar batas {bounds}")
             target[k] = v
-    return quota, timeouts
+    job_types = DEFAULT_JOB_TYPES
+    if "job_types" in conf:
+        jt = conf["job_types"]
+        if (type(jt) is not list or any(type(t) is not str or t not in JOB_TYPES for t in jt)
+                or len(set(jt)) != len(jt)):
+            raise LayoutError(f"{path}: job_types harus array tipe job yang dikenal, tanpa duplikat")
+        job_types = tuple(jt)
+    return Limits(quota, timeouts, job_types)
 
 
 # ------------------------------------------------------------------------------------------------ parsing & validasi
@@ -358,10 +451,16 @@ class Job:
     args: dict[str, Any]
     pre_dry_run: bool = False
     alert_reason: str | None = None  # aksi sensitif → email (plan 05 §6 sisa risiko)
-    rotate: bool = False
+    rotate: bool = False  # ledger flag "rotate" (kuota rotate_secret_per_day)
+    disable: bool = False  # ledger flag "disable" (kuota kc_user_disable_per_hour)
+
+    @property
+    def ledger_flags(self) -> str:
+        return ",".join(["accepted", *(["rotate"] if self.rotate else []), *(["disable"] if self.disable else [])])
 
 
-def validate_job(obj: dict[str, Any], instance: str, file_job_id: str) -> Job:
+def validate_job(obj: dict[str, Any], instance: str, file_job_id: str,
+                 allowed_types: tuple[str, ...] = DEFAULT_JOB_TYPES) -> Job:
     _keys(obj, set(TOP_KEYS), set(), "job")
     if type(obj["v"]) is not int or obj["v"] != 1:
         raise Reject("rejected_validation", "v harus 1")
@@ -371,6 +470,8 @@ def validate_job(obj: dict[str, Any], instance: str, file_job_id: str) -> Job:
     jtype = obj["type"]
     if type(jtype) is not str or jtype not in JOB_TYPES:
         raise Reject("rejected_validation", "type tidak dikenal")
+    if jtype not in allowed_types:
+        raise Reject("rejected_validation", "tipe tidak diizinkan di instance ini")
     slug = _str(obj, "slug", SLUG_RE, "slug", 30)
     env = obj["env"]
     if type(env) is not str or env not in ("prod", "demo", "staging"):
@@ -472,19 +573,144 @@ def v_sso_user(job: Job, args: dict[str, Any]) -> None:
     job.pre_dry_run = action in ("grant", "resend_invite") and not job.dry_run
 
 
+# ---- SaaS Fase 1 (docs/plans/saas-phase-1-contract.md §0, §1). Semua tipe: dry-run pendahulu bila dry_run=false.
+def _enum(d: dict[str, Any], key: str, allowed: tuple[str, ...], what: str) -> str:
+    v = d.get(key)
+    if type(v) is not str or v not in allowed:
+        raise Reject("rejected_validation", f"{what} tidak valid")
+    return v
+
+
+def _need_platform(job: Job) -> None:
+    if job.slug != PLATFORM_SLUG:
+        raise Reject("rejected_validation", f"{job.type} hanya untuk slug platform")
+
+
+def _deny_platform(job: Job) -> None:
+    if job.slug == PLATFORM_SLUG:
+        raise Reject("rejected_validation", f"{job.type} tidak berlaku untuk slug platform")
+
+
+def _email(job: Job, args: dict[str, Any]) -> None:
+    job.args["email"] = _str(args, "email", EMAIL_RE, "args.email", 254)
+
+
+def v_kc_realm_sync(job: Job, args: dict[str, Any]) -> None:
+    _keys(args, set(), {"approve"}, "args")
+    _need_platform(job)
+    job.args["approve"] = _bool(args, "approve", "args.approve") if "approve" in args else False
+    if job.env in APPROVE_ENVS and not job.dry_run and not job.args["approve"]:
+        raise Reject("rejected_validation", "kc_realm_sync apply di prod/demo wajib args.approve=true")
+    job.pre_dry_run = not job.dry_run
+    if not job.dry_run:
+        job.alert_reason = "kc_realm_sync apply"
+
+
+def v_kc_org_ensure(job: Job, args: dict[str, Any]) -> None:
+    # slug tenant maupun platform (org internal) boleh — kontrak §1.
+    _keys(args, {"tenant_id"}, set(), "args")
+    job.args["tenant_id"] = _str(args, "tenant_id", UUID_RE, "args.tenant_id", 36)
+    job.pre_dry_run = not job.dry_run
+
+
+def v_kc_user_ensure(job: Job, args: dict[str, Any]) -> None:
+    _keys(args, {"email", "tenant_id", "invite"}, {"name"}, "args")
+    _email(job, args)
+    job.args["tenant_id"] = _str(args, "tenant_id", UUID_RE, "args.tenant_id", 36)
+    job.args["invite"] = _bool(args, "invite", "args.invite")
+    if "name" in args:
+        job.args["name"] = _str(args, "name", NAME_RE, "args.name", 100)
+    job.pre_dry_run = not job.dry_run
+
+
+def v_kc_user_set_roles(job: Job, args: dict[str, Any]) -> None:
+    # Tidak pernah memberi hak lebih (§0.3, BUG-J5-01): role platform hanya di slug platform, role tenant hanya di
+    # tenant; akses Odoo tidak ada untuk slug platform (tidak ada client odoo-platform-<env>).
+    _keys(args, {"email", "cp_role"}, {"odoo"}, "args")
+    _email(job, args)
+    role = _enum(args, "cp_role", CP_ROLES, "args.cp_role")
+    if role not in (CP_ROLES_PLATFORM if job.slug == PLATFORM_SLUG else CP_ROLES_TENANT):
+        raise Reject("rejected_validation", "args.cp_role tidak diizinkan untuk slug ini")
+    job.args["cp_role"] = role
+    if "odoo" in args:
+        if job.slug == PLATFORM_SLUG:
+            raise Reject("rejected_validation", "args.odoo dilarang untuk slug platform")
+        job.args["odoo"] = _enum(args, "odoo", ODOO_ACCESS, "args.odoo")
+    job.pre_dry_run = not job.dry_run
+
+
+def v_kc_user_set_enabled(job: Job, args: dict[str, Any]) -> None:
+    _keys(args, {"email", "enabled"}, set(), "args")
+    _email(job, args)
+    job.args["enabled"] = _bool(args, "enabled", "args.enabled")
+    job.pre_dry_run = not job.dry_run
+    if not job.args["enabled"] and not job.dry_run:
+        job.disable = True
+        job.alert_reason = "kc_user_set_enabled enabled=false"
+
+
+def v_kc_user_action_email(job: Job, args: dict[str, Any]) -> None:
+    _keys(args, {"email", "action"}, set(), "args")
+    _email(job, args)
+    job.args["action"] = _enum(args, "action", KC_EMAIL_ACTIONS, "args.action")
+    job.pre_dry_run = not job.dry_run
+
+
+def v_odoo_user_ensure(job: Job, args: dict[str, Any]) -> None:
+    _keys(args, {"email", "role", "active"}, {"login", "name"}, "args")
+    _deny_platform(job)
+    _email(job, args)
+    if "login" in args:
+        job.args["login"] = _str(args, "login", LOGIN_RE, "args.login", 254)
+    if "name" in args:
+        job.args["name"] = _str(args, "name", NAME_RE, "args.name", 100)
+    job.args["role"] = _enum(args, "role", ODOO_USER_ROLES, "args.role")
+    job.args["active"] = _bool(args, "active", "args.active")
+    job.pre_dry_run = not job.dry_run
+
+
+def v_odoo_tenant_config(job: Job, args: dict[str, Any]) -> None:
+    _keys(args, {"tenant_check"}, set(), "args")
+    _deny_platform(job)
+    job.args["tenant_check"] = _enum(args, "tenant_check", TENANT_CHECK_MODES, "args.tenant_check")
+    job.pre_dry_run = not job.dry_run
+    if job.args["tenant_check"] == "strict" and not job.dry_run:
+        job.alert_reason = "odoo_tenant_config strict"
+
+
+def v_tenant_state(job: Job, args: dict[str, Any]) -> None:
+    _keys(args, set(), set(), "args")
+    _deny_platform(job)
+    job.pre_dry_run = not job.dry_run
+    if job.type == "tenant_suspend" and not job.dry_run:
+        job.alert_reason = "tenant_suspend"
+
+
 VALIDATORS: dict[str, Callable[[Job, dict[str, Any]], None]] = {
     "odoo_db_provision": v_db_provision,
     "odoo_route": v_route,
     "odoo_sso_provision": v_sso_provision,
     "odoo_sso_disable": v_sso_disable,
     "odoo_sso_user": v_sso_user,
+    "kc_realm_sync": v_kc_realm_sync,
+    "kc_org_ensure": v_kc_org_ensure,
+    "kc_user_ensure": v_kc_user_ensure,
+    "kc_user_set_roles": v_kc_user_set_roles,
+    "kc_user_set_enabled": v_kc_user_set_enabled,
+    "kc_user_action_email": v_kc_user_action_email,
+    "odoo_user_ensure": v_odoo_user_ensure,
+    "odoo_tenant_config": v_odoo_tenant_config,
+    "tenant_suspend": v_tenant_state,
+    "tenant_resume": v_tenant_state,
 }
 
 
 def build_argv(cfg: Config, job: Job, dry: bool) -> list[str]:
     """argv tetap per tipe (plan 05 §4.2). Semua nilai sudah lolos regex. Nama DB/realm/path TIDAK pernah dari job."""
     a = job.args
-    argv = [os.path.join(cfg.scripts_dir, SCRIPTS[job.type]), job.slug, job.env]
+    script = os.path.join(cfg.scripts_dir, SCRIPTS[job.type])
+    sub = KC_USER_SUBCOMMANDS.get(job.type)
+    argv = [script, sub, job.slug, job.env] if sub else [script, job.slug, job.env]
     if job.type == "odoo_db_provision":
         if "host" in a:
             argv += ["--host", a["host"]]
@@ -512,6 +738,40 @@ def build_argv(cfg: Config, job: Job, dry: bool) -> list[str]:
         if a["admin"]:
             argv.append("--admin")
         argv.append({"grant": "--grant", "revoke": "--revoke", "resend_invite": "--resend-invite"}[a["action"]])
+    elif job.type == "kc_realm_sync":
+        if a["approve"]:
+            argv.append("--approve")
+    elif job.type == "kc_org_ensure":
+        argv += ["--tenant-id", a["tenant_id"]]
+    elif job.type == "kc_user_ensure":
+        argv += ["--email", a["email"], "--tenant-id", a["tenant_id"]]
+        if "name" in a:
+            argv += ["--name", a["name"]]
+        if not a["invite"]:
+            argv.append("--no-invite")
+    elif job.type == "kc_user_set_roles":
+        argv += ["--email", a["email"], "--cp-role", a["cp_role"]]
+        if "odoo" in a:
+            argv += ["--odoo", a["odoo"]]
+    elif job.type == "kc_user_set_enabled":
+        argv += ["--email", a["email"], "--enabled", "true" if a["enabled"] else "false"]
+    elif job.type == "kc_user_action_email":
+        argv += ["--email", a["email"], "--action", a["action"]]
+    elif job.type == "odoo_user_ensure":
+        argv += ["--email", a["email"]]
+        if "login" in a:
+            argv += ["--login", a["login"]]
+        if "name" in a:
+            argv += ["--name", a["name"]]
+        argv += ["--role", a["role"], "--active", "true" if a["active"] else "false"]
+    elif job.type == "odoo_tenant_config":
+        argv += ["--tenant-check", a["tenant_check"]]
+    elif job.type == "tenant_suspend":
+        argv.append("--suspend")
+    elif job.type == "tenant_resume":
+        argv.append("--resume")
+    else:  # pragma: no cover — VALIDATORS dan cabang di atas harus sinkron
+        raise ValueError(f"tipe tanpa argv: {job.type}")
     if dry:
         argv.append("--dry-run")
     return argv
@@ -588,14 +848,13 @@ def check_quota(job: Job, ledger: list[tuple[float, str, str, str]], quota: dict
 
     if count(3600, lambda jt, fl: True) >= quota["total_per_hour"]:
         raise Reject("rejected_quota", "kuota total job/jam habis")
-    if job.type == "odoo_db_provision" and count(86400, lambda jt, fl: jt == "odoo_db_provision") >= quota[
-            "odoo_db_provision_per_day"]:
-        raise Reject("rejected_quota", "kuota odoo_db_provision/24 jam habis")
-    if job.type == "odoo_sso_user" and count(3600, lambda jt, fl: jt == "odoo_sso_user") >= quota[
-            "odoo_sso_user_per_hour"]:
-        raise Reject("rejected_quota", "kuota odoo_sso_user/jam habis")
+    for types, window, key, msg in TYPE_QUOTAS:
+        if job.type in types and count(window, lambda jt, fl, ts=types: jt in ts) >= quota[key]:
+            raise Reject("rejected_quota", msg)
     if job.rotate and count(86400, lambda jt, fl: "rotate" in fl.split(",")) >= quota["rotate_secret_per_day"]:
         raise Reject("rejected_quota", "kuota rotate_secret/24 jam habis")
+    if job.disable and count(3600, lambda jt, fl: "disable" in fl.split(",")) >= quota["kc_user_disable_per_hour"]:
+        raise Reject("rejected_quota", "kuota kc_user disable/jam habis")
 
 
 # ------------------------------------------------------------------------------------------------ eksekusi & hasil
@@ -712,6 +971,7 @@ class Dispatcher:
         self.alerts: list[str] = []
         self.quota = dict(DEFAULT_QUOTA)
         self.timeouts = dict(DEFAULT_TIMEOUTS)
+        self.job_types: tuple[str, ...] = DEFAULT_JOB_TYPES
         self.config_error: str | None = None
 
     # ---- tata letak
@@ -736,9 +996,14 @@ class Dispatcher:
         check_owner_mode(os.fstat(fd), cfg.root_uid, cfg.root_gid, 0o700, f"{log_parent}/{cfg.instance}")
         self.fds["log"] = fd
         check_root_dir(cfg, cfg.scripts_dir)
-        for name in sorted(set(SCRIPTS.values())):
-            check_root_file(cfg, os.path.join(cfg.scripts_dir, name), want_exec=True)
         check_root_dir(cfg, os.path.join(cfg.scripts_dir, "lib"))
+
+    def check_scripts(self) -> None:
+        """Skrip tipe yang diizinkan instance ini: milik root, executable, tidak writable g/o. Skrip tipe di luar
+        allowlist tidak diperiksa (boleh belum ada di host). Tidak memenuhi → LayoutError/OSError (run gagal → email
+        OnFailure)."""
+        for name in sorted({SCRIPTS[t] for t in self.job_types}):
+            check_root_file(self.cfg, os.path.join(self.cfg.scripts_dir, name), want_exec=True)
 
     def close(self) -> None:
         for fd in self.fds.values():
@@ -803,12 +1068,14 @@ class Dispatcher:
         t0 = cfg.now()
         self.open_layout()
         try:
-            self.quota, self.timeouts = load_limits(cfg)
+            limits = load_limits(cfg)
+            self.quota, self.timeouts, self.job_types = limits.quota, limits.timeouts, limits.job_types
         except LayoutError as exc:
             self.config_error = str(exc)
             log(cfg, syslog.LOG_ERR, f"inst={cfg.instance} konfigurasi tidak valid → semua job disabled: {exc}")
             self.alerts.append(
                 f"konfigurasi /etc/infra-jobs/{cfg.instance}.conf tidak valid → semua job ditolak (disabled)")
+        self.check_scripts()
         names = sorted(os.listdir(self.fds["spool/new"]))
         processed = 0
         for name in names:
@@ -852,7 +1119,7 @@ class Dispatcher:
                 res["type"] = obj["type"]
             if self.config_error or self.disabled():
                 raise Reject("disabled", "dispatcher instance ini dinonaktifkan (kill switch/konfigurasi)")
-            job = validate_job(obj, cfg.instance, job_id)
+            job = validate_job(obj, cfg.instance, job_id, self.job_types)
             res["dry_run"] = job.dry_run
             check_hosts(cfg, job)
             check_quota(job, ledger, self.quota, started)
@@ -869,7 +1136,7 @@ class Dispatcher:
                 self.alerts.append(f"job={job_id} type={res['type'] or '-'} {rej.code}: {rej.detail}")
             return
         # diterima: catat dulu (idempotensi walau dispatcher mati di tengah jalan) → hasil running → eksekusi
-        ledger.append((started, job_id, job.type, "accepted,rotate" if job.rotate else "accepted"))
+        ledger.append((started, job_id, job.type, job.ledger_flags))
         write_ledger(cfg, self.fds["work"], ledger)
         self.write_result(job_id, res)
         log(cfg, syslog.LOG_INFO,
@@ -941,7 +1208,12 @@ class Dispatcher:
                     res["result"] = parsed or {}
                     self.finish(res, started, "failed", classify_failure(ph), "dry-run pendahulu gagal")
                     return
-                blockers = (parsed or {}).get("blockers", "")
+                # Tipe lama: `blockers` WAJIB ada dan 0 (tanpa RESULT → blocked_dry_run, perilaku 1.0.0). Tipe Fase 1
+                # (kontrak §1: lanjut bila exit 0): baris RESULT wajib, `blockers` opsional tetapi bila ada harus 0.
+                if parsed is None and job.type not in LEGACY_JOB_TYPES:
+                    self.finish(res, started, "failed", "script_exit", "dry-run pendahulu tanpa baris RESULT")
+                    return
+                blockers = (parsed or {}).get("blockers", "" if job.type in LEGACY_JOB_TYPES else "0")
                 if not blockers.isdigit() or int(blockers) > 0:
                     res["result"] = parsed or {}
                     self.finish(res, started, "failed", "blocked_dry_run",
