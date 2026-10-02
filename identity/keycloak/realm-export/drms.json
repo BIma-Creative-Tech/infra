@@ -132,6 +132,15 @@
         "clientRole": false,
         "containerId": "0bab588f-d9b8-530a-b6be-dd05ac862bcd",
         "attributes": {}
+      },
+      {
+        "id": "1bd64fc7-dd3c-4da5-b0cf-8573a90d1933",
+        "name": "pk-user",
+        "description": "May log in to ProyekKas",
+        "composite": false,
+        "clientRole": false,
+        "containerId": "0bab588f-d9b8-530a-b6be-dd05ac862bcd",
+        "attributes": {}
       }
     ],
     "client": {
@@ -385,6 +394,16 @@
           "attributes": {}
         }
       ],
+      "automation": [
+        {
+          "id": "61540ab5-c546-4a65-bba5-edb8d18925aa",
+          "name": "uma_protection",
+          "composite": false,
+          "clientRole": true,
+          "containerId": "8f455fc5-9640-4732-b653-64802d6ad0e7",
+          "attributes": {}
+        }
+      ],
       "proyekkas-web": [],
       "security-admin-console": [],
       "admin-cli": [],
@@ -549,6 +568,32 @@
   "webAuthnPolicyPasswordlessExtraOrigins": [],
   "users": [
     {
+      "id": "ebf7b717-2b82-4958-b057-19ed721a1509",
+      "username": "service-account-automation",
+      "emailVerified": false,
+      "enabled": true,
+      "createdTimestamp": 1790469222635,
+      "totp": false,
+      "serviceAccountClientId": "automation",
+      "disableableCredentialTypes": [],
+      "requiredActions": [],
+      "realmRoles": [
+        "default-roles-drms"
+      ],
+      "clientRoles": {
+        "realm-management": [
+          "view-users",
+          "manage-users",
+          "view-clients"
+        ],
+        "automation": [
+          "uma_protection"
+        ]
+      },
+      "notBefore": 0,
+      "groups": []
+    },
+    {
       "id": "330932b4-9a0e-5ad2-9395-56c82969c636",
       "username": "service-account-proyekkas-admin-api",
       "emailVerified": false,
@@ -577,6 +622,7 @@
       "roles": [
         "pk-admin",
         "pk-pm",
+        "pk-user",
         "pk-finance",
         "pk-owner",
         "pk-staff"
@@ -587,6 +633,7 @@
       "roles": [
         "pk-admin",
         "pk-pm",
+        "pk-user",
         "pk-finance",
         "pk-owner",
         "pk-staff"
@@ -740,7 +787,7 @@
       "consentRequired": false,
       "standardFlowEnabled": false,
       "implicitFlowEnabled": false,
-      "directAccessGrantsEnabled": false,
+      "directAccessGrantsEnabled": true,
       "serviceAccountsEnabled": false,
       "publicClient": true,
       "frontchannelLogout": false,
@@ -768,6 +815,75 @@
         "offline_access",
         "microprofile-jwt"
       ]
+    },
+    {
+      "id": "8f455fc5-9640-4732-b653-64802d6ad0e7",
+      "clientId": "automation",
+      "name": "automation",
+      "description": "",
+      "rootUrl": "",
+      "adminUrl": "",
+      "baseUrl": "",
+      "surrogateAuthRequired": false,
+      "enabled": true,
+      "alwaysDisplayInConsole": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "**********",
+      "redirectUris": [
+        "/*"
+      ],
+      "webOrigins": [
+        "/*"
+      ],
+      "notBefore": 0,
+      "bearerOnly": false,
+      "consentRequired": false,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "authorizationServicesEnabled": true,
+      "publicClient": false,
+      "frontchannelLogout": true,
+      "protocol": "openid-connect",
+      "attributes": {
+        "realm_client": "false",
+        "oidc.ciba.grant.enabled": "false",
+        "client.secret.creation.time": "1790469222",
+        "backchannel.logout.session.required": "true",
+        "standard.token.exchange.enabled": "false",
+        "oauth2.jwt.authorization.grant.enabled": "false",
+        "oauth2.device.authorization.grant.enabled": "false",
+        "backchannel.logout.revoke.offline.tokens": "false",
+        "dpop.bound.access.tokens": "false"
+      },
+      "authenticationFlowBindingOverrides": {},
+      "fullScopeAllowed": true,
+      "nodeReRegistrationTimeout": -1,
+      "defaultClientScopes": [
+        "web-origins",
+        "service_account",
+        "acr",
+        "profile",
+        "roles",
+        "basic",
+        "email"
+      ],
+      "optionalClientScopes": [
+        "address",
+        "phone",
+        "organization",
+        "offline_access",
+        "microprofile-jwt"
+      ],
+      "authorizationSettings": {
+        "allowRemoteResourceManagement": true,
+        "policyEnforcementMode": "ENFORCING",
+        "resources": [],
+        "policies": [],
+        "scopes": [],
+        "decisionStrategy": "UNANIMOUS"
+      }
     },
     {
       "id": "3f323389-9e60-5194-84e8-869cfbefe1c5",
@@ -860,6 +976,7 @@
       "name": "ProyekKas APK",
       "description": "Public, Authorization Code + PKCE S256, App Link redirect (ProyekKas ADR 0003/0010)",
       "rootUrl": "",
+      "adminUrl": "",
       "baseUrl": "",
       "surrogateAuthRequired": false,
       "enabled": true,
@@ -880,10 +997,29 @@
       "frontchannelLogout": false,
       "protocol": "openid-connect",
       "attributes": {
-        "realm_client": "false",
+        "logout.confirmation.enabled": "false",
+        "id.token.as.detached.signature": "false",
+        "client.introspection.response.allow.jwt.claim.enabled": "false",
+        "standard.token.exchange.enabled": "false",
+        "oauth2.jwt.authorization.grant.enabled": "false",
         "post.logout.redirect.uris": "+",
+        "oauth2.device.authorization.grant.enabled": "false",
+        "backchannel.logout.revoke.offline.tokens": "false",
+        "use.refresh.tokens": "true",
+        "realm_client": "false",
+        "oidc.ciba.grant.enabled": "false",
+        "client.use.lightweight.access.token.enabled": "false",
+        "backchannel.logout.session.required": "false",
+        "request.object.required": "not required",
+        "client_credentials.use_refresh_token": "false",
+        "access.token.header.type.rfc9068": "false",
+        "tls.client.certificate.bound.access.tokens": "false",
+        "require.pushed.authorization.requests": "false",
+        "acr.loa.map": "{}",
+        "display.on.consent.screen": "false",
         "pkce.code.challenge.method": "S256",
-        "use.refresh.tokens": "true"
+        "token.response.type.bearer.lower-case": "false",
+        "dpop.bound.access.tokens": "false"
       },
       "authenticationFlowBindingOverrides": {},
       "fullScopeAllowed": false,

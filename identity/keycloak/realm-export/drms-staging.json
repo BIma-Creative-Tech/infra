@@ -50,6 +50,15 @@
   "roles": {
     "realm": [
       {
+        "id": "9946b42c-432d-4a00-be5a-20acaa72969a",
+        "name": "pk-user",
+        "description": "May log in to ProyekKas",
+        "composite": false,
+        "clientRole": false,
+        "containerId": "60a4abbb-53e5-5e0f-ba76-45bed21570eb",
+        "attributes": {}
+      },
+      {
         "id": "c24105cc-721a-5254-a620-8e1029270a2f",
         "name": "pk-owner",
         "description": "ProyekKas: owner",
@@ -385,6 +394,16 @@
           "attributes": {}
         }
       ],
+      "automation": [
+        {
+          "id": "9f6262d3-6bc7-4e12-9831-3b9889d7fb70",
+          "name": "uma_protection",
+          "composite": false,
+          "clientRole": true,
+          "containerId": "9670e248-a244-4e03-abbf-91c0ea7ca190",
+          "attributes": {}
+        }
+      ],
       "proyekkas-web": [],
       "security-admin-console": [],
       "admin-cli": [],
@@ -491,7 +510,21 @@
       ]
     }
   },
-  "groups": [],
+  "groups": [
+    {
+      "id": "312557b8-a6d3-49e7-8009-84e06cb869f6",
+      "name": "loadtest-e9",
+      "path": "/loadtest-e9",
+      "subGroups": [],
+      "attributes": {
+        "loadtest": [
+          "e9"
+        ]
+      },
+      "realmRoles": [],
+      "clientRoles": {}
+    }
+  ],
   "defaultRole": {
     "id": "d95d8963-b877-55f4-b214-a973319dd11f",
     "name": "default-roles-drms-staging",
@@ -549,6 +582,32 @@
   "webAuthnPolicyPasswordlessExtraOrigins": [],
   "users": [
     {
+      "id": "57aab302-8b3b-43aa-a757-ffba8defc708",
+      "username": "service-account-automation",
+      "emailVerified": false,
+      "enabled": true,
+      "createdTimestamp": 1790468971809,
+      "totp": false,
+      "serviceAccountClientId": "automation",
+      "disableableCredentialTypes": [],
+      "requiredActions": [],
+      "realmRoles": [
+        "default-roles-drms-staging"
+      ],
+      "clientRoles": {
+        "realm-management": [
+          "manage-users",
+          "view-users",
+          "view-clients"
+        ],
+        "automation": [
+          "uma_protection"
+        ]
+      },
+      "notBefore": 0,
+      "groups": []
+    },
+    {
       "id": "28ac6fc0-664f-52ee-a6d7-e2d7edd676b1",
       "username": "service-account-proyekkas-admin-api",
       "emailVerified": false,
@@ -577,6 +636,7 @@
       "roles": [
         "pk-admin",
         "pk-pm",
+        "pk-user",
         "pk-owner",
         "pk-staff",
         "pk-finance"
@@ -587,6 +647,7 @@
       "roles": [
         "pk-admin",
         "pk-pm",
+        "pk-user",
         "pk-owner",
         "pk-staff",
         "pk-finance"
@@ -740,7 +801,7 @@
       "consentRequired": false,
       "standardFlowEnabled": false,
       "implicitFlowEnabled": false,
-      "directAccessGrantsEnabled": false,
+      "directAccessGrantsEnabled": true,
       "serviceAccountsEnabled": false,
       "publicClient": true,
       "frontchannelLogout": false,
@@ -768,6 +829,75 @@
         "organization",
         "microprofile-jwt"
       ]
+    },
+    {
+      "id": "9670e248-a244-4e03-abbf-91c0ea7ca190",
+      "clientId": "automation",
+      "name": "automation",
+      "description": "",
+      "rootUrl": "",
+      "adminUrl": "",
+      "baseUrl": "",
+      "surrogateAuthRequired": false,
+      "enabled": true,
+      "alwaysDisplayInConsole": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "**********",
+      "redirectUris": [
+        "/*"
+      ],
+      "webOrigins": [
+        "/*"
+      ],
+      "notBefore": 0,
+      "bearerOnly": false,
+      "consentRequired": false,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "authorizationServicesEnabled": true,
+      "publicClient": false,
+      "frontchannelLogout": true,
+      "protocol": "openid-connect",
+      "attributes": {
+        "realm_client": "false",
+        "oidc.ciba.grant.enabled": "false",
+        "client.secret.creation.time": "1790468971",
+        "backchannel.logout.session.required": "true",
+        "standard.token.exchange.enabled": "false",
+        "oauth2.jwt.authorization.grant.enabled": "false",
+        "oauth2.device.authorization.grant.enabled": "false",
+        "backchannel.logout.revoke.offline.tokens": "false",
+        "dpop.bound.access.tokens": "false"
+      },
+      "authenticationFlowBindingOverrides": {},
+      "fullScopeAllowed": true,
+      "nodeReRegistrationTimeout": -1,
+      "defaultClientScopes": [
+        "web-origins",
+        "service_account",
+        "acr",
+        "roles",
+        "profile",
+        "basic",
+        "email"
+      ],
+      "optionalClientScopes": [
+        "address",
+        "phone",
+        "offline_access",
+        "organization",
+        "microprofile-jwt"
+      ],
+      "authorizationSettings": {
+        "allowRemoteResourceManagement": true,
+        "policyEnforcementMode": "ENFORCING",
+        "resources": [],
+        "policies": [],
+        "scopes": [],
+        "decisionStrategy": "UNANIMOUS"
+      }
     },
     {
       "id": "1b34fec9-ed29-52c5-81d8-cb8f6f41500e",
@@ -860,6 +990,7 @@
       "name": "ProyekKas APK",
       "description": "Public, Authorization Code + PKCE S256, App Link redirect (ProyekKas ADR 0003/0010)",
       "rootUrl": "",
+      "adminUrl": "",
       "baseUrl": "",
       "surrogateAuthRequired": false,
       "enabled": true,
@@ -883,10 +1014,19 @@
       "frontchannelLogout": false,
       "protocol": "openid-connect",
       "attributes": {
-        "realm_client": "false",
+        "logout.confirmation.enabled": "false",
+        "standard.token.exchange.enabled": "false",
+        "oauth2.jwt.authorization.grant.enabled": "false",
         "post.logout.redirect.uris": "+",
+        "oauth2.device.authorization.grant.enabled": "false",
+        "backchannel.logout.revoke.offline.tokens": "false",
+        "use.refresh.tokens": "true",
+        "realm_client": "false",
+        "oidc.ciba.grant.enabled": "false",
+        "backchannel.logout.session.required": "false",
+        "display.on.consent.screen": "false",
         "pkce.code.challenge.method": "S256",
-        "use.refresh.tokens": "true"
+        "dpop.bound.access.tokens": "false"
       },
       "authenticationFlowBindingOverrides": {},
       "fullScopeAllowed": false,
