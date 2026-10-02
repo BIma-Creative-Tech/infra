@@ -115,17 +115,6 @@
     group: root
     mode: "0644"
 
-- name: Konfigurasi kuota/timeout per instance (JSON; dibaca dispatcher, invalid → fail-closed)
-  ansible.builtin.template:
-    src: instance.conf.j2
-    dest: "{{ infra_jobs_etc_dir }}/{{ item.key }}.conf"
-    owner: root
-    group: root
-    mode: "0644"
-  loop: "{{ infra_jobs_instances | dict2items }}"
-  loop_control:
-    label: "{{ item.key }}"
-
 - name: Kill switch file per instance (disabled → semua job ditolak error_code=disabled)
   ansible.builtin.file:
     path: "{{ infra_jobs_etc_dir }}/{{ item.key }}.disabled"
@@ -139,6 +128,8 @@
   loop_control:
     label: "{{ item.key }} disabled={{ item.value.disabled }}"
 
+# Dispatcher dipasang SEBELUM conf: dispatcher baru membaca conf lama dengan benar, sedangkan dispatcher lama menolak
+# kunci conf baru (`job_types`) → fail-closed. Urutan ini menghindari jendela "semua job disabled" saat upgrade.
 - name: Dispatcher /usr/local/sbin/infra-job (root 0755, dari scripts/infra-job/infra_job.py)
   ansible.builtin.copy:
     src: "{{ infra_jobs_src }}"
@@ -147,6 +138,32 @@
     group: root
     mode: "0755"
     validate: /usr/bin/python3 -I -c "import ast, sys; ast.parse(open(sys.argv[1]).read())" %s
+
+- name: Allowlist tipe job per instance valid (list tanpa duplikat; isi divalidasi lagi oleh dispatcher)
+  vars:
+    _job_types: "{{ infra_jobs_job_types[item.key] | default([]) }}"
+  ansible.builtin.assert:
+    that:
+      - infra_jobs_job_types is mapping
+      - _job_types is sequence
+      - _job_types is not string
+      - (_job_types | unique | length) == (_job_types | length)
+    fail_msg: "infra_jobs_job_types.{{ item.key }} harus list tipe job tanpa duplikat"
+    quiet: true
+  loop: "{{ infra_jobs_instances | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+
+- name: Konfigurasi kuota/timeout/allowlist tipe per instance (JSON; dibaca dispatcher, invalid → fail-closed)
+  ansible.builtin.template:
+    src: instance.conf.j2
+    dest: "{{ infra_jobs_etc_dir }}/{{ item.key }}.conf"
+    owner: root
+    group: root
+    mode: "0644"
+  loop: "{{ infra_jobs_instances | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
 
 - name: Unit service template infra-job@.service
   ansible.builtin.template:
