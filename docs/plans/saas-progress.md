@@ -191,3 +191,17 @@ daftar berubah; DNS wildcard `*.erp|staging.bimacreative.tech` sudah ada (smoke 
 
 **Berikutnya** (setelah "FREEZE DICABUT"): jalankan runbook deploy staging §0–§6 → gate §7 → plan migrasi prod (M3–M10,
 K11 upgrade Keycloak 26.7.5) → owner approval.
+
+## 2026-10-03 — lanjutan tanpa freeze: rencana migrasi prod, draft Fase 2, perbaikan suspend, registrasi tenant lama
+
+- **K3**: repo GitHub masih belum ada (cek `ls-remote` gagal) — menunggu owner.
+- **Rencana migrasi prod** `docs/plans/saas-migration-prod.md` (M1–M12, draft; `506a9dd`). Fakta prod: CP prod hanya tenant
+  `demo`; Expomedia (`expomedia_prod`, `erp.expomedia.id`) belum terdaftar di CP; user Odoo internal aktif expomedia 1 (sudah
+  SSO), demo 1; realm `platform` 1 user. Migrasi data kecil; risiko di komponen bersama (Keycloak, pool-a, Traefik, dispatcher).
+- **Draft Fase 2** `docs/plans/saas-phase-2.md` (`f11a14e`) + Q1–Q10 untuk owner. Temuan: Σ CONNECTION LIMIT role Postgres 196
+  dari 197 slot non-superuser (pemakaian nyata 31) — bukan ancaman langsung, tetapi tidak ada ruang role baru (W0 Fase 2).
+- **Perbaikan Fase 1** infra `9078ee2`: render ulang route (mis. job `odoo_route`) **mempertahankan status suspended** kecuali
+  `--resume` eksplisit (sebelumnya membuka tenant ditangguhkan diam-diam); uji regresi `T05 test_3`.
+- **Fitur CP** `020bc2f`: "Daftarkan tenant yang sudah ada" (untuk M8 Expomedia) — baris tenant/environment dari kondisi nyata,
+  host kustom = route manual (job DB/route/SSO diblok sampai Fase 2), rantai `kc_org_ensure` + `odoo_tenant_config compat`.
+  757 unit + 87 integrasi OK.
