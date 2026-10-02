@@ -45,6 +45,9 @@ source "$LIB/keycloak-admin.sh"
 source "$LIB/kc-tenant.sh"
 
 CP_CLIENT=control-plane
+# Masa berlaku tautan email aksi (undangan/reset): 72 jam (keputusan Lead 2026-10-03; default KC 12 jam terlalu
+# pendek untuk undangan user client). Parameter query `lifespan` (detik) endpoint execute-actions-email.
+ACTION_LIFESPAN_S=259200
 ODOO_ACCESS=odoo_access
 ODOO_ADMIN=odoo_admin
 
@@ -224,7 +227,7 @@ print(json.dumps(rep))' "$EMAIL" "$TENANT_ID" "$NAME")"
   # undangan (hanya user baru)
   if [[ $INVITE -eq 1 && ( $NEW -eq 1 || ( $DRY -eq 1 && -z "$KC_UID" ) ) ]]; then
     if change "execute-actions-email [UPDATE_PASSWORD] → ${EMAIL} (client ${CP_CLIENT})"; then
-      kc_send PUT "/users/${KC_UID}/execute-actions-email?client_id=${CP_CLIENT}" '["UPDATE_PASSWORD"]' 204
+      kc_send PUT "/users/${KC_UID}/execute-actions-email?client_id=${CP_CLIENT}&lifespan=${ACTION_LIFESPAN_S}" '["UPDATE_PASSWORD"]' 204
       INVITE_STATE=1
     fi
   fi
@@ -335,7 +338,7 @@ email)
     if [[ "$(kc_json 'str(d.get("enabled") is True).lower()' "$KC_USER_JSON")" != true ]]; then
       block "user ${EMAIL} nonaktif — email aksi tidak dikirim"
     elif change "execute-actions-email [${ACTION}] → ${EMAIL} (client ${CP_CLIENT})"; then
-      kc_send PUT "/users/${KC_UID}/execute-actions-email?client_id=${CP_CLIENT}" "[\"${ACTION}\"]" 204
+      kc_send PUT "/users/${KC_UID}/execute-actions-email?client_id=${CP_CLIENT}&lifespan=${ACTION_LIFESPAN_S}" "[\"${ACTION}\"]" 204
       INVITE_STATE=1
     fi
   fi

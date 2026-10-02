@@ -1,6 +1,6 @@
 # SaaS Fase 1 — Kontrak job, skrip, dan model data (acuan bersama tim)
 
-Status 2026-10-03: **KONTRAK v1 (Lead)**. Mengikat: dispatcher `scripts/infra-job/infra_job.py` (infra-engineer), skrip
+Status 2026-10-03: **KONTRAK v1.1 (Lead)** — v1.1: hasil uji gabungan (lihat §4). Mengikat: dispatcher `scripts/infra-job/infra_job.py` (infra-engineer), skrip
 `scripts/kc-*.sh`, `scripts/odoo-user.sh`, `scripts/tenant-state.sh` (infra-engineer), helper Odoo
 `scripts/lib/odoo_user_ensure.py` (odoo-developer), control-plane `src/lib/job-contract.ts` + migrasi `0004`
 (nextjs-developer). Perubahan kontrak = ubah dokumen ini dulu (Lead), lalu fixture `scripts/infra-job/contract/fixtures.json`.
@@ -132,3 +132,23 @@ prod kosong" untuk user yang dibuat lewat CP.
   ada panggilan tulis ke Keycloak sungguhan sebelum freeze dicabut.
 - `odoo_user_ensure.py` + `sh_auth_oidc` 19.0.1.3.0: `test/run-tests.sh` (Postgres + `odoo:19.0-20260908` sekali pakai).
 - CP: unit (kontrak, authz Users, lintas tenant), typecheck, lint, build; migrasi `0004` diuji ke Postgres sekali pakai.
+
+## 4. Perubahan v1.1 (2026-10-03, setelah implementasi + uji Keycloak/Traefik sekali pakai)
+
+- `odoo_user_ensure`: role `admin` = `base.group_user` + `base.group_system`; role `user` mencabut grup eksplisit yang
+  mengimplikasikan `base.group_erp_manager` (Access Rights). User portal dengan login sama **ditolak** (exit 3), tidak
+  dikonversi. Tidak ada user + `active=false` = no-op. Antarmuka helper: env `ODOO_USER_{EMAIL,LOGIN,NAME,ROLE,ACTIVE,
+  KC_ID,DRY_RUN,OIDC_CLIENT_ID}` lewat `docker exec -e NAME` (nama saja); wrapper **selalu** mengisi
+  `ODOO_USER_OIDC_CLIENT_ID=odoo-<slug>-<env>`; exit 0/2 (input/prasyarat)/3 (ditolak)/1 (tak terduga); baris `ERROR:` di stdout.
+- Format nilai RESULT: `org`/`kc_user` = UUID Keycloak (dry-run sebelum objek ada: `-`); `created`/`enabled`/`invite`
+  = `0|1`; `changed` = jumlah; `roles` = daftar nama role dipisah koma; `route` = basename file; `blockers=N` hanya pada
+  dry-run; `mode` hanya `kc_realm_sync` (`plan|apply`) dan `odoo_tenant_config` (`off|compat|strict`).
+- Hak SA: `cp-admin` + `view-clients`; `kc-realm-sync` + `manage-users` (ADR 0017 D6).
+- Undangan/reset: `execute-actions-email` dengan `lifespan=259200` (72 jam); undangan hanya dikirim saat user dibuat —
+  kirim ulang lewat `kc_user_action_email`.
+- `sh_auth_oidc.tenant_check`: kosong = `off`; nilai tak dikenal = `strict` + ERROR; alasan log tambahan `invalid_expected`.
+- Dispatcher: alert untuk `kc_user_set_roles cp_role=superadmin|ops` (apply); undangan apply ikut kuota
+  `kc_action_email_per_hour`; dry-run skrip baru tetap exit 3 untuk pelanggaran aturan.
+- Urutan deploy W2 (staging, setelah "FREEZE DICABUT"): bootstrap `kc-realm-sync` → `kc_realm_sync` (sub-flow `Organization`
+  DISABLED, scope `tenant`, `cp-admin`) → uji live S1 → ubah override staging `organizationsEnabled: true` → `kc_realm_sync`
+  → HUP Traefik sekali (middleware `tenant-suspended`) → job org/user.
