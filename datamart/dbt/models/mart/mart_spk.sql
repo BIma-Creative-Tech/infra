@@ -61,6 +61,13 @@ WITH loc AS (
   -- plan 18: isu link dokumen terbuka per SPK (custom_doc_trace)
   SELECT client_slug, env, so_id, count(*) AS issue_count
   FROM {{ ref('mart_spk_issue') }} WHERE state = 'open' AND so_id IS NOT NULL GROUP BY 1, 2, 3
+), bast AS (
+  -- plan 19: status tanda tangan BAST per SPK (tanpa yang dibatalkan)
+  SELECT client_slug, env, so_id, count(*) AS bast_count,
+         count(*) FILTER (WHERE state = 'completed') AS bast_completed,
+         count(*) FILTER (WHERE state = 'signed_one_side') AS bast_partial,
+         count(*) FILTER (WHERE state = 'draft') AS bast_draft, max(last_signed_at) AS bast_last_signed_at
+  FROM {{ ref('mart_spk_bast') }} WHERE state <> 'voided' GROUP BY 1, 2, 3
 ), pay AS (
   SELECT client_slug, env, so_id, count(DISTINCT payment_id) AS payment_count, max(date) AS last_payment_date
   FROM {{ ref('mart_spk_payment') }} GROUP BY 1, 2, 3
@@ -95,7 +102,21 @@ SELECT so.client_slug, so.env, so.id AS so_id,
        coalesce(scm.mo_count, 0) AS mo_count, coalesce(scm.mo_done, 0) AS mo_done,
        coalesce(scm.delivery_count, 0) AS delivery_count, coalesce(scm.delivery_done, 0) AS delivery_done,
        coalesce(scm.bill_amount, 0) AS vendor_billed, coalesce(scm.bill_paid, 0) AS vendor_paid,
-       coalesce(iss.issue_count, 0) AS issue_count
+       coalesce(iss.issue_count, 0) AS issue_count,
+       -- plan 19: biaya produksi & margin (nilai SPK tanpa PPN − biaya; app memilih hanya untuk grup sales) + BAST.
+       so.amount_total - so.amount_untaxed AS value_tax,
+       coalesce(cost.material_used, 0) AS material_used, coalesce(cost.po_goods, 0) AS po_goods,
+       coalesce(cost.service_billed, 0) AS service_billed, coalesce(cost.po_service, 0) AS po_service,
+       coalesce(cost.cost_material, 0) AS cost_material, coalesce(cost.cost_service, 0) AS cost_service,
+       coalesce(cost.cost_labor, 0) AS cost_labor, coalesce(cost.cost_other, 0) AS cost_other,
+       coalesce(cost.cost_total, 0) AS cost_total,
+       coalesce(cost.labor_hours, 0) AS labor_hours, coalesce(cost.labor_hours_uncosted, 0) AS labor_hours_uncosted,
+       so.amount_untaxed - coalesce(cost.cost_total, 0) AS margin,
+       CASE WHEN so.amount_untaxed > 0
+            THEN round(100.0 * (so.amount_untaxed - coalesce(cost.cost_total, 0)) / so.amount_untaxed, 1) END AS margin_pct,
+       coalesce(bast.bast_count, 0) AS bast_count, coalesce(bast.bast_completed, 0) AS bast_completed,
+       coalesce(bast.bast_partial, 0) AS bast_partial, coalesce(bast.bast_draft, 0) AS bast_draft,
+       bast.bast_last_signed_at
 FROM {{ ref('stg_sale_order') }} so
 LEFT JOIN {{ ref('stg_partner') }} grp ON grp.client_slug = so.client_slug AND grp.env = so.env AND grp.id = so.partner_invoice_id
 LEFT JOIN {{ ref('stg_partner') }} brand ON brand.client_slug = so.client_slug AND brand.env = so.env AND brand.id = so.partner_id
@@ -109,4 +130,6 @@ LEFT JOIN inv_detail ivd ON ivd.client_slug = so.client_slug AND ivd.env = so.en
 LEFT JOIN scm ON scm.client_slug = so.client_slug AND scm.env = so.env AND scm.so_id = so.id
 LEFT JOIN lead_first ld ON ld.client_slug = so.client_slug AND ld.env = so.env AND ld.so_id = so.id
 LEFT JOIN pay ON pay.client_slug = so.client_slug AND pay.env = so.env AND pay.so_id = so.id
+LEFT JOIN {{ ref('mart_spk_cost') }} cost ON cost.client_slug = so.client_slug AND cost.env = so.env AND cost.so_id = so.id
+LEFT JOIN bast ON bast.client_slug = so.client_slug AND bast.env = so.env AND bast.so_id = so.id
 LEFT JOIN iss ON iss.client_slug = so.client_slug AND iss.env = so.env AND iss.so_id = so.id

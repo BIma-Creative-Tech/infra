@@ -51,3 +51,11 @@ ALTER TABLE {{schema}}.vendor_bill ADD COLUMN IF NOT EXISTS so_id int;
 CREATE TABLE IF NOT EXISTS {{schema}}.doc_trace_issue (id int PRIMARY KEY, rule_code text, severity text, res_model text,
   res_id int, so_id int, state text, message text, doc_no text, first_seen timestamp, last_seen timestamp,
   fixed_at timestamp, write_date timestamp);
+-- plan 19: biaya produksi & margin per SPK (analitik proyek + jenis baris PO) + status BAST (custom_bast).
+CREATE TABLE IF NOT EXISTS {{schema}}.analytic_line (id int PRIMARY KEY, so_id int, category text, employee_id int,
+  date date, hours numeric, amount numeric, write_date timestamp);
+CREATE TABLE IF NOT EXISTS {{schema}}.purchase_line_type (id int PRIMARY KEY, product_type text, is_storable boolean);
+CREATE TABLE IF NOT EXISTS {{schema}}.bast (id int PRIMARY KEY, name text, kind text, state text, so_id int,
+  location text, date_handover timestamp, party_from text, party_to text, from_signed_at timestamp, from_signed_by text,
+  to_signed_at timestamp, to_signed_by text, gps_latitude numeric, gps_longitude numeric, gps_accuracy numeric,
+  write_date timestamp);
