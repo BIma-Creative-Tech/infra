@@ -5,6 +5,9 @@
 #   __ROUTE__  odoo-<slug>-<env>          __HOST__  FQDN tenant (DNS pre-check lulus)
 #   __DB__     <slug '-'→'_'>_<env>        __POOL__  odoo-pool-a | odoo-staging
 #   __SLUG__ / __ENV__ / __GENERATED__   hanya untuk komentar
+#   __SUSPEND__  "" (aktif) | "tenant-suspended@file, " (render-client-route.sh --suspended, job tenant_suspend):
+#                router main/login/oidc/websocket → redirect 302 ke halaman CP /suspended/<slug>
+#                (dynamic/middlewares/tenant-suspended.yml). Router dbmanager (:8443 operator / deny) tidak berubah.
 #
 # Tenant: slug=__SLUG__ env=__ENV__ db=__DB__ pool=__POOL__ (dirender __GENERATED__)
 #
@@ -44,7 +47,7 @@ http:
       entryPoints: [websecure]
       rule: "Host(`__HOST__`) && PathPrefix(`/websocket`)"
       priority: 200
-      middlewares: [crowdsec, odoo-security-headers, ratelimit-default, strip-odoo-db-headers, __ROUTE__-db]
+      middlewares: [crowdsec, __SUSPEND__odoo-security-headers, ratelimit-default, strip-odoo-db-headers, __ROUTE__-db]
       service: __POOL__-ws
       tls:
         certResolver: le-http
@@ -53,7 +56,7 @@ http:
       entryPoints: [websecure]
       rule: "Host(`__HOST__`) && (Path(`/web/login`) || Path(`/web/session/authenticate`) || PathPrefix(`/web/reset_password`) || PathPrefix(`/web/signup`))"
       priority: 200
-      middlewares: [crowdsec, odoo-security-headers, ratelimit-default, ratelimit-login, strip-odoo-db-headers, __ROUTE__-db]
+      middlewares: [crowdsec, __SUSPEND__odoo-security-headers, ratelimit-default, ratelimit-login, strip-odoo-db-headers, __ROUTE__-db]
       service: __POOL__-http
       tls:
         certResolver: le-http
@@ -64,7 +67,7 @@ http:
       entryPoints: [websecure]
       rule: "Host(`__HOST__`) && PathPrefix(`/sh_auth_oidc/`)"
       priority: 200
-      middlewares: [crowdsec, odoo-security-headers, ratelimit-default, ratelimit-oidc, strip-odoo-db-headers, __ROUTE__-db]
+      middlewares: [crowdsec, __SUSPEND__odoo-security-headers, ratelimit-default, ratelimit-oidc, strip-odoo-db-headers, __ROUTE__-db]
       service: __POOL__-http
       tls:
         certResolver: le-http
@@ -72,7 +75,7 @@ http:
       entryPoints: [websecure]
       rule: "Host(`__HOST__`)"
       priority: 100
-      middlewares: [crowdsec, odoo-security-headers, ratelimit-default, strip-odoo-db-headers, __ROUTE__-db]
+      middlewares: [crowdsec, __SUSPEND__odoo-security-headers, ratelimit-default, strip-odoo-db-headers, __ROUTE__-db]
       service: __POOL__-http
       tls:
         certResolver: le-http

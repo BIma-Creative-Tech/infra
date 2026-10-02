@@ -2,7 +2,13 @@
 # Render router Traefik tenant Odoo dari templates/traefik-client.yml (T10). IDEMPOTEN.
 #
 #   scripts/render-client-route.sh <slug> <prod|demo|staging> [--host <fqdn>]   # tulis + HUP
-#   scripts/render-client-route.sh <slug> <env> --remove                        # hapus + HUP (suspend)
+#   scripts/render-client-route.sh <slug> <env> [--host <fqdn>] --suspended     # tulis versi SUSPEND + HUP
+#   scripts/render-client-route.sh <slug> <env> --remove                        # hapus + HUP
+#
+# --suspended (job tenant_suspend lewat scripts/tenant-state.sh, ADR 0018 #6): router main/login/oidc/websocket
+# mendapat middleware `tenant-suspended@file` (dynamic/middlewares/tenant-suspended.yml) → redirect 302 ke halaman
+# control plane /suspended/<slug>; DB/filestore utuh, router dbmanager (:8443 operator) tidak berubah. Render tanpa
+# --suspended = aktif kembali (resume). Tanpa --suspended hasil render identik byte-per-byte dengan versi sebelumnya.
 #
 # Menulis traefik/dynamic/clients/<slug>-<env>.yml lalu `docker exec traefik kill -HUP 1`
 # (file di subdirektori tidak di-watch file provider). Isi identik → tidak ditulis, tidak HUP.
@@ -21,18 +27,21 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib/odoo-pools.sh"
 source "$(dirname "${BASH_SOURCE[0]}")/lib/traefik-route.sh"   # VPS_IP, dns_precheck, traefik_hup
 TEMPLATE="$INFRA_DIR/templates/traefik-client.yml"
 
-usage() { echo "pemakaian: $0 <slug> <prod|demo|staging> [--host <fqdn>] | --remove" >&2; exit 2; }
+usage() { echo "pemakaian: $0 <slug> <prod|demo|staging> [--host <fqdn>] [--suspended] | --remove" >&2; exit 2; }
 [[ $EUID -eq 0 ]] || die "harus root"
 [[ $# -ge 2 ]] || usage
 validate_slug_env "$1" "$2"; shift 2
-HOST=""; REMOVE=no
+HOST=""; REMOVE=no; SUSPENDED=no
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --host) [[ $# -ge 2 ]] || usage; HOST="$2"; shift 2 ;;
     --remove) REMOVE=yes; shift ;;
+    --suspended) SUSPENDED=yes; shift ;;
     *) usage ;;
   esac
 done
+[[ "$REMOVE" == no || "$SUSPENDED" == no ]] || die "--remove dan --suspended saling eksklusif"
+SUSPEND_MW=""; [[ "$SUSPENDED" == yes ]] && SUSPEND_MW="tenant-suspended@file, "
 OUT="$TRAEFIK_CLIENTS_DIR/${SLUG}-${TENANT_ENV}.yml"
 # Nama file bisa bentrok dengan router website (provision-web-client.sh: web-<slug>-<env>.yml) bila slug
 # Odoo diawali `web-` → jangan pernah menimpa/menghapus file milik skrip lain.
@@ -81,8 +90,11 @@ trap 'rm -f "$tmp"' EXIT
   sed -e '1,/^# Tenant:/{/^# Tenant:/!d}' "$TEMPLATE"
 } | sed -e "s|__ROUTE__|${ROUTE_NAME}|g" -e "s|__HOST__|${HOST}|g" -e "s|__DB__|${DB_NAME}|g" \
         -e "s|__POOL__|${POOL_CONTAINER}|g" -e "s|__SLUG__|${SLUG}|g" -e "s|__ENV__|${TENANT_ENV}|g" \
-        -e "s|__GENERATED__|oleh render-client-route.sh|g" > "$tmp"
+        -e "s|__GENERATED__|oleh render-client-route.sh|g" -e "s|__SUSPEND__|${SUSPEND_MW}|g" > "$tmp"
 grep -q '__[A-Z]*__' "$tmp" && die "placeholder tersisa di hasil render"
+if [[ "$SUSPENDED" == yes ]]; then
+  [[ "$(grep -c 'tenant-suspended@file' "$tmp")" -eq 4 ]] || die "hasil render --suspended tidak memuat 4 router suspended"
+fi
 python3 -c 'import sys, yaml; yaml.safe_load(open(sys.argv[1]))' "$tmp" || die "hasil render bukan YAML valid"
 chmod 0644 "$tmp"
 

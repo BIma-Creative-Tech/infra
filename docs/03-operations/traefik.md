@@ -9,7 +9,7 @@
 | Path | Isi | Git |
 |---|---|---|
 | `traefik.yml` | static config: entrypoints `web` :80 (redirect → https) & `websecure` :443, **`admin` :8443 (H5, publish `127.0.0.1:8443` host saja)**, `traefik` 127.0.0.1:8080 di dalam container (hanya `/ping`), `metrics` :8082, file provider, resolver `le-http-staging` & `le-http`, access log JSON | ya |
-| `dynamic/middlewares/*.yml` | `security-headers`, `ratelimit-default`, `ratelimit-login`, `ratelimit-oidc`, `ratelimit-oidc-backchannel` (plan 04 S3), `ipallowlist-admin`, `strip-odoo-db-headers`, `deny-all` + service `deny-sink` (H5) | ya |
+| `dynamic/middlewares/*.yml` | `security-headers`, `ratelimit-default`, `ratelimit-login`, `ratelimit-oidc`, `ratelimit-oidc-backchannel` (plan 04 S3), `ipallowlist-admin`, `strip-odoo-db-headers`, `deny-all` + service `deny-sink` (H5), `tenant-suspended` (SaaS Fase 1, §Tenant suspended) | ya |
 | `dynamic/tls.yml` | TLS option `default` (min TLS 1.2) | ya |
 | `dynamic/platform/<svc>.yml` | router layanan platform (T06 `auth.yml`, T16a `cp.yml`, T16b `cp-staging.yml`, T14a `status.yml`/`grafana.yml`, T11 `mail.yml` = router dummy sertifikat `mail.bimacreative.tech` untuk docker-mailserver, `mail.md`, …) — satu file per task | ya |
 | `dynamic/platform/metrics.yml` | router `metrics-prometheus` (entrypoint `metrics`, `prometheus@internal`) + middleware `ipallowlist-metrics` (QA-T17B-03) | ya |
@@ -263,6 +263,36 @@ lagi 2026-09-26 16:08 WIB (S10, `--force-recreate` dengan email ACME).
 - Router `dynamic/platform/analytics.yml`: publik hanya `/insight.js` + `/api/send`; admin :8443. Middleware
   `analytics-headers` — **`stsSeconds` wajib ikut dinaikkan** bersama `security-headers` (§HSTS). Detail: `analytics.md`.
 - Regresi → hapus file router + `kill -HUP 1`, `docker network disconnect analytics-edge traefik`.
+
+## Tenant suspended (SaaS Fase 1, ADR 0018 #6)
+
+Job `tenant_suspend`/`tenant_resume` (dispatcher → `scripts/tenant-state.sh <slug> <env> --suspend|--resume [--dry-run]`)
+merender ulang `dynamic/clients/<slug>-<env>.yml` lewat `render-client-route.sh --host <host route yang ada> [--suspended]`.
+Dengan `--suspended`, router **main/login/oidc/websocket** mendapat `tenant-suspended@file` tepat setelah `crowdsec`
+(placeholder `__SUSPEND__` di `templates/traefik-client.yml`); router `dbmanager` (:8443 operator) dan `dbmanager-deny`
+tidak berubah. DB/filestore/user Keycloak tidak disentuh. Render **tanpa** `--suspended` identik byte-per-byte dengan
+render sebelum fitur ini (diuji: `expomedia-staging.yml` → `changed=no`), jadi tenant aktif tidak ikut ter-HUP.
+
+Middleware `dynamic/middlewares/tenant-suspended.yml` statis (satu untuk semua tenant) = `chain`:
+
+| Langkah | Cocok | Redirect 302 |
+|---|---|---|
+| `tenant-suspended-default-host` | `<slug>.erp.bimacreative.tech` / `<slug>.staging.bimacreative.tech` (host default `lib/odoo-pools.sh`) | `https://cp.bimacreative.tech/suspended/<slug>` / `https://cp.staging.bimacreative.tech/suspended/<slug>` |
+| `tenant-suspended-fallback` | host lain (env demo `--host`, domain milik client) | `https://cp.bimacreative.tech/suspended` (generik, tanpa slug) |
+
+Alasan: middleware statis tidak tahu slug/env router pemanggil; host default memuat slug (label pertama) dan env (domain
+induk), host lain tidak → **fallback generik** (keputusan: tidak membuat middleware per tenant agar kontrak
+`tenant-suspended@file` tetap satu nama). `redirectRegex` yang tidak cocok meneruskan request — fallback `^.*$` wajib ada
+(fail-closed). Halaman CP `/suspended/<slug>` memperlakukan `<slug>` sebagai teks tampilan saja (bisa dipalsukan lewat
+Host). Diverifikasi 2026-10-03 di container sekali pakai `traefik:v3.7.13` (`--network none`): host prod/staging → URL
+per slug, `demo-erp.example.id` → `/suspended` generik, semua 302.
+
+Catatan:
+- **Deploy**: file baru di subdirektori `middlewares/` tidak di-watch → HUP sekali (§Start / stop / reload) **sebelum**
+  job `tenant_suspend` pertama; tanpa itu router suspended merujuk middleware yang belum dimuat (router error → 404).
+- Route alias manual (mis. `expomedia-staging-alias.yml`, plan 15) **tidak** ikut disuspend — `tenant-state.sh` hanya
+  menyentuh file hasil render. Suspend tenant yang punya alias: edit alias manual atau hapus sementara (catat di job).
+- Route setengah suspended (jumlah router `tenant-suspended@file` ≠ 0/4) → `tenant-state.sh` menolak; render manual.
 
 ## Start / stop / reload
 

@@ -140,9 +140,10 @@ sisi Odoo: `odoo.md` §SSO.
 
 | Aspek | Nilai |
 |---|---|
-| Representasi | confidential, standard flow saja, PKCE `S256`, ID token RS256, `fullScopeAllowed=false`, default scopes `basic profile email acr`, optional kosong, web origins kosong |
+| Representasi | confidential, standard flow saja, PKCE `S256`, ID token RS256, `fullScopeAllowed=false`, default scopes `basic profile email acr` (+ `tenant` — dikelola `kc-realm-sync`, tidak dilepas `provision-odoo-sso.sh`), optional kosong, web origins kosong |
 | Redirect URI | eksak `https://<host>/sh_auth_oidc/callback` untuk **setiap** host tenant-env; host baru → jalankan ulang skrip dengan daftar `--host` lengkap (PUT) |
 | Role gate | client role `odoo_access` (deskripsi `Login Odoo <db> (sh_auth_oidc role gate)`); user tenant diberi role oleh `odoo-sso-user.sh --grant`, dicabut `--revoke` |
+| Role admin (Fase 1) | client role `odoo_admin` (dibuat `kc-realm-sync` di setiap `odoo-*`); diberikan job `kc_user_set_roles --odoo admin` → group Settings oleh `odoo_user_ensure` |
 | Mapper | *User Client Role* (`oidc-usermodel-client-role-mapper`), multivalued, klaim **literal** `resource_access.odoo-<slug>-<env>.roles` di ID/access token, userinfo, introspection. Jangan pakai placeholder `${client_id}` — body berisi `${` diblok CRS 932130 (403) dan `keycloak-admin.sh` menolaknya sebelum dikirim |
 | Secret | diambil skrip (`GET/POST …/clients/<uuid>/client-secret`) langsung ke file `<pool>/secrets/oidc/<db>`; tidak dicetak, tidak di realm-export git, tidak di `identity/keycloak/secrets/` |
 | User | username = email; dibuat `--create-kc` (`emailVerified=false`, required actions `UPDATE_PASSWORD` [+ `CONFIGURE_TOTP` admin tenant]) + `execute-actions-email` (tautan kembali ke client tenant) |
@@ -159,6 +160,77 @@ Isolasi user antar tenant **tidak** di Keycloak (user realm bisa mengautentikasi
 lewat role gate (`oauth_error=2`) lalu tautan `res.users` (`oauth_error=3`). Back-channel token/JWKS pool → router
 `auth-oidc-backchannel` (tabel §Paparan path; `traefik.md` §Rate limit SSO Odoo) + exclusion WAF
 `local/oidc-backchannel-exclusions` (`crowdsec.md`, BUG-S5-01).
+
+## SaaS Fase 1 — service account, realm sebagai kode, job user/org (ADR 0017, kontrak `saas-phase-1-contract.md`)
+
+### Service account Admin REST
+
+Semua lewat `scripts/lib/keycloak-admin.sh` (env `KC_ADMIN_CLIENT`, default `automation`); secret
+`identity/keycloak/secrets/<client>-<realm>.secret` (600 root, tanpa newline, tidak di git). Role = client role
+`realm-management`, diverifikasi pada Keycloak 26.7.4 sekali pakai (2026-10-03, container `--network none`):
+
+| Client | Dipakai | Role realm-management | Catatan |
+|---|---|---|---|
+| `automation` | skrip lama (`provision-odoo-sso.sh`, `odoo-sso-user.sh`) | `view-realm`, `manage-clients`, `manage-users` | dipensiunkan di M10 (ADR 0017 D6) |
+| `cp-admin` | `kc-org.sh`, `kc-user.sh`, `odoo-user.sh`, `odoo-tenant-config.sh` (job harian) | **persis** `manage-organizations`, `manage-users`, `view-users`, `query-users`, `query-groups`, `view-clients` — dikelola `kc-realm-sync` | `view-clients` = deviasi dari allowlist Lead: tanpa itu `GET /clients?clientId=`, `GET /clients/{id}/roles`, `GET /users/{id}/role-mappings/clients/{id}` → 403 (`query-clients` saja mengembalikan daftar **tanpa** `id`). Tanpa `manage-realm`/`manage-clients` (membuat role client → 403) |
+| `kc-realm-sync` | `kc-realm-sync.sh` (job `kc_realm_sync`) saja | `manage-realm`, `manage-clients`, `view-realm`, **`manage-users`** | `manage-users` wajib: tanpa itu `GET/POST /users/<SA cp-admin>/role-mappings/clients/<realm-management>` → 403. Client ini **tidak** ada di desired-state (bootstrap manual) |
+
+**`cp-admin` = kredensial admin.** `manage-users` efektif setara admin untuk semua user realm: uji S1.5 (KC 26.7.4)
+menunjukkan SA dengan set di atas **bisa** reset password user mana pun (204) dan memberi role realm-management yang ia
+pegang (`manage-users`, `view-*`, `manage-organizations`) ke user lain; **tidak bisa** memberi `realm-admin`,
+`manage-realm`, `manage-clients`, `impersonation` (403), `PUT` realm (403), atau impersonate (403). Skrip job hanya
+memetakan role client `control-plane` dan `odoo-<slug>-<env>` (tidak pernah `realm-management`); secret `cp-admin`
+diperlakukan seperti password admin (rotasi = regenerate di console + tulis ulang file).
+
+### Bootstrap `kc-realm-sync` (SEKALI per realm, console via tunnel)
+
+1. Console → realm `platform-staging` (lalu `platform`) → *Clients* → *Create client*: Client ID `kc-realm-sync`,
+   *Client authentication* ON, *Standard flow* OFF, *Direct access grants* OFF, *Service accounts roles* ON.
+2. *Service accounts roles* → *Assign role* → filter *clients* → `realm-management`: `manage-realm`, `manage-clients`,
+   `view-realm`, `manage-users`.
+3. *Credentials* → salin secret → tulis ke `identity/keycloak/secrets/kc-realm-sync-<realm>.secret` di host (600 root,
+   tanpa newline, tanpa echo/history — pola `read -rs` + `printf '%s'`, sama dengan file `automation`).
+4. `sudo /opt/infra/scripts/kc-realm-sync.sh platform staging --dry-run` → periksa rencana → job `kc_realm_sync`
+   (staging tanpa approve; prod/demo wajib `approve: true` → `--approve`).
+5. Apply pertama membuat `cp-admin` (secret dibuat Keycloak, tidak pernah lewat sync). Ambil secret-nya SEKALI ke
+   `identity/keycloak/secrets/cp-admin-<realm>.secret` tanpa mencetak: console *Clients → cp-admin → Credentials*, atau
+   dengan lib (`KC_ADMIN_CLIENT=kc-realm-sync`, `kc_get_quiet /clients/<id>/client-secret` → `value` ke file, `umask
+   077`) — `manage-clients` cukup untuk membaca secret client.
+6. Rotasi: *Credentials* → *Regenerate* → ulangi langkah 3/5. Cabut: disable client (job berhenti dengan 401).
+
+### Realm sebagai kode (`kc_realm_sync`)
+
+- Desired-state: `identity/keycloak/realm/platform.json` (+ `platform-staging.overrides.json`, deep-merge objek, list
+  diganti). Hanya subset terkelola (allowlist di `scripts/lib/kc_realm_sync.py`): kunci realm (`organizationsEnabled`,
+  `resetPasswordAllowed`, brute force, `passwordPolicy`, …), eksekusi top-level flow browser yang harus DISABLED
+  (`Organization` — identity-first org, keputusan Lead S1), atribut user profile `tenant_id` (admin view/edit, validasi
+  UUID), client scope `tenant` (+ mapper `oidc-usermodel-attribute-mapper` → klaim `tenant_id` di ID/access/userinfo),
+  default scope `tenant` di `control-plane` + semua `odoo-<slug>-<env>` (hanya menambah), role `control-plane` dan
+  `odoo_admin` di `odoo-*` (hanya membuat), SA `cp-admin` (representasi + role realm-management **persis**).
+  Tidak pernah: user biasa, secret client, client lain (`kc-realm-sync`, `automation`, bawaan KC), SMTP.
+- Scope `organization` **sengaja tidak** dijadikan default (keputusan Lead S1: default org scope mengikat refresh token
+  ke org dan refresh gagal saat keanggotaan berubah) — tetap default-optional realm.
+- Alur perubahan: edit JSON → review/merge → job `kc_realm_sync` **dry-run** (rencana per op di log, `RESULT mode=plan
+  changed=<n> blockers=<n>`) → apply staging → verifikasi → apply prod dengan `approve`. Apply kedua harus `changed=0`.
+  **Staging tidak diedit manual** — perubahan console pada kunci terkelola dikembalikan sync berikutnya.
+- Label user profile bawaan KC (`${username}`, `${email}`, `${firstName}`, `${lastName}`) diganti teks literal
+  (`Username`, `Email`, `First name`, `Last name`) saat PUT pertama: `PUT /users/profile` mengirim konfigurasi lengkap
+  dan body berisi `${` diblok CRS 932130 (§T16b). Realm `platform*` tanpa internationalization → tampilan identik.
+  Placeholder lain → blocker (perbaiki manual).
+- `organizationsEnabled` tetap `false` sampai W2 (uji S1 live). Konsekuensi: **semua** job `kc_org_ensure`,
+  `kc_user_*`, `odoo_user_ensure`, `odoo_tenant_config` gagal jelas (`Organizations belum aktif di realm …`; KC 26.7.4:
+  `GET /organizations` → 404 *Organizations not enabled for this realm.*) karena tenant_id dibaca dari alias org (§0.2).
+  W2: `{"realm": {"organizationsEnabled": true}}` di override staging dulu, lalu `platform.json`.
+- Urutan tenant baru: `odoo_sso_provision` (client `odoo-*` + `odoo_access`) → `kc_realm_sync` (scope `tenant` +
+  `odoo_admin` di client baru) → `kc_org_ensure` → `kc_user_ensure` → `kc_user_set_roles` → `odoo_user_ensure`.
+  `kc_user_set_roles --odoo admin` sebelum sync gagal 403 (cp-admin tidak boleh membuat role client) — pesan menunjuk sync.
+
+### Uji tanpa Keycloak sungguhan
+
+`scripts/tests/test-kc-scripts.sh` — unittest di container sekali pakai (`odoo:19.0-20260908`, `--network none`, tanpa
+socket Docker) dengan mock Admin API in-memory (`scripts/tests/kc_mock.py`, 127.0.0.1 port acak) + shim `docker`/`dig`.
+Override base URL hanya bila `INFRA_TEST_MODE=1` **dan** `KC_TEST_BASE_URL=http://127.0.0.1:<port>` (lib menolak URL lain;
+tanpa `INFRA_TEST_MODE` variabel diabaikan); dispatcher menjalankan skrip dengan environment bersih.
 
 ## Info untuk T12 (Next.js/Auth.js) & T15 (Odoo `sh_auth_oidc`)
 
