@@ -10,10 +10,6 @@ Append per sesi, bertanggal. Pertanyaan pemblokir selalu di bagian **Butuh keput
   `odoo-addons-athera`, `odoo-addons-expomedia`, `web-tambang`; **nonaktifkan Actions** dulu (web-expomedia/web-tambang punya
   `ci.yml` yang langsung jalan saat push tag/branch); pasang deploy key **write** (public key di laporan sesi; file
   `~/.ssh/deploy_<repo>.pub` root di host). Setelah itu Claude menjalankan push semua branch + tag.
-- **K11 (baru, dari spike S1)** — upgrade Keycloak 26.7.4 → **26.7.5** (fix #52309: filter admin permission ikut diterapkan
-  ke lookup org saat login end-user) sebelum Organizations diaktifkan di realm **prod** `platform`. Butuh restart Keycloak
-  (jendela perawatan, setelah freeze) — menggantikan R1 brief. 26.8.0 (fix lengkap CVE-2026-4633) dinilai setelah rilis
-  stabil; risiko CVE itu dimitigasi karena sub-flow identity-first di-DISABLED (ADR 0017 D7). Setuju?
 - **FREEZE** — berlaku sampai owner menulis "FREEZE DICABUT". Setelah itu: K2 start ulang CI runner, K4–K5, apply K3 restic,
   W0–W8.
 
@@ -34,6 +30,7 @@ Append per sesi, bertanggal. Pertanyaan pemblokir selalu di bagian **Butuh keput
 | Q4 | plan awal 7 kode, harga nullable | ADR 0018 D7 |
 | Q5 | pengirim `noreply@bimacreative.tech`; penerima tenant-admin + billing internal; staging → Mailpit | ADR 0018 D8; mailbox `billing@bimacreative.tech` dibuat 2026-10-02 |
 | Q6 | `ssotest_staging` hapus setelah Fase 1 lulus (dump dulu); `demo_staging` tenant uji; `demo_demo` dipertahankan | ADR 0018 D10 |
+| K11 | upgrade Keycloak 26.7.4 → 26.7.5 sebelum Organizations di realm prod (menggantikan R1) — owner "y" 2026-10-03 | menunggu freeze dicabut (restart Keycloak di jendela perawatan) |
 | Q11 | freeze berlaku sampai owner menulis "FREEZE DICABUT" | — |
 | Lanjutan | owner: "lanjutkan sesuai rekomendasi" → `proyekkas-private` tidak di-push (restic saja); ADR 0017/0018 accepted (S1 tetap syarat) | selesai |
 | Fase 1 | draft disetujui dengan syarat S1 → ADR 0017 sebelum W2#2, dan `users` prod kosong terjawab di W3 | W1 selesai (draft ADR) |
@@ -160,3 +157,11 @@ tanpa lock gagal 3/3, dengan lock lulus 3/3); lint/typecheck/build OK.
 **Belum**: endpoint Keycloak baru di perbaikan F1 (`/organizations/members/{id}/organizations`, role composite) diverifikasi dari
 kode sumber 26.7.4, belum live (permintaan pengecualian hook untuk menyalin secret uji **ditolak** Lead) → konfirmasi saat deploy
 W2 staging. Langkah pertama setelah `kc_realm_sync` pertama: adopsi staf ke tenant `platform` dari CP.
+
+## 2026-10-03 — lanjutan Fase 1 (owner: "y lanjut")
+
+- K11 disetujui (eksekusi setelah freeze). Freeze tetap berlaku (belum ada "FREEZE DICABUT"). K3: repo GitHub belum ada (cek
+  `ls-remote` gagal akses) — push menunggu owner.
+- Dikerjakan di branch control-plane (bercabang dari `feat/saas-p1-users`): `feat/saas-p1-billing` (migrasi 0005, langganan/
+  invoice/plan, tick harian, email pengingat, halaman `/suspended`, rekonsiliasi status tenant) dan `feat/saas-p1-tenants`
+  (onboarding tenant satu form, detail tenant + suspend/resume, halaman Audit, UI sync realm, pintasan adopsi staf).
