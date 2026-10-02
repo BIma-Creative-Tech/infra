@@ -1,0 +1,72 @@
+{
+  "$comment": "Kebijakan izin Claude Code VPS Athera — lihat .claude/README-permission-policy.md. autoMode TIDAK ditaruh di sini (Claude Code tidak membaca autoMode dari project settings); ada di ~/.claude/settings.json. Prod vs staging untuk docker compose diputuskan hook (deny/ask/allow), bukan permissions.ask, karena ask rule mengalahkan allow dari hook.",
+
+  "permissions": {
+    "defaultMode": "auto",
+
+    "allow": [
+      "Bash(ls *)", "Bash(cat *)", "Bash(head *)", "Bash(tail *)", "Bash(wc *)",
+      "Bash(grep *)", "Bash(rg *)", "Bash(sed -n *)", "Bash(sort *)", "Bash(uniq *)",
+      "Bash(df *)", "Bash(du *)", "Bash(free *)", "Bash(uptime)", "Bash(nproc)", "Bash(ss *)",
+      "Bash(dig *)", "Bash(host *)", "Bash(nslookup *)", "Bash(openssl s_client *)", "Bash(openssl x509 *)",
+      "Bash(git status *)", "Bash(git log *)", "Bash(git diff *)", "Bash(git show *)",
+      "Bash(git add *)", "Bash(git commit *)", "Bash(git fetch *)",
+      "Bash(docker ps *)", "Bash(docker inspect *)", "Bash(docker logs *)", "Bash(docker stats *)",
+      "Bash(docker images *)", "Bash(docker image ls *)", "Bash(docker volume ls *)", "Bash(docker volume inspect *)",
+      "Bash(docker network ls *)", "Bash(docker network inspect *)", "Bash(docker system df *)",
+      "Bash(docker compose ls *)", "Bash(docker compose ps *)", "Bash(docker compose logs *)",
+      "Bash(systemctl status *)", "Bash(systemctl cat *)", "Bash(systemctl list-units *)", "Bash(systemctl list-timers *)",
+      "Bash(journalctl -u *)",
+      "Bash(npm test *)", "Bash(bash -n *)", "Bash(shellcheck *)", "Bash(jq *)", "Bash(yq *)",
+      "Bash(ansible-playbook * --check *)", "Bash(ansible-lint *)",
+      "Read", "Edit", "Write", "Glob", "Grep"
+    ],
+
+    "ask": [
+      "Bash(git push *)",
+      "Bash(sudo *)",
+      "Bash(ufw *)",
+      "Bash(systemctl restart *)", "Bash(systemctl stop *)", "Bash(systemctl enable *)", "Bash(systemctl disable *)",
+      "Edit(//opt/infra/.claude/**)",
+      "Edit(//root/.claude/settings.json)"
+    ],
+
+    "deny": [
+      "Bash(rm -rf /opt/infra*)",
+      "Bash(rm -rf /var/lib/docker*)",
+      "Bash(rm -rf /opt/src*)",
+      "Bash(docker volume rm *)",
+      "Bash(docker volume prune *)",
+      "Bash(docker system prune *)",
+      "Bash(dropdb *)",
+      "Bash(cat /run/secrets/*)",
+      "Bash(cat /opt/infra/traefik/acme/*)",
+      "Read(//run/secrets/**)",
+      "Read(//run/sh-oidc/**)",
+      "Read(//opt/infra/**/secrets/**)",
+      "Read(//opt/infra/traefik/acme/**)",
+      "Read(//opt/infra/mail/data/config/rspamd/dkim/*.private.txt)",
+      "Read(//opt/**/.env)",
+      "Read(//opt/**/*.secret)",
+      "Edit(//opt/infra/**/secrets/**)",
+      "Edit(//opt/infra/traefik/acme/**)",
+      "Edit(//opt/**/.env)",
+      "Edit(//opt/**/*.secret)"
+    ]
+  },
+
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/opt/infra/.claude/hooks/bash-policy.sh",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}
