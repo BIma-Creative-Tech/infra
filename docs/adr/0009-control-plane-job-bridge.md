@@ -111,3 +111,13 @@ durasi nyata tiap job (timeout), dan apakah proses di dalam container ikut berhe
   §Orkestrasi diperbarui (socket-proxy tidak dipakai).
 - 2026-09-25 (J7 docs-versioning): §Consequences → Hasil (plan 05 EXECUTED): uid final 950/951, durasi terukur, keterbatasan
   AC-J8, pelajaran BUG-J5-01/02.
+- 2026-10-02 (SaaS Fase 1 W1, keputusan owner K7): **dipertahankan sebagai pola eksekusi platform SaaS** — brief owner
+  mengusulkan worker CP mengeksekusi job dengan kredensial Keycloak; ditolak, eksekusi tetap di dispatcher root. Keputusan #6
+  diperluas: tipe baru Fase 1 `kc_realm_sync`, `kc_org_ensure`, `kc_user_ensure`, `kc_user_set_enabled`, `kc_user_set_roles`,
+  `kc_user_action_email`, `odoo_user_ensure`, `tenant_suspend`, `tenant_resume` (kontrak: `docs/plans/saas-phase-1.md` W4;
+  identitas: ADR 0017). Aturan tambahan: (a) allowlist tipe **per instance** di `/etc/infra-jobs/<inst>.conf` — tipe baru
+  aktif di `staging` dulu, prod tetap 5 tipe sampai disetujui owner; (b) kredensial `cp-admin`/`kc-realm-sync` hanya di
+  host (`identity/keycloak/secrets/`); (c) CP menambah `provision_jobs.idempotency_key` (`<type>:<slug>:<target>`); (d) setiap
+  aksi job baru wajib uji "tidak pernah memberi hak lebih" (pelajaran BUG-J5-01) — termasuk role yang boleh dipetakan
+  `kc_user_set_roles` (allowlist; tidak pernah `realm-management`/`superadmin` lewat portal); (e) host domain milik client
+  (bukan `*.erp|staging.bimacreative.tech`) tetap di luar dispatcher sampai Fase 2.
