@@ -55,9 +55,9 @@ lanjut apply hanya bila exit 0.
 - **`kc-realm-sync.sh`** → `scripts/lib/kc_realm_sync.py` (stdlib): baca `identity/keycloak/realm/platform.json` +
   `identity/keycloak/realm/<realm>.overrides.json`; GET kondisi live; hitung diff untuk: atribut realm terkelola
   (allowlist kunci: `organizationsEnabled`, `resetPasswordAllowed`, `bruteForceProtected`, `passwordPolicy`, …), user
-  profile (atribut `tenant_id`), client scope `tenant` + mapper, default scope client terkelola (`control-plane` + semua
-  `odoo-*` yang ada), role client `control-plane` dan `odoo_admin` pada setiap `odoo-*`, client SA `cp-admin`
-  (keberadaan + role realm-management allowlist). Tidak pernah menyentuh user, secret client, client yang tidak tercantum.
+  profile (atribut `tenant_id`), client scope `tenant` + mapper, default scope `tenant` (BUKAN `organization`, S1) pada client terkelola
+  (`control-plane` + semua `odoo-*` yang ada), requirement sub-flow `Organization` di flow `browser` = DISABLED (S1.3), role client `control-plane` dan `odoo_admin` pada setiap `odoo-*`, client SA `cp-admin`
+  (keberadaan + role realm-management allowlist `manage-organizations, manage-users, view-users, query-users, query-groups`). Tidak pernah menyentuh user, secret client, client yang tidak tercantum.
   RESULT: `realm`, `changed` (jumlah perubahan), `mode` (`plan|apply`).
 - **`kc-org.sh`**: cari org `name=<slug>`; tidak ada → buat (`alias=<tenant_id>`, atribut `slug`); ada dengan alias sama →
   no-op/atribut; alias beda → exit 3 `ERROR: org slug sudah terikat tenant lain`. RESULT `realm org created changed`.
