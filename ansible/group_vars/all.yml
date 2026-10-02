@@ -138,6 +138,11 @@ restic_etc_dir: /etc/restic
 restic_password_file: /etc/restic/password
 restic_repository: /opt/infra/backups/restic
 restic_cache_dir: /var/cache/restic
+# Path file tambahan di luar /opt/infra (keputusan owner K3 2026-10-02): repo sumber /opt/src — sebagian
+# tanpa remote, dan proyekkas-private (keystore, peta pseudonim) yang TIDAK boleh ke GitHub. Exclude = nama
+# direktori di level mana pun (pola restic tanpa '/'), hasil build/dependensi yang bisa dibangun ulang.
+restic_extra_paths: ["/opt/src"]
+restic_extra_excludes: ["node_modules", ".next", ".turbo", "__pycache__", ".pytest_cache", "venv", ".venv"]
 # Jadwal systemd (OnCalendar, zona Asia/Jakarta eksplisit — ADR 0006 §Jadwal)
 restic_backup_oncalendar: "*-*-* 01:30:00 Asia/Jakarta"
 restic_prune_oncalendar: "Sun *-*-* 03:00:00 Asia/Jakarta"

@@ -71,8 +71,15 @@ cmd_run() {
     if [[ -n "$mp" && -d "$mp" ]]; then paths+=("$mp")
     else log "volume media $v belum ada — dilewati"; fi
   done
+  # Path tambahan dari local.env (role backup: restic_extra_paths/_excludes), mis. /opt/src.
+  # Kosong/tidak diset = perilaku lama.
+  local p e
+  for p in ${INFRA_BACKUP_EXTRA_PATHS:-}; do
+    if [[ "$p" == /* && -d "$p" ]]; then paths+=("$p")
+    else warn "path tambahan '$p' bukan direktori absolut yang ada — dilewati"; fi
+  done
   local excl=()
-  for e in "${FILE_EXCLUDES[@]}"; do excl+=(--exclude "$e"); done
+  for e in "${FILE_EXCLUDES[@]}" ${INFRA_BACKUP_EXTRA_EXCLUDES:-}; do excl+=(--exclude "$e"); done
   if snap_out="$(restic backup --quiet --json --host "$RESTIC_HOST_TAG" --tag files "${excl[@]}" "${paths[@]}" | tail -1)"; then
     log "files: ok ($(python3 -c 'import json,sys; d=json.loads(sys.argv[1]); print("snapshot", d.get("snapshot_id","?")[:8], "files", d.get("total_files_processed"), "bytes", d.get("total_bytes_processed"))' "$snap_out" 2>/dev/null || echo '?'))"
   else
