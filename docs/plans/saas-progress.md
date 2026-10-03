@@ -334,3 +334,20 @@ skenario gate; dua jendela perawatan prod + tanggal cut-over. Tetap terbuka: K3 
 | 7.5 idempotensi + kegagalan disuntik | sebagian | ulang job `changed=0` lulus; injeksi `inject.sh` (DB `demo_staging` tolak koneksi baru, pengaman 20 mnt) diuji siklus on/off, **job gagal belum** (butuh 1 aksi UI) |
 | 7.6 compat 7 hari | belum mulai | `tenant_check` `demo` masih kosong |
 | 7.7 audit | lulus (data s.d. kini) | 23 aksi manusia, semua `actor_user_id` terisi; aksi ditolak teraudit; worker = `system:worker` |
+
+- **Gate §7.1 onboarding** (owner, tenant uji `ujiq`, 22:35–23:25):
+  - Form gagal 3× `?r=invalid` tanpa jejak → CP `89124b6` (feat/saas-p1 `fix/onboarding-invalid-fields`) mencatat NAMA field
+    gagal → `staging_host` (isian bukan FQDN murni; kosong/host benar lolos — diuji). Submit berikutnya sukses 22:35:04;
+    dua submit ganda → `rejected host_taken` (host milik ujiq sendiri; pesan UI menyesatkan).
+  - Rantai 8 langkah: 6 sukses (org, DB `ujiq_staging`, route, SSO, tenant_config compat, kc_user_ensure + undangan
+    terkirim 22:36:48); `kc_user_set_roles` **gagal 403**: client `odoo-ujiq-staging` tanpa role `odoo_admin` (dan tanpa
+    scope default `tenant`) — keduanya hanya dari kc-realm-sync, `cp-admin` sengaja tanpa manage-clients. **Celah desain.**
+  - Buka blokir: `kc-realm-sync platform staging` (`changed=2`, ulang `changed=0`). Fix permanen infra `797d96a`:
+    `provision-odoo-sso.sh` MENAMBAH (tak pernah melepas) scope `tenant` + role `odoo_admin` bila realm sudah di-sync;
+    realm belum di-sync (prod) → dilewati. Dry-run expomedia/ujiq staging `changed=0`, expomedia prod `changed=0
+    dilewati`. Tes kc 26 OK (asersi staging `organizationsEnabled` disesuaikan dengan override 3f8cfdd).
+  - Owner "Ulangi dari langkah ini" 23:24:32 → `kc_user_set_roles` + `odoo_user_ensure` sukses (Odoo uid 6
+    `base.group_system`, SSO tertaut); klik tak sengaja kedua 23:25:15 → rantai baru sukses `changed=0` (idempoten §7.5).
+  - Sisa: uji ulang onboarding tenant baru **tanpa intervensi** (membuktikan fix 797d96a); route hasil job
+    (`traefik/dynamic/clients/ujiq-staging.yml`) tidak di-commit — putuskan kebijakan; UX: pesan host spesifik, tombol
+    submit dinonaktifkan setelah klik.
