@@ -51,7 +51,7 @@
   "clientScopes": [
     {
       "name": "tenant",
-      "description": "Klaim tenant_id dari atribut user (ADR 0017 D3) — dikelola kc-realm-sync",
+      "description": "Klaim tenant_id dari atribut user, ADR 0017 D3 — dikelola kc-realm-sync",
       "protocol": "openid-connect",
       "attributes": {
         "include.in.token.scope": "false",
