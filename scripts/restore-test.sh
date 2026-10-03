@@ -5,7 +5,9 @@
 #     1) DB: restore snapshot terbaru <db> (default: acak dari *_prod, bila tidak ada *_demo) ke DB
 #        BARU <db>_restoretest (owner postgres, CONNECT PUBLIC dicabut) via scripts/restore.sh,
 #        bandingkan jumlah tabel + count baris tabel kunci (res_users, res_partner, ir_module_module
-#        bila ada) sumber vs hasil, lalu DROP <db>_restoretest (hanya nama berakhiran _restoretest).
+#        bila ada) ISI DUMP di snapshot yang sama (TOC `pg_restore -l` + baris COPY per tabel kunci) vs
+#        hasil restore, lalu DROP <db>_restoretest (hanya nama berakhiran _restoretest). DB live hanya
+#        dicatat sebagai info: ia berubah setelah backup (2026-10-02: 5 modul baru → db_compare palsu).
 #     2) Filestore: pulihkan satu file acak (lebih tua dari snapshot `files` terbaru) ke direktori
 #        sementara, bandingkan sha256 dengan file live, hapus direktori sementara.
 #     3) restic check --read-data-subset=<n>/5 (n = bulan mod 5 + 1 → seluruh data terbaca tiap 5 bulan).
@@ -39,17 +41,39 @@ db_stats() {
   done
 }
 
+# dump_stats <db> <snapshot> → format sama dengan db_stats, dihitung dari ISI dump di snapshot (bukan DB live):
+# jumlah entri TOC "TABLE public", lalu jumlah baris blok COPY per tabel kunci (format teks COPY: 1 baris = 1 row).
+dump_stats() {
+  local db="$1" snap="$2" toc t
+  # pg_restore berhenti membaca begitu bagian yang dibutuhkan selesai → sisa stream dikuras (`cat >/dev/null`) agar
+  # restic tidak mati kena SIGPIPE dan meninggalkan lock basi (yang menggagalkan `restic check` sesudahnya).
+  toc="$(restic dump "$snap" "$PG_SNAPSHOT_DIR/$db.dump" \
+    | { docker exec -i "$PG_CONTAINER" pg_restore -l; rc=$?; cat >/dev/null; exit $rc; })" || return 1
+  echo "tables=$(grep -cE '^[0-9]+; [0-9]+ [0-9]+ TABLE public ' <<<"$toc")"
+  for t in "${KEY_TABLES[@]}"; do
+    if grep -qE "^[0-9]+; [0-9]+ [0-9]+ TABLE DATA public $t " <<<"$toc"; then
+      echo "$t=$(restic dump "$snap" "$PG_SNAPSHOT_DIR/$db.dump" \
+        | { docker exec -i "$PG_CONTAINER" pg_restore -f - --data-only -n public -t "$t"; cat >/dev/null; } \
+        | awk '/^COPY /{c=1; next} c && /^\\\.$/{c=0; next} c{n++} END{print n+0}')"
+    fi
+  done
+}
+
 test_db() {
-  local db="$1" target="${1}_restoretest" src dst rc=0
+  local db="$1" target="${1}_restoretest" snap src dst live rc=0
   valid_db "$db" || die "nama DB tidak valid: $db"
   db_exists "$db" || die "DB $db tidak ada"
   db_exists "$target" && die "$target sudah ada (sisa uji sebelumnya?) — periksa lalu DROP manual"
-  "$SCRIPT_DIR/restore.sh" "$db" "$target" || { warn "restore $db gagal"; return 1; }
-  src="$(db_stats "$db")"; dst="$(db_stats "$target")"
-  log "sumber   $db: $(tr '\n' ' ' <<<"$src")"
+  snap="$(latest_db_snapshot "$db")"
+  [[ -n "$snap" ]] || { warn "tidak ada snapshot untuk $db"; return 1; }
+  "$SCRIPT_DIR/restore.sh" "$db" "$target" --snapshot "$snap" || { warn "restore $db gagal"; return 1; }
+  src="$(dump_stats "$db" "$snap")" || { warn "membaca isi dump $db (snapshot ${snap:0:8}) gagal"; src=""; }
+  dst="$(db_stats "$target")"; live="$(db_stats "$db")"
+  log "dump     $db@${snap:0:8}: $(tr '\n' ' ' <<<"$src")"
   log "restore  $target: $(tr '\n' ' ' <<<"$dst")"
-  if [[ "$src" == "$dst" ]]; then log "DB $db: SAMA (jumlah tabel & count tabel kunci)"
-  else warn "DB $db: BERBEDA sumber vs restore"; rc=1; fi
+  log "live     $db (info, bukan pembanding): $(tr '\n' ' ' <<<"$live")"
+  if [[ -n "$src" && "$src" == "$dst" ]]; then log "DB $db: SAMA dump vs restore (jumlah tabel & count tabel kunci)"
+  else warn "DB $db: BERBEDA dump vs restore"; rc=1; fi
   [[ "$target" == *_restoretest ]] || die "guard: menolak DROP $target"
   pg_psql -d postgres -c "DROP DATABASE \"$target\" WITH (FORCE)" >/dev/null
   if db_exists "$target"; then warn "DROP $target gagal"; rc=1; else log "DB $target dihapus"; fi
