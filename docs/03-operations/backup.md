@@ -154,8 +154,10 @@ manual. Jangan restore langsung ke `/opt/infra` (menimpa working tree git).
 ## Restore test
 
 - Otomatis bulanan (`restic-restore-test.timer`) atau manual: `sudo /opt/infra/scripts/restore-test.sh [<db>]`.
-- Langkah: pilih DB (acak `*_prod`, fallback `*_demo`) → restore ke `<db>_restoretest` → bandingkan jumlah tabel
-  `public` + count `res_users`, `res_partner`, `ir_module_module` → `DROP` DB uji → restore 1 file filestore acak
+- Langkah: pilih DB (acak `*_prod`, fallback `*_demo`) → restore snapshot terbaru ke `<db>_restoretest` → bandingkan
+  jumlah tabel `public` + count `res_users`, `res_partner`, `ir_module_module` dengan **isi dump di snapshot yang sama**
+  (TOC `pg_restore -l` + baris COPY; sejak 2026-10-03 — sebelumnya dengan DB live, yang berubah setelah backup sehingga
+  `db_compare=failed` palsu, mis. 2026-10-02 setelah deploy modul) → statistik DB live dicatat sebagai info → `DROP` DB uji → restore 1 file filestore acak
   (lebih tua dari snapshot) dan bandingkan sha256 → `restic check --read-data-subset=<bulan mod 5 + 1>/5`.
 - Hasil: `journalctl -t infra-restore-test | grep RESULT` (`rto_seconds` = durasi total).
 - Beda dengan ADR 0006: smoke `odoo -d restoretest_… --stop-after-init` tidak dijalankan — `pg_hba`/`dbfilter`
