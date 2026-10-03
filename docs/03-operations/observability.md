@@ -301,7 +301,7 @@ q 'infra_container_metrics_missing_cgroup > 0'
 ## Belum / berikutnya
 
 - Alert: belum ada aturan alert Prometheus/Grafana (tanpa Alertmanager). Kanal email **sudah ada** (H7, §Healthcheck &
-  alert email) dan mencakup unit `restic-*` failed; yang belum: `REMOTE NOT CONFIGURED`, disk `/` > 70%, swap > 1 GiB.
+  alert email) dan mencakup unit `restic-*` failed; yang belum: `REMOTE NOT CONFIGURED`, disk `/` > 70%, swap > 1 GiB (sejak 2026-10-03: hanya bila swap-in > `HC_SWAPIN_PPS` 50 page/s sejak run sebelumnya, atau swap > `HC_SWAP_CRIT_MIB` 3 GiB — swap terpakai oleh page dingin bukan masalah; logika di `scripts/infra-healthcheck.sh` §5).
 - Grafana login via Keycloak (client OIDC baru) — keputusan Lead berikutnya.
 - Dashboard: belum ada yang di-provision (hanya datasource Prometheus & Loki).
 
