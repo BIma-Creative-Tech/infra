@@ -3,5 +3,8 @@
     "Override realm `platform-staging` di atas platform.json (deep-merge objek, list diganti). Hanya kunci top-level platform.json.",
     "Per 2026-10-03 subset terkelola staging = prod (SELECT DB: setelan realm identik). Redirect URI/hostname client dan SMTP TIDAK termasuk subset terkelola Fase 1 (client control-plane/odoo-* dan smtpServer berisi secret dikelola di tempat lain).",
     "Contoh pemakaian W2 (setelah uji S1 di staging): {\"realm\": {\"organizationsEnabled\": true}} — staging dulu, prod menyusul lewat platform.json."
-  ]
+  ],
+  "realm": {
+    "organizationsEnabled": true
+  }
 }
