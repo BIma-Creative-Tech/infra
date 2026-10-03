@@ -52,10 +52,12 @@ Fakta (inventaris 2026-10-02, read-only):
    `odoo_user_ensure`). Tidak ada realm role baru.
 6. **Dua service account** (keputusan owner K7: kredensial di host, bukan di CP):
    - `cp-admin` — job harian (user/org): `manage-organizations`, `manage-users`, `view-users`, `query-users`,
-     `query-groups` (S1.4: role org khusus sejak 26.7.0; tambah member = `manage-organizations` + `manage-users`).
-     **Bukan** `realm-admin`, **bukan** `manage-realm`.
-   - `kc-realm-sync` — **hanya** job `kc_realm_sync`: `manage-realm`, `manage-clients`, `view-realm`. Prod hanya dengan
-     flag persetujuan eksplisit di job.
+     `query-groups`, `view-clients` (S1.4: role org khusus sejak 26.7.0; tambah member = `manage-organizations` +
+     `manage-users`; `view-clients` wajib untuk membaca id client & role mapping — diverifikasi di Keycloak 26.7.4 sekali
+     pakai 2026-10-03). **Bukan** `realm-admin`, **bukan** `manage-realm`/`manage-clients`.
+   - `kc-realm-sync` — **hanya** job `kc_realm_sync`: `manage-realm`, `manage-clients`, `view-realm`, `manage-users`
+     (`manage-users` wajib untuk membaca/memetakan role SA `cp-admin`; diverifikasi 2026-10-03). Prod hanya dengan flag
+     persetujuan eksplisit di job.
    - Secret: `identity/keycloak/secrets/{cp-admin,kc-realm-sync}-<realm>.secret` (600 root, tidak di-commit), dibaca skrip
      job. `automation` dipertahankan sampai langkah M10 (skrip lama), lalu dipensiunkan.
 7. **Realm sebagai kode**: desired-state `identity/keycloak/realm/platform.json` (tanpa secret, tanpa user) +
@@ -144,3 +146,4 @@ client; `sh_auth_oidc.tenant_check=off`; nonaktifkan client `cp-admin`/`kc-realm
 - 2026-10-02: dibuat (proposed) — SaaS Fase 1 W1; arah disetujui owner (K7–K9).
 - 2026-10-02: proposed → accepted (owner "lanjutkan sesuai rekomendasi"); D2 dan hak org D6 tetap menunggu spike S1.
 - 2026-10-03: spike S1 terjawab dari dokumen + kode 26.7.4 — D3 scope `organization` tidak default, D6 role `manage-organizations`, D7 sub-flow `Organization` DISABLED; uji live menyusul (freeze); K11 upgrade 26.7.5.
+- 2026-10-03: D6 diamandemen setelah uji Keycloak 26.7.4 sekali pakai — `cp-admin` + `view-clients`, `kc-realm-sync` + `manage-users`; label default user profile ditulis literal (bukan `${...}`, diblok WAF CRS 932130); tautan email aksi 72 jam.

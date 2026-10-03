@@ -1,0 +1,148 @@
+{
+  "_comment": [
+    "Desired-state realm `platform` (prod/demo) — SUBSET TERKELOLA saja (ADR 0017 D7, kontrak saas-phase-1-contract.md §1.1).",
+    "Diterapkan oleh scripts/kc-realm-sync.sh (client `kc-realm-sync`) lewat scripts/lib/kc_realm_sync.py. Tanpa secret, tanpa user.",
+    "Realm `platform-staging` = file ini + platform-staging.overrides.json (deep-merge objek, list diganti).",
+    "Baseline 2026-10-03 dari realm-export/platform*.json (2026-09-25) + SELECT read-only DB keycloak; kondisi live = nilai di sini kecuali elemen Fase 1 (scope tenant, atribut tenant_id, role odoo_admin, client cp-admin, flow Organization DISABLED).",
+    "realm.organizationsEnabled TETAP false (nilai live): W2 membaliknya ke true setelah uji live S1 (ADR 0017 §Spike S1) — ubah di sini, bukan di console.",
+    "Scope `organization` SENGAJA tidak dijadikan default (keputusan Lead S1: default org scope mengikat refresh token ke org dan gagal refresh saat keanggotaan berubah) — tetap default-OPTIONAL realm, tidak disentuh.",
+    "Client `kc-realm-sync` TIDAK ada di sini (bootstrap manual sekali per realm, docs/03-operations/keycloak.md §Realm sebagai kode). Client odoo-<slug>-<env> dibuat provision-odoo-sso.sh; file ini hanya menambah scope default `tenant` dan role `odoo_admin`."
+  ],
+  "version": 1,
+  "realm": {
+    "organizationsEnabled": false,
+    "resetPasswordAllowed": false,
+    "bruteForceProtected": true,
+    "permanentLockout": false,
+    "failureFactor": 5,
+    "waitIncrementSeconds": 60,
+    "maxFailureWaitSeconds": 900,
+    "maxDeltaTimeSeconds": 43200,
+    "passwordPolicy": "length(12) and maxLength(128) and upperCase(1) and lowerCase(1) and digits(1) and specialChars(1) and notUsername and notEmail and passwordHistory(5)",
+    "registrationAllowed": false,
+    "registrationEmailAsUsername": false,
+    "verifyEmail": false,
+    "loginWithEmailAllowed": true,
+    "duplicateEmailsAllowed": false,
+    "editUsernameAllowed": false,
+    "rememberMe": false,
+    "sslRequired": "external"
+  },
+  "browserFlow": {
+    "_comment": "Sub-flow top-level `Organization` (ALTERNATIVE, ditambah migrasi KC 26.6.1; berisi `Browser - Conditional Organization` + authenticator identity-first `organization`) → DISABLED: begitu organizationsEnabled=true dan ada ≥ 1 org, semua user realm mendapat halaman login identity-first; routing IdP per org tidak dipakai (keputusan Lead S1).",
+    "disableExecutions": ["Organization"]
+  },
+  "userProfile": {
+    "attributes": [
+      {
+        "name": "tenant_id",
+        "displayName": "Tenant ID",
+        "multivalued": false,
+        "permissions": {"view": ["admin"], "edit": ["admin"]},
+        "validations": {
+          "pattern": {
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+            "error-message": "tenant_id harus UUID huruf kecil"
+          }
+        }
+      }
+    ]
+  },
+  "clientScopes": [
+    {
+      "name": "tenant",
+      "description": "Klaim tenant_id dari atribut user (ADR 0017 D3) — dikelola kc-realm-sync",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "false",
+        "display.on.consent.screen": "false"
+      },
+      "protocolMappers": [
+        {
+          "name": "tenant_id",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.attribute": "tenant_id",
+            "claim.name": "tenant_id",
+            "jsonType.label": "String",
+            "multivalued": "false",
+            "aggregate.attrs": "false",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+  "defaultClientScopes": [
+    {
+      "_comment": "Hanya MENAMBAH scope default; scope lain tetap milik provision-odoo-sso.sh (odoo-*) / console (control-plane).",
+      "clients": ["control-plane"],
+      "scopes": ["tenant"]
+    },
+    {
+      "clientPattern": "odoo-[a-z0-9-]{3,30}-(prod|demo|staging)",
+      "scopes": ["tenant"]
+    }
+  ],
+  "clientRoles": [
+    {
+      "_comment": "Role CP (ADR 0017 D5, keputusan owner K9). Hanya dibuat bila hilang; tidak pernah dihapus.",
+      "clients": ["control-plane"],
+      "roles": [
+        {"name": "superadmin", "description": "Platform admin (tenant platform)"},
+        {"name": "ops", "description": "Operator/platform viewer (tenant platform)"},
+        {"name": "client_admin", "description": "Tenant admin"},
+        {"name": "client_user", "description": "Tenant user"}
+      ]
+    },
+    {
+      "_comment": "odoo_admin → group Settings/Administration oleh job odoo_user_ensure. odoo_access tetap dikelola provision-odoo-sso.sh.",
+      "clientPattern": "odoo-[a-z0-9-]{3,30}-(prod|demo|staging)",
+      "roles": [
+        {"name": "odoo_admin", "description": "Admin Odoo tenant (group Settings, job odoo_user_ensure)"}
+      ]
+    }
+  ],
+  "serviceAccountClients": [
+    {
+      "_comment": [
+        "cp-admin: job harian user/org (kc-org.sh, kc-user.sh, odoo-user.sh, odoo-tenant-config.sh). Secret dibuat Keycloak, diambil SEKALI ke identity/keycloak/secrets/cp-admin-<realm>.secret (keycloak.md) — tidak pernah lewat sync.",
+        "Role realm-management PERSIS allowlist (keputusan Lead S1, KC 26.7: menambah anggota org butuh manage-organizations + manage-users). TANPA manage-realm / realm-admin.",
+        "+ view-clients (DEVIASI dari allowlist Lead, diverifikasi Keycloak 26.7.4 sekali pakai 2026-10-03): tanpa itu GET /clients?clientId=, GET /clients/{id}/roles, GET /users/{id}/role-mappings/clients/{id} → 403 (query-clients saja mengembalikan daftar TANPA id) → kc-user.sh roles/enabled tidak bisa berjalan.",
+        "Uji S1.5 (KC 26.7.4): SA dengan set ini TIDAK bisa memberi realm-admin/manage-realm/manage-clients/impersonation (403), TIDAK bisa PUT realm/impersonate (403), TETAPI bisa memberi role yang ia pegang (manage-users, view-*) ke user lain dan reset password user mana pun (204).",
+        "PERINGATAN: manage-users efektif setara admin realm untuk user (bisa reset password / menonaktifkan user mana pun) → secret cp-admin = kredensial admin.",
+        "fullScopeAllowed=true seperti client `automation` (izin Admin REST dievaluasi dari role user SA yang juga harus berada dalam scope client)."
+      ],
+      "client": {
+        "clientId": "cp-admin",
+        "name": "Control-plane jobs (service account)",
+        "description": "ADR 0017 D6 — dipakai skrip root host via dispatcher infra-job; dikelola kc-realm-sync",
+        "enabled": true,
+        "protocol": "openid-connect",
+        "publicClient": false,
+        "bearerOnly": false,
+        "clientAuthenticatorType": "client-secret",
+        "standardFlowEnabled": false,
+        "implicitFlowEnabled": false,
+        "directAccessGrantsEnabled": false,
+        "serviceAccountsEnabled": true,
+        "consentRequired": false,
+        "frontchannelLogout": false,
+        "fullScopeAllowed": true,
+        "redirectUris": [],
+        "webOrigins": [],
+        "attributes": {
+          "oauth2.device.authorization.grant.enabled": "false",
+          "oidc.ciba.grant.enabled": "false",
+          "standard.token.exchange.enabled": "false"
+        }
+      },
+      "realmManagementRoles": ["manage-organizations", "manage-users", "query-users", "view-users", "query-groups", "view-clients"]
+    }
+  ]
+}

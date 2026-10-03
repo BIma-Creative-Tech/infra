@@ -75,7 +75,7 @@ def new_id() -> str:
 class Env:
     """Tata letak sementara yang meniru role Ansible infra_jobs."""
 
-    def __init__(self, instance: str = "prod") -> None:
+    def __init__(self, instance: str = "prod", job_types: tuple[str, ...] | list[str] | None = None) -> None:
         self.tmp = tempfile.mkdtemp(prefix="infra-job-test-")
         os.chmod(self.tmp, 0o755)
         self.instance = instance
@@ -111,6 +111,15 @@ class Env:
         self.alerts: list[tuple[str, str]] = []
         self.logs: list[str] = []
         self.clock: float | None = None
+        if job_types is not None:
+            self.conf({"job_types": list(job_types)})
+
+    def conf(self, obj: dict | str) -> None:
+        """/etc/infra-jobs/<inst>.conf (seperti template Ansible instance.conf.j2)."""
+        p = os.path.join(self.etc, f"{self.instance}.conf")
+        with open(p, "w") as fh:
+            fh.write(obj if isinstance(obj, str) else json.dumps(obj))
+        os.chmod(p, 0o644)
 
     @staticmethod
     def mk(path: str, uid: int, gid: int, mode: int) -> None:
@@ -203,6 +212,10 @@ class Env:
                 fh.write(f"{int(ts)} {jid} {jt} {fl}\n")
         os.chmod(p, 0o600)
 
+    def ledger_lines(self) -> list[list[str]]:
+        with open(os.path.join(self.inst, "work", "ledger")) as fh:
+            return [ln.split(" ") for ln in fh.read().splitlines()]
+
     def cleanup(self) -> None:
         shutil.rmtree(self.tmp, ignore_errors=True)
 
@@ -245,7 +258,7 @@ class TestContractInvalid(Base):
 def _make_invalid(case: dict):
     def test(self: Base) -> None:
         self.env.cleanup()
-        self.env = Env(case["instance"])
+        self.env = Env(case["instance"], job_types=ij.JOB_TYPES)
         jid = new_id()
         if "raw" in case:
             # nama file = job_id fixture, agar penolakan berasal dari kasus itu sendiri (bukan mismatch job_id)
@@ -282,7 +295,7 @@ class TestContractValid(Base):
 def _make_valid(case: dict):
     def test(self: Base) -> None:
         self.env.cleanup()
-        self.env = Env(case["instance"])
+        self.env = Env(case["instance"], job_types=ij.JOB_TYPES)
         jid = self.env.put_job(case["job"])
         self.assertEqual(self.env.run(), 0)
         r = self.env.result(jid)
@@ -295,7 +308,7 @@ def _make_valid(case: dict):
         self.assertEqual([os.path.relpath(argv[0], self.env.scripts), *argv[1:]], case["argv"])
         pre = [c for c in calls if c["dry"]]
         expect_pre = (not case["job"]["dry_run"]) and (
-            case["job"]["type"] in ("odoo_sso_provision", "odoo_sso_disable")
+            case["job"]["type"] in ("odoo_sso_provision", "odoo_sso_disable", *ij.PHASE1_JOB_TYPES)
             or (case["job"]["type"] == "odoo_sso_user" and case["job"]["args"]["action"] != "revoke"))
         if not case["job"]["dry_run"]:
             self.assertEqual(len(pre), 1 if expect_pre else 0, "dry-run pendahulu")
@@ -813,6 +826,534 @@ class TestUnitsParsing(unittest.TestCase):
 
     def test_fixture_counts(self) -> None:
         self.assertGreaterEqual(len(FX["invalid"]), 40)
+
+
+# =================================================================== SaaS Fase 1 (docs/plans/saas-phase-1-contract.md)
+PHASE1 = ij.PHASE1_JOB_TYPES
+ALL_TYPES = ij.JOB_TYPES
+
+
+def fx_job(name: str, **over) -> dict:
+    job = json.loads(json.dumps(fx_valid(name)["job"]))
+    job.update(over)
+    return job
+
+
+class TestPhase1Fixtures(unittest.TestCase):
+    def test_every_new_type_has_valid_and_three_invalid(self) -> None:
+        for t in PHASE1:
+            self.assertGreaterEqual(len([c for c in FX["valid"] if c["job"]["type"] == t]), 1, t)
+            self.assertGreaterEqual(len([c for c in FX["invalid"] if c.get("job", {}).get("type") == t]), 3, t)
+
+    def test_scripts_map_and_versions(self) -> None:
+        self.assertEqual(ij.VERSION, "1.2.0")
+        self.assertEqual(set(ij.VALIDATORS), set(ALL_TYPES))
+        self.assertEqual(set(ij.SCRIPTS), set(ALL_TYPES))
+        self.assertTrue(set(ALL_TYPES) - {"dry_run"} <= set(ij.DEFAULT_TIMEOUTS))
+        self.assertEqual(ij.DEFAULT_JOB_TYPES, ij.LEGACY_JOB_TYPES)
+        self.assertEqual(len(PHASE1), 10)
+        self.assertEqual({ij.SCRIPTS[t] for t in ij.KC_USER_SUBCOMMANDS}, {"kc-user.sh"})
+        for k, v in {"kc_user_per_hour": 60, "kc_user_disable_per_hour": 20, "kc_action_email_per_hour": 20,
+                     "kc_realm_sync_per_day": 10, "tenant_state_per_day": 20, "odoo_user_per_hour": 60}.items():
+            self.assertEqual(ij.DEFAULT_QUOTA[k], v, k)
+        for k, v in {"kc_realm_sync": 300, "kc_org_ensure": 120, "kc_user_ensure": 120, "kc_user_set_roles": 120,
+                     "kc_user_set_enabled": 120, "kc_user_action_email": 120, "odoo_user_ensure": 300,
+                     "odoo_tenant_config": 300, "tenant_suspend": 60, "tenant_resume": 60}.items():
+            self.assertEqual(ij.DEFAULT_TIMEOUTS[k], v, k)
+
+    def test_result_keys_phase1(self) -> None:
+        txt = ("RESULT realm=platform-staging org=8f1d kc_user=5f0c7d7e-1111-4222-8333-944455556666 "
+               "roles=client_admin,odoo_admin enabled=false state=suspended tenant=7c9e6679 changed=1 "
+               "secret=x client_secret=y")
+        self.assertEqual(ij.parse_result(txt), {
+            "realm": "platform-staging", "org": "8f1d", "kc_user": "5f0c7d7e-1111-4222-8333-944455556666",
+            "roles": "client_admin,odoo_admin", "enabled": "false", "state": "suspended", "tenant": "7c9e6679",
+            "changed": "1"})
+
+
+class TestPhase1Validators(unittest.TestCase):
+    """Uji langsung validate_job/build_argv (tanpa spool) — matriks aturan §0.3 'tidak pernah memberi hak lebih'."""
+
+    CFG = ij.Config(instance="staging", scripts_dir="/s")
+
+    def job(self, jtype: str, slug: str, args: dict, env: str = "staging", dry_run: bool = False) -> dict:
+        return {"v": 1, "job_id": "3f2c7a9e-1b4d-4e8a-9c3f-5a6b7c8d9e0f", "type": jtype, "slug": slug, "env": env,
+                "dry_run": dry_run, "actor": "user:x", "requested_at": "2026-09-25T10:00:00Z", "args": args}
+
+    def validate(self, obj: dict, instance: str = "staging") -> ij.Job:
+        return ij.validate_job(obj, instance, obj["job_id"], ALL_TYPES)
+
+    def test_cp_role_matrix(self) -> None:
+        for slug in ("platform", "acme-co"):
+            for role in ij.CP_ROLES:
+                for odoo in (None, *ij.ODOO_ACCESS):
+                    args = {"email": "a@b.co", "cp_role": role}
+                    if odoo is not None:
+                        args["odoo"] = odoo
+                    ok_role = role in (("none", "superadmin", "ops") if slug == "platform"
+                                       else ("none", "client_admin", "client_user"))
+                    ok = ok_role and not (slug == "platform" and odoo is not None)
+                    with self.subTest(slug=slug, role=role, odoo=odoo):
+                        if not ok:
+                            with self.assertRaises(ij.Reject) as cm:
+                                self.validate(self.job("kc_user_set_roles", slug, args))
+                            self.assertEqual(cm.exception.code, "rejected_validation")
+                            continue
+                        job = self.validate(self.job("kc_user_set_roles", slug, args))
+                        self.assertEqual(job.alert_reason, f"kc_user_set_roles cp_role={role}"
+                                         if role in ("superadmin", "ops") else None)
+                        dry = self.validate(self.job("kc_user_set_roles", slug, args, dry_run=True))
+                        self.assertIsNone(dry.alert_reason)
+                        argv = ij.build_argv(self.CFG, job, False)
+                        self.assertEqual(argv[:6], ["/s/kc-user.sh", "roles", slug, "staging", "--email", "a@b.co"])
+                        self.assertEqual(argv[6:8], ["--cp-role", role])
+                        self.assertEqual(argv[8:], ["--odoo", odoo] if odoo is not None else [])
+                        # tidak ada role lain/flag tambahan di argv
+                        self.assertEqual([a for a in argv if a in ij.CP_ROLES], [role] + ([odoo] if odoo == "none"
+                                                                                           else []))
+
+    def test_platform_rules(self) -> None:
+        for jtype, args in (("odoo_user_ensure", {"email": "a@b.co", "role": "user", "active": True}),
+                            ("odoo_tenant_config", {"tenant_check": "off"}), ("tenant_suspend", {}),
+                            ("tenant_resume", {})):
+            with self.subTest(jtype=jtype):
+                with self.assertRaises(ij.Reject):
+                    self.validate(self.job(jtype, "platform", args))
+                self.validate(self.job(jtype, "acme-co", args))
+        with self.assertRaises(ij.Reject):
+            self.validate(self.job("kc_realm_sync", "acme-co", {}))
+        for slug in ("platform", "acme-co"):
+            self.validate(self.job("kc_org_ensure", slug, {"tenant_id": "7c9e6679-7425-40de-944b-e07fc1f90ae7"}))
+
+    def test_realm_sync_approve_rule(self) -> None:
+        for env, inst in (("prod", "prod"), ("demo", "prod"), ("staging", "staging")):
+            for dry in (False, True):
+                for approve in (None, False, True):
+                    args = {} if approve is None else {"approve": approve}
+                    ok = dry or env == "staging" or approve is True
+                    with self.subTest(env=env, dry=dry, approve=approve):
+                        obj = self.job("kc_realm_sync", "platform", args, env=env, dry_run=dry)
+                        if not ok:
+                            with self.assertRaises(ij.Reject):
+                                self.validate(obj, inst)
+                            continue
+                        job = self.validate(obj, inst)
+                        self.assertEqual(job.pre_dry_run, not dry)
+                        self.assertEqual(job.alert_reason, None if dry else "kc_realm_sync apply")
+                        argv = ij.build_argv(self.CFG, job, dry)
+                        self.assertEqual("--approve" in argv, approve is True)
+
+    def test_name_regex(self) -> None:
+        good = ("Budi", "O'Neil", "Budi Santoso, S.T.", "A", ".Budi", "B" * 100, "Budi-Santoso", "1st")
+        bad = ("", " Budi", "-Budi", "--name", "B" * 101, "Budi\tX", "Budi\nX", "José", "Budi;id", "Budi$(id)",
+               "Budi`id`", "Budi/x", "Budi_x", "Budi\x00")
+        for n in good:
+            self.assertTrue(ij.NAME_RE.fullmatch(n), n)
+        for n in bad:
+            with self.subTest(name=n), self.assertRaises(ij.Reject):
+                self.validate(self.job("kc_user_ensure", "acme-co", {
+                    "email": "a@b.co", "tenant_id": "7c9e6679-7425-40de-944b-e07fc1f90ae7", "invite": True,
+                    "name": n}))
+
+    def test_pre_dry_run_set_for_all_new_types(self) -> None:
+        for c in FX["valid"]:
+            if c["job"]["type"] in PHASE1:
+                job = ij.validate_job(c["job"], c["instance"], c["job"]["job_id"], ALL_TYPES)
+                self.assertEqual(job.pre_dry_run, not c["job"]["dry_run"], c["name"])
+
+    def test_alert_reasons(self) -> None:
+        expect = {"kc_realm_sync_staging_apply": "kc_realm_sync apply", "kc_realm_sync_prod_approved":
+                  "kc_realm_sync apply", "kc_user_set_enabled_false": "kc_user_set_enabled enabled=false",
+                  "odoo_tenant_config_strict": "odoo_tenant_config strict", "tenant_suspend_staging": "tenant_suspend",
+                  "kc_user_set_roles_platform_superadmin": "kc_user_set_roles cp_role=superadmin",
+                  "kc_user_set_roles_platform_ops": "kc_user_set_roles cp_role=ops",
+                  "kc_user_ensure_platform_adopt": "kc_user_ensure adopt"}
+        for c in FX["valid"]:
+            if c["job"]["type"] in PHASE1:
+                job = ij.validate_job(c["job"], c["instance"], c["job"]["job_id"], ALL_TYPES)
+                self.assertEqual(job.alert_reason, expect.get(c["name"]), c["name"])
+
+    def test_kc_user_ensure_adopt(self) -> None:
+        """Kontrak v1.2 (QA F1a): `adopt` opsional bool (default false) → argv `--adopt`; apply → alert."""
+        base = {"email": "a@b.co", "tenant_id": "7c9e6679-7425-40de-944b-e07fc1f90ae7", "invite": False}
+        for slug in ("platform", "acme-co"):
+            for dry in (False, True):
+                for adopt in (None, False, True):
+                    args = dict(base) if adopt is None else {**base, "adopt": adopt}
+                    with self.subTest(slug=slug, dry=dry, adopt=adopt):
+                        job = self.validate(self.job("kc_user_ensure", slug, args, dry_run=dry))
+                        self.assertIs(job.args["adopt"], adopt is True)
+                        self.assertEqual(job.alert_reason, "kc_user_ensure adopt" if adopt and not dry else None)
+                        self.assertFalse(job.sends_email)
+                        argv = ij.build_argv(self.CFG, job, dry)
+                        self.assertEqual(argv.count("--adopt"), 1 if adopt else 0)
+                        self.assertEqual(argv[:8], ["/s/kc-user.sh", "ensure", slug, "staging", "--email", "a@b.co",
+                                                    "--tenant-id", "7c9e6679-7425-40de-944b-e07fc1f90ae7"])
+                        self.assertEqual(argv[8:], ["--no-invite", *(["--adopt"] if adopt else []),
+                                                    *(["--dry-run"] if dry else [])])
+        for bad in ("true", "false", 1, 0, None, [], {}):
+            with self.subTest(bad=bad), self.assertRaises(ij.Reject) as cm:
+                self.validate(self.job("kc_user_ensure", "acme-co", {**base, "adopt": bad}))
+            self.assertEqual((cm.exception.code, cm.exception.detail),
+                             ("rejected_validation", "args.adopt harus boolean"))
+        # adopt hanya untuk kc_user_ensure (tipe user lain menolak kunci tambahan)
+        for jtype, args in (("kc_user_set_roles", {"email": "a@b.co", "cp_role": "client_user"}),
+                            ("kc_user_set_enabled", {"email": "a@b.co", "enabled": True})):
+            with self.subTest(jtype=jtype), self.assertRaises(ij.Reject):
+                self.validate(self.job(jtype, "acme-co", {**args, "adopt": True}))
+
+    def test_disallowed_type_rejected_before_args(self) -> None:
+        obj = self.job("kc_user_set_roles", "acme-co", {"email": "a@b.co", "cp_role": "client_user"})
+        with self.assertRaises(ij.Reject) as cm:
+            ij.validate_job(obj, "staging", obj["job_id"])  # default = 5 tipe lama
+        self.assertEqual((cm.exception.code, cm.exception.detail),
+                         ("rejected_validation", "tipe tidak diizinkan di instance ini"))
+        obj["type"] = "kc_user_delete"
+        with self.assertRaises(ij.Reject) as cm:
+            ij.validate_job(obj, "staging", obj["job_id"], ALL_TYPES)
+        self.assertEqual(cm.exception.detail, "type tidak dikenal")
+
+
+class TestPhase1Allowlist(Base):
+    """Allowlist tipe per instance (kontrak §0.5): conf tanpa `job_types` → hanya 5 tipe lama."""
+
+    PROD_CASES = ("kc_realm_sync_prod_approved", "kc_org_ensure_platform", "kc_user_ensure_no_invite",
+                  "kc_user_set_roles_client_user", "kc_user_set_enabled_true", "kc_user_action_email_configure_totp",
+                  "odoo_user_ensure_user_inactive", "odoo_tenant_config_compat_demo", "tenant_suspend_prod_dry_run",
+                  "tenant_resume_demo")
+
+    def test_prod_default_rejects_every_new_type(self) -> None:
+        self.assertEqual({fx_valid(n)["job"]["type"] for n in self.PROD_CASES}, set(PHASE1))
+        ids = [self.env.put_job(fx_job(n)) for n in self.PROD_CASES]
+        self.env.run()
+        for jid in ids:
+            r = self.assertRejected(jid)
+            self.assertEqual(r["error_detail"], "tipe tidak diizinkan di instance ini")
+            self.assertIn(r["type"], PHASE1)
+        self.assertTrue(any("tipe tidak diizinkan" in a[1] for a in self.env.alerts))
+
+    def test_prod_conf_without_job_types_rejects(self) -> None:
+        self.env.conf({"quota": {"total_per_hour": 60}})
+        jid = self.env.put_job(fx_job("kc_user_set_enabled_true"))
+        self.env.run()
+        self.assertEqual(self.assertRejected(jid)["error_detail"], "tipe tidak diizinkan di instance ini")
+
+    def test_staging_without_conf_rejects(self) -> None:
+        self.env.cleanup()
+        self.env = Env("staging")
+        jid = self.env.put_job(fx_job("kc_user_ensure_invite_name"))
+        self.env.run()
+        self.assertEqual(self.assertRejected(jid)["error_detail"], "tipe tidak diizinkan di instance ini")
+
+    def test_staging_conf_all_types_accepts(self) -> None:
+        self.env.cleanup()
+        self.env = Env("staging", job_types=ALL_TYPES)
+        names = [c["name"] for c in FX["valid"] if c["instance"] == "staging"]
+        ids = [self.env.put_job(fx_job(n)) for n in names]
+        self.env.run()
+        for n, jid in zip(names, ids, strict=True):
+            self.assertEqual(self.env.result(jid)["state"], "succeeded", n)
+
+    def test_subset_allowlist(self) -> None:
+        self.env.cleanup()
+        self.env = Env("staging", job_types=["odoo_route", "kc_user_ensure"])
+        ok1 = self.env.put_job(fx_job("kc_user_ensure_invite_name"))
+        ok2 = self.env.put_job(fx_job("route_render_default"))
+        bad1 = self.env.put_job(fx_job("kc_user_set_roles_client_admin_odoo_admin"))
+        bad2 = self.env.put_job(fx_job("sso_user_revoke"))  # tipe lama di luar allowlist juga ditolak
+        self.env.run()
+        self.assertEqual(self.env.result(ok1)["state"], "succeeded")
+        self.assertEqual(self.env.result(ok2)["state"], "succeeded")
+        for jid in (bad1, bad2):
+            r = self.env.result(jid)
+            self.assertEqual((r["error_code"], r["error_detail"]),
+                             ("rejected_validation", "tipe tidak diizinkan di instance ini"))
+        executed = {c["argv"][1] for c in self.env.calls()}
+        self.assertEqual(executed, {"ensure", "acme-co"})
+
+    def test_empty_allowlist_rejects_everything(self) -> None:
+        self.env.conf({"job_types": []})
+        jid = self.env.put_job(ROUTE)
+        self.env.run()
+        self.assertEqual(self.assertRejected(jid)["error_detail"], "tipe tidak diizinkan di instance ini")
+
+    def test_invalid_job_types_fail_closed(self) -> None:
+        for bad in ('"kc_user_ensure"', '["kc_user_ensure", "kc_user_ensure"]', '["nope"]', "[1]", '{"a": 1}',
+                    '["KC_USER_ENSURE"]', "null", '[["odoo_route"]]', "true"):
+            with self.subTest(bad=bad):
+                self.env.conf('{"job_types": ' + bad + "}")
+                jid = self.env.put_job(ROUTE)
+                self.env.run()
+                self.assertRejected(jid, "disabled")
+
+    def test_load_limits(self) -> None:
+        cfg = self.env.cfg()
+        lim = ij.load_limits(cfg)
+        self.assertEqual(lim.job_types, ij.LEGACY_JOB_TYPES)
+        self.env.conf({"job_types": ["kc_user_ensure"], "timeouts": {"kc_user_ensure": 30},
+                       "quota": {"kc_action_email_per_hour": 5}})
+        lim = ij.load_limits(cfg)
+        self.assertEqual(lim.job_types, ("kc_user_ensure",))
+        self.assertEqual(lim.timeouts["kc_user_ensure"], 30)
+        self.assertEqual(lim.quota["kc_action_email_per_hour"], 5)
+        self.assertEqual(lim.quota["total_per_hour"], 60)
+
+    def test_missing_script_for_allowed_type_is_layout_error(self) -> None:
+        self.env.cleanup()
+        self.env = Env("staging", job_types=ALL_TYPES)
+        os.unlink(os.path.join(self.env.scripts, "kc-user.sh"))
+        self.env.put_job(fx_job("route_render_default"))
+        with self.assertRaises(FileNotFoundError):
+            self.env.run()
+        self.assertEqual(self.env.calls(), [])
+
+    def test_group_writable_script_for_allowed_type_is_layout_error(self) -> None:
+        self.env.cleanup()
+        self.env = Env("staging", job_types=ALL_TYPES)
+        os.chmod(os.path.join(self.env.scripts, "tenant-state.sh"), 0o775)
+        self.env.put_job(fx_job("route_render_default"))
+        with self.assertRaises(ij.LayoutError):
+            self.env.run()
+        self.assertEqual(self.env.calls(), [])
+
+    def test_new_scripts_absent_ok_when_not_allowed(self) -> None:
+        for name in {ij.SCRIPTS[t] for t in PHASE1}:
+            os.unlink(os.path.join(self.env.scripts, name))
+        jid = self.env.put_job(ROUTE)
+        self.env.run()
+        self.assertEqual(self.env.result(jid)["state"], "succeeded")
+
+
+class TestPhase1Execution(Base):
+    instance = "staging"
+
+    def setUp(self) -> None:
+        self.env = Env("staging", job_types=ALL_TYPES)
+
+    def test_pre_dry_run_chain(self) -> None:
+        jid = self.env.put_job(fx_job("kc_user_set_roles_client_admin_odoo_admin"))
+        self.env.run()
+        r = self.env.result(jid)
+        self.assertEqual((r["state"], r["phase"]), ("succeeded", "apply"))
+        calls = self.env.calls()
+        self.assertEqual([c["dry"] for c in calls], [True, False])
+        self.assertEqual(calls[0]["argv"], [*calls[1]["argv"], "--dry-run"])
+        self.assertEqual(calls[1]["argv"][1:4], ["roles", "acme-co", "staging"])
+
+    def test_pre_dry_run_failure_blocks_apply(self) -> None:
+        self.env.behaviour({"dry": {"exit": 3, "result": "", "lines": ["ERROR: user milik tenant lain"]}})
+        jid = self.env.put_job(fx_job("kc_user_ensure_invite_name"))
+        self.env.run()
+        r = self.env.result(jid)
+        self.assertEqual((r["state"], r["error_code"], r["phase"], r["exit_code"]),
+                         ("failed", "script_exit", "dry_run", 3))
+        self.assertEqual([c["dry"] for c in self.env.calls()], [True])
+
+    def test_pre_dry_run_blockers_block_apply(self) -> None:
+        self.env.behaviour({"dry": {"blockers": 1}})
+        jid = self.env.put_job(fx_job("tenant_suspend_staging"))
+        self.env.run()
+        r = self.env.result(jid)
+        self.assertEqual((r["error_code"], r["phase"]), ("blocked_dry_run", "dry_run"))
+        self.assertEqual([c["dry"] for c in self.env.calls()], [True])
+
+    def test_pre_dry_run_blockers_non_digit_blocks(self) -> None:
+        self.env.behaviour({"dry": {"result": "RESULT org=x changed=1 blockers=x"}})
+        jid = self.env.put_job(fx_job("kc_org_ensure_tenant"))
+        self.env.run()
+        self.assertEqual(self.env.result(jid)["error_code"], "blocked_dry_run")
+        self.assertEqual(len(self.env.calls()), 1)
+
+    def test_pre_dry_run_without_blockers_key_proceeds(self) -> None:
+        # Kontrak §1: tipe Fase 1 lanjut apply bila dry-run exit 0 (RESULT skrip §1.1 tidak memuat `blockers`).
+        self.env.behaviour({"dry": {"result": "RESULT kc_user=abc roles=client_admin changed=1 mode=plan"},
+                            "apply": {"result": "RESULT kc_user=abc roles=client_admin changed=1"}})
+        jid = self.env.put_job(fx_job("kc_user_set_roles_client_admin_odoo_admin"))
+        self.env.run()
+        r = self.env.result(jid)
+        self.assertEqual(r["state"], "succeeded")
+        self.assertEqual(r["result"], {"kc_user": "abc", "roles": "client_admin", "changed": "1"})
+        self.assertEqual([c["dry"] for c in self.env.calls()], [True, False])
+
+    def test_pre_dry_run_without_result_line_fails(self) -> None:
+        self.env.behaviour({"dry": {"result": ""}})
+        jid = self.env.put_job(fx_job("odoo_tenant_config_strict"))
+        self.env.run()
+        r = self.env.result(jid)
+        self.assertEqual((r["state"], r["error_code"], r["phase"]), ("failed", "script_exit", "dry_run"))
+        self.assertEqual(len(self.env.calls()), 1)
+
+    def test_dry_run_job_single_call(self) -> None:
+        jid = self.env.put_job(fx_job("kc_realm_sync_staging_plan"))
+        self.env.run()
+        r = self.env.result(jid)
+        self.assertEqual((r["state"], r["phase"]), ("succeeded", "dry_run"))
+        self.assertEqual([c["dry"] for c in self.env.calls()], [True])
+        self.assertEqual(self.env.alerts, [])
+
+    def test_sensitive_actions_alert(self) -> None:
+        for n in ("kc_realm_sync_staging_apply", "kc_user_set_enabled_false", "odoo_tenant_config_strict",
+                  "tenant_suspend_staging"):
+            self.env.put_job(fx_job(n))
+        self.env.run()
+        self.assertEqual(len(self.env.alerts), 1)
+        body = self.env.alerts[0][1]
+        for word in ("kc_realm_sync apply", "kc_user_set_enabled enabled=false", "odoo_tenant_config strict",
+                     "aksi sensitif tenant_suspend"):
+            self.assertIn(word, body)
+        self.assertNotIn("budi@", body)
+
+    def test_platform_role_grant_alerts(self) -> None:
+        self.env.put_job(fx_job("kc_user_set_roles_platform_superadmin"))
+        self.env.put_job(fx_job("kc_user_set_roles_platform_ops", env="staging"))
+        self.env.run()
+        self.assertEqual(len(self.env.alerts), 1)
+        body = self.env.alerts[0][1]
+        self.assertIn("kc_user_set_roles cp_role=superadmin", body)
+        self.assertIn("kc_user_set_roles cp_role=ops", body)
+        self.assertNotIn("ops@bimacreative", body)
+
+    def test_platform_role_grant_dry_run_no_alert(self) -> None:
+        self.env.put_job(fx_job("kc_user_set_roles_platform_superadmin", dry_run=True))
+        self.env.put_job(fx_job("kc_user_set_roles_platform_ops", env="staging", dry_run=True))
+        self.env.put_job(fx_job("kc_user_set_roles_none_odoo_none", env="staging"))
+        self.env.run()
+        self.assertEqual(self.env.alerts, [])
+
+    def test_non_sensitive_no_alert(self) -> None:
+        for n in ("kc_user_ensure_invite_name", "kc_user_set_roles_client_admin_odoo_admin",
+                  "kc_user_action_email_update_password", "odoo_user_ensure_admin_full", "kc_org_ensure_tenant"):
+            self.env.put_job(fx_job(n))
+        self.env.put_job(fx_job("tenant_suspend_staging", dry_run=True))
+        self.env.put_job(fx_job("kc_user_set_enabled_false", dry_run=True))
+        self.env.put_job(fx_job("odoo_tenant_config_strict", dry_run=True))
+        self.env.put_job(fx_job("kc_realm_sync_staging_apply", dry_run=True))
+        self.env.run()
+        self.assertEqual(self.env.alerts, [])
+
+    def test_logs_and_alerts_have_no_email(self) -> None:
+        job = fx_job("kc_user_set_enabled_false")
+        job["args"]["email"] = "rahasia@acme.co.id"
+        jid = self.env.put_job(job)
+        bad = fx_job("kc_user_set_roles_client_admin_odoo_admin")
+        bad["args"]["email"] = "rahasia2@acme.co.id"
+        bad["args"]["cp_role"] = "superadmin"
+        bad_id = self.env.put_job(bad)
+        self.env.run()
+        self.assertEqual(self.env.result(jid)["state"], "succeeded")
+        self.assertEqual(self.env.result(bad_id)["error_code"], "rejected_validation")
+        blob = json.dumps([self.env.alerts, self.env.logs, self.env.result(bad_id)])
+        self.assertNotIn("rahasia", blob)
+
+
+class TestPhase1Quota(Base):
+    instance = "staging"
+
+    def setUp(self) -> None:
+        self.env = Env("staging")
+        # total_per_hour dinaikkan agar kuota per tipe yang diuji (bukan kuota total)
+        self.env.conf({"job_types": list(ALL_TYPES), "quota": {"total_per_hour": 10000}})
+        self.now = time.time()
+
+    def fill(self, n: int, jtypes: tuple[str, ...], age: float = 30, flags: str = "accepted") -> None:
+        self.env.ledger([(self.now - age - i, new_id(), jtypes[i % len(jtypes)], flags) for i in range(n)])
+
+    def state(self, name: str, **over) -> tuple[str, str | None]:
+        jid = self.env.put_job(fx_job(name, **over))
+        self.env.run()
+        r = self.env.result(jid)
+        return r["state"], r["error_code"]
+
+    def test_kc_user_per_hour(self) -> None:
+        self.fill(60, tuple(ij.KC_USER_SUBCOMMANDS))
+        self.assertEqual(self.state("kc_user_ensure_invite_name"), ("failed", "rejected_quota"))
+        self.assertEqual(self.state("kc_user_set_roles_client_admin_odoo_admin"), ("failed", "rejected_quota"))
+        self.assertEqual(self.state("odoo_user_ensure_admin_full")[0], "succeeded")
+
+    def test_kc_user_per_hour_window(self) -> None:
+        self.fill(60, ("kc_user_ensure",), age=3700)
+        self.assertEqual(self.state("kc_user_ensure_invite_name")[0], "succeeded")
+
+    def test_kc_user_disable_per_hour(self) -> None:
+        self.fill(20, ("kc_user_set_enabled",), flags="accepted,disable")
+        self.assertEqual(self.state("kc_user_set_enabled_false"), ("failed", "rejected_quota"))
+        self.assertEqual(self.state("kc_user_set_enabled_false", dry_run=True)[0], "succeeded")
+        self.assertEqual(self.state("kc_user_set_enabled_true", env="staging")[0], "succeeded")
+
+    def test_disable_flag_written_only_for_apply(self) -> None:
+        a = self.env.put_job(fx_job("kc_user_set_enabled_false"))
+        b = self.env.put_job(fx_job("kc_user_set_enabled_false", dry_run=True))
+        self.env.run()
+        flags = {ln[1]: ln[3] for ln in self.env.ledger_lines()}
+        self.assertEqual((flags[a], flags[b]), ("accepted,disable", "accepted"))
+
+    def test_kc_action_email_per_hour(self) -> None:
+        self.fill(20, ("kc_user_action_email",))
+        self.assertEqual(self.state("kc_user_action_email_update_password"), ("failed", "rejected_quota"))
+        self.assertEqual(self.state("kc_user_ensure_invite_name"), ("failed", "rejected_quota"))  # undangan = email
+        self.assertEqual(self.state("kc_user_set_roles_client_admin_odoo_admin")[0], "succeeded")
+
+    def test_invite_counts_toward_action_email(self) -> None:
+        self.fill(20, ("kc_user_action_email",))
+        self.assertEqual(self.state("kc_user_ensure_invite_name"), ("failed", "rejected_quota"))
+        # tanpa undangan / dry-run: tidak mengirim email → tidak terkena kuota email
+        self.assertEqual(self.state("kc_user_ensure_no_invite", env="staging")[0], "succeeded")
+        self.assertEqual(self.state("kc_user_ensure_invite_name", dry_run=True)[0], "succeeded")
+
+    def test_invite_apply_consumes_action_email_quota(self) -> None:
+        self.fill(20, ("kc_user_ensure",), flags="accepted,email")
+        self.assertEqual(self.state("kc_user_action_email_update_password"), ("failed", "rejected_quota"))
+
+    def test_email_flag_written_only_for_invite_apply(self) -> None:
+        a = self.env.put_job(fx_job("kc_user_ensure_invite_name"))
+        b = self.env.put_job(fx_job("kc_user_ensure_invite_name", dry_run=True))
+        c = self.env.put_job(fx_job("kc_user_ensure_no_invite", env="staging"))
+        self.env.run()
+        flags = {ln[1]: ln[3] for ln in self.env.ledger_lines()}
+        self.assertEqual((flags[a], flags[b], flags[c]), ("accepted,email", "accepted", "accepted"))
+
+    def test_invite_email_quota_override(self) -> None:
+        self.env.conf({"job_types": list(ALL_TYPES), "quota": {"kc_action_email_per_hour": 1}})
+        self.assertEqual(self.state("kc_user_ensure_invite_name")[0], "succeeded")
+        self.assertEqual(self.state("kc_user_action_email_update_password"), ("failed", "rejected_quota"))
+
+    def test_kc_realm_sync_per_day(self) -> None:
+        self.fill(10, ("kc_realm_sync",), age=7200)
+        self.assertEqual(self.state("kc_realm_sync_staging_plan"), ("failed", "rejected_quota"))
+
+    def test_kc_realm_sync_per_day_window(self) -> None:
+        self.fill(10, ("kc_realm_sync",), age=86400 + 60)
+        self.assertEqual(self.state("kc_realm_sync_staging_apply")[0], "succeeded")
+
+    def test_tenant_state_per_day(self) -> None:
+        self.fill(20, ("tenant_suspend", "tenant_resume"), age=7200)
+        self.assertEqual(self.state("tenant_suspend_staging"), ("failed", "rejected_quota"))
+        self.assertEqual(self.state("tenant_resume_demo", env="staging"), ("failed", "rejected_quota"))
+        self.assertEqual(self.state("odoo_tenant_config_strict")[0], "succeeded")
+
+    def test_odoo_user_per_hour(self) -> None:
+        self.fill(60, ("odoo_user_ensure",))
+        self.assertEqual(self.state("odoo_user_ensure_admin_full"), ("failed", "rejected_quota"))
+        self.assertEqual(self.state("kc_user_ensure_invite_name")[0], "succeeded")
+
+    def test_total_per_hour_still_applies(self) -> None:
+        self.env.conf({"job_types": list(ALL_TYPES)})
+        self.fill(60, ("kc_org_ensure",))
+        self.assertEqual(self.state("kc_org_ensure_tenant"), ("failed", "rejected_quota"))
+
+    def test_quota_override_new_key(self) -> None:
+        self.env.conf({"job_types": list(ALL_TYPES), "quota": {"kc_action_email_per_hour": 1}})
+        self.assertEqual(self.state("kc_user_action_email_update_password")[0], "succeeded")
+        self.assertEqual(self.state("kc_user_action_email_update_password"), ("failed", "rejected_quota"))
+
+    def test_timeout_override_new_type(self) -> None:
+        self.env.conf({"job_types": list(ALL_TYPES), "timeouts": {"tenant_suspend": 5}})
+        self.env.behaviour({"apply": {"sleep": 120, "ignore_term": True}})
+        t = time.monotonic()
+        jid = self.env.put_job(fx_job("tenant_suspend_staging"))
+        self.env.run()
+        self.assertLess(time.monotonic() - t, 20)
+        self.assertEqual(self.env.result(jid)["error_code"], "timeout_state_unknown")
 
 
 # ============================================================================== fixture control plane (J2)
