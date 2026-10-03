@@ -10,8 +10,8 @@ Append per sesi, bertanggal. Pertanyaan pemblokir selalu di bagian **Butuh keput
   `odoo-addons-athera`, `odoo-addons-expomedia`, `web-tambang`; **nonaktifkan Actions** dulu (web-expomedia/web-tambang punya
   `ci.yml` yang langsung jalan saat push tag/branch); pasang deploy key **write** (public key di laporan sesi; file
   `~/.ssh/deploy_<repo>.pub` root di host). Setelah itu Claude menjalankan push semua branch + tag.
-- **FREEZE DICABUT** (owner, 2026-10-03 ±14:27 WIB). Menunggu owner: (c) hadir ±10 mnt untuk bootstrap
-  `kc-realm-sync` (§3.1, TOTP); (d) `docker volume prune` diblok hook `bash-policy.sh` — jalankan sendiri atau longgarkan hook.
+- **FREEZE DICABUT** (owner, 2026-10-03 ±14:27 WIB). Menunggu owner: (c) §6 lewat UI CP staging (login
+  superadmin) + login SSO penuh user uji; (d) `docker volume prune` diblok hook `bash-policy.sh` — jalankan sendiri atau longgarkan hook.
 
 ## Keputusan owner (2026-10-02)
 
@@ -259,3 +259,22 @@ skenario gate; dua jendela perawatan prod + tanggal cut-over. Tetap terbuka: K3 
     salah (untung tidak di-apply). Diperbaiki ke `--host expomedia-erp.staging… --host demo-erp.expomedia.id` → dry-run ulang `changed=0 blockers=0` (§1.2 lulus).
   - §4: `kill -HUP 1` Traefik → tanpa error log, tanpa restart; 26 host status HTTP identik sebelum/sesudah.
     `infra-healthcheck` rc=1 karena masalah lama: `restic-restore-test.service` failed (db_compare 2026-10-02) + swap > 1 GiB.
+- §3 (owner bootstrap `kc-realm-sync` platform-staging ±17:29; secret 86 char = format KC 26.7):
+  - Sync dry-run `changed=12 blockers=0` (rencana = runbook §3.2). Apply pertama **gagal di tengah**: `POST /client-scopes`
+    403 = WAF CRS **942190** (`ARGS.json.description` "…atribut user (ADR…" → `user (`); flow + user profile sudah masuk,
+    tanpa ban. Fix `1436ba9` (deskripsi tanpa `user (`); diuji lokal vs 79 rule CRS PL1 ber-target ARGS dari container
+    crowdsec → 0 hit; `test-kc-scripts.sh` 26 OK. Apply ulang `changed=10`, dry-run `changed=0 blockers=0`.
+  - Secret `cp-admin` diambil via lib (`KC_ADMIN_CLIENT=kc-realm-sync`) ke `cp-admin-platform-staging.secret` (600, tidak
+    dicetak). Role SA persis `manage-organizations,manage-users,query-groups,query-users,view-clients,view-users`; token OK;
+    `PUT realm` → 403.
+  - Uji live S1 (`organizationsEnabled=false`, contoh ID token admin `evaluate-scopes`, 4 user × `control-plane` +
+    `odoo-expomedia-staging`): klaim `organization` tidak ada; `tenant_id` tidak ada (belum ada user ber-atribut — bukti
+    positif menyusul §6 adopsi); scope `tenant` default di kedua client.
+  - §3.5: `organizationsEnabled=true` (override staging `3f8cfdd`) → apply `changed=1`, ulang `changed=0`. Org uji `ssotest`
+    (`b60a9291…`, alias = tenant id CP) via `kc-org.sh`, ulang `changed=0`. Halaman login `control-plane` (PKCE) dan
+    `odoo-expomedia-staging` (alur `/sh_auth_oidc/authorize`) = form username+password (sub-flow DISABLED).
+    `cp-admin`: `GET /organizations?search` 200, `/organizations/{id}/members` 200, **F1** `/organizations/members/{uid}/
+    organizations` 200, `role-mappings/clients/{id}/composite` 200 — endpoint F1 terverifikasi live; tanpa alert WAF.
+  - Guard F1 live (dry-run, user superadmin, slug `ssotest`): `enabled`/`roles`/`ensure` → rc=3 "DITOLAK: user staf
+    platform … hanya bisa diubah lewat slug platform".
+  - Belum (butuh browser owner): SSO antar-client dengan sesi nyata, login member/non-member dengan kredensial.
