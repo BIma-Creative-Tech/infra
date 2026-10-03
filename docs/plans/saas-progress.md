@@ -292,3 +292,16 @@ skenario gate; dua jendela perawatan prod + tanggal cut-over. Tetap terbuka: K3 
     `tenant_id=ae8540fc…`, tanpa `organization`.
   - Temuan data: environment `demo` di CP `db_status=absent` padahal DB `demo_staging` ada (data 2026-09-25); 2 user
     `client_user` lama tanpa tenant. `tenant_check` `demo` belum diset (observasi compat 7 hari belum mulai).
+- Gate §7.2/§7.4 sebagian (owner via portal tenant-admin `demo`, 18:06–18:19; diverifikasi server):
+  - Tenant-admin login SSO ke CP (`/portal`) dan ke Odoo `demo_staging` (callback `/sh_auth_oidc/callback` → `Login
+    successful`). Form password Odoo gagal = **sesuai desain**: user dari `odoo_user_ensure` tanpa password lokal
+    (`odoo_user_ensure.py:33`, password = Keycloak). Usulan Fase 2: sembunyikan/beri keterangan form password di tenant SSO.
+  - Portal: tambah user (`kc_user_ensure` created + invite, `kc_user_set_roles` `client_user,odoo_access`, Odoo uid 16/18),
+    ubah akses, reset password, nonaktifkan (KC `enabled=0` + Odoo user diarsipkan, uid 12 & 16). Perubahan ganda saat
+    job berjalan → `rejected reason=duplicate` (guard). Job ulang `changed=0` (set_roles 18:11:53/18:13:14/18:19:00,
+    odoo_user_ensure 18:13:14) → bukti §7.5 idempotensi.
+  - Email undangan ke alamat salah ketik → Gmail `550 5.1.1` (bounce) padahal job `succeeded`; alamat benar → `status=sent`
+    18:18:51. Usulan Fase 2: tampilkan bounce undangan di CP (job hanya tahu Keycloak berhasil mengirim).
+  - Belum: login SSO user portal ke Odoo; `tenant_check=compat` `demo` (masih kosong); lintas tenant; billing §7.3
+    (`TICK_NOW` belum diteruskan compose — pakai override sementara saat uji, bukan commit, karena `TICK_NOW=""` gagal
+    validasi env).
