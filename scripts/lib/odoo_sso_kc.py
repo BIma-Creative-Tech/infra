@@ -38,8 +38,11 @@ ATTRIBUTES_FIXED = {
     'standard.token.exchange.enabled': 'false',
 }
 DEFAULT_SCOPES = ['acr', 'basic', 'email', 'profile']
-# Scope default yang DIKELOLA kc-realm-sync (identity/keycloak/realm/platform.json, ADR 0017 D3): tidak ditambah dan
-# tidak dilepas di sini — tanpa ini provision-odoo-sso.sh dan kc-realm-sync saling membatalkan (flapping).
+# Scope default yang DIKELOLA kc-realm-sync (identity/keycloak/realm/platform.json, ADR 0017 D3): TIDAK PERNAH dilepas
+# di sini (tanpa itu provision-odoo-sso.sh dan kc-realm-sync saling membatalkan / flapping), tetapi DITAMBAH bila scope
+# sudah ada di realm (2026-10-03: client odoo-* baru dari onboarding tidak punya scope tenant sampai sync berikutnya →
+# token tanpa tenant_id). Scope belum ada di realm (realm belum di-sync, mis. prod sebelum migrasi) → dilewati, bukan
+# `missing`; keluaran `realm_sync` = false.
 REALM_SYNC_DEFAULT_SCOPES = ('tenant',)
 CALLBACK_PATH = '/sh_auth_oidc/callback'   # sh_auth_oidc controllers/main.py CALLBACK_PATH
 LOGOUT_PATH = '/web/login'
@@ -154,12 +157,18 @@ def cmd_scopes(_args):
                 missing.append(name)
             else:
                 ops.append(['add-default', by_name[name], name])
+    realm_sync = all(name in by_name for name in REALM_SYNC_DEFAULT_SCOPES)
+    if realm_sync:
+        for name in REALM_SYNC_DEFAULT_SCOPES:
+            if name not in default:
+                ops.append(['add-default', by_name[name], name])
     for name, sid in sorted(default.items()):
         if name not in DEFAULT_SCOPES and name not in REALM_SYNC_DEFAULT_SCOPES:
             ops.append(['remove-default', sid, name])
     for name, sid in sorted(optional.items()):
-        ops.append(['remove-optional', sid, name])
-    return {'ops': ops, 'missing': missing}
+        if name not in REALM_SYNC_DEFAULT_SCOPES:
+            ops.append(['remove-optional', sid, name])
+    return {'ops': ops, 'missing': missing, 'realm_sync': realm_sync}
 
 
 def main():

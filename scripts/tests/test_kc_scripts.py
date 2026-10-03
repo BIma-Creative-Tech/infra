@@ -223,7 +223,8 @@ class T01RealmSync(Base):
         self.assertEqual(res['mode'], 'apply')
         self.assertGreaterEqual(int(res['changed']), planned - 1, out)
         R = self.realm()
-        self.assertIs(R['rep']['organizationsEnabled'], False)
+        # platform-staging.overrides.json: organizationsEnabled=true sejak uji live S1 (runbook §3.5, 2026-10-03); prod tetap false.
+        self.assertIs(R['rep']['organizationsEnabled'], True)
         self.assertTrue(any(a['name'] == 'tenant_id' and a['permissions'] == {'view': ['admin'], 'edit': ['admin']}
                             for a in R['profile']['attributes']))
         self.assertNotIn('${', json.dumps(R['profile']), 'label placeholder diganti literal (WAF CRS 932130)')
