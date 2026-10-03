@@ -10,8 +10,10 @@ Append per sesi, bertanggal. Pertanyaan pemblokir selalu di bagian **Butuh keput
   `odoo-addons-athera`, `odoo-addons-expomedia`, `web-tambang`; **nonaktifkan Actions** dulu (web-expomedia/web-tambang punya
   `ci.yml` yang langsung jalan saat push tag/branch); pasang deploy key **write** (public key di laporan sesi; file
   `~/.ssh/deploy_<repo>.pub` root di host). Setelah itu Claude menjalankan push semua branch + tag.
-- **FREEZE** — berlaku sampai owner menulis "FREEZE DICABUT". Setelah itu: K2 start ulang CI runner, K4–K5, apply K3 restic,
-  W0–W8.
+- **FREEZE DICABUT** (owner, 2026-10-03 ±14:27 WIB). Menunggu owner: (a) izin apply Ansible `infra_jobs` (runbook §1.3 —
+  ditolak classifier izin otomatis, kategori *Protected-Scope IaC Apply*) dan `backup` (restic `/opt/src`); (b) jam untuk §2
+  restart `odoo-staging` + §4 HUP Traefik (aturan runbook: di luar jam kerja client); (c) hadir ±10 mnt untuk bootstrap
+  `kc-realm-sync` (§3.1, TOTP); (d) `docker volume prune` diblok hook `bash-policy.sh` — jalankan sendiri atau longgarkan hook.
 
 ## Keputusan owner (2026-10-02)
 
@@ -222,3 +224,25 @@ Owner: demo ke client hari ini; pekerjaan dilanjutkan setelah demo. **Freeze tet
 Prod cut-over: ±1 minggu (gate dipercepat, observasi paralel) atau ±2,5 minggu (gate penuh). Ketergantungan owner: kalimat
 "FREEZE DICABUT"; ±10 menit ×2 untuk bootstrap `kc-realm-sync` di console Keycloak (TOTP admin; staging lalu prod); pilihan
 skenario gate; dua jendela perawatan prod + tanggal cut-over. Tetap terbuka: K3 (repo GitHub), K6 (DMARC), Q1–Q10 Fase 2.
+
+## 2026-10-03 (sore) — FREEZE DICABUT; runbook staging §0, §1.1–1.2, §5 + K2/K4/K5
+
+**Berubah**
+- §0: backup manual `RESULT status=ok dbs_ok=13 remote=ok` (14:29); dump `control_plane_staging` + `keycloak` + salinan
+  `traefik/dynamic/clients` di `/opt/infra/backups/saas-p1/20261003-143042/` (700/600 root).
+- §1.1: merge `feat/infra-saas-p1` → `main` (`1b117d8`; sebelum `e2341c7`). §1.2: `provision-odoo-sso.sh expomedia staging
+  --dry-run` exit 0 `blockers=0`; `changed=1` (redirectUris/rootUrl client `odoo-expomedia-staging`) = drift lama — skrip
+  sebelum merge memberi rencana identik; tidak diterapkan. §1.3 `--check --diff`: `changed=2` (`infra-job` 1.2.0 +
+  `staging.conf` `job_types`), `prod.conf` tidak berubah. **Apply belum** (izin ditolak) → dispatcher host masih versi lama;
+  tipe job Fase 1 belum di-allowlist (CP staging akan ditolak fail-closed, bukan dieksekusi).
+- §5: image `control-plane:020bc2f` (commit `feat/saas-p1`, berisi `main` 3d4aa7c); pin compose staging (`28df9e3`); migrasi
+  0004–0005 + seed tenant `platform` + 7 plan; web/worker/mailpit healthy; `/api/health` 200. Prod CP tetap `3d4aa7c`.
+- K2: `ci-runner-supervisor` ternyata sudah aktif sejak 06:40 WIB (start manual, pemicu tidak tercatat; bukan sesi ini).
+- K5: tag `42682f7f2d09` → `ghcr.io/bctech-adm/proyekkas-web:0.4.1`, dan `139ab67a1e2f` → `proyekkas-migrate:0.4.1`
+  (label versi 0.4.1, revisi `7141e4c` = container `drms-pk-migrate`). `:0.3.0` tetap ada (tidak dihapus).
+- K4: `docker rmi` 22 tag / 20 image §11.1 tanpa `-f` (mailpit dikecualikan), `builder prune --filter until=72h` 2,28 GB.
+  `/` 64 % → **59 %**. `zricethezav/gitleaks` ternyata dipakai pre-commit hook infra → ditarik ulang otomatis (digest pin).
+  `volume prune` **diblok hook**: 34 volume anonim (32 PGDATA container Postgres uji 09-27…10-03 + 2 kosong, ±4,6 GB).
+
+**Belum**: §1.3 apply, §2 (addons-shared + restart odoo-staging), §3 (KC, butuh owner), §4 (Traefik HUP), §6–§7; restic
+`/opt/src` (`feat/backup-opt-src` merge bersih, apply via role `backup`).
