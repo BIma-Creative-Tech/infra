@@ -308,3 +308,29 @@ skenario gate; dua jendela perawatan prod + tanggal cut-over. Tetap terbuka: K3 
   - Belum: portal/CP lintas tenant (403/not_found); `tenant_check=compat` `demo` (masih kosong); billing §7.3
     (`TICK_NOW` belum diteruskan compose — pakai override sementara saat uji, bukan commit, karena `TICK_NOW=""` gagal
     validasi env).
+
+## 2026-10-03 (malam) — owner: "lanjutkan sesuai rekomendasi, review di akhir"
+
+**Berubah**
+- `restore-test.sh` (`1a3bd53`): pembanding = isi dump di snapshot yang sama (TOC `pg_restore -l` + baris COPY tabel kunci,
+  `--snapshot` eksplisit), DB live hanya info. Ditemukan saat uji: pipa ke `pg_restore` yang berhenti dini membuat restic
+  mati SIGPIPE → **lock basi** (menggagalkan `restic check`) → pipa dikuras; lock basi dihapus `restic unlock` (tanpa
+  `--remove-all`). Uji `demo_staging`: dump=restore (218 tabel, 4/9/715), live 8 user (bukti desain lama salah).
+  `systemctl start restic-restore-test` (expomedia_prod): `status=ok db_compare=ok`, 986 tabel, RTO 59 s → unit tidak
+  failed lagi, email RESOLVED.
+- `infra-healthcheck.sh` (`f585274`): alarm swap = terpakai > 1024 MiB **dan** swap-in > 50 page/s sejak run sebelumnya
+  (`/var/lib/infra-healthcheck/swapin.last`), atau > 3072 MiB. Swap 1,5–1,7 GiB = page dingin (swap-in ±0). Uji state
+  normal → OK; state palsu → `swap-in 993 page/s` MASALAH. Run timer berikutnya OK + RESOLVED.
+- Catatan operasi: timer (healthcheck, backup, restore-test) menjalankan skrip dari working tree `/opt/infra` → selama
+  `git switch` ke branch kerja, timer memakai versi branch. Selalu kembali ke `main` segera.
+
+**Gate §7 — status**
+| Butir | Status | Bukti |
+|---|---|---|
+| 7.1 onboarding tenant baru satu form | **belum** | — (owner via UI; saya pantau rantai) |
+| 7.2 user internal/client, reset password | sebagian | tambah/nonaktif/reset/ubah akses lulus; **aktifkan kembali** + user internal `platform` belum |
+| 7.3 billing | **belum** | helper `tick.sh` (scratchpad) siap; butuh subscription + Go-live dari UI |
+| 7.4 portal + lintas tenant | sebagian | portal→Odoo lulus; Odoo lintas tenant `oauth_error=2` lulus; **CP lintas tenant** belum |
+| 7.5 idempotensi + kegagalan disuntik | sebagian | ulang job `changed=0` lulus; injeksi `inject.sh` (DB `demo_staging` tolak koneksi baru, pengaman 20 mnt) diuji siklus on/off, **job gagal belum** (butuh 1 aksi UI) |
+| 7.6 compat 7 hari | belum mulai | `tenant_check` `demo` masih kosong |
+| 7.7 audit | lulus (data s.d. kini) | 23 aksi manusia, semua `actor_user_id` terisi; aksi ditolak teraudit; worker = `system:worker` |
