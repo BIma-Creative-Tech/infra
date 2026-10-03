@@ -205,3 +205,20 @@ K11 upgrade Keycloak 26.7.5) → owner approval.
 - **Fitur CP** `020bc2f`: "Daftarkan tenant yang sudah ada" (untuk M8 Expomedia) — baris tenant/environment dari kondisi nyata,
   host kustom = route manual (job DB/route/SSO diblok sampai Fase 2), rantai `kc_org_ensure` + `odoo_tenant_config compat`.
   757 unit + 87 integrasi OK.
+
+## 2026-10-03 — DITAHAN sampai demo expomedia selesai (owner)
+
+Owner: demo ke client hari ini; pekerjaan dilanjutkan setelah demo. **Freeze tetap berlaku** sampai owner menulis
+"FREEZE DICABUT". Estimasi waktu setelah freeze dicabut (disetujui owner sebagai estimasi, bukan pencabutan freeze):
+
+| Tahap | Kerja aktif | Kalender | Dampak client |
+|---|---|---|---|
+| Deploy staging (runbook `saas-phase-1-deploy-staging.md` §0–§6) | ±4–5 jam | hari yang sama | nol |
+| Gate Fase 1 (§7 butir 1–5, 7) | ±1 hari | hari ke-1–2 | nol |
+| Observasi `tenant_check=compat` (§7 butir 6) | pasif | 7 hari | nol |
+| Tertunda: start CI runner (K2), K4, K5, restic `/opt/src` | ±1–1,5 jam | hari ke-0/1 | nol |
+| Migrasi prod M3–M9 (`saas-migration-prod.md`) | ±1 hari kerja, 2 jendela perawatan | — | Keycloak ±1–2 mnt, pool-a ±1 mnt, CP ±30 dtk |
+
+Prod cut-over: ±1 minggu (gate dipercepat, observasi paralel) atau ±2,5 minggu (gate penuh). Ketergantungan owner: kalimat
+"FREEZE DICABUT"; ±10 menit ×2 untuk bootstrap `kc-realm-sync` di console Keycloak (TOTP admin; staging lalu prod); pilihan
+skenario gate; dua jendela perawatan prod + tanggal cut-over. Tetap terbuka: K3 (repo GitHub), K6 (DMARC), Q1–Q10 Fase 2.
