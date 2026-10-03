@@ -6,12 +6,18 @@ Append per sesi, bertanggal. Pertanyaan pemblokir selalu di bagian **Butuh keput
 
 ## Butuh keputusan
 
-- **K3 (owner, HARI INI)** — buat 5 repo **private** kosong di `bctech-adm`: `web-expomedia`, `odoo-data-expomedia`,
-  `odoo-addons-athera`, `odoo-addons-expomedia`, `web-tambang`; **nonaktifkan Actions** dulu (web-expomedia/web-tambang punya
-  `ci.yml` yang langsung jalan saat push tag/branch); pasang deploy key **write** (public key di laporan sesi; file
-  `~/.ssh/deploy_<repo>.pub` root di host). Setelah itu Claude menjalankan push semua branch + tag.
-- **FREEZE DICABUT** (owner, 2026-10-03 ±14:27 WIB). Menunggu owner: (c) §6 lewat UI CP staging (login
-  superadmin) + login SSO penuh user uji; (d) `docker volume prune` diblok hook `bash-policy.sh` — jalankan sendiri atau longgarkan hook.
+- **Gate Fase 1 staging — sisa (owner menghentikan uji 2026-10-03 23:33 "cukup testingnya")**: 7.3 billing (helper
+  `tick.sh`), 7.5 kegagalan disuntik (helper `inject.sh`), 7.2 aktifkan-kembali user + user internal `platform`, 7.4 CP
+  lintas tenant (403/not_found), 7.1 ulang onboarding tenant baru TANPA intervensi (bukti fix `797d96a`), 7.6 observasi
+  `compat` 7 hari (`ujiq` compat sejak 2026-10-03 22:35; `demo` belum diset). Owner memutuskan: lanjut gate penuh atau
+  dipercepat sebelum migrasi prod.
+- **Review owner**: commit infra `1a3bd53` (restore-test), `f585274` (swap), `1436ba9`/`3f8cfdd` (realm), `797d96a`
+  (provision SSO), CP `89124b6` (log field onboarding); kebijakan commit route hasil job (`ujiq-staging.yml` untracked);
+  UX onboarding (pesan host spesifik, cegah submit ganda); usulan Fase 2 (form password Odoo di tenant SSO, bounce
+  undangan terlihat di CP).
+- **K3** — 4 repo privat GitHub sisanya (odoo-addons-shared sudah) + izin push `main` infra (>30 commit lokal).
+- **K6** — DMARC `expomedia.id` `pct=25` (pengingat 7 hari setelah owner konfirmasi DNS).
+- `docker volume prune -f` via SSH (±4,6 GB, hook memblok Claude). Q1–Q10 Fase 2.
 
 ## Keputusan owner (2026-10-02)
 
@@ -351,3 +357,7 @@ skenario gate; dua jendela perawatan prod + tanggal cut-over. Tetap terbuka: K3 
   - Sisa: uji ulang onboarding tenant baru **tanpa intervensi** (membuktikan fix 797d96a); route hasil job
     (`traefik/dynamic/clients/ujiq-staging.yml`) tidak di-commit — putuskan kebijakan; UX: pesan host spesifik, tombol
     submit dinonaktifkan setelah klik.
+- 23:32:35 admin `ujiq` login SSO ke Odoo `ujiq_staging` (uid 6, Administrator) setelah set password undangan + login CP
+  portal 23:30:48 (`invited` → `active`). Owner: "cukup testingnya". Helper uji dimatikan (TICK_NOW tidak diset,
+  `demo_staging` menerima koneksi, tanpa timer injeksi). Catatan K4: `node:24.21.0-bookworm-slim` dipakai menjalankan
+  tes CP (node_modules glibc) → ditarik ulang; jangan masuk daftar hapus berikutnya.
