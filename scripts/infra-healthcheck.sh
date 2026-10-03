@@ -33,7 +33,7 @@ TAG=infra-healthcheck
 if [[ -r "$ENV_FILE" ]]; then
   while IFS= read -r line || [[ -n "$line" ]]; do
     [[ "$line" =~ ^[[:space:]]*(#|$) ]] && continue
-    [[ "$line" =~ ^(ALERT_TO|ALERT_FROM|ALERT_SMTP_HOST|ALERT_SMTP_PORT|ALERT_PASSWORD_FILE|HC_STACKS|HC_UNITS|HC_REPEAT_MINUTES|HC_STATE_DIR|HC_EXTRA_CONTAINERS|HC_DISK_PCT|HC_SWAP_MIB|HC_CI_TEXTFILE_DIR|HC_CI_DISK_PCT|HC_CI_HEARTBEAT_SEC|HC_CI_REG_FAILS|HC_CI_RUNNER_MAX_AGE_DAYS|HC_CI_MEM_PCT)=(.*)$ ]] || continue
+    [[ "$line" =~ ^(ALERT_TO|ALERT_FROM|ALERT_SMTP_HOST|ALERT_SMTP_PORT|ALERT_PASSWORD_FILE|HC_STACKS|HC_UNITS|HC_REPEAT_MINUTES|HC_STATE_DIR|HC_EXTRA_CONTAINERS|HC_DISK_PCT|HC_SWAP_MIB|HC_SWAPIN_PPS|HC_SWAP_CRIT_MIB|HC_CI_TEXTFILE_DIR|HC_CI_DISK_PCT|HC_CI_HEARTBEAT_SEC|HC_CI_REG_FAILS|HC_CI_RUNNER_MAX_AGE_DAYS|HC_CI_MEM_PCT)=(.*)$ ]] || continue
     k="${BASH_REMATCH[1]}"; v="${BASH_REMATCH[2]}"; v="${v#\"}"; v="${v%\"}"
     [[ -n "${!k+x}" ]] || export "$k=$v"   # env proses (mis. dari unit/pemanggil) menang atas file
   done < "$ENV_FILE"
@@ -184,14 +184,28 @@ for u in $(printf '%s\n' $units | sort -u); do
   fi
 done
 
-# 5. disk & swap (T19 2026-09-25, ADR 0004): disk root > HC_DISK_PCT % (default 70), swap terpakai > HC_SWAP_MIB (default 1024)
+# 5. disk & swap (T19 2026-09-25, ADR 0004): disk root > HC_DISK_PCT % (default 70). Swap (2026-10-03): swap terpakai
+#    saja bukan masalah (page dingin proses idle — next-server/odoo/rspamd — terparkir di swap, swap-in ±0) → masalah bila
+#    terpakai > HC_SWAP_MIB (1024) DAN laju swap-in sejak run sebelumnya > HC_SWAPIN_PPS (50 page/s ≈ 200 KiB/s = memori
+#    benar-benar kurang), atau terpakai > HC_SWAP_CRIT_MIB (3072) berapa pun lajunya. Run pertama (tanpa state) → hanya
+#    batas kritis. State $HC_STATE_DIR/swapin.last tidak ditulis pada --no-mail.
 disk_pct="$(df --output=pcent / | tail -n1 | tr -dc '0-9')"
 if [[ -n "$disk_pct" ]] && (( disk_pct > ${HC_DISK_PCT:-70} )); then
   problem "disk-root" "disk / terpakai ${disk_pct}% (> ${HC_DISK_PCT:-70}%) — cek build cache/image (docker system df), backups, /opt/src"
 fi
 swap_mib="$(awk '/^SwapTotal:/{t=$2} /^SwapFree:/{f=$2} END{print int((t-f)/1024)}' /proc/meminfo)"
-if [[ -n "$swap_mib" ]] && (( swap_mib > ${HC_SWAP_MIB:-1024} )); then
-  problem "swap-used" "swap terpakai ${swap_mib} MiB (> ${HC_SWAP_MIB:-1024} MiB) — cek build lokal / container mendekati limit"
+swapin_now="$(awk '/^pswpin /{print $2}' /proc/vmstat)"; now_s="$(date +%s)"; swapin_pps=""
+if [[ -r "$HC_STATE_DIR/swapin.last" ]] && read -r prev_s prev_in < "$HC_STATE_DIR/swapin.last" \
+   && [[ "$prev_s" =~ ^[0-9]+$ && "$prev_in" =~ ^[0-9]+$ && -n "$swapin_now" ]] && (( now_s > prev_s && swapin_now >= prev_in )); then
+  swapin_pps=$(( (swapin_now - prev_in) / (now_s - prev_s) ))
+fi
+[[ "$MAIL" == yes && -n "$swapin_now" ]] && printf '%s %s\n' "$now_s" "$swapin_now" > "$HC_STATE_DIR/swapin.last"
+if [[ -n "$swap_mib" ]]; then
+  if (( swap_mib > ${HC_SWAP_CRIT_MIB:-3072} )); then
+    problem "swap-used" "swap terpakai ${swap_mib} MiB (> ${HC_SWAP_CRIT_MIB:-3072} MiB, kritis) — cek build lokal / container mendekati limit"
+  elif [[ -n "$swapin_pps" ]] && (( swap_mib > ${HC_SWAP_MIB:-1024} && swapin_pps > ${HC_SWAPIN_PPS:-50} )); then
+    problem "swap-used" "swap terpakai ${swap_mib} MiB dan swap-in ${swapin_pps} page/s (> ${HC_SWAPIN_PPS:-50}) — memori kurang; cek build lokal / container mendekati limit"
+  fi
 fi
 
 # 6. runner CI self-hosted (plan 12 R7, ADR 0014) — hanya bila role ci_runner terpasang (/etc/ci-runner ada).
