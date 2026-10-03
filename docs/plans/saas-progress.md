@@ -302,6 +302,9 @@ skenario gate; dua jendela perawatan prod + tanggal cut-over. Tetap terbuka: K3 
     odoo_user_ensure 18:13:14) → bukti §7.5 idempotensi.
   - Email undangan ke alamat salah ketik → Gmail `550 5.1.1` (bounce) padahal job `succeeded`; alamat benar → `status=sent`
     18:18:51. Usulan Fase 2: tampilkan bounce undangan di CP (job hanya tahu Keycloak berhasil mengirim).
-  - Belum: login SSO user portal ke Odoo; `tenant_check=compat` `demo` (masih kosong); lintas tenant; billing §7.3
+  - 18:22:33 user portal (uid 18) login SSO ke `demo_staging` → alur portal §7.4 lengkap.
+  - **Lintas tenant (§7.4, sisi Odoo)** 18:23:59: user `demo` → SSO `expomedia_staging` → `OIDC login refused: required
+    client role 'odoo_access' missing from the ID token` → `/web/login?oauth_error=2`.
+  - Belum: portal/CP lintas tenant (403/not_found); `tenant_check=compat` `demo` (masih kosong); billing §7.3
     (`TICK_NOW` belum diteruskan compose — pakai override sementara saat uji, bukan commit, karena `TICK_NOW=""` gagal
     validasi env).
