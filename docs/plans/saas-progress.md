@@ -10,8 +10,8 @@ Append per sesi, bertanggal. Pertanyaan pemblokir selalu di bagian **Butuh keput
   `odoo-addons-athera`, `odoo-addons-expomedia`, `web-tambang`; **nonaktifkan Actions** dulu (web-expomedia/web-tambang punya
   `ci.yml` yang langsung jalan saat push tag/branch); pasang deploy key **write** (public key di laporan sesi; file
   `~/.ssh/deploy_<repo>.pub` root di host). Setelah itu Claude menjalankan push semua branch + tag.
-- **FREEZE DICABUT** (owner, 2026-10-03 ±14:27 WIB). Menunggu owner: (a) izin apply Ansible `infra_jobs` (runbook §1.3 —
-  ditolak classifier izin otomatis, kategori *Protected-Scope IaC Apply*) dan `backup` (restic `/opt/src`); (b) jam untuk §2
+- **FREEZE DICABUT** (owner, 2026-10-03 ±14:27 WIB). Menunggu owner: (a) izin apply Ansible `backup` (restic `/opt/src`;
+  `infra_jobs` sudah diterapkan atas perintah eksplisit owner); (b) jam untuk §2
   restart `odoo-staging` + §4 HUP Traefik (aturan runbook: di luar jam kerja client); (c) hadir ±10 mnt untuk bootstrap
   `kc-realm-sync` (§3.1, TOTP); (d) `docker volume prune` diblok hook `bash-policy.sh` — jalankan sendiri atau longgarkan hook.
 
@@ -246,3 +246,6 @@ skenario gate; dua jendela perawatan prod + tanggal cut-over. Tetap terbuka: K3 
 
 **Belum**: §1.3 apply, §2 (addons-shared + restart odoo-staging), §3 (KC, butuh owner), §4 (Traefik HUP), §6–§7; restic
 `/opt/src` (`feat/backup-opt-src` merge bersih, apply via role `backup`).
+- §1.3 (atas perintah eksplisit owner, ±15:00): `ansible-playbook site.yml --tags infra_jobs` → `changed=2 failed=0`;
+  `cmp` biner = repo (VERSION 1.2.0); `staging.conf` memuat `job_types` (JSON valid); `prod.conf` tanpa `job_types`; path
+  unit prod/staging aktif.
