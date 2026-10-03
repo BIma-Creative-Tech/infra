@@ -171,6 +171,23 @@ else
       *) die "GET role ${OIDC_ROLE}: HTTP ${KC_STATUS}" ;;
     esac
 
+    # client role odoo_admin (dikelola kc-realm-sync, platform.json clientRoles) — HANYA dibuat bila hilang dan realm
+    # sudah di-sync (scope tenant ada): tanpa ini langkah onboarding kc_user_set_roles(odoo=admin) gagal 403 karena
+    # cp-admin sengaja tanpa manage-clients (2026-10-03, tenant ujiq). Deskripsi = platform.json (sync tidak membandingkan).
+    if [[ "$(kc_json 'str(d.get("realm_sync", False)).lower()' "$splan")" == true ]]; then
+      kc_request GET "/clients/${CLIENT_UUID}/roles/odoo_admin"
+      case "$KC_STATUS" in
+        200) log "role odoo_admin: ada" ;;
+        404) if change "role odoo_admin: dibuat"; then
+               kc_send POST "/clients/${CLIENT_UUID}/roles" \
+                 '{"name": "odoo_admin", "description": "Admin Odoo tenant (group Settings, job odoo_user_ensure)"}' 201
+             fi ;;
+        *) die "GET role odoo_admin: HTTP ${KC_STATUS}" ;;
+      esac
+    else
+      log "realm belum di-sync kc-realm-sync (scope tenant tidak ada): scope tenant & role odoo_admin dilewati"
+    fi
+
     # mapper klaim role (nama klaim literal)
     mplan="$(kc_get "/clients/${CLIENT_UUID}/protocol-mappers/models" | python3 "$LIB/odoo_sso_kc.py" mapper --client-id "$CLIENT_ID")"
     case "$(kc_json 'd["action"]' "$mplan")" in
