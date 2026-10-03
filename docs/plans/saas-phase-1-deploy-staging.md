@@ -23,7 +23,7 @@ untuk langkah yang me-restart `odoo-staging` atau me-reload Traefik.
 1. Merge `feat/infra-saas-p1` → `main` di `/opt/infra` (`--no-ff`). Skrip baru live, tetapi **tidak dipakai** sampai tipe
    job di-allowlist. Perubahan pada jalur lama: `lib/keycloak-admin.sh` (default `automation` — perilaku sama),
    `lib/odoo_sso_kc.py` (tidak lagi melepas scope `tenant`), template route (keluaran byte-identik tanpa `--suspended`).
-2. Cek jalur lama tidak berubah: `scripts/provision-odoo-sso.sh expomedia staging --host expomedia.staging.bimacreative.tech --dry-run` → exit 0, `blockers=0`.
+2. Cek jalur lama tidak berubah: `scripts/provision-odoo-sso.sh expomedia staging --host expomedia-erp.staging.bimacreative.tech --host demo-erp.expomedia.id --dry-run` (host Odoo; `expomedia.staging…` = website) → exit 0, `blockers=0`.
 3. `cd ansible && ansible-playbook site.yml --tags infra_jobs --check --diff` → diff hanya `/usr/local/sbin/infra-job` (1.2.0) dan
    `staging.conf` (`job_types`); `prod.conf` **tidak berubah**. Lalu tanpa `--check`.
 4. Cek: `cmp /usr/local/sbin/infra-job scripts/infra-job/infra_job.py`; `grep -c job_types /etc/infra-jobs/prod.conf` = 0.

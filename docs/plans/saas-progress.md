@@ -10,9 +10,7 @@ Append per sesi, bertanggal. Pertanyaan pemblokir selalu di bagian **Butuh keput
   `odoo-addons-athera`, `odoo-addons-expomedia`, `web-tambang`; **nonaktifkan Actions** dulu (web-expomedia/web-tambang punya
   `ci.yml` yang langsung jalan saat push tag/branch); pasang deploy key **write** (public key di laporan sesi; file
   `~/.ssh/deploy_<repo>.pub` root di host). Setelah itu Claude menjalankan push semua branch + tag.
-- **FREEZE DICABUT** (owner, 2026-10-03 ±14:27 WIB). Menunggu owner: (a) izin apply Ansible `backup` (restic `/opt/src`;
-  `infra_jobs` sudah diterapkan atas perintah eksplisit owner); (b) jam untuk §2
-  restart `odoo-staging` + §4 HUP Traefik (aturan runbook: di luar jam kerja client); (c) hadir ±10 mnt untuk bootstrap
+- **FREEZE DICABUT** (owner, 2026-10-03 ±14:27 WIB). Menunggu owner: (c) hadir ±10 mnt untuk bootstrap
   `kc-realm-sync` (§3.1, TOTP); (d) `docker volume prune` diblok hook `bash-policy.sh` — jalankan sendiri atau longgarkan hook.
 
 ## Keputusan owner (2026-10-02)
@@ -249,3 +247,15 @@ skenario gate; dua jendela perawatan prod + tanggal cut-over. Tetap terbuka: K3 
 - §1.3 (atas perintah eksplisit owner, ±15:00): `ansible-playbook site.yml --tags infra_jobs` → `changed=2 failed=0`;
   `cmp` biner = repo (VERSION 1.2.0); `staging.conf` memuat `job_types` (JSON valid); `prod.conf` tanpa `job_types`; path
   unit prod/staging aktif.
+- Owner ±15:05: "Jalankan backup dan restart dan reload sekarang".
+  - Restic `/opt/src`: merge `feat/backup-opt-src` (`1b480b2`); `--tags backup --check` → hanya `/etc/restic/local.env`
+    (+`INFRA_BACKUP_EXTRA_PATHS=/opt/src` + exclude); apply `changed=1 failed=0`. Backup pertama dengan `/opt/src` = 01:30.
+  - §2: merge `feat/sh-auth-oidc-tenant-check` → `main` addons-shared (`f7b6987`, **belum di-push ke GitHub**); submodule
+    staging → `f7b6987` (pool-a tetap `4bd278a`; infra `371381a`); `odoo-staging` recreate → healthy; `-u sh_auth_oidc`
+    `expomedia_staging`/`demo_staging`/`ssotest_staging` rc=0, 0 ERROR → 19.0.1.3.0 (log `backups/odoo/*-upgrade.log`);
+    ICP `sh_auth_oidc.tenant_check` tidak diset (= off); `/web/login` 200 + `/sh_auth_oidc/authorize` 303 → Keycloak
+    `platform-staging` (`demo-erp.expomedia.id`, `expomedia-erp.staging…`, `demo.staging…`). Login penuh user uji: owner.
+  - Runbook §1.2 salah host: `expomedia.staging.bimacreative.tech` = **website**, bukan Odoo → `changed=1` tadi akibat host
+    salah (untung tidak di-apply). Diperbaiki ke `--host expomedia-erp.staging… --host demo-erp.expomedia.id` → dry-run ulang `changed=0 blockers=0` (§1.2 lulus).
+  - §4: `kill -HUP 1` Traefik → tanpa error log, tanpa restart; 26 host status HTTP identik sebelum/sesudah.
+    `infra-healthcheck` rc=1 karena masalah lama: `restic-restore-test.service` failed (db_compare 2026-10-02) + swap > 1 GiB.
