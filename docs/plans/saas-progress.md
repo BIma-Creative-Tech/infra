@@ -278,3 +278,17 @@ skenario gate; dua jendela perawatan prod + tanggal cut-over. Tetap terbuka: K3 
   - Guard F1 live (dry-run, user superadmin, slug `ssotest`): `enabled`/`roles`/`ensure` → rc=3 "DITOLAK: user staf
     platform … hanya bisa diubah lewat slug platform".
   - Belum (butuh browser owner): SSO antar-client dengan sesi nyata, login member/non-member dengan kredensial.
+- §6 (owner via UI CP staging, 17:49–18:02; diverifikasi server):
+  - `/realm` Rencana → job `kc_realm_sync` plan `changed=0 blockers=0` (jalur CP→dispatcher→KC). Dua job 15:04/15:05 gagal
+    `script_exit` = Rencana sebelum bootstrap (secret belum ada) — gagal bersih.
+  - §6.2 staf superadmin → tenant `platform` (org `666dd2da…` dibuat, atribut `tenant_id`=platform); adopsi ulang →
+    `rejected already_bound`.
+  - User uji lama → tenant `demo` (org `f164f6e9…`), `client_user` + Odoo `user` (`demo_staging` uid 12,
+    `base.group_user`); reset password ke alamat `example.com` → bounce nullMX (pakai alamat nyata untuk uji reset).
+  - Tenant-admin uji `demo` baru (alamat Gmail owner): `kc_user_ensure` created, `client_admin,odoo_access,odoo_admin`,
+    Odoo uid 14 `base.group_system`, undangan `UPDATE_PASSWORD` terkirim (Gmail `status=sent`). Submit ganda 18:02:04 →
+    `reused=3` (tanpa job duplikat).
+  - **Bukti positif S1**: contoh ID token user `demo` di `control-plane`/`odoo-demo-staging`/`odoo-expomedia-staging` →
+    `tenant_id=ae8540fc…`, tanpa `organization`.
+  - Temuan data: environment `demo` di CP `db_status=absent` padahal DB `demo_staging` ada (data 2026-09-25); 2 user
+    `client_user` lama tanpa tenant. `tenant_check` `demo` belum diset (observasi compat 7 hari belum mulai).
