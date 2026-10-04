@@ -451,3 +451,19 @@ skenario gate; dua jendela perawatan prod + tanggal cut-over. Tetap terbuka: K3 
   demo_demo kosong (= off) sampai user pertama demo.
 - **Status migrasi prod**: M1, M3–M9 selesai (M2 = gate dipercepat). M10 DIBLOKIR (staf platform vs strict). M11 cut-over
   administrasi: tanggal dari owner. M12 pensiun manual: ≥ 2 minggu setelah M11.
+
+## 2026-10-04 (malam) — perbaikan pemblokir M10 (owner: "lanjutkan sesuai rekomendasi")
+
+- addons-shared `e5fb816` (fitur `3ce0e2c`): `sh_auth_oidc` **19.0.1.4.0** — ICP `sh_auth_oidc.platform_tenant_id`; klaim
+  `tenant_id` = tenant platform diterima (role gate tetap berlaku), dicatat INFO `tenant_check=<mode> platform`; kosong = tanpa
+  pengecualian; bukan UUID = diabaikan + ERROR. +6 tes (helper, validasi token, alur HTTP strict staf diterima / ditolak tanpa
+  parameter); 157 tes 3 modul 0 gagal. Di-push ke GitHub.
+- infra `3df42da` (fitur `bf5cc06`): `odoo-tenant-config.sh` menulis `platform_tenant_id` (alias org `platform`, GET);
+  `strict` BLOKIR bila modul < 19.0.1.4.0 atau org platform tidak ada; `off` mengosongkan. RESULT tidak berubah. Tes kc 27 OK.
+  Amandemen ADR 0017 D4, kontrak, odoo.md.
+- Staging (`8ee9be7`): submodule `e5fb816`, `odoo-staging` recreate, `-u sh_auth_oidc` expomedia/demo/ssotest/ujiq_staging →
+  19.0.1.4.0 (0 ERROR); `odoo-tenant-config ujiq staging compat` → `platform_tenant_id`=`8d108c88…` (= tenant platform CP
+  staging), ulang `changed=0`; dry-run `strict` `blockers=0`. Login staging 200. Uji live staf-strict di staging tidak dilakukan
+  (staf staging tanpa role di Odoo tenant ber-tenant_check); bukti live = log INFO `platform` di prod dalam compat.
+- **M10 tidak lagi diblokir desain**; urutan: prod 1.4.0 + `odoo-tenant-config expomedia prod compat` (owner) → login staf
+  menghasilkan INFO `platform` (bukan `mismatch`) → observasi 7 hari → `strict`.
