@@ -58,6 +58,8 @@ services:
     environment:
       SERVICE_NAME: control-plane-web
       INFRA_JOBS_INSTANCE: prod   # plan 05 / ADR 0009
+      INFRA_JOBS_TYPES: odoo_db_provision,odoo_route,odoo_sso_provision,odoo_sso_disable,odoo_sso_user,kc_org_ensure,kc_user_ensure,kc_user_set_roles,kc_user_set_enabled,kc_user_action_email,odoo_user_ensure,odoo_tenant_config,tenant_suspend,tenant_resume   # M7: = allowlist prod.conf (tanpa kc_realm_sync)
+      PLATFORM_PUBLIC_IPV4: 31.97.50.221   # checklist DNS domain tenant (bukan secret)
       # plan 15: tombol "Buka Odoo" Quotation Tracker (bukan secret).
       DASHBOARD_ODOO_URLS: expomedia=https://erp.expomedia.id
     tmpfs:
@@ -91,6 +93,7 @@ services:
       SERVICE_NAME: control-plane-worker
       WORKER_HEARTBEAT_FILE: /tmp/worker-heartbeat
       INFRA_JOBS_INSTANCE: prod
+      INFRA_JOBS_TYPES: odoo_db_provision,odoo_route,odoo_sso_provision,odoo_sso_disable,odoo_sso_user,kc_org_ensure,kc_user_ensure,kc_user_set_roles,kc_user_set_enabled,kc_user_action_email,odoo_user_ensure,odoo_tenant_config,tenant_suspend,tenant_resume   # M7: = allowlist prod.conf (tanpa kc_realm_sync)
       INFRA_JOBS_SPOOL_DIR: /jobs/spool
       INFRA_JOBS_RESULTS_DIR: /jobs/results
     tmpfs:

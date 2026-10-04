@@ -182,8 +182,8 @@ healthcheck_units:
 # ---------------------------------------------------------------------------
 # infra_jobs — allowlist tipe job per instance (kontrak docs/plans/saas-phase-1-contract.md §0.5, ADR 0009
 # amandemen 2026-10-02) → kunci `job_types` di /etc/infra-jobs/<inst>.conf (role infra_jobs).
-# staging: semua tipe (5 lama + 10 SaaS Fase 1). prod: daftar kosong = kunci TIDAK ditulis → dispatcher memakai default
-# 5 tipe lama (prod.conf tidak berubah) sampai disetujui owner.
+# staging: semua tipe (5 lama + 10 SaaS Fase 1). prod (M7, 2026-10-04): 5 lama + 9 Fase 1 TANPA kc_realm_sync — sync realm
+# prod tetap manual oleh owner (`kc-realm-sync.sh platform prod --approve`); daftar kosong = kunci tidak ditulis = 5 lama.
 # APPLY (--tags infra_jobs) HANYA setelah skrip Fase 1 (kc-realm-sync.sh, kc-org.sh, kc-user.sh, odoo-user.sh,
 # odoo-tenant-config.sh, tenant-state.sh) ada di /opt/infra/scripts (root 0755): dispatcher memeriksa skrip setiap tipe
 # yang diizinkan; skrip hilang → run staging gagal (OnFailure email) dan job staging tertahan di spool.
@@ -205,4 +205,18 @@ infra_jobs_job_types:
     - odoo_tenant_config
     - tenant_suspend
     - tenant_resume
-  prod: []
+  prod:
+    - odoo_db_provision
+    - odoo_route
+    - odoo_sso_provision
+    - odoo_sso_disable
+    - odoo_sso_user
+    - kc_org_ensure
+    - kc_user_ensure
+    - kc_user_set_roles
+    - kc_user_set_enabled
+    - kc_user_action_email
+    - odoo_user_ensure
+    - odoo_tenant_config
+    - tenant_suspend
+    - tenant_resume
