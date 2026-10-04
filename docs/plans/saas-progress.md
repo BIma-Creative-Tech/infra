@@ -421,3 +421,8 @@ skenario gate; dua jendela perawatan prod + tanggal cut-over. Tetap terbuka: K3 
   login. Celah UI: tenant yang SUDAH terdaftar (`demo`) tidak punya aksi `kc_org_ensure`/`odoo_tenant_config` (register →
   `exists`); org dibuat otomatis oleh rantai user pertama tenant itu; `tenant_check` demo tetap kosong (= off) → usulan
   Fase 2 "sinkronkan tenant".
+- 2026-10-04 (owner minta): reset password akun staf owner (`af696df8`, realm `platform` prod) — Admin REST
+  `execute-actions-email` `UPDATE_PASSWORD` (lifespan 1 jam) via SA `kc-realm-sync`, di luar CP (tidak ada audit CP) →
+  204, Gmail `250 OK`. Temuan: akun sudah membawa required action `UPDATE_PASSWORD` sebelumnya (asal tidak tercatat);
+  realm prod `resetPasswordAllowed=false` (tanpa lupa-password mandiri). Owner sempat membuka form M8 di CP **staging**
+  (opsi env `staging`) — tidak ada yang terdaftar; `user.add` staging ditolak `email_other_tenant` (guard benar).
