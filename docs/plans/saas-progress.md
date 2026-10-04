@@ -502,3 +502,6 @@ skenario gate; dua jendela perawatan prod + tanggal cut-over. Tetap terbuka: K3 
 - K3 (cek `ls-remote`): web-expomedia, odoo-data-expomedia, odoo-addons-athera, odoo-addons-expomedia, web-tambang →
   `Permission denied (publickey)` (repo/deploy key belum ada). control-plane `main` +45 dan infra `main` +138 commit belum
   di-push (remote ada; workflow push = `security.yml` di runner GitHub-hosted, tanpa deploy) — menunggu persetujuan owner.
+- K3 (owner: "push cp dan infra"): gitleaks rentang `origin/main..main` → no leaks (control-plane 36, infra 81 commit non-merge);
+  push `main` control-plane `31411f0..b9febac`, infra `fe01694..930754b`; keduanya sinkron dengan origin. 5 repo lain tetap
+  menunggu repo/deploy key GitHub.
