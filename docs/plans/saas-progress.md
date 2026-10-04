@@ -520,3 +520,6 @@ skenario gate; dua jendela perawatan prod + tanggal cut-over. Tetap terbuka: K3 
   (inherit `web.login`): keterangan "masuk lewat tombol SSO; form email/kata sandi hanya untuk akun lokal" bila ada provider
   aktif; form tidak disembunyikan (admin darurat). +2 tes HTTP, 159 tes 3 modul 0 gagal. Staging: 4 DB 19.0.1.5.0 (0 ERROR),
   petunjuk tampil di `demo.staging` & `ujiq.staging`. Prod (pool-a) + push addons-shared menunggu owner.
+- Prod (owner via SSH, 19:31 WIB): pool-a shared `1773770` → `sh_auth_oidc` 19.0.1.5.0 di expomedia_prod + demo_demo (rc=0, log
+  0 ERROR; `c6154e1`); petunjuk login SSO tampil di `erp.expomedia.id` dan `demo.erp.bimacreative.tech`. Platform pool-a
+  `v19.0.1.3.3` (custom_pdp dedupe) di-checkout owner; gitlink dicatat Claude (`5718872`) — data instalasi baru saja.
