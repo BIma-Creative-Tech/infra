@@ -516,3 +516,7 @@ skenario gate; dua jendela perawatan prod + tanggal cut-over. Tetap terbuka: K3 
 - Owner "Sinkronkan tenant" `demo` → compat: prod 19:18 (org `demo` dibuat `47ba5c96…`; `demo_demo` ICP expected + platform +
   compat, `changed=3`), staging 19:21 (org sudah ada `changed=0`; `demo_staging` `changed=3`). Rekonsiliasi CP env
   `tenant_check=compat`. Pemakaian pertama aksi baru di prod: sukses.
+- **Petunjuk login SSO** (usulan Fase 2): addons-shared `1773770` — `sh_auth_oidc` 19.0.1.5.0, template `login_sso_hint`
+  (inherit `web.login`): keterangan "masuk lewat tombol SSO; form email/kata sandi hanya untuk akun lokal" bila ada provider
+  aktif; form tidak disembunyikan (admin darurat). +2 tes HTTP, 159 tes 3 modul 0 gagal. Staging: 4 DB 19.0.1.5.0 (0 ERROR),
+  petunjuk tampil di `demo.staging` & `ujiq.staging`. Prod (pool-a) + push addons-shared menunggu owner.
