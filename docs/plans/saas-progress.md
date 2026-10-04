@@ -429,3 +429,12 @@ skenario gate; dua jendela perawatan prod + tanggal cut-over. Tetap terbuka: K3 
 - 2026-10-04 (owner minta, konfirmasi eksplisit): reset 2FA akun staf owner (`af696df8`, realm `platform` prod) via Admin REST
   (`kc-realm-sync`, di luar CP): kredensial OTP `97740586…` dihapus (204) + required action `CONFIGURE_TOTP` (204); password
   tidak diubah (`UPDATE_PASSWORD` sudah selesai oleh owner via email). Akun hanya-password sampai owner memindai QR baru.
+- **M8** (owner via UI CP prod, 16:33–16:38): (a) adopsi staf `af696df8` → tenant `platform` (`kc_org_ensure` org `platform`
+  created, `kc_user_ensure` adopt, `kc_user_set_roles` superadmin `changed=0`); (b) `tenant.register_existing` `expomedia`
+  (env prod `expomedia_prod` @ `erp.expomedia.id`, route manual) → `kc_org_ensure` org `expomedia` (alias `a3120732…`) +
+  `odoo_tenant_config compat` (`changed=2`, ICP tersimpan; modul 1.2.0 belum membaca sampai M9); submit ganda → `rejected
+  host_taken`. Tanpa subscription (S-a). Token staf (CP + odoo-expomedia-prod) berisi `tenant_id`=platform, tanpa
+  `organization`. Login expomedia 200, tanpa `OIDC login refused`. 2FA owner dipasang ulang (`totp=True`).
+  (c) org `demo` dibuat saat user pertama demo; (d) tidak perlu (user SSO expomedia = staf).
+- Temuan terpisah (bukan dari migrasi): cron expomedia_prod `Custom: Generate Recurring Journal Entries` (id 50, server
+  action #938) gagal tiap hari sejak ≥ 2026-10-02 — `NameError: hasattr` di safe_eval. Perlu perbaikan action (Odoo data).
