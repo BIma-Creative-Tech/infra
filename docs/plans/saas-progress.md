@@ -510,3 +510,6 @@ skenario gate; dua jendela perawatan prod + tanggal cut-over. Tetap terbuka: K3 
   `tenant.sync`; platform/terminated/ops ditolak; bisa "Ulangi dari langkah ini". Unit 766, **integrasi 88 lulus** (Postgres
   sekali pakai; +1 tes; `node_modules` lengkap via `npm ci` di scratchpad — `billing-flow` kini ikut lulus), tsc + lint bersih.
   Staging CP `11be44d` healthy. Kegunaan: org `demo` + compat (staging & prod) dan M10 strict expomedia tanpa terminal.
+- CP prod `11be44d` (owner via SSH, `9977897`): web/worker healthy, health 200, 0 error. Aksi "Sinkronkan tenant" tersedia di
+  prod + staging; belum dijalankan (usulan: `demo` → compat di kedua instance; `expomedia` → strict ≥ 2026-10-11 bila observasi
+  M10 bersih).
