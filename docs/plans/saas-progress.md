@@ -467,3 +467,10 @@ skenario gate; dua jendela perawatan prod + tanggal cut-over. Tetap terbuka: K3 
   (staf staging tanpa role di Odoo tenant ber-tenant_check); bukti live = log INFO `platform` di prod dalam compat.
 - **M10 tidak lagi diblokir desain**; urutan: prod 1.4.0 + `odoo-tenant-config expomedia prod compat` (owner) → login staf
   menghasilkan INFO `platform` (bukan `mismatch`) → observasi 7 hari → `strict`.
+- **Prod 1.4.0** (owner via SSH, 17:38 WIB; `2d3aa44`, submodule pool-a `e5fb816`): expomedia_prod + demo_demo → 19.0.1.4.0
+  (log upgrade 0 ERROR); `odoo-tenant-config expomedia prod compat` → ICP `platform_tenant_id` = `e711d9a4…` (tenant platform
+  CP prod). **Bukti live** 17:41:34 login SSO staf ke expomedia_prod: `INFO sh_auth_oidc tenant_check=compat platform
+  db=expomedia_prod sub=af696d…` → `Login successful` (tanpa `mismatch`). Observasi M10 mulai 2026-10-04 17:41 WIB →
+  `strict` paling cepat **2026-10-11** bila 7 hari tanpa `mismatch`/`reject` (cek: `docker logs odoo-pool-a --since 168h |
+  grep 'tenant_check='`). Penerapan strict: `scripts/odoo-tenant-config.sh expomedia prod --tenant-check strict` (dry-run dulu;
+  belum ada aksi UI untuk tenant terdaftar).
