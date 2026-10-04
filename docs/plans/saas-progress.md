@@ -400,3 +400,10 @@ skenario gate; dua jendela perawatan prod + tanggal cut-over. Tetap terbuka: K3 
   nonaktif (SMTP_HOST kosong)" (sesuai — email billing prod belum dikonfigurasi); 0 log warn/error; `/api/health` 200;
   `/dashboard`,`/users`,`/clients`,`/subscriptions`,`/realm`,`/portal` → 307 `/login` (butuh sesi). `INFRA_JOBS_TYPES`
   tidak diset → 5 tipe lama. Dashboard SPK expomedia (datamart) perlu dicek owner setelah login.
+- **M5** realm `platform` prod: owner bootstrap `kc-realm-sync` (console, TOTP) + secret; dry-run Claude `changed=10 blockers=0`
+  (disimpan `backups/saas-prod/20261004-151338/kc-realm-sync-platform-plan-pre-M5.log` = export kondisi awal M1); owner apply
+  `--approve`; dry-run ulang `changed=0`; tanpa alert WAF. Secret `cp-admin-platform.secret` (owner, console). `cp-admin` role
+  persis 6, token OK, `PUT realm` 403. Scope default `tenant` di `control-plane`, `odoo-expomedia-prod`, `odoo-demo-demo`;
+  `odoo_admin` di kedua client Odoo. **Uji live S1 prod**: contoh ID token (1 user staf) tanpa `organization`, `tenant_id`
+  belum ada (atribut diisi M8). Login `erp.expomedia.id` (SSO) + CP prod = form biasa; 0 ERROR KC/pool-a.
+  Lalu `organizationsEnabled=true` di `platform.json` (`b4a35fd`) → dry-run prod `changed=1` → menunggu apply owner.
