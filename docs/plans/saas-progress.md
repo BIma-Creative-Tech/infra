@@ -574,3 +574,11 @@ skenario gate; dua jendela perawatan prod + tanggal cut-over. Tetap terbuka: K3 
 - Kuota artifact GitHub: owner menjalankan `/root/gh-artifacts.sh` (skrip Claude: daftar + hapus artifact > KEEP_DAYS lewat
   REST API dengan token fine-grained sekali pakai, tidak disimpan; `gh` sengaja tidak dipasang di server prod). Sisa: hapus
   token, turunkan retention repo/workflow, re-run mobile #45 + ci #175 setelah GitHub menghitung ulang kuota (6–12 jam).
+- **Koreksi CI**: limit runner 4g **salah** untuk build release drms — `mobile.yml` mengatur heap via `GRADLE_OPTS` (debug
+  -Xmx1536m, puncak 3,5–3,7 GiB; release R8 -Xmx2560m + metaspace 512m + dart ±1 GiB → "fits the 5 GiB runner"; -Xmx2g di 4 GiB
+  pernah OOM, plan 12 R10). `ci_runner_memory` kembali **5g** (`e20d116`, `--check` 4g→5g) — owner apply + restart supervisor
+  SEBELUM tag `mobile-v0.3.2`. `gradle.properties` runner tetap (cadangan; kalah dari GRADLE_OPTS).
+- APK tanpa kuota artifact: drms branch `fix/artifact-quota-release-asset` (`22b8285`, di-push): 5 langkah `upload-artifact`
+  `continue-on-error`; `release-prod` self-hosted menyalin simbol obfuscation ke `/cache/release-symbols/<tag>`; pubspec
+  0.3.2+1; `docs/release-notes/apk/0.3.2.md` (= item 0.3.1 + keterangan rilis ulang); CHANGELOG. actionlint 1.7.12 bersih.
+  Owner: PR → merge ke `main` → push tag `mobile-v0.3.2` → APK di GitHub Release (asset, tidak dihitung kuota Actions).
