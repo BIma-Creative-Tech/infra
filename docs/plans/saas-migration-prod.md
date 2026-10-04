@@ -1,6 +1,6 @@
 # SaaS — Rencana migrasi PROD ke control-plane (brief §6a, disesuaikan fakta 2026-10-03)
 
-Status 2026-10-04: **M1, M3–M9 SELESAI; M10 diblokir; M11–M12 menunggu owner** (log: `saas-progress.md`). Status awal 2026-10-03: **DRAFT — menunggu (1) gate Fase 1 staging lulus (`saas-phase-1-deploy-staging.md` §7) dan (2)
+Status 2026-10-04: **M1, M3–M9 SELESAI; M10 observasi compat sejak 2026-10-04 17:41 (strict ≥ 2026-10-11); M11–M12 menunggu owner** (log: `saas-progress.md`). Status awal 2026-10-03: **DRAFT — menunggu (1) gate Fase 1 staging lulus (`saas-phase-1-deploy-staging.md` §7) dan (2)
 persetujuan owner per langkah bertanda ⛔.** Tidak ada langkah yang dijalankan selama FREEZE. Prinsip brief §6a: adopsi,
 bukan bangun ulang; tidak ada penghapusan sebelum pengganti terbukti; setiap langkah punya dry-run, cek, rollback.
 
