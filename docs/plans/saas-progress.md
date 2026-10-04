@@ -571,3 +571,6 @@ skenario gate; dua jendela perawatan prod + tanggal cut-over. Tetap terbuka: K3 
   container 3 697 MiB / limit 4 096 MiB, tanpa OOM**. Job gagal `rc=10` hanya di `upload-artifact`: **kuota storage artifact
   GitHub akun `bctech-adm` penuh** (dihitung ulang 6–12 jam setelah penghapusan). Limit CI tetap 4g (headroom ±0,4 GiB — jangan
   turun ke 3g). ci #175 (tag v0.6.0) exit 130 = SIGINT (pembatalan: concurrency `ci-${ref}` / manual), bukan memori.
+- Kuota artifact GitHub: owner menjalankan `/root/gh-artifacts.sh` (skrip Claude: daftar + hapus artifact > KEEP_DAYS lewat
+  REST API dengan token fine-grained sekali pakai, tidak disimpan; `gh` sengaja tidak dipasang di server prod). Sisa: hapus
+  token, turunkan retention repo/workflow, re-run mobile #45 + ci #175 setelah GitHub menghitung ulang kuota (6–12 jam).
