@@ -493,3 +493,12 @@ skenario gate; dua jendela perawatan prod + tanggal cut-over. Tetap terbuka: K3 
   Satu `ERROR … inconsistent states … ['custom_accounting_menu']` 11:19:12 UTC = **transien**: worker memuat registry saat
   proses `-u` (pid 27) sedang berjalan (11:19:01–12,9); muat registry berikutnya bersih, semua dependensi `installed`.
   Catatan runbook: `-u` dengan worker hidup bisa memicu pesan ini sesaat (tidak perlu tindakan).
+- Keamanan: akun superadmin uji realm `platform-staging` `billing@` (`34391a60`) dan `gate-sa@` (`2904b4a3`) **dinonaktifkan** +
+  logout sesi (Admin REST `kc-realm-sync`; undangan di INBOX `billing@` tidak lagi bisa dipakai). Baris CP staging masih
+  `invited` (diubah di luar UI) — nonaktifkan juga dari `/users` staging bila ingin sinkron.
+- `custom_pdp` duplicate key saat instalasi baru: 19 baris duplikat identik di `pdp.field.classification.csv` → dibuang
+  (odoo-addons-athera **v19.0.1.3.3**, `custom_pdp` 19.0.2.0.1); uji install bersih: 0 duplicate key, 0 ERROR, 30 tes OK.
+  DB terpasang tidak terdampak (tanpa `-u`). Staging gitlink `b50d28f`; prod pool-a tetap v19.0.1.3.2 (naik saat rilis berikut).
+- K3 (cek `ls-remote`): web-expomedia, odoo-data-expomedia, odoo-addons-athera, odoo-addons-expomedia, web-tambang →
+  `Permission denied (publickey)` (repo/deploy key belum ada). control-plane `main` +45 dan infra `main` +138 commit belum
+  di-push (remote ada; workflow push = `security.yml` di runner GitHub-hosted, tanpa deploy) — menunggu persetujuan owner.
