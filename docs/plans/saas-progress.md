@@ -557,3 +557,8 @@ skenario gate; dua jendela perawatan prod + tanggal cut-over. Tetap terbuka: K3 
   plafon 1 088 MiB). Keycloak/Postgres/pool-a/odoo-staging/uptime-kuma tetap. Staging web di-recreate Claude → healthy 192m;
   prod (mail, CP, webmail) menunggu owner.
 - Q6 Fase 2 direvisi: dedicated prod diizinkan (±2 instance setelah 1b+3, `capacity_max_mib` pengaman).
+- Opsi 3 prod diterapkan owner (±20:21 WIB): mailserver 512m, CP 256m, CP worker 128m, webmail 128m — semua healthy, CP health
+  200, webmail `mail.bimacreative.tech`/`mail.expomedia.id` 302, mailserver 4 port mail listen, 0 error.
+- Opsi 1b: owner merge `cdcc9cd` + apply role `ci_runner`: `supervisor.env` `CI_MEMORY=4g`, `/srv/ci/cache/gradle/gradle.properties`
+  (Xmx2g, Kotlin 768m) **berlaku untuk build berikutnya**. Handler restart supervisor TIDAK jalan (aktif sejak 2026-10-03) →
+  job baru masih 5120 MiB sampai `systemctl restart ci-runner-supervisor` (saat tidak ada build; restart memutus job berjalan).
