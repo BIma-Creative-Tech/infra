@@ -513,3 +513,6 @@ skenario gate; dua jendela perawatan prod + tanggal cut-over. Tetap terbuka: K3 
 - CP prod `11be44d` (owner via SSH, `9977897`): web/worker healthy, health 200, 0 error. Aksi "Sinkronkan tenant" tersedia di
   prod + staging; belum dijalankan (usulan: `demo` → compat di kedua instance; `expomedia` → strict ≥ 2026-10-11 bila observasi
   M10 bersih).
+- Owner "Sinkronkan tenant" `demo` → compat: prod 19:18 (org `demo` dibuat `47ba5c96…`; `demo_demo` ICP expected + platform +
+  compat, `changed=3`), staging 19:21 (org sudah ada `changed=0`; `demo_staging` `changed=3`). Rekonsiliasi CP env
+  `tenant_check=compat`. Pemakaian pertama aksi baru di prod: sukses.
