@@ -505,3 +505,8 @@ skenario gate; dua jendela perawatan prod + tanggal cut-over. Tetap terbuka: K3 
 - K3 (owner: "push cp dan infra"): gitleaks rentang `origin/main..main` → no leaks (control-plane 36, infra 81 commit non-merge);
   push `main` control-plane `31411f0..b9febac`, infra `fe01694..930754b`; keduanya sinkron dengan origin. 5 repo lain tetap
   menunggu repo/deploy key GitHub.
+- **Aksi "Sinkronkan tenant"** (celah M8/M10): control-plane `11be44d` (fitur `feat/tenant-sync`) — halaman tenant (platform-admin)
+  punya form `tenant_check` off/compat/strict → rantai `kc_org_ensure` → `odoo_tenant_config` per env ber-SSO aktif; audit
+  `tenant.sync`; platform/terminated/ops ditolak; bisa "Ulangi dari langkah ini". Unit 766, **integrasi 88 lulus** (Postgres
+  sekali pakai; +1 tes; `node_modules` lengkap via `npm ci` di scratchpad — `billing-flow` kini ikut lulus), tsc + lint bersih.
+  Staging CP `11be44d` healthy. Kegunaan: org `demo` + compat (staging & prod) dan M10 strict expomedia tanpa terminal.
