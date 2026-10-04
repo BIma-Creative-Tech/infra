@@ -438,3 +438,9 @@ skenario gate; dua jendela perawatan prod + tanggal cut-over. Tetap terbuka: K3 
   (c) org `demo` dibuat saat user pertama demo; (d) tidak perlu (user SSO expomedia = staf).
 - Temuan terpisah (bukan dari migrasi): cron expomedia_prod `Custom: Generate Recurring Journal Entries` (id 50, server
   action #938) gagal tiap hari sejak ≥ 2026-10-02 — `NameError: hasattr` di safe_eval. Perlu perbaikan action (Odoo data).
+- **Pemblokir M10 (desain)**: `sh_auth_oidc` 1.3.0 `tenant_check` tidak punya pengecualian staf — staf platform
+  (`tenant_id` = tenant `platform`) ke Odoo tenant (expected = tenant itu) → `compat`: WARNING `mismatch` (login lanjut);
+  `strict`: **DITOLAK** (`oauth_error=2`). Satu-satunya user expomedia_prod saat ini = staf owner → `strict` akan mengunci owner
+  dari Odoo expomedia. Observasi compat juga akan selalu memuat mismatch staf (tidak pernah "bersih"). Sebelum M10: tambah
+  penerimaan `tenant_id` platform (mis. ICP `sh_auth_oidc.platform_tenant_id` yang diisi odoo-tenant-config) + uji, atau
+  keputusan owner lain. Syarat S-b menahan risiko ini (strict tidak diaktifkan).
