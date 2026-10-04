@@ -474,3 +474,12 @@ skenario gate; dua jendela perawatan prod + tanggal cut-over. Tetap terbuka: K3 
   `strict` paling cepat **2026-10-11** bila 7 hari tanpa `mismatch`/`reject` (cek: `docker logs odoo-pool-a --since 168h |
   grep 'tenant_check='`). Penerapan strict: `scripts/odoo-tenant-config.sh expomedia prod --tenant-check strict` (dry-run dulu;
   belum ada aksi UI untuk tenant terdaftar).
+- **Cron jurnal berulang Expomedia** (temuan M8): akar masalah lebih dalam dari `hasattr` — cron memanggil method yang tidak ada
+  (`_cron_generate_entries`; yang benar `_cron_generate_due`), template **pembayaran** berulang tidak punya cron sama sekali,
+  periode terakhir sebelum `end_date` gagal constraint, dan `cr.rollback()` di cron membatalkan hasil template lain. Tes modul
+  tidak pernah berjalan (kode akun `RECT-DR-01` ditolak Odoo 19 di `setUpClass`). Fix `odoo-addons-athera` tag **v19.0.1.3.2**
+  (`custom_accounting_recurring` 19.0.0.1.1 + migrasi untuk record `noupdate`, pola `custom_accounting_asset`); uji stack sekali
+  pakai (Postgres/Odoo `--rm`, tmpfs): install v19.0.1.3.1 → upgrade → 9 tes 0 gagal, kode cron termigrasi. Staging
+  (`091e922`): `expomedia_staging` 19.0.0.1.1, kedua cron dijalankan manual tanpa error. Prod: 0 template (tidak ada entri
+  terlewat); menunggu owner (pool-a platform v19.0.1.3.2 + `-u custom_accounting_recurring -d expomedia_prod`).
+  Catatan: install modul di DB baru mencatat ERROR `pdp_field_classification` duplicate key (custom_pdp, bukan fatal) — terpisah.
