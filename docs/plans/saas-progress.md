@@ -426,3 +426,6 @@ skenario gate; dua jendela perawatan prod + tanggal cut-over. Tetap terbuka: K3 
   204, Gmail `250 OK`. Temuan: akun sudah membawa required action `UPDATE_PASSWORD` sebelumnya (asal tidak tercatat);
   realm prod `resetPasswordAllowed=false` (tanpa lupa-password mandiri). Owner sempat membuka form M8 di CP **staging**
   (opsi env `staging`) — tidak ada yang terdaftar; `user.add` staging ditolak `email_other_tenant` (guard benar).
+- 2026-10-04 (owner minta, konfirmasi eksplisit): reset 2FA akun staf owner (`af696df8`, realm `platform` prod) via Admin REST
+  (`kc-realm-sync`, di luar CP): kredensial OTP `97740586…` dihapus (204) + required action `CONFIGURE_TOTP` (204); password
+  tidak diubah (`UPDATE_PASSWORD` sudah selesai oleh owner via email). Akun hanya-password sampai owner memindai QR baru.
