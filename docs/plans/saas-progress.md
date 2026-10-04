@@ -444,3 +444,10 @@ skenario gate; dua jendela perawatan prod + tanggal cut-over. Tetap terbuka: K3 
   dari Odoo expomedia. Observasi compat juga akan selalu memuat mismatch staf (tidak pernah "bersih"). Sebelum M10: tambah
   penerimaan `tenant_id` platform (mis. ICP `sh_auth_oidc.platform_tenant_id` yang diisi odoo-tenant-config) + uji, atau
   keputusan owner lain. Syarat S-b menahan risiko ini (strict tidak diaktifkan).
+- **M9** (owner via SSH; backup Claude `backups/odoo/*-20261004-165731.*` — dump expomedia_prod/demo_demo + filestore
+  expomedia; recreate pool-a ditolak classifier untuk Claude): submodule pool-a `f7b6987` (`5b2ed76`), pool-a healthy
+  17:04 WIB, `-u sh_auth_oidc` expomedia_prod + demo_demo → 19.0.1.3.0, log upgrade 0 ERROR. Login expomedia & demo prod:
+  halaman 200, SSO → form KC. `tenant_check` expomedia_prod = compat (staf akan tercatat `mismatch` — lihat pemblokir M10),
+  demo_demo kosong (= off) sampai user pertama demo.
+- **Status migrasi prod**: M1, M3–M9 selesai (M2 = gate dipercepat). M10 DIBLOKIR (staf platform vs strict). M11 cut-over
+  administrasi: tanggal dari owner. M12 pensiun manual: ≥ 2 minggu setelah M11.
