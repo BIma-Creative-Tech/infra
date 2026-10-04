@@ -11,7 +11,7 @@ name: web-control-plane
 x-hardening: &hardening
   # Tag pin (short SHA commit main repo control-plane). Override sementara untuk rollback:
   #   CONTROL_PLANE_TAG=<tag-lama> docker compose up -d   (lihat docs)
-  image: control-plane:${CONTROL_PLANE_TAG:-89124b6}   # SaaS Fase 1 (2026-10-04, M6; migrasi 0004–0005 aditif; rollback 3d4aa7c)
+  image: control-plane:${CONTROL_PLANE_TAG:-b9febac}   # + UX onboarding (2026-10-04; tanpa migrasi; rollback 89124b6)
   env_file:
     - .env
   user: "1001:1001"
