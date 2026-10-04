@@ -8,7 +8,7 @@ name: staging-control-plane
 x-hardening: &hardening
   # Tag pin (short SHA commit main repo control-plane). Override sementara:
   #   CONTROL_PLANE_TAG=<tag> docker compose up -d
-  image: control-plane:${CONTROL_PLANE_TAG:-89124b6}   # SaaS Fase 1 feat/saas-p1 + log field onboarding invalid (2026-10-03; tanpa migrasi baru; rollback 020bc2f)
+  image: control-plane:${CONTROL_PLANE_TAG:-b9febac}   # + pesan error onboarding spesifik, tombol submit anti-ganda (2026-10-04; tanpa migrasi; rollback 89124b6)
   env_file:
     - .env
   user: "1001:1001"
