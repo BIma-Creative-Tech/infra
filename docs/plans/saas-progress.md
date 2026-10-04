@@ -562,3 +562,7 @@ skenario gate; dua jendela perawatan prod + tanggal cut-over. Tetap terbuka: K3 
 - Opsi 1b: owner merge `cdcc9cd` + apply role `ci_runner`: `supervisor.env` `CI_MEMORY=4g`, `/srv/ci/cache/gradle/gradle.properties`
   (Xmx2g, Kotlin 768m) **berlaku untuk build berikutnya**. Handler restart supervisor TIDAK jalan (aktif sejak 2026-10-03) →
   job baru masih 5120 MiB sampai `systemctl restart ci-runner-supervisor` (saat tidak ada build; restart memutus job berjalan).
+- Cek CI (owner): supervisor di-restart 20:26:56 WIB setelah job selesai (rc=0) → job baru limit 4096 MiB. Puncak `ci-runner-job`
+  1h 1 675 / 24h 2 719 / 7d 5 013 MiB. Belum ada build Gradle/APK sejak cap (`daemon` terakhir 2026-09-28) → cap belum teruji di
+  APK. Keputusan: limit tetap 4g (job non-APK sudah 2,7 GiB → 3g terlalu tipis). Verifikasi: owner jalankan workflow APK drms
+  manual, lalu cek puncak/OOM; bila heap kurang → `ci_runner_gradle_jvmargs` -Xmx2560m.
