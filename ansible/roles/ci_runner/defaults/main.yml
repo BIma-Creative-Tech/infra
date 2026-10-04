@@ -74,7 +74,12 @@ ci_runner_build_dir: /usr/local/lib/ci-runner/image
 # --- Kapasitas (ADR 0004 revisi, GATE Q4) ---------------------------------------------------------------------------
 ci_runner_cpus: "2.0"
 ci_runner_cpu_shares: 256
-ci_runner_memory: 5g
+# 2026-10-04 (owner 1b): 5g → 4g setelah JVM Gradle dibatasi (proyek drms memakai -Xmx8G bawaan template Flutter → build
+# selalu menabrak limit + swap ±3,3 GiB). Turunkan ke 3g bila puncak build terukur < 2,6 GiB.
+ci_runner_memory: 4g
+# Ditulis ke $GRADLE_USER_HOME/gradle.properties (/srv/ci/cache/gradle) — mengalahkan org.gradle.jvmargs proyek.
+ci_runner_gradle_jvmargs: "-Xmx2g -XX:MaxMetaspaceSize=768m -XX:ReservedCodeCacheSize=256m -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8"
+ci_runner_kotlin_daemon_jvmargs: "-Xmx768m"
 ci_runner_pids_limit: 4096
 ci_runner_oom_score_adj: 800
 # io.max absolut (mq-deadline → io.weight tidak berlaku). Diterapkan ke device loop /srv/ci DAN device rootfs host.

@@ -154,3 +154,15 @@
     mode: "0750"
   loop: "{{ [''] + ci_runner_cache_subdirs }}"
   when: not ansible_check_mode
+
+- name: Batas JVM Gradle/Kotlin untuk job CI ($GRADLE_USER_HOME/gradle.properties mengalahkan nilai proyek)
+  ansible.builtin.copy:
+    dest: "{{ ci_runner_mountpoint }}/cache/gradle/gradle.properties"
+    content: |
+      # Dikelola Ansible (role ci_runner) — jangan diubah manual. RAM host dibagi dengan layanan prod (2026-10-04).
+      org.gradle.jvmargs={{ ci_runner_gradle_jvmargs }}
+      kotlin.daemon.jvmargs={{ ci_runner_kotlin_daemon_jvmargs }}
+    owner: "{{ ci_runner_uid }}"
+    group: "{{ ci_runner_gid }}"
+    mode: "0644"
+  when: not ansible_check_mode
