@@ -47,7 +47,7 @@ if [[ "$target" == postgres ]]; then
     *"SELECT 1 FROM pg_database"*) [[ -n "${MOCK_NO_DB:-}" ]] || echo 1 ;;
     *pg_get_userbyid*) if [[ "$sql" == *_staging\'* ]]; then echo odoo_staging; else echo odoo_pool_a; fi ;;
     *"name = 'base'"*) echo installed ;;
-    *sh_auth_oidc*) echo "${MOCK_OIDC_VERSION:-19.0.1.3.0}" ;;
+    *sh_auth_oidc*) echo "${MOCK_OIDC_VERSION:-19.0.1.4.0}" ;;
     *) echo "shim psql: SQL tidak dikenal" >&2; exit 98 ;;
   esac
   exit 0
@@ -684,8 +684,16 @@ class T04Odoo(Base):
             self.ok('kc-realm-sync.sh', 'platform', 'staging')
             self.ok('kc-org.sh', 'acme', 'staging', '--tenant-id', T_ACME)
             self.ok('kc-org.sh', 'beta', 'staging', '--tenant-id', T_BETA)
+            self.ok('kc-org.sh', 'platform', 'staging', '--tenant-id', T_PLATFORM)
             self.ok('kc-user.sh', 'ensure', 'acme', 'staging', '--email', 'u@acme.test', '--tenant-id', T_ACME,
                     '--name', 'Udin Acme')
+
+    def icp(self):
+        path = os.path.join(self.state, 'icp.json')
+        if not os.path.exists(path):
+            return {}
+        with open(path) as f:
+            return json.load(f)
 
     def test_1_odoo_user_wrapper(self):
         uid = self.user_by_email('u@acme.test')['id']
@@ -731,11 +739,15 @@ class T04Odoo(Base):
         self.assertEqual(res['blockers'], '1', out)
 
     def test_2_tenant_config(self):
+        # expected_tenant_id + tenant_check + platform_tenant_id (M10, 2026-10-04: staf platform diterima)
         res, out = self.ok('odoo-tenant-config.sh', 'acme', 'staging', '--tenant-check', 'strict', '--dry-run')
         self.assertEqual((res['mode'], res['tenant'], res['changed'], res['blockers']),
-                         ('strict', T_ACME, '2', '0'), out)
+                         ('strict', T_ACME, '3', '0'), out)
+        self.assertIn(f'tenant platform {T_PLATFORM}', out)
         res, out = self.ok('odoo-tenant-config.sh', 'acme', 'staging', '--tenant-check', 'strict')
-        self.assertEqual(res['changed'], '2', out)
+        self.assertEqual(res['changed'], '3', out)
+        self.assertEqual(self.icp(), {'sh_auth_oidc.expected_tenant_id': T_ACME, 'sh_auth_oidc.tenant_check': 'strict',
+                                      'sh_auth_oidc.platform_tenant_id': T_PLATFORM})
         res, out = self.ok('odoo-tenant-config.sh', 'acme', 'staging', '--tenant-check', 'strict')
         self.assertEqual(res['changed'], '0', out)
         res, out = self.ok('odoo-tenant-config.sh', 'acme', 'staging', '--tenant-check', 'compat')
@@ -743,6 +755,17 @@ class T04Odoo(Base):
         res, out = self.ok('odoo-tenant-config.sh', 'acme', 'staging', '--tenant-check', 'strict', '--dry-run',
                            extra_env={'MOCK_OIDC_VERSION': '19.0.1.2.0'})
         self.assertEqual(res['blockers'], '1', out)
+        # 1.3.0 tidak mengenal platform_tenant_id → strict mengunci staf → BLOKIR; compat tetap boleh
+        res, out = self.ok('odoo-tenant-config.sh', 'acme', 'staging', '--tenant-check', 'strict', '--dry-run',
+                           extra_env={'MOCK_OIDC_VERSION': '19.0.1.3.0'})
+        self.assertEqual(res['blockers'], '1', out)
+        self.assertIn('mengunci staf platform', out)
+        res, out = self.ok('odoo-tenant-config.sh', 'acme', 'staging', '--tenant-check', 'compat', '--dry-run',
+                           extra_env={'MOCK_OIDC_VERSION': '19.0.1.3.0'})
+        self.assertEqual(res['blockers'], '0', out)
+        # off: platform ikut dikosongkan
+        res, out = self.ok('odoo-tenant-config.sh', 'acme', 'staging', '--tenant-check', 'off')
+        self.assertEqual(self.icp()['sh_auth_oidc.platform_tenant_id'], '', out)
         rc, out, _ = self.run_script('odoo-tenant-config.sh', 'platform', 'staging', '--tenant-check', 'off')
         self.assertEqual(rc, 3, out)
 
@@ -773,6 +796,25 @@ class T04Odoo(Base):
             res, out = self.ok('odoo-tenant-config.sh', slug, 'staging', '--tenant-check', 'off', '--dry-run')
             self.assertEqual((res['blockers'], res['tenant'], res['mode']), ('0', '-', 'off'), out)
         self.assertEqual(icp_now(), before, 'ICP tidak berubah')
+
+    def test_4_tenant_config_without_platform_org(self):
+        # org platform tidak ada: strict → dry-run BLOKIR / apply exit 3 (ICP tidak berubah); compat → peringatan, lanjut
+        R = self.realm()
+        pid = next(k for k, o in R['orgs'].items() if o['name'] == 'platform')
+        saved = R['orgs'].pop(pid)
+        try:
+            res, out = self.ok('odoo-tenant-config.sh', 'acme', 'staging', '--tenant-check', 'strict', '--dry-run')
+            self.assertEqual(res['blockers'], '1', out)
+            self.assertIn('mengunci staf platform', out)
+            before = self.icp()
+            rc, out, _ = self.run_script('odoo-tenant-config.sh', 'acme', 'staging', '--tenant-check', 'strict')
+            self.assertEqual(rc, 3, out)
+            self.assertEqual(self.icp(), before)
+            res, out = self.ok('odoo-tenant-config.sh', 'acme', 'staging', '--tenant-check', 'compat')
+            self.assertIn('PERINGATAN: organization platform', out)
+            self.assertEqual(self.icp().get('sh_auth_oidc.platform_tenant_id'), '')
+        finally:
+            R['orgs'][pid] = saved
 
 
 class T05TenantState(Base):
