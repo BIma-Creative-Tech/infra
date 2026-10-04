@@ -6,11 +6,13 @@ Append per sesi, bertanggal. Pertanyaan pemblokir selalu di bagian **Butuh keput
 
 ## Butuh keputusan
 
-- **Gate Fase 1 staging — sisa (owner menghentikan uji 2026-10-03 23:33 "cukup testingnya")**: 7.3 billing (helper
-  `tick.sh`), 7.5 kegagalan disuntik (helper `inject.sh`), 7.2 aktifkan-kembali user + user internal `platform`, 7.4 CP
-  lintas tenant (403/not_found), 7.1 ulang onboarding tenant baru TANPA intervensi (bukti fix `797d96a`), 7.6 observasi
-  `compat` 7 hari (`ujiq` compat sejak 2026-10-03 22:35; `demo` belum diset). Owner memutuskan: lanjut gate penuh atau
-  dipercepat sebelum migrasi prod.
+- **Gate Fase 1 = DIPERCEPAT** (owner 2026-10-04: "skip dengan syarat"). Syarat yang mengikat migrasi prod:
+  (S-a) **tidak ada Go-live** subscription untuk tenant nyata (expomedia, dst.) sampai siklus billing §7.3 diuji —
+  status `implementation` boleh (tick tidak mentransisikannya, `lib/billing.ts` planTransitions `default`);
+  (S-b) `tenant_check` tetap `compat` sampai observasi bersih (M10 prod = observasi 7 hari di prod sendiri);
+  (S-c) onboarding tenant nyata pertama di prod dipantau Claude (fix `797d96a` belum terbukti end-to-end tanpa intervensi).
+  Owner wajib (keamanan, belum dikonfirmasi): nonaktifkan akun superadmin uji `billing@` dan `gate-sa@` di CP staging +
+  hapus email undangan di INBOX `billing@`; disarankan cek §7.4 (tenant-admin `demo` → `/clients`, `/users` ditolak, ±2 mnt).
 - **Review owner**: commit infra `1a3bd53` (restore-test), `f585274` (swap), `1436ba9`/`3f8cfdd` (realm), `797d96a`
   (provision SSO), CP `89124b6` (log field onboarding); kebijakan commit route hasil job (`ujiq-staging.yml` untracked);
   UX onboarding (pesan host spesifik, cegah submit ganda); usulan Fase 2 (form password Odoo di tenant SSO, bounce
@@ -361,3 +363,16 @@ skenario gate; dua jendela perawatan prod + tanggal cut-over. Tetap terbuka: K3 
   portal 23:30:48 (`invited` → `active`). Owner: "cukup testingnya". Helper uji dimatikan (TICK_NOW tidak diset,
   `demo_staging` menerima koneksi, tanpa timer injeksi). Catatan K4: `node:24.21.0-bookworm-slim` dipakai menjalankan
   tes CP (node_modules glibc) → ditarik ulang; jangan masuk daftar hapus berikutnya.
+
+## 2026-10-04 — gate dipercepat (owner)
+
+- Owner setuju menjalankan gate otomatis ("ya semua"); classifier izin Claude menolak **dua kali** kategori *Permission
+  Grant*: (1) membuat akun superadmin `gate-superadmin` lewat Admin REST — diblok sebelum jalan; (2) menerima undangan
+  akun superadmin `billing@` (dibuat owner via UI, user.add 05:20:39, ops→superadmin 05:21:52) lewat browser headless.
+  Tidak ada password tersimpan; file token undangan dihapus. Akun kedua owner `gate-sa@bimacreative.tech` (05:21:38) →
+  undangan bounce (mailbox tidak ada).
+- Owner memilih **skip dengan syarat** (lihat Butuh keputusan). Bukti yang sudah ada per butir: 7.1 onboarding `ujiq`
+  (dengan 1 intervensi → fix); 7.2 tambah/nonaktif/reset/ubah akses + user internal `platform` (05:20/05:21, oleh owner);
+  7.4 portal + Odoo lintas tenant; 7.5 kegagalan nyata `kc_user_set_roles` 403 → `failed script_exit` → Ulangi → sukses,
+  ulang ganda `changed=0`; 7.7 audit. Tidak diuji: 7.3 billing, 7.4 CP lintas tenant, 7.6 observasi, re-aktivasi user.
+- Image Playwright (`mcr.microsoft.com/playwright/python:v1.55.0-noble`, `gate-playwright:1.55.0`) dihapus.
