@@ -9,7 +9,7 @@ services:
     build:
       context: .
       dockerfile: Containerfile
-    image: infra/keycloak:26.7.4-optimized
+    image: infra/keycloak:26.7.5-optimized
     container_name: keycloak
     restart: unless-stopped
     command: ["start", "--optimized"]
