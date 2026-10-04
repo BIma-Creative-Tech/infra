@@ -102,3 +102,25 @@ perampingan ADR 0004 §5 atau VPS-2. Subnet: `db-*` sisa 11; edge blok baru 20 i
 - **Q8** `plan.limits.workers` + modul per plan di `plans.features` (jsonb) atau kolom baru? Pemelihara `module-allowlist.txt`?
 - **Q9** Gagal `dns_verify` harian: status + email ops (rekomendasi) atau suspend router otomatis?
 - **Q10** Daftar slug reserved (D12) disetujui?
+
+## 9. Rekomendasi jawaban Q1–Q10 (Claude, 2026-10-04 — menunggu persetujuan owner)
+
+Fakta terbaru (2026-10-04, read-only): Postgres `max_connections` 200 (−3 superuser = 197), Σ CONNECTION LIMIT role 196 (14 role),
+pemakaian nyata 33; RAM 15 992 MiB, Σ`mem_limit` berjalan 19 680 MiB (termasuk `ci-runner-job` 5 GiB), tersedia ±8,4 GiB;
+`/` 64 %; Uptime Kuma 2.5.5 berjalan; observability = Prometheus + Grafana + Loki + **Alloy** (tanpa blackbox exporter terpisah).
+Pengalaman Fase 1: route hasil job (`ujiq-staging.yml`) muncul sebagai file untracked (tree kotor).
+
+| Q | Rekomendasi | Alasan singkat |
+|---|---|---|
+| Q1 | **`odoo-edge-<slug>` per instance** | `odoo-edge` bersama menjadikan pool-a peer tepercaya instance dedicated (`SH_DBFILTER_TRUSTED_PROXIES`) — melanggar isolasi ADR 0010 D4/H1, padahal isolasi adalah alasan menjual dedicated. Biaya: blok subnet 10.100.40–59 (20 instance) |
+| Q2 | **Ganti mekanisme: monitor tenant lewat Alloy `prometheus.exporter.blackbox` + target file** (`/etc/alloy/targets/tenants/<slug>-<env>.json`, ditulis job, root 0644) → alert Prometheus/Grafana; Uptime Kuma tetap untuk status page manusia | `monitor_ensure` via socket.io Kuma butuh password admin Kuma di host dan bentrok dengan 2FA admin; API tulis Kuma tidak resmi (UNVERIFIED). Alloy sudah berjalan → tanpa kredensial baru, idempoten (file), mudah diuji. D15 diubah |
+| Q3 | **Keluarkan route `# GENERATED` dari git** (`.gitignore` per pola + `route-gen.py --check` untuk drift); `# MANUAL` tetap di git | Fase 1 membuktikan route job membuat tree kotor/untracked; sumber kebenaran = CP + registry host; restic sudah mem-backup `/opt/infra` |
+| Q4 | **Naikkan `max_connections` 200 → 260 di jendela perawatan berikutnya** (Postgres recreate ±6 s; semua app reconnect) — gabungkan dengan jendela lain bila ada | Slot role 196/197: role tenant dedicated berikutnya tidak bisa dibuat. RAM cukup (shared_buffers tidak berubah) |
+| Q5 | **Ya**: tenant-admin boleh menambah domain + "Cek sekarang"; **aktivasi router tetap platform-admin** | Self-service mengurangi tiket; aktivasi router menyentuh ACME/Traefik (rate limit, blast radius) → tetap keputusan platform |
+| Q6 | **Belum untuk prod di host ini.** Izinkan dedicated **staging** (workers 1) untuk W4/gate; dedicated prod menunggu VPS-2 atau perampingan ADR 0004 §5. Bila tetap perlu: plan `odoo-dedicated`, workers default **2** (±2,3 GiB), maksimal **1** instance | Σ`mem_limit` sudah 19,7 GiB pada RAM 16 GiB (overcommit); satu dedicated workers 2 menambah ±2,3 GiB |
+| Q7 | **Router saja** (sama dengan shared); `compose stop` hanya setelah `terminated` | Suspend bisa dibalik cepat saat bayar; stop/start menambah risiko & waktu resume; RAM dilepas saat terminasi |
+| Q8 | **`plans.features` (jsonb)**: `{"workers": n, "modules": [...]}`; skema divalidasi zod di CP; `odoo/module-allowlist.txt` dipelihara **platform (Lead) via PR** | Tanpa migrasi kolom untuk tiap atribut; plan baru tanpa perubahan skema; allowlist = kontrol keamanan host |
+| Q9 | **Status `failed` + email ops; tidak pernah suspend router otomatis** | DNS sementara gagal ≠ tenant bermasalah; mencabut router memicu downtime + ACME ulang (D5) |
+| Q10 | **Setuju**, ditambah `admin`, `api`, `cp`, `auth`, `www`, `mail`, `demo` | Bentrok dengan host platform (`cp.`, `auth.`, `mail.`) dan tenant demo yang sudah ada |
+
+Persetujuan: owner menulis "setuju Q1–Q10" (atau nomor yang diubah). Setelah itu: W0 (jendela Postgres Q4) → W1 ADR 0019 + kontrak.
