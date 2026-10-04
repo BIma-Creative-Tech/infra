@@ -228,7 +228,9 @@ gid 101 = grup `odoo` di container (uid 100:101); di host gid 101 bernama `messa
 
 ICP `sh_auth_oidc.expected_tenant_id` (= alias Organization slug) + `sh_auth_oidc.tenant_check` (`off|compat|strict`)
 ditulis job `odoo_tenant_config` (`scripts/odoo-tenant-config.sh`). Alias org kosong/bukan UUID → `compat`/`strict`
-tidak pernah ditulis (dry-run BLOKIR, apply exit 3 — QA F4).
+tidak pernah ditulis (dry-run BLOKIR, apply exit 3 — QA F4). Sejak 2026-10-04 juga `sh_auth_oidc.platform_tenant_id` (= alias
+org `platform`; `sh_auth_oidc` ≥ 19.0.1.4.0 menerima staf/operator platform yang tetap lolos role gate). `strict` BLOKIR bila
+modul < 19.0.1.4.0 atau org `platform` tidak ada (staf akan terkunci); `compat` hanya PERINGATAN.
 
 **Risiko diterima (QA F6):** ICP ini bisa diubah oleh user ber-`base.group_system` di DB itu sendiri (Settings →
 Technical → System Parameters), mis. admin tenant (`odoo_admin`). Ini **lapis kedua saja**: lapis utama tetap client

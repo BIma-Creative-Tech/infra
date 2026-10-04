@@ -45,7 +45,9 @@ Fakta (inventaris 2026-10-02, read-only):
 4. **Odoo tetap satu client per tenant-env** (ADR 0008, keputusan owner K8). Klaim `tenant_id` adalah **lapisan kedua**:
    `sh_auth_oidc` 19.0.1.3.0 membandingkan klaim dengan ICP `sh_auth_oidc.expected_tenant_id` per DB, mode
    `sh_auth_oidc.tenant_check` = `off` (default) | `compat` (log WARNING, login tetap) | `strict` (tolak). Prod pindah
-   `compat` → `strict` setelah 7 hari log bersih (brief §6a M6).
+   `compat` → `strict` setelah 7 hari log bersih (brief §6a M6). Amandemen 2026-10-04: 19.0.1.4.0 juga menerima klaim =
+   tenant `platform` (ICP `sh_auth_oidc.platform_tenant_id`) — tanpa itu `strict` mengunci staf dari Odoo tenant; role gate
+   client tetap membatasi staf.
 5. **Role** (keputusan owner K9): client role `control-plane` yang ada dipertahankan — `superadmin` (label UI
    *platform-admin*), `ops` (*platform-viewer*/operator), `client_admin` (*tenant-admin*), `client_user` (*tenant-user*).
    Client `odoo-<slug>-<env>`: `odoo_access` (tetap) + `odoo_admin` (baru → group Settings/Administration oleh job

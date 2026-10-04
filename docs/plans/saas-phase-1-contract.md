@@ -76,7 +76,8 @@ lanjut apply hanya bila exit 0.
   password lokal), set group: `user` → `base.group_user` (+ group paket menyusul Fase 2), `admin` → `base.group_system`;
   link `oauth_provider_id` = provider `sh_auth_oidc` aktif, `oauth_uid`; `active` sesuai flag. Tidak pernah menyentuh
   `base.user_admin`/`base.user_root`. RESULT `db odoo_user kc_user created changed`.
-- **`odoo-tenant-config.sh`**: ICP `sh_auth_oidc.expected_tenant_id` = alias org slug, `sh_auth_oidc.tenant_check` = mode.
+- **`odoo-tenant-config.sh`**: ICP `sh_auth_oidc.expected_tenant_id` = alias org slug, `sh_auth_oidc.tenant_check` = mode,
+  `sh_auth_oidc.platform_tenant_id` = alias org `platform` (2026-10-04, M10; RESULT tidak berubah).
   RESULT `db mode changed`.
 - **`tenant-state.sh`**: render ulang route `<slug>-<env>.yml` lewat `render-client-route.sh` dengan flag baru
   `--suspended` (router main/login/oidc/websocket memakai middleware `tenant-suspended@file` → redirect 302 ke

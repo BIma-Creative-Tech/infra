@@ -7,10 +7,13 @@
 # ICP di DB <slug>_<env>:
 #   sh_auth_oidc.expected_tenant_id = alias Organization Keycloak slug (= tenant_id; dibaca dengan cp-admin, GET saja)
 #   sh_auth_oidc.tenant_check       = off | compat (log WARNING, login tetap) | strict (klaim tenant_id ≠ → login ditolak)
+#   sh_auth_oidc.platform_tenant_id = alias Organization `platform` (tenant pemilik platform; staf/operator diterima —
+#                                     sh_auth_oidc ≥ 19.0.1.4.0). Mode off → dikosongkan. Org platform tidak ada: compat →
+#                                     PERINGATAN (dikosongkan); strict → BLOKIR (staf platform akan terkunci, M10 2026-10-04).
 # Ditulis lewat `odoo shell` (ICP.set_param membersihkan ormcache) + commit + env.registry.signal_changes() agar worker
 # pool memuat ulang cache (pelajaran: ubah via odoo shell wajib signal_changes). Slug `platform` ditolak (exit 3).
-# strict butuh sh_auth_oidc ≥ 19.0.1.3.0 ter-install (BLOKIR bila lebih lama — modul lama mengabaikan ICP ini, strict
-# palsu); compat dengan modul lama hanya PERINGATAN (pra-staging nilai).
+# strict butuh sh_auth_oidc ≥ 19.0.1.4.0 ter-install (BLOKIR bila lebih lama — < 1.3.0 mengabaikan ICP ini = strict
+# palsu; 1.3.0 tidak mengenal platform_tenant_id = staf terkunci); compat dengan modul lama hanya PERINGATAN.
 # Alias org kosong/bukan UUID + mode compat|strict → dry-run BLOKIR / apply exit 3 (QA F4); mode off → expected
 # dikosongkan.
 # Output baris terakhir: RESULT db=<db> mode=<off|compat|strict> tenant=<uuid|-> changed=<n> [blockers=<n>]
@@ -26,7 +29,8 @@ source "$LIB/keycloak-admin.sh"
 source "$LIB/odoo-exec.sh"
 # shellcheck source=lib/kc-tenant.sh
 source "$LIB/kc-tenant.sh"
-MIN_MODULE=19.0.1.3.0
+MIN_MODULE=19.0.1.3.0        # compat/strict membaca expected_tenant_id
+MIN_MODULE_STRICT=19.0.1.4.0 # strict: platform_tenant_id dibaca (staf platform tidak terkunci)
 
 usage() { echo "pemakaian: $0 <slug> <prod|demo|staging> --tenant-check <off|compat|strict> [--dry-run]" >&2; exit 2; }
 [[ $EUID -eq 0 ]] || die "harus root"
@@ -69,6 +73,8 @@ if [[ $DB_EXISTS -eq 1 ]]; then
       strict) block "sh_auth_oidc ${ver} < ${MIN_MODULE}: mode strict tidak ditegakkan modul lama" ;;
       compat) log "PERINGATAN: sh_auth_oidc ${ver} < ${MIN_MODULE} — nilai disimpan, belum dibaca modul" ;;
     esac
+  elif [[ "$MODE" == strict ]] && ! version_ge "$ver" "$MIN_MODULE_STRICT"; then
+    block "sh_auth_oidc ${ver} < ${MIN_MODULE_STRICT}: strict tanpa dukungan platform_tenant_id mengunci staf platform"
   fi
 fi
 
@@ -90,13 +96,29 @@ if [[ -n "$ORG_ID" && ! "$TENANT_ID" =~ $UUID_RE ]]; then
   fi
 fi
 
+# ---- tenant platform (staf/operator; sh_auth_oidc ≥ 19.0.1.4.0) — GET saja
+PLATFORM_ID=""
+if [[ "$MODE" != off ]]; then
+  kc_org_by_slug platform
+  if [[ -n "$ORG_ID" && "$ORG_ALIAS" =~ $UUID_RE ]]; then
+    PLATFORM_ID="$ORG_ALIAS"
+    log "tenant platform ${PLATFORM_ID} (staf platform diterima)"
+  elif [[ "$MODE" == strict ]]; then
+    if [[ $DRY -eq 1 ]]; then block "organization platform tidak ada/alias bukan UUID — strict akan mengunci staf platform"
+    else refuse "organization platform tidak ada/alias bukan UUID — strict tidak ditulis (staf platform terkunci)"; fi
+  else
+    log "PERINGATAN: organization platform tidak ada/alias bukan UUID — platform_tenant_id dikosongkan (staf: mismatch)"
+  fi
+fi
+
 if [[ $BLOCKERS -gt 0 ]]; then
   log "odoo shell TIDAK dijalankan (ada blocker)"
 else
   # Nilai sudah tervalidasi regex (UUID / off|compat|strict) → aman sebagai literal Python.
   out="$(odoo_cli shell --log-level=warn 2>&1 <<PY
 ICP = env['ir.config_parameter'].sudo()
-want = {'sh_auth_oidc.expected_tenant_id': '${TENANT_ID}', 'sh_auth_oidc.tenant_check': '${MODE}'}
+want = {'sh_auth_oidc.expected_tenant_id': '${TENANT_ID}', 'sh_auth_oidc.tenant_check': '${MODE}',
+        'sh_auth_oidc.platform_tenant_id': '${PLATFORM_ID}'}
 dry = ${DRY} == 1
 n = 0
 for key, value in want.items():
