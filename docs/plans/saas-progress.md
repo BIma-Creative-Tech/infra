@@ -7,7 +7,8 @@ Append per sesi, bertanggal. Pertanyaan pemblokir selalu di bagian **Butuh keput
 ## Butuh keputusan
 
 - **Gate Fase 1 = DIPERCEPAT** (owner 2026-10-04: "skip dengan syarat"). Syarat yang mengikat migrasi prod:
-  (S-a) **tidak ada Go-live** subscription untuk tenant nyata (expomedia, dst.) sampai siklus billing §7.3 diuji —
+  (S-a) ~~tidak ada Go-live subscription tenant nyata sampai siklus billing §7.3 diuji~~ **TERPENUHI 2026-10-04** (uji
+  billing staging lulus, lihat log) —
   status `implementation` boleh (tick tidak mentransisikannya, `lib/billing.ts` planTransitions `default`);
   (S-b) `tenant_check` tetap `compat` sampai observasi bersih (M10 prod = observasi 7 hari di prod sendiri);
   (S-c) onboarding tenant nyata pertama di prod dipantau Claude (fix `797d96a` belum terbukti end-to-end tanpa intervensi).
@@ -536,3 +537,11 @@ skenario gate; dua jendela perawatan prod + tanggal cut-over. Tetap terbuka: K3 
   (`system:ops`, SQL manual — belum ada aksi UI terminasi; ADR 0018 "manual platform-admin"). Koreksi data lama:
   env `demo` staging `db_status` absent → provisioned (audit `environment.correct`).
 - Org Keycloak `ujiq`/`ssotest` dan client KC (nonaktif) dibiarkan (tidak dipakai). ADR 0018 D10 diamandemen.
+- **Gate §7.3 billing — LULUS** (staging, owner klik + Claude `TICK_NOW` override sementara): subscription `demo` (odoo-shared-s,
+  override IDR 1.000.000) → Go-live 2026-10-04 (garansi s.d. 2026-12-04) → tick 2026-12-05: `active`, periode 12-04→01-04,
+  `INV/2026/10/0001` unpaid → tick 2027-01-05: `past_due` (grace s.d. 2027-03-04) + email pengingat di Mailpit → tick
+  2027-03-05: `suspended` + `tenant_suspend` succeeded, `demo.staging` → 302 `/suspended/demo` ("Layanan ditangguhkan … Data
+  Anda tetap aman") → owner tandai lunas → `active` (periode berikut + `INV/2026/10/0002`), `tenant_resume` succeeded,
+  `/web/login` 200, `demo-staging.yml` identik git. Audit lengkap (aksi owner ber-aktor). Override `TICK_NOW` dimatikan.
+  Catatan: subscription pertama sempat dibuat di CP **prod** (`demo`) → di-terminate owner (TICK_NOW tidak berlaku di prod).
+  Subscription staging `demo` tetap `active` (periode s.d. 2027-02-04; tick nyata akan memprosesnya Feb 2027).
