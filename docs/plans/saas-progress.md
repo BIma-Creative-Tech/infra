@@ -413,3 +413,11 @@ skenario gate; dua jendela perawatan prod + tanggal cut-over. Tetap terbuka: K3 
   (tanpa `kc_realm_sync`); compose CP prod `INFRA_JOBS_TYPES` sama + `PLATFORM_PUBLIC_IPV4`. `--check --diff`: hanya
   `prod.conf` (`changed=1`). Cek ketergantungan: `odoo-tenant-config.sh` compat pada `sh_auth_oidc` < 1.3.0 hanya PERINGATAN
   (nilai disimpan) → M8 boleh sebelum M9.
+- **M7** (owner via SSH, merge `f9e8d96` + `--tags infra_jobs` `changed=1` + CP prod up): `prod.conf` 14 tipe (tanpa
+  `kc_realm_sync`); CP web/worker healthy dengan `INFRA_JOBS_TYPES` (+ `PLATFORM_PUBLIC_IPV4` web); 0 warn/error. Job tipe
+  baru via spool prod (uid 950) `kc_org_ensure demo` dry-run → `succeeded` (`changed=1` = org demo akan dibuat; tidak dibuat).
+- Persiapan M8: user Odoo SSO expomedia (uid 5) = akun staf owner (`af696df8`, satu-satunya user realm `platform`) → M8(d)
+  tidak perlu (staf → tenant `platform`, akses Odoo expomedia via `odoo_access`). Tabel `users` CP prod kosong sampai owner
+  login. Celah UI: tenant yang SUDAH terdaftar (`demo`) tidak punya aksi `kc_org_ensure`/`odoo_tenant_config` (register →
+  `exists`); org dibuat otomatis oleh rantai user pertama tenant itu; `tenant_check` demo tetap kosong (= off) → usulan
+  Fase 2 "sinkronkan tenant".
