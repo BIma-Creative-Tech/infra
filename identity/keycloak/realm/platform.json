@@ -4,13 +4,13 @@
     "Diterapkan oleh scripts/kc-realm-sync.sh (client `kc-realm-sync`) lewat scripts/lib/kc_realm_sync.py. Tanpa secret, tanpa user.",
     "Realm `platform-staging` = file ini + platform-staging.overrides.json (deep-merge objek, list diganti).",
     "Baseline 2026-10-03 dari realm-export/platform*.json (2026-09-25) + SELECT read-only DB keycloak; kondisi live = nilai di sini kecuali elemen Fase 1 (scope tenant, atribut tenant_id, role odoo_admin, client cp-admin, flow Organization DISABLED).",
-    "realm.organizationsEnabled TETAP false (nilai live): W2 membaliknya ke true setelah uji live S1 (ADR 0017 §Spike S1) — ubah di sini, bukan di console.",
+    "realm.organizationsEnabled = true sejak 2026-10-04 (M5 prod, setelah uji live S1 staging 2026-10-03 + prod 2026-10-04: sub-flow Organization DISABLED, token tanpa klaim organization) — ubah di sini, bukan di console.",
     "Scope `organization` SENGAJA tidak dijadikan default (keputusan Lead S1: default org scope mengikat refresh token ke org dan gagal refresh saat keanggotaan berubah) — tetap default-OPTIONAL realm, tidak disentuh.",
     "Client `kc-realm-sync` TIDAK ada di sini (bootstrap manual sekali per realm, docs/03-operations/keycloak.md §Realm sebagai kode). Client odoo-<slug>-<env> dibuat provision-odoo-sso.sh; file ini hanya menambah scope default `tenant` dan role `odoo_admin`."
   ],
   "version": 1,
   "realm": {
-    "organizationsEnabled": false,
+    "organizationsEnabled": true,
     "resetPasswordAllowed": false,
     "bruteForceProtected": true,
     "permanentLockout": false,
