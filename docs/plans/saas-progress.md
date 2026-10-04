@@ -407,3 +407,9 @@ skenario gate; dua jendela perawatan prod + tanggal cut-over. Tetap terbuka: K3 
   `odoo_admin` di kedua client Odoo. **Uji live S1 prod**: contoh ID token (1 user staf) tanpa `organization`, `tenant_id`
   belum ada (atribut diisi M8). Login `erp.expomedia.id` (SSO) + CP prod = form biasa; 0 ERROR KC/pool-a.
   Lalu `organizationsEnabled=true` di `platform.json` (`b4a35fd`) → dry-run prod `changed=1` → menunggu apply owner.
+- M5 (lanjutan): owner apply `organizationsEnabled=true` prod → dry-run `changed=0`; `cp-admin` `GET /organizations` 200 (0 org);
+  login expomedia SSO + CP prod tetap form username+password; 0 ERROR KC. **M5 selesai.**
+- M7 disiapkan (branch `feat/saas-m7-prod-job-types` `a67ec08`, belum merge): `infra_jobs_job_types.prod` = 5 lama + 9 Fase 1
+  (tanpa `kc_realm_sync`); compose CP prod `INFRA_JOBS_TYPES` sama + `PLATFORM_PUBLIC_IPV4`. `--check --diff`: hanya
+  `prod.conf` (`changed=1`). Cek ketergantungan: `odoo-tenant-config.sh` compat pada `sh_auth_oidc` < 1.3.0 hanya PERINGATAN
+  (nilai disimpan) → M8 boleh sebelum M9.
