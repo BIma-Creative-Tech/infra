@@ -483,3 +483,7 @@ skenario gate; dua jendela perawatan prod + tanggal cut-over. Tetap terbuka: K3 
   (`091e922`): `expomedia_staging` 19.0.0.1.1, kedua cron dijalankan manual tanpa error. Prod: 0 template (tidak ada entri
   terlewat); menunggu owner (pool-a platform v19.0.1.3.2 + `-u custom_accounting_recurring -d expomedia_prod`).
   Catatan: install modul di DB baru mencatat ERROR `pdp_field_classification` duplicate key (custom_pdp, bukan fatal) — terpisah.
+- **UX onboarding CP** (usulan Fase 2 yang kecil, dikerjakan): control-plane `b9febac` (fitur `feat/onboarding-ux`) — pesan
+  spesifik `host_invalid` / `slug_invalid` (baru) / `email_invalid` (baru) bila semua field gagal satu jenis; komponen
+  `SubmitButton` (useFormStatus) menonaktifkan tombol "Buat tenant", "Daftarkan tenant", "Ulangi dari langkah ini" selama aksi.
+  Unit 761 OK, lint OK, build image OK. Staging CP `b9febac` (infra `deploy/cp-staging-b9febac`) healthy. Prod menunggu owner.
