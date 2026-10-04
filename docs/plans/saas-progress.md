@@ -376,3 +376,21 @@ skenario gate; dua jendela perawatan prod + tanggal cut-over. Tetap terbuka: K3 
   7.4 portal + Odoo lintas tenant; 7.5 kegagalan nyata `kc_user_set_roles` 403 → `failed script_exit` → Ulangi → sukses,
   ulang ganda `changed=0`; 7.7 audit. Tidak diuji: 7.3 billing, 7.4 CP lintas tenant, 7.6 observasi, re-aktivasi user.
 - Image Playwright (`mcr.microsoft.com/playwright/python:v1.55.0-noble`, `gate-playwright:1.55.0`) dihapus.
+
+## 2026-10-04 — migrasi prod M1–M4 (owner: "bct = pemilik platform"; "M4, M5, M6 jalankan sekarang")
+
+- **bct** = pemilik platform (owner) → direpresentasikan tenant `platform`; tidak ada tenant klien `bct` di M8.
+- **M1** 15:13 WIB: `restic-backup` `RESULT status=ok dbs_ok=14 remote=ok` (files snapshot 17e9b6b7, 42 388 file — kini termasuk
+  `/opt/src`); dump `keycloak`, `control_plane`, `expomedia_prod` (987 TABLE DATA), `demo_demo` + tgz `traefik/dynamic/clients`,
+  `mail/data/config` → `/opt/infra/backups/saas-prod/20261004-151338/` (600). Export `kc_realm_sync --dry-run` → di M5 (client
+  `kc-realm-sync` prod belum ada).
+- **M3** (merge + apply 2026-10-03): `cmp` dispatcher = repo 1.2.0; `prod.conf` tanpa `job_types`; E2E job lama prod via spool
+  (uid 950) `odoo_sso_provision demo demo` dry-run → `succeeded`, `changed=0 blockers=0` (job `80f10143`).
+- **M4 / K11** Keycloak 26.7.4 → **26.7.5**: release notes 13 CVE; verifikasi changelog JPA (jar `keycloak-model-jpa`) 26.7.4 vs
+  26.7.5 → satu changeset baru `26.7.0-backfill-group-org-id` (backfill `KEYCLOAK_GROUP.ORG_ID` org < 26.6.0; tanpa skema) —
+  pra-cek DB: 4 org (semua platform-staging, dibuat di 26.7.4), 0 grup org tanpa `org_id` → 0 baris. Image dibangun Claude;
+  **recreate prod dijalankan owner via SSH** (classifier menolak Claude: *Production Deploy*) → `d89e121`. 15:41:38 WIB start
+  13,2 s, changeset `EXECUTED`, 0 ERROR; discovery `platform`/`drms`/`platform-staging`, CP prod health, `erp.expomedia.id`
+  login = 200 (identik baseline); SSO expomedia & halaman login CP prod (PKCE) = form username+password.
+- Batas peran: perubahan prod (deploy, apply realm prod, akun berhak) dijalankan owner; Claude menyiapkan perintah persis,
+  verifikasi sebelum/sesudah, rollback.
