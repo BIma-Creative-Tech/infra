@@ -523,3 +523,16 @@ skenario gate; dua jendela perawatan prod + tanggal cut-over. Tetap terbuka: K3 
 - Prod (owner via SSH, 19:31 WIB): pool-a shared `1773770` → `sh_auth_oidc` 19.0.1.5.0 di expomedia_prod + demo_demo (rc=0, log
   0 ERROR; `c6154e1`); petunjuk login SSO tampil di `erp.expomedia.id` dan `demo.erp.bimacreative.tech`. Platform pool-a
   `v19.0.1.3.3` (custom_pdp dedupe) di-checkout owner; gitlink dicatat Claude (`5718872`) — data instalasi baru saja.
+
+## 2026-10-04 (malam) — pembersihan staging (owner: "kerjakan poin 1 dan 2")
+
+- Backup: restic (`ujiq_staging` 2 snapshot, `ssotest_staging` 10, terakhir 15:14) + dump eksplisit DB/filestore/route +
+  `control_plane_staging` → `/opt/infra/backups/saas-cleanup/<ts>/` (600).
+- `ujiq` & `ssotest`: `provision-odoo-sso.sh --disable` (client KC `enabled=false`, provider Allowed OFF) →
+  `render-client-route.sh --remove` (host 404) → `odoo db drop` (DB + filestore terhapus). User KC tenant `ujiq` (admin
+  `28c5564a`) dinonaktifkan; `ssotest`/`qajob` tanpa user. File secret SSO `staging/odoo/secrets/oidc/{ujiq,ssotest}_staging`
+  **tidak** terhapus (izin folder secrets ditolak) — tidak berguna lagi (client nonaktif); hapus manual bila mau.
+- CP staging: `ujiq`, `ssotest`, `qajob` → `terminated` + environment `absent/removed/disabled` + audit `tenant.terminate`
+  (`system:ops`, SQL manual — belum ada aksi UI terminasi; ADR 0018 "manual platform-admin"). Koreksi data lama:
+  env `demo` staging `db_status` absent → provisioned (audit `environment.correct`).
+- Org Keycloak `ujiq`/`ssotest` dan client KC (nonaktif) dibiarkan (tidak dipakai). ADR 0018 D10 diamandemen.

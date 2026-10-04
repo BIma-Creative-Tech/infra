@@ -68,7 +68,9 @@ Fakta (inventaris 2026-10-02):
 9. **Portal client** (tenant-admin): Ringkasan, Users, Domain & Mail. Setiap server action memeriksa `client_id` sesi ==
    baris target di server (bukan filter UI); uji unit lintas tenant wajib. Fitur lain menunggu tiga halaman ini dipakai.
 10. **Data demo** (Q6): `demo_staging` = tenant uji Fase 1; `ssotest_staging` dihapus setelah Fase 1 lulus (dump ke restic
-    dulu); `demo_demo` dipertahankan; tidak ada DB lain yang dihapus.
+    dulu); `demo_demo` dipertahankan; tidak ada DB lain yang dihapus. **Amandemen 2026-10-04 (owner):** gate Fase 1 dipercepat;
+    tenant uji `ssotest`, `ujiq` (dibuat untuk gate §7.1) dan `qajob` (DB sudah tidak ada) di-terminate di CP staging, DB +
+    filestore `ssotest_staging`/`ujiq_staging` di-drop setelah dump (`backups/saas-cleanup/`, restic 15:14).
 
 ## Alternatives
 
