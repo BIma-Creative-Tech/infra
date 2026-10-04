@@ -566,3 +566,8 @@ skenario gate; dua jendela perawatan prod + tanggal cut-over. Tetap terbuka: K3 
   1h 1 675 / 24h 2 719 / 7d 5 013 MiB. Belum ada build Gradle/APK sejak cap (`daemon` terakhir 2026-09-28) → cap belum teruji di
   APK. Keputusan: limit tetap 4g (job non-APK sudah 2,7 GiB → 3g terlalu tipis). Verifikasi: owner jalankan workflow APK drms
   manual, lalu cek puncak/OOM; bila heap kurang → `ci_runner_gradle_jvmargs` -Xmx2560m.
+- Build APK drms (mobile #45 → runner job 235, 21:20–21:29 WIB): Gradle 9.3.1 berjalan (daemon `GRADLE_OPTS` dari workflow drms:
+  `-Xmx1536m -XX:MaxMetaspaceSize=384m` — mengalahkan `gradle.properties` runner; tim drms sudah membatasi sendiri), **puncak
+  container 3 697 MiB / limit 4 096 MiB, tanpa OOM**. Job gagal `rc=10` hanya di `upload-artifact`: **kuota storage artifact
+  GitHub akun `bctech-adm` penuh** (dihitung ulang 6–12 jam setelah penghapusan). Limit CI tetap 4g (headroom ±0,4 GiB — jangan
+  turun ke 3g). ci #175 (tag v0.6.0) exit 130 = SIGINT (pembatalan: concurrency `ci-${ref}` / manual), bukan memori.
