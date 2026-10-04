@@ -545,3 +545,15 @@ skenario gate; dua jendela perawatan prod + tanggal cut-over. Tetap terbuka: K3 
   `/web/login` 200, `demo-staging.yml` identik git. Audit lengkap (aksi owner ber-aktor). Override `TICK_NOW` dimatikan.
   Catatan: subscription pertama sempat dibuat di CP **prod** (`demo`) → di-terminate owner (TICK_NOW tidak berlaku di prod).
   Subscription staging `demo` tetap `active` (periode s.d. 2027-02-04; tick nyata akan memprosesnya Feb 2027).
+
+## 2026-10-04 (malam) — RAM host prod (owner: Q6 ditolak, "environment ini justru untuk prod"; pilih 1b + 3)
+
+- Ukur (Prometheus `infra_container_memory_*`, 7 hari): Σ pakai sesaat 4,7 GiB; Σ puncak per container 6,5 GiB; puncak serentak
+  9,0 GiB; `ci-runner-job` 5 013 MiB (= limit) + swap Σ 3,3 GiB. Penyebab: drms `org.gradle.jvmargs=-Xmx8G` (template Flutter).
+- **1b** branch `feat/ci-runner-jvm-cap` (`fc24d50`, belum merge/apply): `$GRADLE_USER_HOME/gradle.properties` (Xmx2g, Kotlin
+  768m) + `ci_runner_memory` 4g; `--check`: hanya `supervisor.env` (task file dilewati check mode). Apply me-restart supervisor
+  (job berjalan dihentikan) → jalankan saat tidak ada build.
+- **3** `01d4ff0`: mail 1024→512m, CP web 384→256m, CP worker 256→128m, webmail 256→128m, web staging ×3 256→192m (hemat
+  plafon 1 088 MiB). Keycloak/Postgres/pool-a/odoo-staging/uptime-kuma tetap. Staging web di-recreate Claude → healthy 192m;
+  prod (mail, CP, webmail) menunggu owner.
+- Q6 Fase 2 direvisi: dedicated prod diizinkan (±2 instance setelah 1b+3, `capacity_max_mib` pengaman).
