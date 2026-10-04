@@ -100,7 +100,7 @@ services:
       timeout: 10s
       retries: 3
       start_period: 120s
-    mem_limit: 1024m     # ADR 0004
+    mem_limit: 512m      # 2026-10-04: 1024m → 512m (puncak 7 hari 177 MiB; ClamAV/Amavis/SpamAssassin off, rspamd saja — owner opsi 3)
     cpus: 0.75
     # Tidak bisa read_only / non-root: entrypoint DMS menulis ulang config di /etc saat start dan supervisord
     # (root) menjalankan Postfix/Dovecot/Rspamd/Redis yang men-drop hak ke user masing-masing.
