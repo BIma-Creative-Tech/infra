@@ -74,10 +74,12 @@ ci_runner_build_dir: /usr/local/lib/ci-runner/image
 # --- Kapasitas (ADR 0004 revisi, GATE Q4) ---------------------------------------------------------------------------
 ci_runner_cpus: "2.0"
 ci_runner_cpu_shares: 256
-# 2026-10-04 (owner 1b): 5g → 4g setelah JVM Gradle dibatasi (proyek drms memakai -Xmx8G bawaan template Flutter → build
-# selalu menabrak limit + swap ±3,3 GiB). Turunkan ke 3g bila puncak build terukur < 2,6 GiB.
-ci_runner_memory: 4g
-# Ditulis ke $GRADLE_USER_HOME/gradle.properties (/srv/ci/cache/gradle) — mengalahkan org.gradle.jvmargs proyek.
+# 2026-10-04: sempat 4g (owner 1b) lalu DIKEMBALIKAN ke 5g — workflow drms (mobile.yml) mengatur heap Gradle sendiri lewat
+# GRADLE_OPTS: debug -Xmx1536m (puncak 3,5–3,7 GiB; -Xmx2g kena OOM di cgroup 4 GiB, plan 12 R10 F1), release R8 -Xmx2560m +
+# metaspace 512m + dart ±1 GiB → butuh 5 GiB ("fits the 5 GiB runner"). JANGAN turunkan tanpa mengubah mobile.yml.
+ci_runner_memory: 5g
+# Ditulis ke $GRADLE_USER_HOME/gradle.properties (/srv/ci/cache/gradle) — mengalahkan org.gradle.jvmargs proyek, TETAPI
+# kalah dari GRADLE_OPTS -D (drms mengaturnya sendiri) → hanya cadangan untuk build yang tidak mengatur heap.
 ci_runner_gradle_jvmargs: "-Xmx2g -XX:MaxMetaspaceSize=768m -XX:ReservedCodeCacheSize=256m -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8"
 ci_runner_kotlin_daemon_jvmargs: "-Xmx768m"
 ci_runner_pids_limit: 4096
