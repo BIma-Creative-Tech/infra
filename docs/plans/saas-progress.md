@@ -487,3 +487,9 @@ skenario gate; dua jendela perawatan prod + tanggal cut-over. Tetap terbuka: K3 
   spesifik `host_invalid` / `slug_invalid` (baru) / `email_invalid` (baru) bila semua field gagal satu jenis; komponen
   `SubmitButton` (useFormStatus) menonaktifkan tombol "Buat tenant", "Daftarkan tenant", "Ulangi dari langkah ini" selama aksi.
   Unit 761 OK, lint OK, build image OK. Staging CP `b9febac` (infra `deploy/cp-staging-b9febac`) healthy. Prod menunggu owner.
+- **Prod cron + UX** (owner via SSH, 18:18–18:22 WIB): pool-a platform `v19.0.1.3.2` (`11ae534`), `expomedia_prod`
+  `custom_accounting_recurring` 19.0.0.1.1 (log 0 ERROR); kedua cron `model._cron_generate_due()` aktif (jurnal berikutnya
+  2026-10-05 09:37 = bukti live pertama; pembayaran 11:19). CP prod `b9febac` (`aa55ec1`) healthy, 0 error.
+  Satu `ERROR … inconsistent states … ['custom_accounting_menu']` 11:19:12 UTC = **transien**: worker memuat registry saat
+  proses `-u` (pid 27) sedang berjalan (11:19:01–12,9); muat registry berikutnya bersih, semua dependensi `installed`.
+  Catatan runbook: `-u` dengan worker hidup bisa memicu pesan ini sesaat (tidak perlu tindakan).
