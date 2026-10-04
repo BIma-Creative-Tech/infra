@@ -1,14 +1,14 @@
 # T06 — image Keycloak teroptimasi (docs 26.7.4 guides/server/containers.adoc).
 # Opsi build-time (diverifikasi `kc.sh build --help` 26.7.4): db, health-enabled, metrics-enabled.
-# Base di-pin tag + digest index (ADR 0001, diambil 2026-09-23).
-FROM quay.io/keycloak/keycloak:26.7.4@sha256:82a77884f3af238beab1e7afd63b5f530e1b5c0590bd7aa60b40a40463e29b2c AS builder
+# Base di-pin tag + digest index (ADR 0001, diambil 2026-09-23; 26.7.5 2026-10-04 — K11, 13 CVE; changelog JPA: +1 changeset backfill ORG_ID, 0 baris).
+FROM quay.io/keycloak/keycloak:26.7.5@sha256:37dbaf6f0722c9ec246335f36e1ef8b2e6cb960f7c27e0d8c615121a3d475a85 AS builder
 ENV KC_DB=postgres
 ENV KC_HEALTH_ENABLED=true
 ENV KC_METRICS_ENABLED=true
 WORKDIR /opt/keycloak
 RUN /opt/keycloak/bin/kc.sh build
 
-FROM quay.io/keycloak/keycloak:26.7.4@sha256:82a77884f3af238beab1e7afd63b5f530e1b5c0590bd7aa60b40a40463e29b2c
+FROM quay.io/keycloak/keycloak:26.7.5@sha256:37dbaf6f0722c9ec246335f36e1ef8b2e6cb960f7c27e0d8c615121a3d475a85
 COPY --from=builder /opt/keycloak/ /opt/keycloak/
 # Eksplisit: base image upstream sudah USER 1000 (docker inspect 2026-09-24); dinyatakan ulang
 # agar tidak bergantung pada default base (Trivy DS-0002). Tidak mengubah perilaku runtime.
