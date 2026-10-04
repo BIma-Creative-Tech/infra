@@ -49,7 +49,7 @@ services:
       retries: 3
       start_period: 30s
       start_interval: 2s
-    mem_limit: 256m   # plan 03 §6 (±128–256 MiB per website; ADR 0004)
+    mem_limit: 192m   # 2026-10-04: 256m → 192m (puncak 7 hari ±93 MiB; tmpfs ≤ 80m ikut dihitung — owner opsi 3)
     cpus: 0.5
     pids_limit: 128
 

@@ -75,7 +75,7 @@ services:
       timeout: 5s
       retries: 3
       start_period: 20s
-    mem_limit: 384m   # ADR 0004
+    mem_limit: 256m   # 2026-10-04: 384m → 256m (puncak 7 hari 102 MiB — owner opsi 3)
     cpus: 0.5
 
   worker:
@@ -117,7 +117,7 @@ services:
       timeout: 5s
       retries: 3
       start_period: 20s
-    mem_limit: 256m   # ADR 0004
+    mem_limit: 128m   # 2026-10-04: 256m → 128m worker (puncak 7 hari 44 MiB — owner opsi 3)
     cpus: 0.25
 
 networks:
