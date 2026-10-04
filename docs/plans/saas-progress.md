@@ -394,3 +394,9 @@ skenario gate; dua jendela perawatan prod + tanggal cut-over. Tetap terbuka: K3 
   login = 200 (identik baseline); SSO expomedia & halaman login CP prod (PKCE) = form username+password.
 - Batas peran: perubahan prod (deploy, apply realm prod, akun berhak) dijalankan owner; Claude menyiapkan perintah persis,
   verifikasi sebelum/sesudah, rollback.
+- **M6** (owner via SSH, ±15:50 WIB): control-plane `main` ff → `89124b6`; infra `7d882e1` pin prod `control-plane:89124b6`;
+  backup `control_plane-preM6.dump`. `migrate` Exited 0 → 6 migrasi (0000–0005), seed tenant `platform` + 7 plan; tenant
+  `demo:active, platform:active`; web/worker healthy; worker: "jembatan infra-job aktif", "worker siap", "email pengingat
+  nonaktif (SMTP_HOST kosong)" (sesuai — email billing prod belum dikonfigurasi); 0 log warn/error; `/api/health` 200;
+  `/dashboard`,`/users`,`/clients`,`/subscriptions`,`/realm`,`/portal` → 307 `/login` (butuh sesi). `INFRA_JOBS_TYPES`
+  tidak diset → 5 tipe lama. Dashboard SPK expomedia (datamart) perlu dicek owner setelah login.
