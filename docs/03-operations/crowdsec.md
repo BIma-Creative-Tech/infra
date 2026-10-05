@@ -157,6 +157,11 @@ dengan `text/plain` → 920420 → 403. Pola sama persis dengan H6, file terpisa
 - `appsec-rules/drms-payload-server-action.yaml` (`local/drms-payload-server-action-json`): **19102** (phase 1,
   `ctl:requestBodyProcessor=JSON`) + **19103** (phase 2, 403 bila `REQBODY_ERROR`), kondisi sama (+ `REQUEST_FILENAME
   @beginsWith /admin/`).
+- **19104** (2026-10-05, file yang sama): POST token endpoint realm `drms` / `drms-staging` (host `auth.bimacreative.tech`)
+  dengan `client_id=admin-cli` → 403. Alasan: Keycloak 26 menolak mengubah client bawaan `admin-cli` (403 juga untuk
+  admin master; konsol juga), sehingga password grant-nya ditutup di edge. Diuji: admin-cli → 403, `proyekkas-mobile`
+  → `invalid_grant` (tidak terpengaruh). Diterapkan dengan edit in-place (inode sama) + `docker exec crowdsec kill -HUP 1`
+  (403 fail-closed ±9 s, 10:53:50–10:53:59 WIB). Catatan YAML: hindari ": " di dalam `msg:'…'` (rule gagal dimuat).
 - Uji kompilasi sebelum recreate: `crowdsec -t` di container sementara (salinan `data/`) → exit 0; kontrol negatif
   (`@beginsWithX`) → `fatal … operator beginsWithX not found`.
 - Recreate (bersamaan dengan `restart: always` H7): 403 fail-closed 23:26:00–23:26:38 WIB (±38 s).

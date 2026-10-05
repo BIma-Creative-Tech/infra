@@ -9,6 +9,8 @@ file `VERSION`.
 ## [Unreleased]
 
 ### Fixed
+- crowdsec AppSec rule **19104** (2026-10-05): password grant client `admin-cli` di realm `drms`/`drms-staging` diblok di
+  edge (403) — Keycloak 26 tidak mengizinkan mengubah client bawaan itu. `docs/03-operations/crowdsec.md`.
 - ci_runner supervisor (2026-10-05): watchdog **job diterima tapi tidak pernah mulai** — `Acknowledging runner request`
   tanpa `Running job:` dalam `CI_ACK_GRACE` (600 s) → container dibuang + registrasi ulang + metrik stuck (alert). Insiden
   01:25 WIB: runner tergantung ±5,7 jam, image prod 0.6.0 tertahan. Runbook `docs/03-operations/ci-runner.md`.

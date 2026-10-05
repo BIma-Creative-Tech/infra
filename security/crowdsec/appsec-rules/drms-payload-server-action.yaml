@@ -15,3 +15,9 @@ seclang_rules:
  - SecRule REQUEST_HEADERS:Content-Type "@rx ^text/plain" "t:none,t:lowercase,chain"
  - SecRule REQUEST_FILENAME "@beginsWith /admin/" "t:none,chain"
  - SecRule REQUEST_HEADERS:Host "@rx ^drms-kas(?:\.staging)?\.bimacreative\.tech$" "t:none,t:lowercase"
+ # 2026-10-05 (owner decision): Keycloak 26 refuses to change the built-in client admin-cli (403, even for a master admin),
+ # so its password grant on the DRMS realms is closed at the edge: POST token endpoint of realm drms/drms-staging with
+ # client_id=admin-cli → 403. Apps use proyekkas-web / proyekkas-mobile / proyekkas-admin-api / automation. ID 19104.
+ - SecRule REQUEST_FILENAME "@rx ^/realms/drms(?:-staging)?/protocol/openid-connect/token$" "id:19104,phase:2,deny,status:403,t:none,log,msg:'admin-cli token request on DRMS realm denied',chain"
+ - SecRule REQUEST_HEADERS:Host "@rx ^auth\.bimacreative\.tech(?::[0-9]+)?$" "t:none,t:lowercase,chain"
+ - SecRule ARGS_POST:client_id "@streq admin-cli" "t:none"
