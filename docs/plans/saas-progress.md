@@ -596,3 +596,8 @@ skenario gate; dua jendela perawatan prod + tanggal cut-over. Tetap terbuka: K3 
   Journal Entries' (50) fully done (#loop 1; done 0; remaining 0; duration 0.07s)` ×2, tanpa error (sebelumnya `NameError:
   hasattr` tiap hari); cron pembayaran berulang (57) berjalan 2026-10-04 18:20 WIB tanpa error. `done 0` = belum ada template.
   **Selesai.**
+- **Observasi M10 (cek 1, 2026-10-05 10:25 WIB)** — sumber **Loki** (`docker logs` hilang saat container di-recreate: pool-a
+  recreate 2026-10-04 19:31 menghapus baris bukti). Sejak 1.4.0: pool-a 1× `tenant_check=compat platform db=expomedia_prod`
+  (17:41, staf), 1 login SSO sukses, 0 `mismatch`/`reject`/`refused`; staging 0 login. Bersih tetapi volume sangat kecil
+  (Expomedia belum live). Usulan: login uji staf + user tenant expomedia sebelum 11 Okt; strict via "Sinkronkan tenant"
+  (rollback = compat). Retensi Loki 168h → cek 11 Okt pagi.
