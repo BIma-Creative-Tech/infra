@@ -592,3 +592,7 @@ skenario gate; dua jendela perawatan prod + tanggal cut-over. Tetap terbuka: K3 
 - Memori job release: **puncak 5 062 / 5 120 MiB** (tanpa OOM) — limit 5g WAJIB dan mepet; swap container lain ±2,2 GiB
   selama build. Saran: rilis APK di luar jam kerja; bila OOM → 5,5g atau drms kurangi memori dart. ci #176 (PR merged) tertinggal
   queued → owner cancel. Diagnosa antrean memakai PAT runner (GET saja).
+- **Cron berulang Expomedia — bukti live** (owner "Run Manually", 2026-10-05 09:27 WIB): `Job 'Custom: Generate Recurring
+  Journal Entries' (50) fully done (#loop 1; done 0; remaining 0; duration 0.07s)` ×2, tanpa error (sebelumnya `NameError:
+  hasattr` tiap hari); cron pembayaran berulang (57) berjalan 2026-10-04 18:20 WIB tanpa error. `done 0` = belum ada template.
+  **Selesai.**
