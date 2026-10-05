@@ -311,6 +311,9 @@ run_job_container() { # run_job_container <encoded_jit_config> → return kode k
   done
   remove_job_containers
   # -a STDIN: JIT hanya masuk lewat stdin; stdout/stderr container → json-file (Alloy/Loki, label container=ci-runner-job).
+  # DNS container job (CI_DNS, 2026-10-06): resolver Hostinger, bukan resolver publik yang tidak andal dari VPS ini.
+  for d in ${CI_DNS:-}; do args+=(--dns "$d"); done
+  [[ -z "${CI_DNS:-}" ]] || args+=(--dns-option timeout:2 --dns-option attempts:3)
   printf '%s\n' "$jit" | docker run -i -a STDIN \
     --name "$CONTAINER_NAME" \
     --label ci-runner.role=job --label ci-runner=1 \
