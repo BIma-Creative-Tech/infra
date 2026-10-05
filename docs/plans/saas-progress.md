@@ -601,3 +601,9 @@ skenario gate; dua jendela perawatan prod + tanggal cut-over. Tetap terbuka: K3 
   (17:41, staf), 1 login SSO sukses, 0 `mismatch`/`reject`/`refused`; staging 0 login. Bersih tetapi volume sangat kecil
   (Expomedia belum live). Usulan: login uji staf + user tenant expomedia sebelum 11 Okt; strict via "Sinkronkan tenant"
   (rollback = compat). Retensi Loki 168h → cek 11 Okt pagi.
+- **Uji M10 (owner, 2026-10-05)**: staf (`af696df8`) SSO ke expomedia_prod 12:52 → `tenant_check=compat platform` + login sukses;
+  user tenant baru `…+expomedia` (CP prod 12:55: `kc_user_ensure` invite, `client_user,odoo_access`, Odoo uid 7; undangan Gmail
+  `status=sent`; dibuka di incognito karena sesi KC staf) SSO 13:00 → login sukses **tanpa** baris tenant_check (cocok). Total
+  sejak 1.4.0: 2× platform, 0 mismatch/reject. Catatan: login CP prod 12:48 gagal (password salah); `demo-erp.expomedia.id` =
+  staging; `/realms/platform/account/` → `invalid_redirect_uri` (tidak memblok alur). **expomedia siap strict** (owner pilih:
+  sekarang via Sinkronkan tenant, atau 11 Okt).
