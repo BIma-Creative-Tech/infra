@@ -13,6 +13,9 @@
 #    keluar dalam CI_CLEANUP_GRACE, atau timeout job + CI_STUCK_GRACE → container MACET:
 #    docker stop → docker kill → (hanya bila TIDAK ada container sysbox-runc lain yang berjalan) restart sysbox-fs →
 #    docker rm -f. Log WARN/ERROR + metrik ci_runner_stuck_total / ci_runner_stuck_unresolved (healthcheck §6).
+#  - runner mencatat "Acknowledging runner request" tetapi "Running job:" tidak muncul dalam CI_ACK_GRACE → MACET
+#    dengan penanganan yang sama (insiden 2026-10-05 01:25 WIB: listener menerima job, token OAuth tak pernah kembali,
+#    tanpa Worker ±5,7 jam; job GitHub menunggu runner, supervisor mengira runner idle).
 # Hasil job: kode keluar container = hasil job dari entrypoint (0 ok, 10 Failed, 11 Canceled, 12 lain, 13 tanpa job).
 # Reload aman: file PAT (rotasi), skrip ini, supervisor.env atau unit berubah (metadata stat, isi PAT tidak dibaca) →
 #   supervisor keluar di titik aman — sebelum registrasi berikut, atau saat runner masih idle menunggu job (container
@@ -40,6 +43,7 @@ BACKOFF_MAX="${CI_BACKOFF_MAX:-600}"
 JOB_TIMEOUT="${CI_JOB_TIMEOUT:-10800}"        # detik sejak "Running job:" sebelum job dihentikan (guard timeout)
 STUCK_GRACE="${CI_STUCK_GRACE:-180}"          # detik setelah "exiting code=" / docker stop sebelum dianggap macet
 CLEANUP_GRACE="${CI_CLEANUP_GRACE:-600}"      # detik setelah "runner exited" (cleanup post-run) sebelum dianggap macet
+ACK_GRACE="${CI_ACK_GRACE:-600}"              # detik setelah "Acknowledging runner request" tanpa "Running job:" → macet
 WATCH_INTERVAL="${CI_WATCH_INTERVAL:-30}"
 STATE_DIR="${STATE_DIRECTORY:-/var/lib/ci-runner}"
 STATE_FILE="$STATE_DIR/supervisor.state"
@@ -334,7 +338,7 @@ run_job_container() { # run_job_container <encoded_jit_config> → return kode k
 # Return = kode keluar container (atau 125 bila watchdog harus membuangnya). Set JOB_RESULT_MARK bila entrypoint mencatatnya.
 JOB_RESULT_MARK=""
 watch_job_container() {
-  local since t_job=0 t_rexit=0 t_exiting=0 t_stop=0 now chunk rc stuck=""
+  local since t_job=0 t_ack=0 t_rexit=0 t_exiting=0 t_stop=0 now chunk rc stuck=""
   JOB_RESULT_MARK=""
   since="$(date +%s)"
   while kill -0 "$CHILD" 2>/dev/null; do
@@ -342,8 +346,9 @@ watch_job_container() {
     kill -0 "$CHILD" 2>/dev/null || break
     now="$(date +%s)"
     chunk="$(timeout 30 docker logs --since "$((since - 2))" "$CONTAINER_NAME" 2>&1 \
-      | grep -aE '^[0-9-]{10} [0-9:]{8}Z: Running job: |^\[ci-runner-entrypoint\] [^ ]+ (runner exited rc=|job result=|exiting code=)' | cut -c1-300)"
+      | grep -aE '^[0-9-]{10} [0-9:]{8}Z: Running job: |^\[RUNNER [^]]*\] Acknowledging runner request|^\[ci-runner-entrypoint\] [^ ]+ (runner exited rc=|job result=|exiting code=)' | cut -c1-300)"
     since="$now"
+    (( t_ack == 0 )) && grep -q 'Acknowledging runner request' <<<"$chunk" && t_ack=$now
     if (( t_job == 0 )) && grep -q 'Running job: ' <<<"$chunk"; then t_job=$now; echo "$now" > "$RUN_DIR/job_started"; fi
     (( t_rexit == 0 )) && grep -q 'runner exited rc=' <<<"$chunk" && t_rexit=$now
     (( t_exiting == 0 )) && grep -q 'exiting code=' <<<"$chunk" && t_exiting=$now
@@ -361,6 +366,8 @@ watch_job_container() {
     if (( t_exiting > 0 && now - t_exiting > STUCK_GRACE )); then stuck="entrypoint exited $((now - t_exiting)) s ago"
     elif (( t_rexit > 0 && now - t_rexit > CLEANUP_GRACE )); then stuck="runner exited $((now - t_rexit)) s ago"
     elif (( t_stop > 0 && now - t_stop > STUCK_GRACE )); then stuck="no exit $((now - t_stop)) s after job-timeout stop"
+    elif (( t_ack > 0 && t_job == 0 && t_rexit == 0 && now - t_ack > ACK_GRACE )); then
+      stuck="job acknowledged $((now - t_ack)) s ago but never started (no 'Running job:')"
     fi
     if [[ -n "$stuck" ]]; then
       reap_stuck "$stuck"

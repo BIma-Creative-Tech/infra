@@ -48,6 +48,13 @@ Alert healthcheck (email, `infra-healthcheck.timer`): `ci-runner-disk` (/srv/ci 
 (detak basi > 10 mnt), `ci-runner-registration` (≥ 3 gagal), `ci-runner-outdated`, `ci-runner-memory` (anon > 90% limit),
 `ci-runner-stuck` (macet belum teratasi, atau watchdog bertindak dalam 24 j terakhir), `ci-runner-job-timeout` (job > 3,5 j).
 
+### Watchdog "job diterima tapi tidak mulai" (2026-10-05)
+
+Runner mencatat `Acknowledging runner request` tetapi `Running job:` tidak muncul dalam `CI_ACK_GRACE` (default 600 s) →
+diperlakukan sebagai container macet (stop → kill → rm, `ci_runner_stuck_total` +1, alert healthcheck "watchdog bertindak
+dalam 24 j"), lalu registrasi JIT baru. Normalnya jeda keduanya ±4 s. Insiden pemicu: 2026-10-05 01:25 WIB listener menerima
+job, permintaan token OAuth tidak pernah kembali, tanpa Runner.Worker ±5,7 jam; job GitHub "Waiting for a runner".
+
 ## 3. Deploy perubahan supervisor / image / env
 
 - Handler role **tidak** me-restart service (restart membatalkan job yang sedang berjalan). Supervisor ≥ R12 memantau metadata
