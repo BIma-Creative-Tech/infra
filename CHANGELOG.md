@@ -9,6 +9,9 @@ file `VERSION`.
 ## [Unreleased]
 
 ### Fixed
+- ci_runner supervisor (2026-10-05): watchdog **job diterima tapi tidak pernah mulai** — `Acknowledging runner request`
+  tanpa `Running job:` dalam `CI_ACK_GRACE` (600 s) → container dibuang + registrasi ulang + metrik stuck (alert). Insiden
+  01:25 WIB: runner tergantung ±5,7 jam, image prod 0.6.0 tertahan. Runbook `docs/03-operations/ci-runner.md`.
 - ci_runner image **build 4** (2026-10-02): dockerd dalam memakai DNS `1.1.1.1` + `9.9.9.9`. Container bersarang
   (buildkitd, trivy, `docker run` di job) sebelumnya jatuh ke fallback Docker 8.8.8.8/8.8.4.4; dari VPS ini 8.8.8.8 gagal
   14/40 lookup A (1.1.1.1 & 9.9.9.9: 0/40) → Go hanya punya AAAA → `dial tcp [v6]:443: network is unreachable`; job image
