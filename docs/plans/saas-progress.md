@@ -582,3 +582,13 @@ skenario gate; dua jendela perawatan prod + tanggal cut-over. Tetap terbuka: K3 
   `continue-on-error`; `release-prod` self-hosted menyalin simbol obfuscation ke `/cache/release-symbols/<tag>`; pubspec
   0.3.2+1; `docs/release-notes/apk/0.3.2.md` (= item 0.3.1 + keterangan rilis ulang); CHANGELOG. actionlint 1.7.12 bersih.
   Owner: PR → merge ke `main` → push tag `mobile-v0.3.2` → APK di GitHub Release (asset, tidak dihitung kuota Actions).
+
+## 2026-10-05 — APK drms 0.3.2 terbit
+
+- Owner: CI 5g diterapkan (supervisor restart 2026-10-04 22:05), PR `fix/artifact-quota-release-asset` di-merge, tag
+  `mobile-v0.3.2`. Antrean 5 run/8 job pada satu runner ephemeral (satu job per runner JIT) → mobile #48 selesai 01:23 WIB:
+  analyze ✔, build staging ✔, **release APKs (prod) ✔** — tanda tangan prod terverifikasi, scan secret ✔, **GitHub Release
+  (notes + APK) ✔**, simbol obfuscation di `/srv/ci/cache/release-symbols/mobile-v0.3.2` (14 MB).
+- Memori job release: **puncak 5 062 / 5 120 MiB** (tanpa OOM) — limit 5g WAJIB dan mepet; swap container lain ±2,2 GiB
+  selama build. Saran: rilis APK di luar jam kerja; bila OOM → 5,5g atau drms kurangi memori dart. ci #176 (PR merged) tertinggal
+  queued → owner cancel. Diagnosa antrean memakai PAT runner (GET saja).
