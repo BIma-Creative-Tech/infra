@@ -59,3 +59,10 @@ CREATE TABLE IF NOT EXISTS {{schema}}.bast (id int PRIMARY KEY, name text, kind 
   location text, date_handover timestamp, party_from text, party_to text, from_signed_at timestamp, from_signed_by text,
   to_signed_at timestamp, to_signed_by text, gps_latitude numeric, gps_longitude numeric, gps_accuracy numeric,
   write_date timestamp);
+-- plan 20 #8: SPK per lokasi dalam satu proyek — proyek SPK, nama event & lokasi; baris analitik: proyek + SPK pasti.
+ALTER TABLE {{schema}}.sale_order ADD COLUMN IF NOT EXISTS project_id int;
+ALTER TABLE {{schema}}.sale_order ADD COLUMN IF NOT EXISTS event_name text;
+ALTER TABLE {{schema}}.sale_order ADD COLUMN IF NOT EXISTS location text;
+ALTER TABLE {{schema}}.analytic_line ADD COLUMN IF NOT EXISTS project_id int;
+ALTER TABLE {{schema}}.analytic_line ADD COLUMN IF NOT EXISTS so_exact boolean;
+ALTER TABLE {{schema}}.analytic_line ADD COLUMN IF NOT EXISTS is_expense boolean;

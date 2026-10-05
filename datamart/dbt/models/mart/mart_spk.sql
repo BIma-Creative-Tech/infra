@@ -116,7 +116,11 @@ SELECT so.client_slug, so.env, so.id AS so_id,
             THEN round(100.0 * (so.amount_untaxed - coalesce(cost.cost_total, 0)) / so.amount_untaxed, 1) END AS margin_pct,
        coalesce(bast.bast_count, 0) AS bast_count, coalesce(bast.bast_completed, 0) AS bast_completed,
        coalesce(bast.bast_partial, 0) AS bast_partial, coalesce(bast.bast_draft, 0) AS bast_draft,
-       bast.bast_last_signed_at
+       bast.bast_last_signed_at,
+       -- plan 20 #8: proyek bersama SPK per lokasi
+       so.project_id, so.event_name, so.location,
+       count(*) FILTER (WHERE so.state = 'sale' AND so.project_id IS NOT NULL)
+         OVER (PARTITION BY so.client_slug, so.env, so.project_id) AS project_spk_count
 FROM {{ ref('stg_sale_order') }} so
 LEFT JOIN {{ ref('stg_partner') }} grp ON grp.client_slug = so.client_slug AND grp.env = so.env AND grp.id = so.partner_invoice_id
 LEFT JOIN {{ ref('stg_partner') }} brand ON brand.client_slug = so.client_slug AND brand.env = so.env AND brand.id = so.partner_id

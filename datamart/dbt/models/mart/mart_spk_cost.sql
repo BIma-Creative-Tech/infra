@@ -5,7 +5,30 @@
 --  * PO terkonfirmasi ber-SPK (stg_purchase_order/line/line_type): barang vs jasa, tanpa pajak.
 -- Keputusan user (2026-10-02): belanja PO ikut biaya → material = MAX(terpakai, PO barang) dan jasa = MAX(ditagih,
 -- PO jasa): PO yang belum terpakai/ditagih dihitung sebagai komitmen biaya, tanpa menghitung ganda saat sudah terpakai.
-WITH al AS (
+-- plan 20 #8: satu proyek bisa dipakai beberapa SPK (SPK per lokasi). Baris analitik ber-SPK pasti (so_exact: task SPK,
+-- SPK timesheet, kunci Lacak Dokumen jurnal/MO) masuk ke SPK itu; baris proyek tanpa SPK pasti di proyek ber-SPK > 1
+-- dibagi pro-rata nilai SPK (tanpa pajak; rata bila semua 0) agar biaya & margin per SPK lokasi tidak menumpuk di SPK
+-- pertama. Baris lama tanpa kolom so_exact (NULL) = pasti (perilaku plan 19).
+-- plan 20 #5: baris jurnal Expense / Petty Cash (is_expense) = biaya lain-lain (kategori 'expense'), tidak ikut
+-- "jasa ditagih" yang dibandingkan dengan PO jasa (greatest) — kalau ikut, expense bisa tertutup nilai PO.
+WITH spk AS (
+  SELECT client_slug, env, id AS so_id, project_id, greatest(coalesce(amount_untaxed, 0), 0) AS value
+  FROM {{ ref('stg_sale_order') }} WHERE state = 'sale' AND project_id IS NOT NULL
+), shared AS (
+  SELECT client_slug, env, project_id, count(*) AS spk_count, sum(value) AS total
+  FROM spk GROUP BY 1, 2, 3 HAVING count(*) > 1
+), line AS (
+  SELECT l.client_slug, l.env, coalesce(s.so_id, l.so_id) AS so_id,
+         CASE WHEN coalesce(l.is_expense, false) THEN 'expense' ELSE l.category END AS category, l.employee_id,
+         l.hours * w.share AS hours, l.amount * w.share AS amount
+  FROM {{ ref('stg_analytic_line') }} l
+  LEFT JOIN shared p ON NOT coalesce(l.so_exact, true) AND p.client_slug = l.client_slug AND p.env = l.env
+                    AND p.project_id = l.project_id
+  LEFT JOIN spk s ON s.client_slug = p.client_slug AND s.env = p.env AND s.project_id = p.project_id
+  CROSS JOIN LATERAL (SELECT CASE WHEN p.project_id IS NULL THEN 1.0
+                                  WHEN p.total > 0 THEN s.value / p.total
+                                  ELSE 1.0 / p.spk_count END AS share) w
+), al AS (
   SELECT client_slug, env, so_id,
          coalesce(-sum(amount) FILTER (WHERE category IN ('manufacturing_order', 'picking_entry')), 0) AS material_used,
          coalesce(-sum(amount) FILTER (WHERE category = 'vendor_bill'), 0) AS service_billed,
@@ -17,7 +40,7 @@ WITH al AS (
                                        AND category NOT IN ('manufacturing_order', 'picking_entry', 'vendor_bill')), 0) AS labor_hours_uncosted,
          coalesce(-sum(amount) FILTER (WHERE employee_id IS NULL
                                          AND category NOT IN ('manufacturing_order', 'picking_entry', 'vendor_bill')), 0) AS other
-  FROM {{ ref('stg_analytic_line') }} GROUP BY 1, 2, 3
+  FROM line GROUP BY 1, 2, 3
 ), po AS (
   SELECT po.client_slug, po.env, po.so_id,
          coalesce(sum(pl.price_subtotal) FILTER (WHERE coalesce(t.product_type, 'consu') <> 'service'), 0) AS po_goods,
