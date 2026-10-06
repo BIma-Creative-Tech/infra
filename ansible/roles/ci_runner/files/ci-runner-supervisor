@@ -16,6 +16,11 @@
 #  - runner mencatat "Acknowledging runner request" tetapi "Running job:" tidak muncul dalam CI_ACK_GRACE → MACET
 #    dengan penanganan yang sama (insiden 2026-10-05 01:25 WIB: listener menerima job, token OAuth tak pernah kembali,
 #    tanpa Worker ±5,7 jam; job GitHub menunggu runner, supervisor mengira runner idle).
+#  - runner IDLE (belum "Acknowledging"/"Running job:") macet di koneksi broker (insiden 2026-10-06 06:09 WIB: permintaan
+#    token tak kembali, tanpa log ±40 menit, re-run job tag tidak diambil): tiap CI_IDLE_CHECK_INTERVAL cek
+#    GET /actions/runners/<id> — status "offline" (atau 404) CI_IDLE_OFFLINE_CHECKS kali berturut-turut, ATAU tidak ada
+#    log sama sekali > CI_IDLE_SILENCE (runner sehat menulis log refresh token ±tiap 50 menit) → MACET (hasil "none").
+#    Error API (bukan 200/404) tidak dihitung.
 # Hasil job: kode keluar container = hasil job dari entrypoint (0 ok, 10 Failed, 11 Canceled, 12 lain, 13 tanpa job).
 # Reload aman: file PAT (rotasi), skrip ini, supervisor.env atau unit berubah (metadata stat, isi PAT tidak dibaca) →
 #   supervisor keluar di titik aman — sebelum registrasi berikut, atau saat runner masih idle menunggu job (container
@@ -45,6 +50,9 @@ STUCK_GRACE="${CI_STUCK_GRACE:-180}"          # detik setelah "exiting code=" / 
 CLEANUP_GRACE="${CI_CLEANUP_GRACE:-600}"      # detik setelah "runner exited" (cleanup post-run) sebelum dianggap macet
 ACK_GRACE="${CI_ACK_GRACE:-600}"              # detik setelah "Acknowledging runner request" tanpa "Running job:" → macet
 WATCH_INTERVAL="${CI_WATCH_INTERVAL:-30}"
+IDLE_CHECK_INTERVAL="${CI_IDLE_CHECK_INTERVAL:-300}"  # detik antar cek status runner di GitHub saat idle
+IDLE_OFFLINE_CHECKS="${CI_IDLE_OFFLINE_CHECKS:-3}"   # cek "offline"/404 berturut-turut saat idle → macet
+IDLE_SILENCE="${CI_IDLE_SILENCE:-5400}"              # detik tanpa log apa pun saat idle → macet (> siklus token ±50 menit)
 STATE_DIR="${STATE_DIRECTORY:-/var/lib/ci-runner}"
 STATE_FILE="$STATE_DIR/supervisor.state"
 CONTAINER_NAME="ci-runner-job"
@@ -341,15 +349,16 @@ run_job_container() { # run_job_container <encoded_jit_config> → return kode k
 # Return = kode keluar container (atau 125 bila watchdog harus membuangnya). Set JOB_RESULT_MARK bila entrypoint mencatatnya.
 JOB_RESULT_MARK=""
 watch_job_container() {
-  local since t_job=0 t_ack=0 t_rexit=0 t_exiting=0 t_stop=0 now chunk rc stuck=""
+  local since t_job=0 t_ack=0 t_rexit=0 t_exiting=0 t_stop=0 now raw chunk rc stuck="" t_line t_idle_check offline=0
   JOB_RESULT_MARK=""
-  since="$(date +%s)"
+  since="$(date +%s)"; t_line=$since; t_idle_check=$since
   while kill -0 "$CHILD" 2>/dev/null; do
     sleep "$WATCH_INTERVAL" & wait $!
     kill -0 "$CHILD" 2>/dev/null || break
     now="$(date +%s)"
-    chunk="$(timeout 30 docker logs --since "$((since - 2))" "$CONTAINER_NAME" 2>&1 \
-      | grep -aE '^[0-9-]{10} [0-9:]{8}Z: Running job: |^\[RUNNER [^]]*\] Acknowledging runner request|^\[ci-runner-entrypoint\] [^ ]+ (runner exited rc=|job result=|exiting code=)' | cut -c1-300)"
+    raw="$(timeout 30 docker logs --since "$((since - 2))" "$CONTAINER_NAME" 2>&1)"
+    [[ -n "$raw" ]] && t_line=$now
+    chunk="$(grep -aE '^[0-9-]{10} [0-9:]{8}Z: Running job: |^\[RUNNER [^]]*\] Acknowledging runner request|^\[ci-runner-entrypoint\] [^ ]+ (runner exited rc=|job result=|exiting code=)' <<<"$raw" | cut -c1-300)"
     since="$now"
     (( t_ack == 0 )) && grep -q 'Acknowledging runner request' <<<"$chunk" && t_ack=$now
     if (( t_job == 0 )) && grep -q 'Running job: ' <<<"$chunk"; then t_job=$now; echo "$now" > "$RUN_DIR/job_started"; fi
@@ -371,6 +380,20 @@ watch_job_container() {
     elif (( t_stop > 0 && now - t_stop > STUCK_GRACE )); then stuck="no exit $((now - t_stop)) s after job-timeout stop"
     elif (( t_ack > 0 && t_job == 0 && t_rexit == 0 && now - t_ack > ACK_GRACE )); then
       stuck="job acknowledged $((now - t_ack)) s ago but never started (no 'Running job:')"
+    elif (( t_ack == 0 && t_job == 0 && t_rexit == 0 )); then
+      if (( now - t_line > IDLE_SILENCE )); then
+        stuck="idle runner silent $((now - t_line)) s (> CI_IDLE_SILENCE=$IDLE_SILENCE)"; JOB_RESULT_MARK=none
+      elif (( now - t_idle_check >= IDLE_CHECK_INTERVAL )) && [[ -n "$RUNNER_ID" ]]; then
+        t_idle_check=$now
+        gh_api GET "/repos/$CI_REPO/actions/runners/$RUNNER_ID"
+        case "$HTTP_CODE" in
+          200) if [[ "$(jq -r '.status // empty' <<<"$RESP")" == offline ]]; then offline=$((offline + 1)); else offline=0; fi ;;
+          404) offline=$((offline + 1)) ;;
+        esac
+        if (( offline >= IDLE_OFFLINE_CHECKS )); then
+          stuck="idle runner offline/unregistered at GitHub for $offline consecutive checks"; JOB_RESULT_MARK=none
+        fi
+      fi
     fi
     if [[ -n "$stuck" ]]; then
       reap_stuck "$stuck"

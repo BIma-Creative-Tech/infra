@@ -56,6 +56,15 @@ diperlakukan sebagai container macet (stop → kill → rm, `ci_runner_stuck_tot
 dalam 24 j"), lalu registrasi JIT baru. Normalnya jeda keduanya ±4 s. Insiden pemicu: 2026-10-05 01:25 WIB listener menerima
 job, permintaan token OAuth tidak pernah kembali, tanpa Runner.Worker ±5,7 jam; job GitHub "Waiting for a runner".
 
+### Watchdog "runner idle macet" (2026-10-06)
+
+Saat runner idle (belum `Acknowledging`/`Running job:`), supervisor tiap `CI_IDLE_CHECK_INTERVAL` (300 s) memanggil
+`GET /repos/<repo>/actions/runners/<id>`: status `offline` atau 404 sebanyak `CI_IDLE_OFFLINE_CHECKS` (3) kali berturut-turut
+(±15 menit), **atau** tidak ada log container sama sekali > `CI_IDLE_SILENCE` (5400 s; runner sehat yang idle menulis log
+refresh token ±tiap 50 menit — diukur dari Loki 2026-10-06) → penanganan macet yang sama (hasil job `none`), lalu registrasi
+baru. Error API selain 200/404 tidak dihitung. Insiden pemicu: 2026-10-06 06:09 WIB runner idle macet di permintaan token
+broker (`TaskCanceledException`, log berhenti), re-run job tag v0.6.1 tidak diambil sampai recycle manual 06:46.
+
 ## 3. Deploy perubahan supervisor / image / env
 
 - Handler role **tidak** me-restart service (restart membatalkan job yang sedang berjalan). Supervisor ≥ R12 memantau metadata
