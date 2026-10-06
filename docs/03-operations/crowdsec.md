@@ -373,3 +373,11 @@ cd /opt/infra/ansible && /opt/ansible-venv/bin/ansible-playbook site.yml --tags 
   dari host sendiri / 10.100.x.x tidak menghasilkan ban otomatis (decision manual tetap berlaku).
 - Upgrade plugin: ubah `version` + `hash` di `traefik.yml` (hash = sha256 zip dari katalog; bandingkan isi zip
   dengan arsip tag GitHub sebelum mem-pin).
+
+### Allowlist owner (2026-10-07, keputusan owner)
+
+`cscli allowlists` **owner-office** = `103.108.130.177` (AS55685 PT Jala Lintas Media, koneksi owner DRMS, statis menurut
+owner), tanpa kedaluwarsa. Pemicu: ban 2400169 `http-admin-interface-probing` 2026-10-06 23:04 WIB dari uji HeadlessChrome di
+jaringan owner → drms-kas tidak bisa diakses ±4 jam. Disimpan di DB CrowdSec (bukan git). Lihat
+`docker exec crowdsec cscli allowlists inspect owner-office`; cabut: `cscli allowlists remove owner-office 103.108.130.177`.
+Bila IP owner berubah, cabut yang lama (jangan menumpuk).
