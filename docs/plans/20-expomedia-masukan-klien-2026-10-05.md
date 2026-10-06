@@ -1,7 +1,7 @@
 # Plan 20 — Expomedia: masukan pertemuan klien 2026-10-05
 
-Status 2026-10-05: gelombang A **LIVE STAGING** (platform `v19.0.1.4.1`, client `v19.0.2.8.1`); website di branch, menunggu
-handle Instagram + unggahan company profile; prod belum. Gelombang B/C belum dimulai. Sumber: catatan pertemuan klien (poin 1–3,
+Status 2026-10-06: gelombang A, B, C **LIVE STAGING** (platform `v19.0.1.4.2`, client `v19.0.3.1.1`, data mart di `main`);
+website di branch (menunggu handle Instagram + unggahan company profile); **prod belum** (menunggu uji user & permintaan). Sumber: catatan pertemuan klien (poin 1–3,
 5–10; poin 4 tidak ada di catatan). Fit-gap = gerbang wajib sebelum kode custom (standar Odoo dulu).
 
 Kondisi sekarang (dicek 2026-10-05, staging + prod): client addons `v19.0.2.7.0`, platform `v19.0.1.3.3`; website v0.5.0
@@ -145,6 +145,26 @@ Catatan lanjutan:
   ember sendiri (expense/petty cash) — dikerjakan bersama #9 (estimasi vs realisasi butuh realisasi akurat).
 - Petty cash Expomedia belum dikonfigurasi (akun Uang Muka, jurnal Bank-Out/Payment) — perlu sebelum dipakai.
 - Website: tombol company profile baru tampil setelah file diunggah di Odoo prod lalu `companyProfileUrl` diisi + rilis.
+
+## Gelombang B & C — implementasi (2026-10-06, LIVE STAGING)
+
+| # | Isi |
+|---|---|
+| 8 | `cl_expomedia_sale` 19.0.1.3.0: **Lokasi / Venue** di SPK + invoice + PDF; tombol **Tambah SPK Lokasi** (penawaran baru: klien, nama event, PO klien, **proyek yang sama**); baris jasa SPK yang menunjuk proyek tidak membuat proyek baru (Odoo 19 selalu membuat proyek per SPK → override `_timesheet_service_generation`); nama proyek = nama event; stat **SPK Lokasi**. `cl_expomedia_scm`: PO per SPK lewat kunci SPK (tombol Buat PO mengisi kunci). `cl_expomedia_progress`: dokumen berkunci SPK lain tidak memajukan progres. Platform `custom_doc_trace` 19.0.1.0.2: alur Lacak Dokumen tidak memuat dokumen/task SPK lain di proyek bersama. Data mart: baris analitik → SPK pasti (task SPK, SPK timesheet, kunci jurnal/MO) atau dibagi **pro-rata nilai SPK** di proyek bersama; `mart_spk` + `project_id`, `event_name`, `location`, `project_spk_count`; expense/petty cash = biaya lain-lain (catatan #5). Validasi: mart biaya baru = mart lama (456 SPK, 0 selisih; belum ada proyek bersama). |
+| 6 | Modul baru **`cl_expomedia_schedule`** 19.0.1.0.0: jadwal per SPK/lokasi (Produksi, Loading-in & Instalasi, Event, Dismantle; tanggal mulai–selesai; **MPP/hari**), tab **Jadwal & MPP** di SPK, menu Project/Sales → **Jadwal SPK** (kalender per fase), Project → Laporan → **Kebutuhan MPP** (grafik/pivot per tanggal: rencana vs **aktual kiosk**), ringkasan Event mulai/selesai di daftar SPK. PM tanpa akses Sales memilih SPK lewat pemilih SPK. |
+| 7+10 | `cl_expomedia_sale` 19.0.2.0.0 (client `v19.0.3.0.0`): grup **Lihat Harga Jual SPK** (otomatis Sales Manager = Finance/Direksi + user akuntansi; diskon per baris aktif untuk grup ini). Field harga SPK & baris dipagari: hilang dari semua view, ditolak lewat API (read/search_read/web_read/export/read_group) dan tulis; perhitungan server tetap jalan (override `_has_field_access` — Odoo 19 juga memeriksa grup field saat atribut dibaca). Konfirmasi, kirim/pratinjau ke klien, update harga = grup ini. **AE = sales (milik sendiri)**: membuat Penawaran/SPK tanpa harga (harga dari pricelist). PDF penawaran/SPK yang dicetak AE tanpa harga & total. CRM nilai penawaran = grup harga. Dashboard: `can_see_value` = grup harga (cadangan grup sales di DB lama). Biaya/material tidak dibatasi. |
+| 9 | Modul baru **`cl_expomedia_estimate`** 19.0.1.0.1: tab **Estimasi Biaya** di SPK (material, jasa/subkon, tenaga, lain-lain; asal **Baru / Recycle** — recycle Rp 0 ke SPK, nilai baru = penghematan), laporan **Estimasi vs Realisasi** per SPK × kategori (pivot/daftar, merah = melebihi estimasi) dengan realisasi = aturan `mart_spk_cost` (total staging sama persis dengan mart: Rp 7.180.818.350; view 90 ms). `odoo-data-expomedia` `configure_standard.py`: operasi **Pakai Barang Reuse SPK** (WS/Stock/Properti Booth Reusable → Pemakaian SPK, **tanpa** biaya analitik) — dijalankan di staging. |
+
+Tes terisolasi: semua tes baru lulus (sale 6 baru, scm 7, schedule 3, estimate 2, report 8, doc_trace shared project 1); gagal
+bawaan `cl_expomedia_sale` 2 (nomor SPK di DB kosong) tetap. Uji UI staging per peran (user uji sementara, diarsipkan; data uji
+dihapus): AE tanpa kolom/total harga & tanpa tombol konfirmasi/kirim, Finance melihat harga & konfirmasi; SPK lokasi dari
+tombol; jadwal + kalender + grafik MPP; estimasi + laporan. Backup staging: `…-pre-plan20b8.dump`, `…-pre-plan20b10.dump`.
+
+Catatan lanjutan:
+- AE masih bisa melihat **harga katalog produk** (menu Products / tombol Catalog = list price produk, bukan harga SPK) —
+  pagari bila owner menganggapnya harga jual.
+- Dashboard control-plane belum menampilkan proyek bersama / estimasi (data sudah di mart: `project_id`, `project_spk_count`).
+- Prod butuh: `configure_standard.py` (operasi reuse — prod belum punya gudang WS/lokasi reusable), grup PPh untuk Finance.
 
 ## Keputusan yang masih dibutuhkan
 1. URL/handle Instagram Expomedia.
