@@ -1,7 +1,7 @@
 # Plan 20 — Expomedia: masukan pertemuan klien 2026-10-05
 
-Status 2026-10-06: gelombang A, B, C **LIVE STAGING** (platform `v19.0.1.4.2`, client `v19.0.3.1.1`, data mart di `main`);
-website di branch (menunggu handle Instagram + unggahan company profile); **prod belum** (menunggu uji user & permintaan). Sumber: catatan pertemuan klien (poin 1–3,
+Status 2026-10-06: gelombang A, B, C + harga katalog **LIVE STAGING & PROD** (platform `v19.0.1.4.2`, client `v19.0.3.2.1`);
+prod: restart `odoo-pool-a` oleh owner; website menunggu URL akun Instagram + unggahan company profile. Sumber: catatan pertemuan klien (poin 1–3,
 5–10; poin 4 tidak ada di catatan). Fit-gap = gerbang wajib sebelum kode custom (standar Odoo dulu).
 
 Kondisi sekarang (dicek 2026-10-05, staging + prod): client addons `v19.0.2.7.0`, platform `v19.0.1.3.3`; website v0.5.0
@@ -166,6 +166,22 @@ Catatan lanjutan:
 - Dashboard control-plane belum menampilkan proyek bersama / estimasi (data sudah di mart: `project_id`, `project_spk_count`).
 - Prod butuh: `configure_standard.py` (operasi reuse — prod belum punya gudang WS/lokasi reusable), grup PPh untuk Finance.
 
+## Harga katalog & deploy prod (2026-10-06)
+
+Permintaan owner 2026-10-06: harga katalog disembunyikan dari sales/AE; AE hanya memasukkan produk jual di CRM/SPK.
+`cl_expomedia_sale` 19.0.2.1.1 (client `v19.0.3.2.1`): `list_price`/`lst_price`/`price_extra` + harga pricelist dipagari
+(baca hanya grup Lihat Harga Jual; pembuat produk tanpa grup tetap bisa membuat produk), tombol **Catalog** di SPK
+disembunyikan & dijaga server, label "Price:" kanban ikut tersembunyi. Produk di baris SPK = standar `sale_ok` (produk
+jual). Uji UI staging: AE tanpa harga di kanban/form produk & tanpa Catalog.
+
+Prod: backup `backups/odoo/expomedia_prod-20261006-074725-pre-plan20.{dump,filestore.tgz}` → pin `odoo/pool-a/addons`
+platform `v19.0.1.4.2`, clients/expomedia `v19.0.3.2.1` → `-u custom_tax_id,custom_doc_trace,custom_doc_trace_mrp,
+cl_expomedia_sale,cl_expomedia_report,cl_expomedia_web,cl_expomedia_scm,cl_expomedia_progress -i cl_expomedia_schedule,
+cl_expomedia_estimate -d expomedia_prod` exit 0 (`demo_demo` tidak memasang modul terkait). Verifikasi shell (rollback):
+AE tanpa harga/konfirmasi/Catalog, Finance & admin = grup harga + PPh, model jadwal/estimasi ada. Restart `odoo-pool-a`
+diblokir hook → owner. Operasi "Pakai Barang Reuse SPK" belum di prod (prod hanya gudang WH; jalankan
+`configure_standard.py` setelah gudang WS + lokasi Properti Booth Reusable dibuat).
+
 ## Keputusan yang masih dibutuhkan
-1. URL/handle Instagram Expomedia.
+1. URL akun Instagram Expomedia (tombol & tautan sudah dibuat, tampil otomatis setelah URL diisi).
 2. Poin 4 catatan pertemuan (tidak ada di catatan).
