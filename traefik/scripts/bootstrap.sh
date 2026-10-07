@@ -77,8 +77,14 @@ ensure_network web-edge 10.100.11.0/24 10.100.11.1
 # (IMAP/SMTP lewat network internal `webmail-mail` milik stack mail; remote content/CSS proxy Roundcube sengaja tanpa internet).
 ensure_network webmail-edge 10.100.15.0/24 10.100.15.1 internal
 # analytics-edge (ADR 0013, plan 11): traefik + container `umami` saja. --internal: Umami TIDAK butuh egress (GeoLite2
-# dibundel di image, PRIVATE_MODE/DISABLE_TELEMETRY/DISABLE_UPDATES) — pola webmail-edge. (10.100.18–19 masih bebas.)
+# dibundel di image, PRIVATE_MODE/DISABLE_TELEMETRY/DISABLE_UPDATES) — pola webmail-edge. (10.100.18 = ci-runner, role ci_runner.)
 ensure_network analytics-edge 10.100.17.0/24 10.100.17.1 internal
+# erajaya-edge-stg: traefik + `erajaya-staging-web` (erajaya-loyalty STAGING, Payload + portal + POS API) saja — edge
+# per client (pola drms-kas-edge, bukan web-edge bersama: app memegang data member/PII + API POS). --internal: staging
+# TIDAK butuh egress (OTP_DEV_MODE=true, tanpa SMTP/API eksternal) — pola webmail-edge/analytics-edge. Prod dengan
+# gateway OTP butuh edge non-internal sendiri. Runbook docs/runbooks/erajaya-loyalty-staging.md. (10.100.19 = blok
+# edge 10.100.0–19 terakhir; edge berikutnya perlu blok baru — lihat traefik.md.)
+ensure_network erajaya-edge-stg 10.100.19.0/24 10.100.19.1 internal
 
 install -d -o "$TRAEFIK_UID" -g "$TRAEFIK_GID" -m 0700 "$STACK_DIR/acme"
 for f in acme-staging.json acme.json; do

@@ -74,6 +74,9 @@ services:
       webmail-edge: {}
       # ADR 0013 (plan 11): Umami (umami:3000) HANYA di network ini. --internal → tanpa gateway (proxy tetap gw_priority 1).
       analytics-edge: {}
+      # erajaya-loyalty STAGING (erajaya-staging-web:3000) HANYA di network ini. --internal → tanpa gateway (proxy tetap
+      # gw_priority 1). Live: `docker network connect erajaya-edge-stg traefik`.
+      erajaya-edge-stg: {}
       # T14a: network internal (--internal, 10.100.5.0/24) — Prometheus scrape :8082. Internal network
       # tidak punya gateway → tidak memengaruhi pemilihan gateway (proxy tetap gw_priority 1).
       metrics: {}
@@ -160,3 +163,7 @@ networks:
     # Dibuat scripts/bootstrap.sh: 10.100.17.0/24 --internal (ADR 0013, plan 11) — anggota: traefik + umami saja.
     external: true
     name: analytics-edge
+  erajaya-edge-stg:
+    # Dibuat scripts/bootstrap.sh: 10.100.19.0/24 --internal — anggota: traefik + erajaya-staging-web saja.
+    external: true
+    name: erajaya-edge-stg
