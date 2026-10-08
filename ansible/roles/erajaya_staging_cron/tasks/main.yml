@@ -1,0 +1,59 @@
+---
+- name: Validasi variabel erajaya_staging_cron
+  ansible.builtin.assert:
+    that:
+      - erajaya_staging_cron_state in ['present', 'absent']
+      - erajaya_staging_cron_script is match('^/opt/infra/staging/erajaya-loyalty/cron/[a-z-]+\\.sh$')
+    fail_msg: "erajaya_staging_cron: state/script tidak valid"
+    quiet: true
+
+- name: Terapkan (present)
+  when: erajaya_staging_cron_state == 'present'
+  block:
+    - name: Skrip expiry milik root, tidak writable grup/lain
+      ansible.builtin.stat:
+        path: "{{ erajaya_staging_cron_script }}"
+      register: erajaya_staging_cron_script_stat
+    - name: Guard skrip expiry
+      ansible.builtin.assert:
+        that:
+          - erajaya_staging_cron_script_stat.stat.exists
+          - erajaya_staging_cron_script_stat.stat.pw_name == 'root'
+          - erajaya_staging_cron_script_stat.stat.xusr
+          - not erajaya_staging_cron_script_stat.stat.woth
+          - not erajaya_staging_cron_script_stat.stat.wgrp
+        fail_msg: "{{ erajaya_staging_cron_script }} tidak ada / bukan milik root / tidak executable / writable grup-lain (dijalankan sebagai root)"
+        quiet: true
+    - name: Unit systemd erajaya-staging-expire
+      ansible.builtin.template:
+        src: "{{ item }}.j2"
+        dest: "/etc/systemd/system/{{ item }}"
+        owner: root
+        group: root
+        mode: "0644"
+      loop: [erajaya-staging-expire.service, erajaya-staging-expire.timer]
+      notify: Reload systemd (erajaya_staging_cron)
+    - name: Terapkan daemon-reload sebelum mengaktifkan timer
+      ansible.builtin.meta: flush_handlers
+    - name: Timer aktif
+      ansible.builtin.systemd_service:
+        name: erajaya-staging-expire.timer
+        enabled: true
+        state: started
+      ignore_errors: "{{ ansible_check_mode }}"
+
+- name: Hapus (absent)
+  when: erajaya_staging_cron_state == 'absent'
+  block:
+    - name: Timer berhenti
+      ansible.builtin.systemd_service:
+        name: erajaya-staging-expire.timer
+        enabled: false
+        state: stopped
+      failed_when: false
+    - name: Unit dihapus
+      ansible.builtin.file:
+        path: "/etc/systemd/system/{{ item }}"
+        state: absent
+      loop: [erajaya-staging-expire.service, erajaya-staging-expire.timer]
+      notify: Reload systemd (erajaya_staging_cron)

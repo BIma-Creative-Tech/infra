@@ -1,0 +1,12 @@
+---
+# Role erajaya_staging_cron — expiry harian erajaya-loyalty STAGING (poin & voucher kedaluwarsa), 00:00 WIB.
+# Skrip: staging/erajaya-loyalty/cron/expire.sh (GET /api/cron/expire + Bearer CRON_SECRET via Traefik, ClientIP 10.100.0.1).
+# Runbook: docs/runbooks/erajaya-loyalty-staging.md §Cron.
+# DEFAULT absent: aktifkan HANYA setelah app staging live + router terpasang + uji manual lulus:
+#   ansible-playbook site.yml --tags erajaya_staging_cron -e erajaya_staging_cron_state=present --check --diff  lalu tanpa --check
+#   lalu set erajaya_staging_cron_state: present di group_vars/all.yml (agar run site.yml berikutnya tidak menghapusnya).
+# Rollback: erajaya_staging_cron_state=absent → unit dihapus; app/DB tidak disentuh.
+erajaya_staging_cron_state: absent # present | absent
+erajaya_staging_cron_script: "{{ infra_root }}/staging/erajaya-loyalty/cron/expire.sh"
+# Zona eksplisit (host juga Asia/Jakarta): 00:00 WIB = 17:00 UTC = jadwal vercel.json app ("0 17 * * *").
+erajaya_staging_cron_on_calendar: "*-*-* 00:00:00 Asia/Jakarta"

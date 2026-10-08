@@ -1,0 +1,13 @@
+# {{ ansible_managed }} — role erajaya_staging_cron (expiry poin/voucher erajaya-loyalty STAGING)
+[Unit]
+Description=Expiry harian erajaya-loyalty staging (00:00 WIB)
+
+[Timer]
+OnCalendar={{ erajaya_staging_cron_on_calendar }}
+# Host mati saat 00:00 → jalan sekali setelah boot (expiry hanya memproses lot yang sudah lewat tanggal).
+Persistent=true
+AccuracySec=1min
+Unit=erajaya-staging-expire.service
+
+[Install]
+WantedBy=timers.target
