@@ -1,0 +1,50 @@
+# erajaya-loyalty STAGING — NARROW OWASP CRS (crowdsecurity/crs-inband) exclusions for the Payload CMS 3 admin
+# (Next.js 16) on host erajaya-loyalty.staging.bimacreative.tech ONLY. Same pattern as H7(a) DRMS
+# (appsec-configs/drms-payload-crs-exclusions.yaml) and H6 control plane — read those for the helper/syntax verification
+# against crowdsec v1.8.1 source (GetPreEvalEnv, request.go r.Clone, header access via expr operators).
+# Separate file (not an extra host in the DRMS regex) so scope, review and rollback stay per client.
+#
+# Why (app source /opt/src/erajaya-loyalty, read 2026-10-07):
+#   1. src/app/(payload)/layout.tsx is a 'use server' Server Function → Payload admin POSTs Server Actions to admin page
+#      URLs (/admin/...) with `Next-Action: <hex>` + `Content-Type: text/plain;charset=UTF-8` + JSON body → CRS 920420.
+#   2. Payload REST catch-all src/app/(payload)/api/[...slug]/route.ts: the admin UI saves documents with
+#      PATCH /api/<collection>/<id> and deletes with DELETE → CRS 911100 (allowed_methods GET HEAD POST OPTIONS).
+#      PUT is NOT needed (Payload 3 REST has no PUT; DRMS needed PUT only for its own /api/v1 endpoint).
+# Scope — ALL conditions must hold:
+#   - block 1: ONLY rule 920420; in-band; POST; host exact; path starts /admin/; exactly one `Next-Action` value of
+#     40–64 lowercase hex; exactly one `Content-Type` starting text/plain. Complement (mandatory):
+#     appsec-rules/erajaya-payload-server-action.yaml — 19105 forces the JSON body processor so CRS XSS/SQLi/RCE/LFI rules
+#     inspect ARGS.json.*, 19106 rejects bodies that are not valid JSON.
+#   - block 2: ONLY rule 911100; in-band; method PATCH or DELETE; host exact; path starts /api/ but NOT the custom app
+#     APIs /api/pos/, /api/member/, /api/cron/ (GET/POST only — keep 911100 there). Body still inspected by CRS.
+#   Every other CRS rule, virtual patching and generic rules stay active everywhere on this host.
+# Apply/rollback: docs/runbooks/erajaya-loyalty-staging.md §CrowdSec (first apply = copy into data/config + edit
+# acquis.d/appsec.yaml in place + `docker exec crowdsec kill -HUP 1`, ±10 s fail-closed 403 on ALL crowdsec routers).
+name: local/erajaya-payload-crs-exclusions
+default_remediation: ban
+inband_rules:
+  - local/erajaya-payload-server-action-json
+pre_eval:
+  - filter: >-
+      IsInBand &&
+      req.Method == "POST" &&
+      req.Host == "erajaya-loyalty.staging.bimacreative.tech" &&
+      req.URL.Path startsWith "/admin/" &&
+      "Next-Action" in req.Header &&
+      len(req.Header["Next-Action"]) == 1 &&
+      req.Header["Next-Action"][0] matches "^[0-9a-f]{40,64}$" &&
+      "Content-Type" in req.Header &&
+      len(req.Header["Content-Type"]) == 1 &&
+      req.Header["Content-Type"][0] startsWith "text/plain"
+    apply:
+      - RemoveInBandRuleByID(920420)
+  - filter: >-
+      IsInBand &&
+      req.Method in ["PATCH", "DELETE"] &&
+      req.Host == "erajaya-loyalty.staging.bimacreative.tech" &&
+      req.URL.Path startsWith "/api/" &&
+      !(req.URL.Path startsWith "/api/pos/") &&
+      !(req.URL.Path startsWith "/api/member/") &&
+      !(req.URL.Path startsWith "/api/cron/")
+    apply:
+      - RemoveInBandRuleByID(911100)

@@ -1,0 +1,18 @@
+# erajaya-loyalty STAGING — complement of appsec-configs/erajaya-payload-crs-exclusions.yaml (920420 removed for Payload
+# admin Server Actions): force the JSON body processor on those requests so CRS XSS/SQLi/RCE/LFI rules still inspect the
+# body, and reject bodies that are not valid JSON. Pattern & verification = H6/H7(a) (controlplane-server-action.yaml
+# 19100/19101, drms-payload-server-action.yaml 19102/19103). Conditions = the exclusion's conditions: Next-Action hex
+# 40–64, Content-Type starting text/plain, path (REQUEST_FILENAME, no query) starting /admin/, Host exact.
+# IDs 19105/19106 are unused (grep appsec-rules/ + data/config 2026-10-08). No ": " inside msg:'…' (YAML gotcha, crowdsec.md).
+name: local/erajaya-payload-server-action-json
+description: "erajaya-loyalty staging - JSON body processor + reject non-JSON body for Payload admin Server Actions"
+seclang_rules:
+ - SecRule REQUEST_HEADERS:Next-Action "@rx ^[0-9a-f]{40,64}$" "id:19105,phase:1,pass,t:none,nolog,noauditlog,msg:'erajaya Payload Server Action JSON body processor',chain"
+ - SecRule REQUEST_HEADERS:Content-Type "@rx ^text/plain" "t:none,t:lowercase,chain"
+ - SecRule REQUEST_FILENAME "@beginsWith /admin/" "t:none,chain"
+ - SecRule REQUEST_HEADERS:Host "@rx ^erajaya-loyalty\.staging\.bimacreative\.tech$" "t:none,t:lowercase,ctl:requestBodyProcessor=JSON"
+ - SecRule REQBODY_ERROR "!@eq 0" "id:19106,phase:2,deny,status:403,t:none,log,msg:'erajaya Payload Server Action body is not valid JSON',chain"
+ - SecRule REQUEST_HEADERS:Next-Action "@rx ^[0-9a-f]{40,64}$" "t:none,chain"
+ - SecRule REQUEST_HEADERS:Content-Type "@rx ^text/plain" "t:none,t:lowercase,chain"
+ - SecRule REQUEST_FILENAME "@beginsWith /admin/" "t:none,chain"
+ - SecRule REQUEST_HEADERS:Host "@rx ^erajaya-loyalty\.staging\.bimacreative\.tech$" "t:none,t:lowercase"
