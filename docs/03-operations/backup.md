@@ -48,7 +48,7 @@
 |---|---|---|
 | `pg`,`pg-globals` | `/pg/globals.sql` | `docker exec postgres pg_dumpall -U postgres --globals-only` (role + hash password role) |
 | `pg`,`db:<db>` — satu snapshot per DB | `/pg/<db>.dump` | `docker exec postgres pg_dump -U postgres -Fc -Z 0 -d <db>` — daftar DB **dinamis** (`pg_database`, bukan template, `datallowconn`; `*_restoretest` dilewati) |
-| `files` | `/opt/infra` (kecuali `backups/`, `traefik/logs/`, `ansible/collections/`) + `/var/lib/docker/volumes/<vol>/_data/filestore` per pool | semua `.env`, `*/secrets/`, `traefik/acme/*.json`, `security/crowdsec/data`, realm export, repo git; filestore `odoo_pool_a_data`, `odoo_staging_data`; **seluruh root volume** `MEDIA_VOLUMES` (`drms_pk_media_{prod,stg}`, ProyekKas DRMS) bila volume ada — belum ada → log info `volume media … belum ada — dilewati` |
+| `files` | `/opt/infra` (kecuali `backups/`, `traefik/logs/`, `ansible/collections/`) + `/var/lib/docker/volumes/<vol>/_data/filestore` per pool | semua `.env`, `*/secrets/`, `traefik/acme/*.json`, `security/crowdsec/data`, realm export, repo git; filestore `odoo_pool_a_data`, `odoo_staging_data`; **seluruh root volume** `MEDIA_VOLUMES` (`drms_pk_media_{prod,stg}`, ProyekKas DRMS; `erajaya_loyalty_media_stg`, erajaya-loyalty staging) bila volume ada — belum ada → log info `volume media … belum ada — dilewati` |
 | `files` (lanjutan) | path tambahan `restic_extra_paths` (group_vars) → `INFRA_BACKUP_EXTRA_PATHS` di `local.env`; saat ini `/opt/src` | seluruh repo sumber (termasuk yang tanpa remote, `proyekkas-private`, worktree `/opt/src/wt`) kecuali `restic_extra_excludes` (`node_modules`, `.next`, `.turbo`, `__pycache__`, `.pytest_cache`, `venv`, `.venv`) — ±200 MB. Keputusan owner K3 2026-10-02; aktif setelah role `backup` dijalankan (`ansible-playbook site.yml --tags backup`) |
 
 - Dump dialirkan langsung (`restic backup --stdin-from-command -- …`, doc 0.19.1 `040_backup.rst`): tidak ada
@@ -70,6 +70,10 @@
 - Umami (plan 11, 2026-09-27): DB `umami` masuk dump dinamis tanpa perubahan skrip; `analytics/umami/.env` (`APP_SECRET`,
   `TWO_FACTOR_ENCRYPTION_KEY`) + `secrets/` ikut `files` (diverifikasi `restic ls`). Drill `restore.sh umami umami_restoretest`
   → jumlah baris sama → DB uji di-DROP (`analytics.md`).
+- erajaya-loyalty staging (2026-10-08): DB `erajaya_loyalty_stg` masuk dump dinamis tanpa perubahan skrip (`datallowconn` = t);
+  `staging/erajaya-loyalty/.env` + `secrets/` ikut `files` (di bawah `/opt/infra`); volume media `erajaya_loyalty_media_stg`
+  ditambahkan ke `MEDIA_VOLUMES` — belum ada sampai app pertama kali `compose up` (sampai itu: log info "dilewati").
+  Runbook `docs/runbooks/erajaya-loyalty-staging.md` §Backup.
 - Data mail DMS (T11): bind mount `/opt/infra/mail/data/{mail,state,config}` + `mail/secrets/` → ikut snapshot `files` tanpa
   perubahan skrip (diverifikasi `restic backup --dry-run` 2026-09-23; `mail.md` §Backup). Log `/var/log/mailserver` tidak.
   Tidak di-backup: TSDB Prometheus/Loki, image Docker, sesi Odoo.

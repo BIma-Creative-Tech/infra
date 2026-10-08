@@ -21,8 +21,9 @@ FILESTORE_VOLUMES=(odoo_pool_a_data odoo_staging_data)
 # ProyekKas client DRMS (ADR ProyekKas 0004 §6): upload Payload di /data/media (prod + staging).
 # Dibaca backup.sh (snapshot `files`, setelah dump DB); volume yang belum ada dilewati (log info).
 # restore-test.sh belum menguji file media (hanya filestore Odoo).
+# erajaya-loyalty staging (Payload media, MEDIA_DIR=/data/media): erajaya_loyalty_media_stg.
 # shellcheck disable=SC2034  # dipakai backup.sh
-MEDIA_VOLUMES=(drms_pk_media_prod drms_pk_media_stg)
+MEDIA_VOLUMES=(drms_pk_media_prod drms_pk_media_stg erajaya_loyalty_media_stg)
 # Nama DB Postgres yang valid untuk skrip ini (sama dengan konvensi header X-Sh-Odoo-Db).
 DB_RE='^[a-z0-9_]{1,63}$'
 # Path di dalam snapshot untuk dump DB: `--stdin-filename pg/<db>.dump` → /pg/<db>.dump
