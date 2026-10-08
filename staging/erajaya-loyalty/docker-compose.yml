@@ -1,0 +1,135 @@
+# erajaya-loyalty STAGING — Next.js 16 + Payload CMS 3 (portal member, /admin CMS, /api/pos/v1 HMAC, /api/cron/expire)
+# in ONE container. Host erajaya-loyalty.staging.bimacreative.tech → Traefik router file
+# traefik/dynamic/clients/erajaya-loyalty-staging.yml (staged in ./traefik/ until the Lead places it) → erajaya-staging-web:3000.
+# Runbook: docs/runbooks/erajaya-loyalty-staging.md. Pattern: staging/drms-proyekkas (Payload + Postgres).
+#
+# Hardening per /opt/infra/CLAUDE.md §3.5: read_only + tmpfs, cap_drop ALL, no-new-privileges, uid 1001, mem_limit/cpus,
+# healthcheck, json-file 10m×3, no published ports. Image contract (app Dockerfile, target `runner`): :3000, HOSTNAME=0.0.0.0,
+# GET /api/health, uid 1001, writable only /tmp, /app/.next/cache, /data/media; Payload prodMigrations run ON START (no
+# separate migrate container) → the DB role is the DB OWNER (postgres/scripts/init-roles.sh, umami pattern).
+# Limits: 512m / 0.75 CPU (ADR 0004 overcommit, runbook §Kapasitas). Heap capped below the cgroup limit so V8 GCs before
+# the OOM killer; the rest is for sharp/libvips (native), Next/RSC buffers and the two tmpfs mounts (charged to this cgroup).
+# DB connections: role erajaya_loyalty_stg CONNECTION LIMIT 10 = node-postgres default pool max (10).
+# Secrets: files under ./secrets/ (NOT in git), owned 1001:1001 mode 0400, no trailing newline — Compose (non-swarm) ignores
+# uid/gid/mode of file secrets, so host ownership must fit. docker-entrypoint.sh exports <NAME> from <NAME>_FILE.
+name: erajaya-loyalty-staging
+
+x-hardening: &hardening
+  restart: unless-stopped
+  user: "1001:1001"
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  logging:
+    driver: json-file
+    options: { max-size: "10m", max-file: "3" }
+
+x-app-env: &app-env
+  NODE_ENV: production
+  # Read at RUNTIME by payload.config.ts (serverURL, csrf, cors) — must not be inlined at build time (Dockerfile note).
+  NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:?}
+  # TEMPORARY(2026-10-07): OTP_DEV_MODE=true approved by user for the STAGING DEMO ONLY — the OTP is logged and shown in the
+  # UI (no SMS gateway, no egress). Never in prod; logs of this container contain OTP codes (json-file 30 MB + Loki).
+  OTP_DEV_MODE: ${OTP_DEV_MODE:-false}
+  MEDIA_DIR: /data/media
+  DATABASE_URI_FILE: /run/secrets/database_uri
+  PAYLOAD_SECRET_FILE: /run/secrets/payload_secret
+  APP_ENCRYPTION_KEY_FILE: /run/secrets/app_encryption_key
+  MEMBER_SESSION_SECRET_FILE: /run/secrets/member_session_secret
+  CRON_SECRET_FILE: /run/secrets/cron_secret
+
+x-app-secrets: &app-secrets
+  - database_uri
+  - payload_secret
+  - app_encryption_key
+  - member_session_secret
+  - cron_secret
+
+services:
+  # Portal + admin + APIs (Next standalone). Container name fixed by the Traefik service URL.
+  erajaya-staging-web:
+    <<: *hardening
+    image: ${WEB_IMAGE:?set WEB_IMAGE in .env (erajaya-loyalty:<tag>, never latest)}
+    container_name: erajaya-staging-web
+    environment:
+      <<: *app-env
+      HOSTNAME: "0.0.0.0"
+      PORT: "3000"
+      NODE_OPTIONS: --max-old-space-size=320
+    secrets: *app-secrets
+    tmpfs:
+      - /tmp:uid=1001,gid=1001,mode=0700,size=64m
+      - /app/.next/cache:uid=1001,gid=1001,mode=0700,size=64m
+    volumes:
+      - media:/data/media
+    # erajaya-edge-stg (10.100.19.0/24, --internal): traefik ingress only, NO egress (staging needs none).
+    # db-erajaya-stg (10.100.29.0/24, --internal): postgres only; pg_hba erajaya_loyalty_stg from this subnet only.
+    networks: [erajaya-edge-stg, db-erajaya-stg]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      # prodMigrations run before the server listens (first start on an empty DB = all migrations).
+      start_period: 90s
+    mem_limit: 512m
+    cpus: 0.75
+
+  # One-shot seed (image target `seed`, runs `tsx scripts/seed.ts`) — ONLY after the web container has applied the
+  # migrations (healthy). Profile → never started by `up`. Creates the superadmin from SEED_ADMIN_EMAIL +
+  # seed_admin_password secret, AND a CS user with a password hard-coded in the app repo (cs@erajaya.local) — change or
+  # disable that user in /admin right after seeding (public staging URL). Run:
+  #   SEED_IMAGE=erajaya-loyalty-seed:<tag> docker compose --profile seed run --rm erajaya-staging-seed
+  erajaya-staging-seed:
+    <<: *hardening
+    image: ${SEED_IMAGE:-erajaya-loyalty-seed:unset}
+    container_name: erajaya-staging-seed
+    restart: "no"
+    profiles: ["seed"]
+    environment:
+      <<: *app-env
+      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-}
+      SEED_ADMIN_PASSWORD_FILE: /run/secrets/seed_admin_password
+    secrets:
+      - database_uri
+      - payload_secret
+      - app_encryption_key
+      - member_session_secret
+      - cron_secret
+      - seed_admin_password
+    tmpfs:
+      - /tmp:uid=1001,gid=1001,mode=0700,size=64m
+    volumes:
+      - media:/data/media
+    networks: [db-erajaya-stg]
+    mem_limit: 512m
+    cpus: 0.5
+
+secrets:
+  database_uri:
+    file: ./secrets/database_uri.secret
+  payload_secret:
+    file: ./secrets/payload_secret.secret
+  app_encryption_key:
+    file: ./secrets/app_encryption_key.secret
+  member_session_secret:
+    file: ./secrets/member_session_secret.secret
+  cron_secret:
+    file: ./secrets/cron_secret.secret
+  seed_admin_password:
+    file: ./secrets/seed_admin_password.secret
+
+volumes:
+  media:
+    # exact name used by /opt/infra/scripts/lib/restic-common.sh MEDIA_VOLUMES (backup)
+    name: erajaya_loyalty_media_stg
+
+networks:
+  erajaya-edge-stg:
+    # traefik/scripts/bootstrap.sh: 10.100.19.0/24 --internal — members: traefik + this container only.
+    external: true
+    name: erajaya-edge-stg
+  db-erajaya-stg:
+    # postgres/scripts/bootstrap.sh: 10.100.29.0/24 --internal — members: postgres + this stack only (ADR 0010).
+    external: true
+    name: db-erajaya-stg
