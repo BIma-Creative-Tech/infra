@@ -35,7 +35,7 @@
 | `traefik.yaml` | `/var/log/traefik/access.log` (= `traefik/logs/`, ro) | `type: traefik` | `crowdsecurity/traefik-logs` |
 | `sshd.yaml` | `/var/log/host/auth.log` (= `/var/log` host, ro) | `type: syslog` | `syslog-logs` → `sshd-logs` |
 | `mail.yaml` (T11) | `/var/log/host/mailserver/dms/mail.log` (log docker-mailserver) | `type: syslog` | `syslog-logs` → `postfix-logs`/`postscreen-logs`/`dovecot-logs` — lihat `mail.md` §CrowdSec |
-| `appsec.yaml` | listener AppSec `0.0.0.0:7422` | `type: appsec` | configs `appsec-default` + `crs-inband` + `local/odoo-crs-exclusions` (T10) + `local/keycloak-admin-exclusions` (H4) + `local/controlplane-crs-exclusions` (H6) + `local/drms-payload-crs-exclusions` (H7(a)) + `local/oidc-backchannel-exclusions` (plan 04 BUG-S5-01) |
+| `appsec.yaml` | listener AppSec `0.0.0.0:7422` | `type: appsec` | configs `appsec-default` + `crs-inband` + `local/odoo-crs-exclusions` (T10) + `local/keycloak-admin-exclusions` (H4) + `local/controlplane-crs-exclusions` (H6) + `local/drms-payload-crs-exclusions` (H7(a)) + `local/oidc-backchannel-exclusions` (plan 04 BUG-S5-01) + `local/erajaya-payload-crs-exclusions` (erajaya-loyalty staging, disiapkan) |
 
 - sshd → **`/var/log/auth.log`** (rsyslog aktif di host; journald tidak dipakai karena image alpine tanpa `journalctl`).
 - Permission: container jalan sebagai root **tanpa capability** (tidak bisa bypass DAC). Membaca log lewat
@@ -201,6 +201,16 @@ Uji H4 (2026-09-23, dari host = 10.100.0.1, `--resolve …:443:127.0.0.1`, token
 
 Alert uji (`waf`, 10.100.0.1) tidak menghasilkan decision (parser whitelist IP privat) — `cscli decisions list -i 10.100.0.1`
 → `No active decisions`.
+
+### Pengecualian CRS 920420 + 911100 untuk Payload admin erajaya-loyalty staging (2026-10-07, DISIAPKAN — belum diterapkan)
+
+Pola H7(a) DRMS dalam **file terpisah** (cakupan/rollback per client): `appsec-configs/erajaya-payload-crs-exclusions.yaml`
+(`local/erajaya-payload-crs-exclusions`) — 920420 hanya untuk POST `/admin/*` Server Action (Next-Action hex 40–64 + text/plain)
+dan 911100 hanya untuk PATCH/DELETE `/api/*` **kecuali** `/api/pos/`, `/api/member/`, `/api/cron/`, host persis
+`erajaya-loyalty.staging.bimacreative.tech`; `appsec-rules/erajaya-payload-server-action.yaml` — **19105** (JSON body processor) +
+**19106** (403 bila body bukan JSON). `crowdsec -t -no-api` di container sekali pakai (salinan config tanpa kredensial) → exit 0;
+kontrol negatif → fatal. Penerapan (salinan ke `data/config` + HUP ±10 s 403) dan tabel uji: runbook
+`docs/runbooks/erajaya-loyalty-staging.md` §4.
 
 ### Pengecualian CRS `attack-sqli` untuk back-channel token OIDC (plan 04 BUG-S5-01, disetujui user 2026-09-25)
 

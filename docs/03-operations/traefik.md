@@ -22,7 +22,7 @@
 | `dynamic/middlewares/crowdsec.yml` | middleware plugin bouncer CrowdSec + AppSec (T05) — lihat `crowdsec.md` | ya |
 | `logs/access.log` | access log JSON (dibaca CrowdSec T05, Alloy T14). Dir `65532:adm` 750 | **tidak** |
 | `logrotate/traefik` | dipasang ke `/etc/logrotate.d/traefik` oleh bootstrap | ya |
-| `scripts/bootstrap.sh` | idempoten: network `proxy`, `odoo-edge`, `odoo-edge-stg` + `kc-edge` (ADR 0010), `drms-kas-edge`, `drms-kc-admin{,-stg}` (H5, `--internal`), `web-edge`, `webmail-edge`, `analytics-edge` (plan 11, `--internal`), dir/file acme & logs, logrotate (`drms-kas-edge-prod` 10.100.14.0/24 = cadangan, belum dibuat) | ya |
+| `scripts/bootstrap.sh` | idempoten: network `proxy`, `odoo-edge`, `odoo-edge-stg` + `kc-edge` (ADR 0010), `drms-kas-edge`, `drms-kc-admin{,-stg}` (H5, `--internal`), `web-edge`, `webmail-edge`, `analytics-edge` (plan 11, `--internal`), `erajaya-edge-stg` (`--internal`), dir/file acme & logs, logrotate (`drms-kas-edge-prod` 10.100.14.0/24 = cadangan, belum dibuat) | ya |
 
 ## Keputusan
 
@@ -263,6 +263,18 @@ lagi 2026-09-26 16:08 WIB (S10, `--force-recreate` dengan email ACME).
 - Router `dynamic/platform/analytics.yml`: publik hanya `/insight.js` + `/api/send`; admin :8443. Middleware
   `analytics-headers` — **`stsSeconds` wajib ikut dinaikkan** bersama `security-headers` (§HSTS). Detail: `analytics.md`.
 - Regresi → hapus file router + `kill -HUP 1`, `docker network disconnect analytics-edge traefik`.
+
+## Network `erajaya-edge-stg` (erajaya-loyalty staging — 2026-10-07)
+
+- `10.100.19.0/24` `--internal`, dibuat `scripts/bootstrap.sh`; anggota HANYA `traefik` + `erajaya-staging-web` (:3000). Edge
+  per client (bukan `web-edge`): app Payload memegang PII member + API POS. Internal: staging tanpa egress (`OTP_DEV_MODE`).
+  Diterapkan live: `docker network create … --internal` lalu `docker network connect erajaya-edge-stg traefik` (tanpa recreate;
+  Traefik 10.100.19.2, default gateway tetap 10.100.0.1; cp 307, drms staging `/admin` 302, admin :8443 302 setelahnya).
+- Router (disiapkan, belum dipasang): `staging/erajaya-loyalty/traefik/erajaya-loyalty-staging.yml` → `dynamic/clients/` —
+  runbook `docs/runbooks/erajaya-loyalty-staging.md` §5 (cron hanya dari 10.100.0.1, OTP 5/menit, POS 10/s, body 10 MiB).
+- **Blok edge 10.100.0–19.0/24 kini penuh** (18 = `ci-runner`, 19 = ini; 1 dan 6 pensiun). Edge berikutnya butuh blok baru
+  (mis. 10.100.40.0/24+, di luar cadangan `db-*` 20–39) — catat di ADR 0010.
+- Regresi → hapus file router + `kill -HUP 1`, `docker network disconnect erajaya-edge-stg traefik`.
 
 ## Tenant suspended (SaaS Fase 1, ADR 0018 #6)
 
