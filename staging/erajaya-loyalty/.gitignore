@@ -1,0 +1,5 @@
+# State & secret erajaya-loyalty staging — jangan di-commit (CLAUDE.md §0.9)
+.env
+.env.*
+!.env.example
+secrets/

@@ -1,0 +1,19 @@
+# {{ ansible_managed }} — role erajaya_staging_cron
+# Root: membaca file secret cron stack (0400 uid 1001) lalu curl ke Traefik lokal (header lewat stdin, tidak di argv).
+[Unit]
+Description=erajaya-loyalty staging: GET /api/cron/expire
+Documentation=file:///opt/infra/docs/runbooks/erajaya-loyalty-staging.md
+OnFailure=infra-unit-failure@%n.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart={{ erajaya_staging_cron_script }}
+SyslogIdentifier=erajaya-staging-expire
+UMask=0077
+TimeoutStartSec=15min
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=strict

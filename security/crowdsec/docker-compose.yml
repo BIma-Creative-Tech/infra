@@ -56,6 +56,11 @@ services:
       - ./appsec-rules/drms-payload-server-action.yaml:/etc/crowdsec/appsec-rules/drms-payload-server-action.yaml:ro
       # Plan 04 BUG-S5-01: pengecualian CRS attack-sqli back-channel token OIDC. Nama config: local/oidc-backchannel-exclusions.
       - ./appsec-configs/oidc-backchannel-exclusions.yaml:/etc/crowdsec/appsec-configs/oidc-backchannel-exclusions.yaml:ro
+      # erajaya-loyalty staging: 920420 (Server Action admin Payload) + 911100 (PATCH/DELETE Payload REST) + rule JSON body
+      # 19105/19106. Penerapan pertama = salinan ke data/config + HUP (runbook erajaya-loyalty-staging.md §CrowdSec); mount ini
+      # membuat git sumber kebenaran sejak recreate berikutnya (isi identik).
+      - ./appsec-configs/erajaya-payload-crs-exclusions.yaml:/etc/crowdsec/appsec-configs/erajaya-payload-crs-exclusions.yaml:ro
+      - ./appsec-rules/erajaya-payload-server-action.yaml:/etc/crowdsec/appsec-rules/erajaya-payload-server-action.yaml:ro
       # T11: skenario lokal brute force SASL submission (infra/mail-postfix-sasl-bf). Log mail dibaca lewat
       # /var/log/host/mailserver/dms/ (mount /var/log di bawah) — acquis.d/mail.yaml.
       - ./scenarios/mail-postfix-sasl-bf.yaml:/etc/crowdsec/scenarios/mail-postfix-sasl-bf.yaml:ro

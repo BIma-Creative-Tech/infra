@@ -33,6 +33,7 @@ declare -A SRC=(
   [db]=10.100.1.5 [proxy]=10.100.0.5 [odoo-edge]=10.100.3.5 [kc-edge]=10.100.12.5 [odoo-edge-stg]=10.100.13.5
   [db-keycloak]=10.100.20.5 [db-odoo-pool-a]=10.100.21.5 [db-odoo-staging]=10.100.22.5 [db-cp]=10.100.23.5
   [db-cp-stg]=10.100.24.5 [db-drms]=10.100.25.5 [db-drms-stg]=10.100.26.5 [db-datamart]=10.100.27.5
+  [db-erajaya-stg]=10.100.29.5
 )
 # Pasangan uji: "db role network-pemilik" (network-pemilik = satu-satunya db-* yang boleh; `-` = tidak boleh dari mana pun).
 PAIRS=(
@@ -55,6 +56,11 @@ PAIRS=(
   "pk_drms_stg pk_drms_stg_app db-drms-stg"
   "pk_drms_stg pk_drms_stg_ro db-drms-stg"
   "pk_drms_stg pk_drms_app -"
+  # erajaya-loyalty staging: hanya dari db-erajaya-stg; nama `_stg` di luar regex `_staging$` pool Odoo staging.
+  "erajaya_loyalty_stg erajaya_loyalty_stg db-erajaya-stg"
+  "erajaya_loyalty_stg odoo_staging -"
+  "erajaya_loyalty_stg pk_drms_stg_app -"
+  "pk_drms_stg erajaya_loyalty_stg -"
   "keycloak control_plane -"
   "postgres postgres -"
   "keycloak postgres -"

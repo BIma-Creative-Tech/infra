@@ -16,7 +16,8 @@ VARS=(POSTGRES_PASSWORD PG_KEYCLOAK_PASSWORD PG_CONTROL_PLANE_PASSWORD PG_DATAMA
       PG_PK_DRMS_OWNER_PASSWORD PG_PK_DRMS_APP_PASSWORD PG_PK_DRMS_RO_PASSWORD
       PG_PK_DRMS_STG_OWNER_PASSWORD PG_PK_DRMS_STG_APP_PASSWORD PG_PK_DRMS_STG_RO_PASSWORD
       PG_UMAMI_PASSWORD                                   # plan 11 / ADR 0013: web analytics Umami (owner DB umami)
-      PG_DATAMART_READER_PASSWORD)                        # ADR 0016: pembaca mart (control-plane), RLS per client
+      PG_DATAMART_READER_PASSWORD                         # ADR 0016: pembaca mart (control-plane), RLS per client
+      PG_ERAJAYA_LOYALTY_STG_PASSWORD)                    # erajaya-loyalty STAGING (Payload, owner DB; runbook erajaya-loyalty-staging.md)
 
 [[ $EUID -eq 0 ]] || { echo "harus root" >&2; exit 1; }
 
@@ -55,8 +56,12 @@ ensure_internal_network db-drms-stg     10.100.26.0/24 10.100.26.1   # drms-pk-s
 ensure_internal_network db-drms         10.100.25.0/24 10.100.25.1   # drms-pk-web (+worker, migrate, seed) — PROD
 ensure_internal_network db-umami        10.100.28.0/24 10.100.28.1   # umami (plan 11, ADR 0013)
 ensure_internal_network db-datamart     10.100.27.0/24 10.100.27.1   # dbt runner datamart (ADR 0016, plan 14)
+# erajaya-loyalty STAGING (Payload CMS + portal + POS API; docs/runbooks/erajaya-loyalty-staging.md). Live: network create
+# + `docker network connect db-erajaya-stg postgres` (tanpa recreate) + baris pg_hba ditulis di tempat + reload.
+ensure_internal_network db-erajaya-stg  10.100.29.0/24 10.100.29.1   # erajaya-staging-web
 # CADANGAN — belum dibuat:
-#   10.100.29.0/24–10.100.39.0/24  db-* berikutnya (pool/dedicated Odoo, klien baru) — 10.100.28.0/24 = db-umami (plan 11)
+#   10.100.30.0/24–10.100.39.0/24  db-* berikutnya (pool/dedicated Odoo, klien baru) — 10.100.28.0/24 = db-umami (plan 11),
+#   10.100.29.0/24 = db-erajaya-stg
 # Untuk mengaktifkan: tambahkan baris ensure_internal_network di atas + `docker network connect <net> postgres` + compose.
 
 # 2. .env

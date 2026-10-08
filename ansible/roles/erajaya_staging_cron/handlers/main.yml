@@ -1,0 +1,4 @@
+---
+- name: Reload systemd (erajaya_staging_cron)
+  ansible.builtin.systemd_service:
+    daemon_reload: true

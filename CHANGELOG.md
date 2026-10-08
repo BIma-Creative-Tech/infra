@@ -20,6 +20,13 @@ file `VERSION`.
   `drms` gagal 2× (bff95ac, 3dd8a96). Runbook `docs/03-operations/ci-runner.md` §1.
 
 ### Added
+- erajaya-loyalty STAGING (2026-10-07, branch `feat/infra-erajaya-loyalty-staging`; runbook
+  `docs/runbooks/erajaya-loyalty-staging.md`):
+  - live: network `db-erajaya-stg` 10.100.29.0/24 + `erajaya-edge-stg` 10.100.19.0/24 (keduanya `--internal`), DB/role owner
+    `erajaya_loyalty_stg` (limit 10), baris pg_hba (di tempat + reload, tanpa restart);
+  - stack `staging/erajaya-loyalty/` (512m, read-only, secrets `*_FILE`), router Traefik + exclusion AppSec 920420/911100
+    (19105/19106) + timer expiry 00:00 WIB (role `erajaya_staging_cron`, default absent) — disiapkan, belum diterapkan;
+  - backup: `erajaya_loyalty_media_stg` di `MEDIA_VOLUMES`.
 - plan 14 (2026-09-29): Expomedia pindah ke **alur standar Odoo**:
   - CRM → PNW → SPK (sale.order) → task per lokasi → milestone/DP → invoice → payment; timesheet = absensi per SPK;
   - `cl_expomedia_sale` (AE tanpa harga, nomor PNW/SPK, menu SPK); `cl_expomedia_spk` dipensiunkan;

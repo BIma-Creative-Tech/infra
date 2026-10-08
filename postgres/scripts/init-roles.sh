@@ -24,6 +24,12 @@ APPS=(
   # Plan 11 / ADR 0013 — Umami web analytics. Role `umami` = OWNER DB (Umami menjalankan `prisma migrate deploy` sendiri
   # saat start: DDL + `CREATE EXTENSION pgcrypto` — trusted extension sejak PG13, boleh dibuat owner DB). Limit 10 → total 196.
   "umami:umami:PG_UMAMI_PASSWORD:10"
+  # erajaya-loyalty STAGING (Payload CMS 3; docs/runbooks/erajaya-loyalty-staging.md). Satu role = OWNER DB (pola umami):
+  # Payload menjalankan `prodMigrations` di DALAM container app saat start (tanpa container migrate terpisah) → role app
+  # butuh DDL. Nama DB berakhiran `_stg` (BUKAN `_staging`) → di luar regex pg_hba pool Odoo staging. Limit 10 = pool
+  # default node-postgres (max 10). Σ CONNECTION LIMIT 196 → 206 > 197 slot pakai (overcommit plafon, bukan reservasi;
+  # NYATA 28 koneksi saat penambahan) — max_connections dinaikkan pada recreate Postgres terjadwal berikutnya (runbook §Risiko).
+  "erajaya_loyalty_stg:erajaya_loyalty_stg:PG_ERAJAYA_LOYALTY_STG_PASSWORD:10"
 )
 
 get_var() { grep -E "^$1=" "$ENV_FILE" | head -n1 | cut -d= -f2-; }

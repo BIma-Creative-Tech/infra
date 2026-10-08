@@ -23,5 +23,8 @@ appsec_configs:
   # Plan 04 BUG-S5-01: pre_eval — nonaktifkan HANYA rule CRS bertag attack-sqli untuk POST token endpoint
   # realm platform(-staging) dari hairpin 10.100.0.1 (back-channel Odoo) — appsec-configs/oidc-backchannel-exclusions.yaml.
   - local/oidc-backchannel-exclusions
+  # erajaya-loyalty staging: pre_eval — HANYA 920420 (Server Action admin Payload, POST /admin/* + Next-Action) dan 911100
+  # (PATCH/DELETE /api/* kecuali /api/pos|member|cron/), host erajaya-loyalty.staging — appsec-configs/erajaya-payload-crs-exclusions.yaml.
+  - local/erajaya-payload-crs-exclusions
 labels:
   type: appsec

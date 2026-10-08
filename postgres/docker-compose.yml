@@ -53,6 +53,7 @@ services:
       - db-drms           # 10.100.25.0/24 — drms-pk-web (+worker, migrate, seed) — PROD (E10)
       - db-umami          # 10.100.28.0/24 — umami (plan 11, ADR 0013)
       - db-datamart       # 10.100.27.0/24 — dbt runner datamart (ADR 0016)
+      - db-erajaya-stg    # 10.100.29.0/24 — erajaya-staging-web (erajaya-loyalty STAGING)
     healthcheck:
       test: ["CMD", "pg_isready", "-U", "postgres", "-h", "/var/run/postgresql"]
       interval: 10s
@@ -106,3 +107,8 @@ networks:
     # ADR 0016. Live: bootstrap.sh + `docker network connect db-datamart postgres` (tanpa recreate).
     external: true
     name: db-datamart
+  db-erajaya-stg:
+    # erajaya-loyalty STAGING. Live: network create + `docker network connect db-erajaya-stg postgres` (tanpa recreate)
+    # → compose `--dry-run` menandai Recreate (drift) sampai recreate terjadwal berikutnya.
+    external: true
+    name: db-erajaya-stg
