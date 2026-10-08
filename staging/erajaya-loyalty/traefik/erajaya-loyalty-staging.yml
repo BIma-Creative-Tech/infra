@@ -1,0 +1,124 @@
+# erajaya-loyalty STAGING — erajaya-loyalty.staging.bimacreative.tech → container `erajaya-staging-web:3000`
+# (network erajaya-edge-stg 10.100.19.0/24, --internal). Manual file (not render-client-route.sh / provision-web-client.sh).
+# STAGED here; the Lead copies it to /opt/infra/traefik/dynamic/clients/erajaya-loyalty-staging.yml once the container is
+# healthy, then `docker exec traefik kill -HUP 1` (sub-directories of dynamic/ are not watched; H7: never `docker kill`).
+# Runbook: docs/runbooks/erajaya-loyalty-staging.md. Model: clients/drms-proyekkas-staging.yml.
+#
+# DNS pre-check (ADR 0002 #5) 2026-10-07: A = 31.97.50.221 (wildcard *.staging; @1.1.1.1, @8.8.8.8, @153.92.2.6 and
+# authoritative apollo.dns-parking.com), no AAAA. CAA = 0 issue "letsencrypt.org" → le-http (production) directly, as
+# drms-kas.staging / cp.staging.
+#
+# Middleware order: crowdsec (first) → security-headers → ratelimit-* → rest.
+# Headers (verified 2026-10-08 in a throwaway traefik:v3.7.13, backend sending the app's next.config.mjs headers):
+# `security-headers` OVERRIDES the app's Strict-Transport-Security (app: max-age=63072000; includeSubDomains; preload →
+# edge: platform max-age, no includeSubDomains/preload — wanted on a *.staging subdomain, traefik.md §HSTS) and
+# Permissions-Policy (app camera=(self) → camera=(); the app does not use the camera — grep getUserMedia/BarcodeDetector = 0).
+# X-Frame-Options DENY / nosniff / Referrer-Policy are identical on both sides; single header each, no duplicates.
+# Content-Security-Policy and Cross-Origin-Opener-Policy are NOT set by the edge → the app's values pass unchanged.
+http:
+  routers:
+    # Daily expiry job (/api/cron/expire, Bearer CRON_SECRET checked by the app). Only the host timer
+    # (ansible role erajaya_staging_cron → curl --resolve …:443:127.0.0.1) may reach it: host/hairpin traffic arrives as
+    # 10.100.0.1 (traefik.md §Admin via SSH tunnel). Note 10.100.0.1 = every host process + hairpin from any container on a
+    # non-internal network, so the Bearer secret stays the real control; this router only removes internet exposure.
+    erajaya-stg-cron:
+      entryPoints: [websecure]
+      rule: "Host(`erajaya-loyalty.staging.bimacreative.tech`) && Path(`/api/cron/expire`) && ClientIP(`10.100.0.1/32`)"
+      priority: 130
+      middlewares: [crowdsec, security-headers, ratelimit-login]
+      service: erajaya-stg
+      tls:
+        certResolver: le-http
+    # Everyone else → 403 (deny-all → deny-sink, never reaches the app; logged in access.log for CrowdSec).
+    erajaya-stg-cron-deny:
+      entryPoints: [websecure]
+      rule: "Host(`erajaya-loyalty.staging.bimacreative.tech`) && PathPrefix(`/api/cron/`)"
+      priority: 125
+      middlewares: [crowdsec, deny-all]
+      service: deny-sink
+      tls:
+        certResolver: le-http
+    # Member OTP (POST /api/member/otp/request, /verify): strict per IP (5/min, burst 5). App limits additionally per phone
+    # (3/10 min) and per IP (10/10 min), max 5 attempts per code. OTP_DEV_MODE=true on staging (code shown in UI/logs).
+    erajaya-stg-otp:
+      entryPoints: [websecure]
+      rule: "Host(`erajaya-loyalty.staging.bimacreative.tech`) && PathPrefix(`/api/member/otp/`)"
+      priority: 110
+      middlewares: [crowdsec, security-headers, ratelimit-erajaya-stg-otp]
+      service: erajaya-stg
+      tls:
+        certResolver: le-http
+    # Payload admin auth (collection `users`): login / forgot / reset / unlock → ratelimit-login (10/min, burst 10). The app
+    # also locks an account 15 min after 5 failures.
+    erajaya-stg-admin-auth:
+      entryPoints: [websecure]
+      rule: "Host(`erajaya-loyalty.staging.bimacreative.tech`) && (Path(`/api/users/login`) || Path(`/api/users/forgot-password`) || Path(`/api/users/reset-password`) || Path(`/api/users/unlock`))"
+      priority: 105
+      middlewares: [crowdsec, security-headers, ratelimit-login]
+      service: erajaya-stg
+      tls:
+        certResolver: le-http
+    # POS terminal API (HMAC-SHA256 per terminal, X-Pos-* headers; GET/POST only). Per source IP: several terminals of one
+    # store usually share a NAT IP → 10 req/s, burst 50 (app limit = 120 req/min PER TERMINAL). Small JSON bodies → 1 MiB cap.
+    erajaya-stg-pos:
+      entryPoints: [websecure]
+      rule: "Host(`erajaya-loyalty.staging.bimacreative.tech`) && PathPrefix(`/api/pos/v1/`)"
+      priority: 100
+      middlewares: [crowdsec, security-headers, ratelimit-erajaya-stg-pos, erajaya-stg-buffering-pos]
+      service: erajaya-stg
+      tls:
+        certResolver: le-http
+    # Rest of /api/: Payload REST (admin UI: PATCH/DELETE /api/<collection>/<id>, media upload /api/media), member API
+    # (/api/member/*), /api/health. Request body ≤ 10 MiB = crowdsecAppsecBodyLimit (middlewares/crowdsec.yml).
+    erajaya-stg-api:
+      entryPoints: [websecure]
+      rule: "Host(`erajaya-loyalty.staging.bimacreative.tech`) && PathPrefix(`/api/`)"
+      priority: 50
+      middlewares: [crowdsec, security-headers, ratelimit-default, erajaya-stg-buffering-api]
+      service: erajaya-stg
+      tls:
+        certResolver: le-http
+    # Catch-all: member portal (/, /login, /member/*), Payload admin (/admin, Server Actions POST /admin/* — AppSec exclusion
+    # security/crowdsec/appsec-configs/erajaya-payload-crs-exclusions.yaml), Next assets. No buffering (assets/RSC streams).
+    erajaya-stg-web:
+      entryPoints: [websecure]
+      rule: "Host(`erajaya-loyalty.staging.bimacreative.tech`)"
+      priority: 1
+      middlewares: [crowdsec, security-headers, ratelimit-default]
+      service: erajaya-stg
+      tls:
+        certResolver: le-http
+
+  middlewares:
+    # docs v3.7 middlewares/ratelimit.md: token bucket per source IP (default sourceCriterion = remote address; client
+    # X-Forwarded-For is not trusted — forwardedHeaders unset, traefik.md). ESTIMASI — tune from access log
+    # (RouterName=erajaya-stg-*@file, DownstreamStatus=429).
+    ratelimit-erajaya-stg-otp:
+      rateLimit:
+        average: 5
+        period: 1m
+        burst: 5
+    ratelimit-erajaya-stg-pos:
+      rateLimit:
+        average: 10
+        period: 1s
+        burst: 50
+    # docs v3.7 middlewares/buffering.md (pattern buffering-pk, clients/drms-proyekkas-middlewares.yml): larger request →
+    # 413 from Traefik; maxResponseBodyBytes caps buffered responses (larger → 500), memResponseBodyBytes default 1 MiB then
+    # tmpfs /tmp of the traefik container (mem_limit 256m).
+    erajaya-stg-buffering-api:
+      buffering:
+        maxRequestBodyBytes: 10485760
+        maxResponseBodyBytes: 16777216
+    erajaya-stg-buffering-pos:
+      buffering:
+        maxRequestBodyBytes: 1048576
+        maxResponseBodyBytes: 1048576
+
+  services:
+    # compose project erajaya-loyalty-staging (/opt/infra/staging/erajaya-loyalty/), container_name erajaya-staging-web,
+    # port 3000, network erajaya-edge-stg (shared with traefik only). Container stopped → 502.
+    erajaya-stg:
+      loadBalancer:
+        servers:
+          - url: "http://erajaya-staging-web:3000"
