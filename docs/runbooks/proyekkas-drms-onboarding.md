@@ -291,6 +291,9 @@ page publik).
 ### Upgrade 2026-10-09 06:21 WIB → `0.6.2-stg-38d2be8` (dari `0.5.1-stg-5fe21fa`)
 Web `sha256:b34b27f6…`, migrate `sha256:8fddd0dc…`. 7 migrasi (privacy_notice, selfie_retention_6m movedCompanyIds=[1,2], 5 QA; `qa_flow_lpj_source` createdForCompanyIds=[2]) → Done. Dump `backups/proyekkas/pk_drms_stg-20261009-061857-pre-0.6.2.dump`. Smoke: health/privasi/admin/unduh/privacy-notice 200, login 302 realm drms-staging. Rollback image: `PK_*_IMAGE` → `0.5.1-stg-5fe21fa` (web `@sha256:b84f1101…`, migrate `@sha256:f77213d4…`) + restore dump.
 
+### Upgrade 2026-10-09 13:06 WIB → `0.6.3-stg-f0a12e8` (dari `0.6.2-stg-38d2be8`)
+Web `sha256:60c51ba9…`, migrate `sha256:e8e999a0…`. 1 migrasi data `list_row_actions_column` (34 ms) → Done. Dump `backups/proyekkas/pk_drms_stg-20261009-130513-pre-0.6.3.dump`. Smoke: health/admin login/privasi/unduh 200, list tanpa sesi 302, 0 log error. Rollback: `PK_*_IMAGE` → `0.6.2-stg-38d2be8` (web `@sha256:b34b27f6…`, migrate `@sha256:8fddd0dc…`).
+
 ## Rollback
 
 - **Postgres:** `git revert` commit postgres → `docker compose restart postgres` (pg_hba tanpa baris pk_drms → login
