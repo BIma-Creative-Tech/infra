@@ -294,6 +294,9 @@ Web `sha256:b34b27f6…`, migrate `sha256:8fddd0dc…`. 7 migrasi (privacy_notic
 ### Upgrade 2026-10-09 13:06 WIB → `0.6.3-stg-f0a12e8` (dari `0.6.2-stg-38d2be8`)
 Web `sha256:60c51ba9…`, migrate `sha256:e8e999a0…`. 1 migrasi data `list_row_actions_column` (34 ms) → Done. Dump `backups/proyekkas/pk_drms_stg-20261009-130513-pre-0.6.3.dump`. Smoke: health/admin login/privasi/unduh 200, list tanpa sesi 302, 0 log error. Rollback: `PK_*_IMAGE` → `0.6.2-stg-38d2be8` (web `@sha256:b34b27f6…`, migrate `@sha256:8fddd0dc…`).
 
+### Upgrade 2026-10-11 01:21 WIB → `0.7.0-stg-3bc8b94` (dari `0.6.3-stg-f0a12e8`) — migrasi DESTRUKTIF
+Web `sha256:b90bf50b…`, migrate `sha256:31c076ca…`. 5 migrasi: p2s_operator_role, **p2s_urgency_level (DROP `expense_requests.period_from/period_to`; pra-cek: 0 dari 472 baris berisi nilai)**, fr1_foundation, fr1_field_reports, fr1_security → Done. Dump `backups/proyekkas/pk_drms_stg-20261011-011311-pre-0.7.0.dump`. Dijalankan setelah jendela load test (load1 1.1, tanpa container uji; traffic staging 1 jam terakhir hanya health probe). Smoke: health/admin login/unduh/privasi 200, list expense tanpa sesi 302, 0 log error. Flag `fieldReportsEnabled` tetap OFF sampai 0.7.1 (bug HM titik ribuan). **Rollback hanya restore dump** (image 0.6.3 tanpa restore tidak jalan).
+
 ## Rollback
 
 - **Postgres:** `git revert` commit postgres → `docker compose restart postgres` (pg_hba tanpa baris pk_drms → login
