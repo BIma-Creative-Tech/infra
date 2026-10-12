@@ -297,6 +297,9 @@ Web `sha256:60c51ba9…`, migrate `sha256:e8e999a0…`. 1 migrasi data `list_row
 ### Upgrade 2026-10-11 01:21 WIB → `0.7.0-stg-3bc8b94` (dari `0.6.3-stg-f0a12e8`) — migrasi DESTRUKTIF
 Web `sha256:b90bf50b…`, migrate `sha256:31c076ca…`. 5 migrasi: p2s_operator_role, **p2s_urgency_level (DROP `expense_requests.period_from/period_to`; pra-cek: 0 dari 472 baris berisi nilai)**, fr1_foundation, fr1_field_reports, fr1_security → Done. Dump `backups/proyekkas/pk_drms_stg-20261011-011311-pre-0.7.0.dump`. Dijalankan setelah jendela load test (load1 1.1, tanpa container uji; traffic staging 1 jam terakhir hanya health probe). Smoke: health/admin login/unduh/privasi 200, list expense tanpa sesi 302, 0 log error. Flag `fieldReportsEnabled` tetap OFF sampai 0.7.1 (bug HM titik ribuan). **Rollback hanya restore dump** (image 0.6.3 tanpa restore tidak jalan).
 
+### Upgrade 2026-10-13 00:30 WIB → `0.9.1` (dari `0.7.0-stg-3bc8b94`) — build rilis yang sama dengan prod
+Image namespace baru `ghcr.io/bima-creative-tech/proyekkas-web:0.9.1@sha256:a4ac2848…`, migrate `@sha256:9ceb6277…` (tag rilis, bukan `-stg-`). 20 migrasi (approval_pm_direktur … attachments_owner_link) → Done; log: 2 project ber-RAB tanpa RAP (`DRMS/PRJ-LT-E9`, `DRMS/UJI-PRJ`), aturan "Pengajuan Direktur" dibuat untuk DRMS & CS1, linked kosong. Dump `backups/proyekkas/pk_drms_stg-20261013-002906-pre-0.9.1.dump`. Smoke: health/admin login/privasi/unduh 200, list expense tanpa sesi 302, 0 log error. Rollback: restore dump + `PK_*_IMAGE` → `0.7.0-stg-3bc8b94` (web `@sha256:b90bf50b…`, migrate `@sha256:31c076ca…`).
+
 ## Rollback
 
 - **Postgres:** `git revert` commit postgres → `docker compose restart postgres` (pg_hba tanpa baris pk_drms → login
