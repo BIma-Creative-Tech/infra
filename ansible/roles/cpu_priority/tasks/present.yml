@@ -1,0 +1,65 @@
+---
+- name: Direktori config {{ cpu_priority_etc_dir }}
+  ansible.builtin.file:
+    path: "{{ cpu_priority_etc_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Config tier (dibaca guard tiap run; tidak perlu restart apa pun)
+  ansible.builtin.template:
+    src: tiers.conf.j2
+    dest: "{{ cpu_priority_etc_dir }}/tiers.conf"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Skrip guard {{ cpu_priority_sbin }}
+  ansible.builtin.copy:
+    src: cpu-priority-guard
+    dest: "{{ cpu_priority_sbin }}"
+    owner: root
+    group: root
+    mode: "0755"
+    validate: /usr/bin/bash -n %s
+
+- name: Unit systemd cpu-priority-guard
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "/etc/systemd/system/{{ item }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - cpu-priority-guard.service
+    - cpu-priority-guard.timer
+  notify: Reload systemd (cpu_priority)
+
+- name: Direktori drop-in user.slice
+  ansible.builtin.file:
+    path: /etc/systemd/system/user.slice.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Drop-in bobot CPU user.slice
+  ansible.builtin.template:
+    src: user-slice-cpu-weight.conf.j2
+    dest: /etc/systemd/system/user.slice.d/50-cpu-weight.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload systemd (cpu_priority)
+
+- name: Terapkan daemon-reload sebelum mengaktifkan timer
+  ansible.builtin.meta: flush_handlers
+
+# --check pada pemasangan pertama: unit belum ada di disk → modul gagal "Could not find"; diabaikan HANYA di check mode.
+- name: Timer cpu-priority-guard aktif
+  ansible.builtin.systemd_service:
+    name: cpu-priority-guard.timer
+    enabled: true
+    state: started
+  ignore_errors: "{{ ansible_check_mode }}"

@@ -1,0 +1,12 @@
+# {{ ansible_managed }} — role cpu_priority (docs/03-operations/cpu-priority.md)
+[Unit]
+Description=Timer: bobot CPU per tier container tiap {{ cpu_priority_on_unit_active_sec }}
+
+[Timer]
+# systemd.timer(5): monotonic — relatif terhadap boot dan terhadap aktivasi terakhir unit service.
+OnBootSec={{ cpu_priority_on_boot_sec }}
+OnUnitActiveSec={{ cpu_priority_on_unit_active_sec }}
+AccuracySec=10s
+
+[Install]
+WantedBy=timers.target

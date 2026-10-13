@@ -1,0 +1,32 @@
+# {{ ansible_managed }} — role cpu_priority (docs/03-operations/cpu-priority.md)
+[Unit]
+Description=Bobot CPU per tier container (docker update live, tanpa restart)
+Documentation=file://{{ infra_root }}/docs/03-operations/cpu-priority.md
+Requires=docker.service
+After=docker.service
+OnFailure=infra-unit-failure@%n.service
+
+[Service]
+Type=oneshot
+ExecStart={{ cpu_priority_sbin }}
+SyslogIdentifier=cpu-priority-guard
+# Guard sendiri tidak boleh ikut berebut CPU saat host jenuh.
+Nice=10
+CPUWeight=10
+UMask=0077
+TimeoutStartSec=60s
+# Hardening (pola container-metrics.service): root tanpa capability; docker.sock milik root → akses via owner,
+# bukan CAP_DAC_OVERRIDE. Hanya AF_UNIX (docker.sock + /dev/log untuk logger).
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=yes
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_UNIX
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryMax=64M
+TasksMax=32

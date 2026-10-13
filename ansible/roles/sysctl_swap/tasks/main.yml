@@ -49,3 +49,67 @@
     regexp: '^{{ swap_file }}\s'
     line: "{{ swap_file }} none swap sw 0 0"
     state: present
+
+# Swapfile tambahan (swap_extra_files) — langkah sama dengan swap_file utama; file yang sudah ada & aktif → tanpa perubahan.
+- name: Validasi swap_extra_files
+  ansible.builtin.assert:
+    that:
+      - swap_extra_files is sequence and swap_extra_files is not string
+      - swap_extra_files | map(attribute='path') | select('match', '^/[A-Za-z0-9_./-]+$') | list | length == swap_extra_files | length
+      - swap_extra_files | map(attribute='path') | select('equalto', swap_file) | list | length == 0
+      - swap_extra_files | map(attribute='size_mib') | map('int') | select('gt', 0) | list | length == swap_extra_files | length
+    fail_msg: "swap_extra_files: list {path: /absolut, size_mib: >0}, path tidak boleh sama dengan swap_file"
+    quiet: true
+
+- name: Cek swapfile tambahan
+  ansible.builtin.stat:
+    path: "{{ item.path }}"
+  loop: "{{ swap_extra_files }}"
+  loop_control:
+    label: "{{ item.path }}"
+  register: swap_extra_stat
+
+- name: Buat swapfile tambahan
+  ansible.builtin.command: fallocate -l {{ item.item.size_mib }}M {{ item.item.path }}
+  when: not item.stat.exists
+  loop: "{{ swap_extra_stat.results }}"
+  loop_control:
+    label: "{{ item.item.path }} {{ item.item.size_mib }} MiB"
+  register: swap_extra_created
+  changed_when: true
+
+- name: Mode swapfile tambahan 600
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    owner: root
+    group: root
+    mode: "0600"
+  loop: "{{ swap_extra_files }}"
+  loop_control:
+    label: "{{ item.path }}"
+
+- name: mkswap swapfile tambahan (hanya yang baru dibuat)
+  ansible.builtin.command: mkswap {{ item.item.item.path }}
+  when: item is changed
+  loop: "{{ swap_extra_created.results }}"
+  loop_control:
+    label: "{{ item.item.item.path }}"
+  changed_when: true
+
+- name: swapon swapfile tambahan
+  ansible.builtin.command: swapon {{ item.path }}
+  when: item.path not in swap_active.stdout_lines
+  loop: "{{ swap_extra_files }}"
+  loop_control:
+    label: "{{ item.path }}"
+  changed_when: true
+
+- name: Entri fstab swapfile tambahan
+  ansible.builtin.lineinfile:
+    path: /etc/fstab
+    regexp: '^{{ item.path }}\s'
+    line: "{{ item.path }} none swap sw 0 0"
+    state: present
+  loop: "{{ swap_extra_files }}"
+  loop_control:
+    label: "{{ item.path }}"

@@ -1,0 +1,29 @@
+---
+# cpu_priority — guard bobot CPU per tier container (timer 60 s, `docker update` live) + bobot user.slice. Idempoten.
+- name: Validasi variabel cpu_priority
+  ansible.builtin.assert:
+    that:
+      - cpu_priority_state in ['present', 'absent']
+      - cpu_priority_prod_shares | int >= 2 and cpu_priority_prod_shares | int <= 262144
+      - cpu_priority_staging_shares | int >= 2 and cpu_priority_staging_shares | int <= 262144
+      - cpu_priority_adhoc_shares | int >= 2 and cpu_priority_adhoc_shares | int <= 262144
+      - cpu_priority_adhoc_shares | int < cpu_priority_staging_shares | int
+      - cpu_priority_staging_shares | int < cpu_priority_prod_shares | int
+      - cpu_priority_adhoc_cpus | string is match('^[0-9]+(\.[0-9]{1,9})?$')
+      - (cpu_priority_prod + cpu_priority_staging) | unique | length == (cpu_priority_prod + cpu_priority_staging) | length
+      - (cpu_priority_prod + cpu_priority_staging) | reject('match', '^[A-Za-z0-9][A-Za-z0-9_.-]*$') | list | length == 0
+      - cpu_priority_cpus_overrides.keys() | difference(cpu_priority_prod + cpu_priority_staging) | length == 0
+      - cpu_priority_cpus_overrides.values() | map('string') | reject('match', '^[0-9]+(\.[0-9]{1,9})?$') | list | length == 0
+      - cpu_priority_user_slice_weight | int >= 1 and cpu_priority_user_slice_weight | int <= 10000
+    fail_msg: >-
+      cpu_priority: state/shares/nama container tidak valid (shares 2..262144, adhoc < staging < prod, nama unik,
+      override cpus hanya untuk container yang tercantum di tier)
+    quiet: true
+
+- name: Pasang guard
+  ansible.builtin.include_tasks: present.yml
+  when: cpu_priority_state == 'present'
+
+- name: Hapus guard
+  ansible.builtin.include_tasks: absent.yml
+  when: cpu_priority_state == 'absent'

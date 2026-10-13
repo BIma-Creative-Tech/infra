@@ -1,0 +1,21 @@
+---
+# Nilai cpu-shares/cpus yang sudah diterapkan di container TIDAK dikembalikan di sini (perlu `docker update` manual atau
+# recreate container saat deploy berikutnya) — lihat docs/03-operations/cpu-priority.md §Rollback.
+- name: Timer cpu-priority-guard berhenti & nonaktif
+  ansible.builtin.systemd_service:
+    name: cpu-priority-guard.timer
+    enabled: false
+    state: stopped
+  failed_when: false
+
+- name: Hapus unit, skrip, config, drop-in user.slice
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /etc/systemd/system/cpu-priority-guard.timer
+    - /etc/systemd/system/cpu-priority-guard.service
+    - /etc/systemd/system/user.slice.d/50-cpu-weight.conf
+    - "{{ cpu_priority_sbin }}"
+    - "{{ cpu_priority_etc_dir }}"
+  notify: Reload systemd (cpu_priority)

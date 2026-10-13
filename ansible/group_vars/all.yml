@@ -67,6 +67,9 @@ sysctl_settings:
   net.core.somaxconn: 4096 # jangan diturunkan (discovery: default host 4096)
 swap_file: /swapfile
 swap_size_mib: 4096
+# Swapfile kedua (insiden CPU 2026-10-13: sudah dibuat live oleh Lead — mkswap, swapon, fstab; run role = tanpa perubahan).
+swap_extra_files:
+  - { path: /swapfile2, size_mib: 4096 }
 
 # ---------------------------------------------------------------------------
 # Docker — repo resmi download.docker.com (ADR 0001; versi dicek di
