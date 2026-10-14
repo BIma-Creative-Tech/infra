@@ -12,13 +12,14 @@
 ci_runner_state: present # present | absent
 
 # --- GitHub ---------------------------------------------------------------------------------------------------------
-ci_runner_repo: bctech-adm/drms
+# 2026-10-12 repo drms dipindah ke org BIma-Creative-Tech; nama lama → registrasi JIT HTTP 404 sejak 23:02 WIB.
+ci_runner_repo: BIma-Creative-Tech/drms
 ci_runner_labels: [self-hosted, linux, x64, drms]
 # [UNVERIFIED sampai registrasi pertama] id grup "Default" untuk runner tingkat repo di akun User.
 ci_runner_group_id: 1
 ci_runner_name_prefix: "drms-{{ ansible_facts['hostname'] }}"
 ci_runner_etc_dir: /etc/ci-runner
-# PAT fine-grained (repo drms saja, Administration RW). Dipasang OWNER sendiri:
+# PAT fine-grained (resource owner BIma-Creative-Tech, repo drms saja, Administration RW). Dipasang OWNER sendiri:
 #   sudo install -m 600 -o root -g root /dev/stdin /etc/ci-runner/pat
 ci_runner_pat_file: "{{ ci_runner_etc_dir }}/pat"
 
