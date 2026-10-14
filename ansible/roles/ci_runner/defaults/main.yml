@@ -110,7 +110,9 @@ ci_runner_textfile_dir: /var/lib/node-exporter-textfile
 # Opsional: URL push Uptime Kuma di file {{ ci_runner_etc_dir }}/kuma-push-url (root 600), diisi Lead.
 ci_runner_kuma_push_file: "{{ ci_runner_etc_dir }}/kuma-push-url"
 # Unit path memulai supervisor begitu PAT ada. false = tidak ada yang dijalankan otomatis.
-ci_runner_supervisor_enabled: true
+# 2026-10-14 false: drms PUBLIC → CI di runner GitHub (gratis); runner self-hosted tidak boleh melayani repo public
+# (PR fork = kode asing di VPS prod). Nyalakan lagi hanya bila repo kembali private (+ PAT org, CI_RUNS_ON).
+ci_runner_supervisor_enabled: false
 
 # --- Toolchain (R6) -------------------------------------------------------------------------------------------------
 # Android cmdline-tools (Google repository2-3.xml: commandlinetools-linux-<rev>_latest.zip). sha256 dihitung dari unduhan
