@@ -309,6 +309,9 @@ Web `@sha256:58b525b3…`, migrate `@sha256:c8e4d1f0…` (tag v0.11.0 = bbe893a,
 ### Upgrade 2026-10-16 00:30 WIB → `0.12.0` (dari `0.11.0`) — build rilis yang sama dengan prod
 Web `@sha256:b5d716bb…`, migrate `@sha256:32523f69…` (tag v0.12.0 = 484642a). Pratinjau read-only (preview.sql/preview-trim.sql tag v0.12.0): 4 aturan UBAH (DRMS 1/2, CS1 4/5), 1 pengajuan TETAP, trim 0. 3 migrasi data → Done (rulesAligned 4, requestsRerouted 0, trimmed 0). Dump `backups/proyekkas/pk_drms_stg-20261016-002618-pre-0.12.0.dump`. Smoke 200/302, 0 error. Override env shell — `.env` staging belum 0.12.0 (owner via `!`).
 
+### Upgrade 2026-10-16 06:42 WIB → `0.13.0` (dari `0.12.0`) — build rilis yang sama dengan prod
+Web `@sha256:50b314db…`, migrate `@sha256:82ff4cc9…` (tag v0.13.0 = 375c981, label revision cocok). 3 migrasi aditif (partner_contacts, soft_delete_enums, soft_delete) → Done; backfill vendors_contacts 1. Dump `backups/proyekkas/pk_drms_stg-20261016-064014-pre-0.13.0.dump`. Smoke 200/302, 0 error. Override env shell — `.env` staging belum 0.13.0 (owner via `!`).
+
 ## Rollback
 
 - **Postgres:** `git revert` commit postgres → `docker compose restart postgres` (pg_hba tanpa baris pk_drms → login
