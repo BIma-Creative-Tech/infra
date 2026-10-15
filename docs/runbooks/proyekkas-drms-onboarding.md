@@ -306,6 +306,9 @@ Web `ghcr.io/bima-creative-tech/proyekkas-web:0.10.0@sha256:b8f04685…`, migrat
 ### Upgrade 2026-10-15 09:35 WIB → `0.11.0` (dari `0.10.0`) — build rilis yang sama dengan prod
 Web `@sha256:58b525b3…`, migrate `@sha256:c8e4d1f0…` (tag v0.11.0 = bbe893a, run ci 38669780867). 4 migrasi 20261015_100000…100300 (fundcheck enums/loans/guard/data: urutan PJA PT 1,2) → Done. `fund_check_enabled` = false PT 1,2. Dump `backups/proyekkas/pk_drms_stg-20261015-093203-pre-0.11.0.dump`. Smoke: health/admin login/privasi/unduh 200, `/auth/login` 302, 0 log error. Override env shell — `.env` staging belum mengikuti (owner via `!`). Rollback: restore dump + `PK_*_IMAGE` → 0.10.0 (`b8f04685…`/`9c4adf8e…`).
 
+### Upgrade 2026-10-16 00:30 WIB → `0.12.0` (dari `0.11.0`) — build rilis yang sama dengan prod
+Web `@sha256:b5d716bb…`, migrate `@sha256:32523f69…` (tag v0.12.0 = 484642a). Pratinjau read-only (preview.sql/preview-trim.sql tag v0.12.0): 4 aturan UBAH (DRMS 1/2, CS1 4/5), 1 pengajuan TETAP, trim 0. 3 migrasi data → Done (rulesAligned 4, requestsRerouted 0, trimmed 0). Dump `backups/proyekkas/pk_drms_stg-20261016-002618-pre-0.12.0.dump`. Smoke 200/302, 0 error. Override env shell — `.env` staging belum 0.12.0 (owner via `!`).
+
 ## Rollback
 
 - **Postgres:** `git revert` commit postgres → `docker compose restart postgres` (pg_hba tanpa baris pk_drms → login
