@@ -25,3 +25,19 @@
 - **CrowdSec: tetap sampai 2026-10-31.** `v1.8.1`: 0 CRITICAL, 66 HIGH fixable / 2 unfixed (naik dari 24 karena DB
   Trivy). Upstream hanya `v1.8.2-rc1` (2026-10-13, pra-rilis — ditolak). LAPI tetap internal. Cek mingguan; upgrade
   begitu v1.8.2 stabil.
+
+## Upgrade 2026-10-17 13:36 WIB — Keycloak 26.8.1 (owner: "lanjut dan upgrade cve")
+- `infra/keycloak:26.8.1-optimized` (base `quay.io/keycloak/keycloak:26.8.1@sha256:79c623a2…`, `KC_FEATURES_DISABLED=scim-api`):
+  Trivy 0 CRITICAL/HIGH. 26.8.1 memperbaiki 20+ CVE Keycloak (a.l. 2FA bypass `login-actions/restart`, `manage-users` →
+  `realm-admin` via grup, SMTP STARTTLS downgrade, conditional OTP via proxy header).
+- Panduan upgrade 26.8 dicek terhadap setup: tanpa tema kustom / IdP / X.509; SA `automation` (platform) punya
+  `manage-clients` (client secret tetap terbaca oleh `provision-odoo-sso.sh`); `email_verified` hanya dipakai Odoo untuk
+  sign-up (mati); SCIM (default aktif di 26.8) dimatikan.
+- Uji: salinan DB keycloak di Postgres + Keycloak terisolasi (network internal): migrasi 211 → 238 changeset, 5 realm
+  well-known 200, login PKCE 200, SCIM 404 — container dihapus, dump di-shred; volume anonim Postgres uji dihapus owner
+  (hook melarang Lead menghapus volume).
+- Prod: dump `backups/keycloak/keycloak-20261017-133535-pre-26.8.1.dump` → `docker compose up -d --no-build keycloak`
+  (healthy 72 s) → `docker update --cpu-shares 10240`. Smoke: 4 realm well-known + login PKCE 200, SCIM publik 404,
+  DRMS `/auth/login` 302 → realm drms, CP 307 → /login, Odoo `/web/login` 200, 0 error.
+- **Rollback:** image `infra/keycloak:26.7.5-optimized` (masih ada) **+ restore dump di atas** (skema sudah 26.8.1).
+
