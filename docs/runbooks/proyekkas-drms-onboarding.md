@@ -312,6 +312,9 @@ Web `@sha256:b5d716bb…`, migrate `@sha256:32523f69…` (tag v0.12.0 = 484642a)
 ### Upgrade 2026-10-16 06:42 WIB → `0.13.0` (dari `0.12.0`) — build rilis yang sama dengan prod
 Web `@sha256:50b314db…`, migrate `@sha256:82ff4cc9…` (tag v0.13.0 = 375c981, label revision cocok). 3 migrasi aditif (partner_contacts, soft_delete_enums, soft_delete) → Done; backfill vendors_contacts 1. Dump `backups/proyekkas/pk_drms_stg-20261016-064014-pre-0.13.0.dump`. Smoke 200/302, 0 error. Override env shell — `.env` staging belum 0.13.0 (owner via `!`).
 
+### Upgrade 2026-10-17 09:35 WIB → `0.14.0` (dari `0.13.1`) — build rilis yang sama dengan prod
+Web `@sha256:4e4592ad…`, migrate `@sha256:42009cd7…` (rev 04a5850 = v0.14.0). 1 migrasi d1710_service_types → Done 151 ms (service_types 8 = 4 × 2 PT, 0 laporan tanpa jenis). Dump `backups/proyekkas/pk_drms_stg-20261017-093223-pre-0.14.0.dump`. Smoke 200/302, 0 error. Rollback: image 0.13.1 (`99d2705e…`/`ef4c2acf…`) tanpa migrate:down. Override env shell — `.env` staging belum 0.14.0.
+
 ## Rollback
 
 - **Postgres:** `git revert` commit postgres → `docker compose restart postgres` (pg_hba tanpa baris pk_drms → login
