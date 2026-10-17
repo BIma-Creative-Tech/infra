@@ -16,3 +16,12 @@
 1. Pantau rilis Keycloak 26.7.5+ dan CrowdSec v1.8.2+ (minimal mingguan); upgrade + Trivy ulang saat tersedia.
 2. Jangan mengaktifkan TLS langsung di Keycloak atau autentikator X.509 selama acceptance berlaku.
 3. Gugur bila ada eksploit publik yang relevan dengan konfigurasi kita.
+
+## Review 2026-10-17 (Lead, keputusan owner)
+- **Keycloak: DITUTUP.** Live `infra/keycloak:26.7.5-optimized` (upgrade K11, commit 3028cf0). Trivy `aquasec/trivy:0.74.0`, `--scanners vuln --severity CRITICAL,HIGH`, DB 2026-10-17: 0 CRITICAL,
+  7 HIGH fixable — `mssql-jdbc` CVE-2025-59250 (driver SQL Server, tidak dipakai; DB = Postgres) dan `pcre2` OS
+  (CVE-2026-103111/86145/89161). CVE-2026-75595 (netty) dan CVE-2026-8763 (bcprov) **tidak lagi ada**. Upstream 26.8.1
+  (2026-10-13): 0 CRITICAL/HIGH — upgrade minor 26.8 = rencana terpisah (staging dulu), tidak mendesak.
+- **CrowdSec: tetap sampai 2026-10-31.** `v1.8.1`: 0 CRITICAL, 66 HIGH fixable / 2 unfixed (naik dari 24 karena DB
+  Trivy). Upstream hanya `v1.8.2-rc1` (2026-10-13, pra-rilis — ditolak). LAPI tetap internal. Cek mingguan; upgrade
+  begitu v1.8.2 stabil.

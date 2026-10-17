@@ -9,7 +9,7 @@ name: postgres
 services:
   postgres:
     # ADR 0001: postgres:16.15-bookworm (+ digest index multi-arch, diambil 2026-09-23)
-    image: postgres:16.15-bookworm@sha256:efedf3595f1d6f415c08568ba171029bf54052e754cc9f030e3f2412b21f3d67
+    image: postgres:16.15-bookworm@sha256:0ea6700a3b4f0ae6ce746519073558aed4d88a79d8d07622a9a644946c7319c4
     container_name: postgres
     hostname: postgres
     restart: unless-stopped
