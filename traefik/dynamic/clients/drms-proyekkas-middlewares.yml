@@ -6,6 +6,23 @@
 # {ratelimit,buffering,headers}.md (raw.githubusercontent.com/traefik/traefik/v3.7, 2026-09-23).
 http:
   middlewares:
+    # Salinan `security-headers` (middlewares/security-headers.yml) KHUSUS router DRMS — beda HANYA di
+    # permissionsPolicy: camera=(self) & geolocation=(self) untuk Absensi › Absen web (kamera + lokasi),
+    # owner-approved 2026-10-18. Header platform menimpa header aplikasi (next.config). Nilai lain WAJIB
+    # sama dengan security-headers.
+    drms-security-headers:
+      headers:
+        stsSeconds: 604800
+        stsIncludeSubdomains: false
+        stsPreload: false
+        contentTypeNosniff: true
+        frameDeny: true
+        referrerPolicy: "strict-origin-when-cross-origin"
+        permissionsPolicy: "camera=(self), microphone=(), geolocation=(self), payment=(), usb=()"
+        customResponseHeaders:
+          X-Powered-By: ""   # "" = hapus
+          Server: ""
+
     # /api/v1 (APK + custom view admin). Per IP sumber (default sourceCriterion = remote address).
     # 20 req/s rata-rata, burst 40 = ESTIMASI arsitektur §6.5: satu IP NAT operator seluler bisa
     # mewakili banyak perangkat staf; limit per user/perangkat ada di aplikasi (token bucket).
