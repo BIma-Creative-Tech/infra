@@ -4,8 +4,8 @@
   Halaman ini = ringkasan operasional harian.
 - **Terkait:** ADR 0007 (`docs/adr/0007-web-client-ui-stack.md`), plan 03 (`docs/plans/03-web-client-template.md`),
   `traefik.md` §Network web-edge, `crowdsec.md` (CRS 920420), `observability.md` (Uptime Kuma).
-- **Repo aplikasi:** `web-starter` (`/opt/src/web-starter`, GitHub `bctech-adm/web-starter`, private) → disalin menjadi
-  `web-<slug>` per client. Image GHCR `ghcr.io/bctech-adm/web-<slug>`: push `main` → `:sha-<12>`, tag `vX.Y.Z` → `:X.Y.Z`
+- **Repo aplikasi:** `web-starter` (`/opt/src/web-starter`, GitHub `BIma-Creative-Tech/web-starter`, private) → disalin menjadi
+  `web-<slug>` per client. Image GHCR `ghcr.io/bima-creative-tech/web-<slug>` (sebelum 2026-10-18: `ghcr.io/bctech-adm/…` — org lama, tidak bisa di-push lagi): push `main` → `:sha-<12>`, tag `vX.Y.Z` → `:X.Y.Z`
   (tag harus = `version` di `package.json`).
 
 ## Di mana file berada
@@ -37,7 +37,7 @@ Cek image yang sedang berjalan: `docker inspect -f '{{.Config.Image}}' web-<slug
 
 ```
 sudo /opt/infra/scripts/provision-web-client.sh <slug> <env> --host <fqdn> \
-  --image ghcr.io/bctech-adm/web-<slug>:<tag-baru> [--www] [--contact …]
+  --image ghcr.io/bima-creative-tech/web-<slug>:<tag-baru> [--www] [--contact …]
 ```
 
 - Opsi lain **harus sama** dengan provision sebelumnya (`--www`/`--contact` yang terlewat akan dilepas).
@@ -46,6 +46,12 @@ sudo /opt/infra/scripts/provision-web-client.sh <slug> <env> --host <fqdn> \
 - Catat tag baru di pesan commit infra / `provision_job` (`.env` tidak di git).
 - Verifikasi: baris `RESULT … changed=yes`, lalu `curl -sI https://<fqdn>/ | grep -iE '^(HTTP|content-security|strict-transport)'`
   dan `docker stats --no-stream web-<slug>-<env>`.
+- **Jebakan render ulang (2026-10-18):** skrip menyalin ulang `docker-compose*.yml` dari `templates/web-client/`. Override
+  per stack yang di-commit (mis. `staging/web-clients/bct/docker-compose.yml` `mem_limit: 192m`, owner 2026-10-04) kembali ke
+  template → setelah provision: `git checkout -- <dir>/docker-compose.yml && docker compose up -d`. File override yang belum
+  pernah ada (mis. `docker-compose.odoo.yml`) ikut tersalin tanpa aktif; hapus bila tidak dipakai.
+- Riwayat: bct staging + prod 2026-10-18 → `ghcr.io/bima-creative-tech/bct-website:sha-0aca342802ad`
+  (`@sha256:cf391406…`, next 16.3.8/sharp 0.35.5; rollback `ghcr.io/bctech-adm/bct-website:0.2.0` masih ada lokal).
 
 ## Analytics Umami (opsional, plan 11 / ADR 0013)
 
