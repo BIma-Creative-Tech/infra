@@ -8,4 +8,4 @@ tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT; chmod 755 "$tmp"
 docker run --rm -v "$here/requirements.txt:/req.txt:ro" -v "$tmp:/out" "$image" sh -c \
   'pip install --quiet --root-user-action=ignore --no-deps --no-compile --require-hashes --target /out/pylib -r /req.txt && chmod -R a+rX /out/pylib'
 rm -rf "$here/pylib" && mv "$tmp/pylib" "$here/pylib"
-echo "RESULT pylib=$here/pylib packages=$(ls "$here/pylib" | grep -c dist-info)"
+echo "RESULT pylib=$here/pylib packages=$(find "$here/pylib" -maxdepth 1 -name '*.dist-info' | wc -l)"
