@@ -54,6 +54,7 @@ services:
       - db-umami          # 10.100.28.0/24 — umami (plan 11, ADR 0013)
       - db-datamart       # 10.100.27.0/24 — dbt runner datamart (ADR 0016)
       - db-erajaya-stg    # 10.100.29.0/24 — erajaya-staging-web (erajaya-loyalty STAGING)
+      - db-ditled         # 10.100.30.0/24 — web-ditled-prod (Dit. LED, Payload)
     healthcheck:
       test: ["CMD", "pg_isready", "-U", "postgres", "-h", "/var/run/postgresql"]
       interval: 10s
@@ -112,3 +113,7 @@ networks:
     # → compose `--dry-run` menandai Recreate (drift) sampai recreate terjadwal berikutnya.
     external: true
     name: db-erajaya-stg
+  db-ditled:
+    # Dit. LED (web/clients/ditled). Live: network create + `docker network connect db-ditled postgres` (tanpa recreate).
+    external: true
+    name: db-ditled

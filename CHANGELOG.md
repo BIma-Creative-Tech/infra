@@ -20,6 +20,13 @@ file `VERSION`.
   `drms` gagal 2× (bff95ac, 3dd8a96). Runbook `docs/03-operations/ci-runner.md` §1.
 
 ### Added
+- web Dit. LED SEMENTARA `ditled.bimacreative.tech` (2026-10-09, DB Postgres 2026-10-18, branch `feat/web-ditled-postgres`;
+  `web/clients/ditled/README.md`) sampai klien (Komdigi) punya VPS sendiri:
+  - stack manual `web/clients/ditled` (Next.js 15 + Payload CMS 3, image dibangun di VPS, volume unggahan
+    `/srv/ditled/data`) + router `traefik/dynamic/clients/web-ditled-prod.yml` (crowdsec → security-headers → ratelimit);
+  - live: network `db-ditled` 10.100.30.0/24 (`--internal`, `docker network connect` tanpa recreate Postgres), DB/role
+    owner `ditled` (limit 10; Σ CONNECTION LIMIT 206 → 216, overcommit plafon seperti erajaya), baris pg_hba (di tempat +
+    reload). Skema = migrasi Payload aplikasi (prodMigrations saat start); isi disalin sekali dari SQLite lama.
 - erajaya-loyalty STAGING (2026-10-07, branch `feat/infra-erajaya-loyalty-staging`; runbook
   `docs/runbooks/erajaya-loyalty-staging.md`):
   - live: network `db-erajaya-stg` 10.100.29.0/24 + `erajaya-edge-stg` 10.100.19.0/24 (keduanya `--internal`), DB/role owner

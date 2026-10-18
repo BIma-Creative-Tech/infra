@@ -17,7 +17,8 @@ VARS=(POSTGRES_PASSWORD PG_KEYCLOAK_PASSWORD PG_CONTROL_PLANE_PASSWORD PG_DATAMA
       PG_PK_DRMS_STG_OWNER_PASSWORD PG_PK_DRMS_STG_APP_PASSWORD PG_PK_DRMS_STG_RO_PASSWORD
       PG_UMAMI_PASSWORD                                   # plan 11 / ADR 0013: web analytics Umami (owner DB umami)
       PG_DATAMART_READER_PASSWORD                         # ADR 0016: pembaca mart (control-plane), RLS per client
-      PG_ERAJAYA_LOYALTY_STG_PASSWORD)                    # erajaya-loyalty STAGING (Payload, owner DB; runbook erajaya-loyalty-staging.md)
+      PG_ERAJAYA_LOYALTY_STG_PASSWORD                     # erajaya-loyalty STAGING (Payload, owner DB; runbook erajaya-loyalty-staging.md)
+      PG_DITLED_PASSWORD)                                 # web-ditled-prod (Payload CMS Dit. LED, owner DB; web/clients/ditled/README.md)
 
 [[ $EUID -eq 0 ]] || { echo "harus root" >&2; exit 1; }
 
@@ -59,8 +60,11 @@ ensure_internal_network db-datamart     10.100.27.0/24 10.100.27.1   # dbt runne
 # erajaya-loyalty STAGING (Payload CMS + portal + POS API; docs/runbooks/erajaya-loyalty-staging.md). Live: network create
 # + `docker network connect db-erajaya-stg postgres` (tanpa recreate) + baris pg_hba ditulis di tempat + reload.
 ensure_internal_network db-erajaya-stg  10.100.29.0/24 10.100.29.1   # erajaya-staging-web
+# Dit. LED (Payload CMS; web/clients/ditled/README.md). Live: network create + `docker network connect db-ditled postgres`
+# (tanpa recreate) + baris pg_hba ditulis di tempat + reload.
+ensure_internal_network db-ditled       10.100.30.0/24 10.100.30.1   # web-ditled-prod
 # CADANGAN — belum dibuat:
-#   10.100.30.0/24–10.100.39.0/24  db-* berikutnya (pool/dedicated Odoo, klien baru) — 10.100.28.0/24 = db-umami (plan 11),
+#   10.100.31.0/24–10.100.39.0/24  db-* berikutnya (pool/dedicated Odoo, klien baru; 10.100.30.0/24 = db-ditled) — 10.100.28.0/24 = db-umami (plan 11),
 #   10.100.29.0/24 = db-erajaya-stg
 # Untuk mengaktifkan: tambahkan baris ensure_internal_network di atas + `docker network connect <net> postgres` + compose.
 

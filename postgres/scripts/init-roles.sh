@@ -30,6 +30,9 @@ APPS=(
   # default node-postgres (max 10). Σ CONNECTION LIMIT 196 → 206 > 197 slot pakai (overcommit plafon, bukan reservasi;
   # NYATA 28 koneksi saat penambahan) — max_connections dinaikkan pada recreate Postgres terjadwal berikutnya (runbook §Risiko).
   "erajaya_loyalty_stg:erajaya_loyalty_stg:PG_ERAJAYA_LOYALTY_STG_PASSWORD:10"
+  # Dit. LED (Payload CMS 3; web/clients/ditled/README.md). Pola erajaya: satu role = OWNER DB, prodMigrations Payload
+  # berjalan di container app saat start. Limit 10 = pool default node-postgres. Hosting SEMENTARA sampai VPS Komdigi.
+  "ditled:ditled:PG_DITLED_PASSWORD:10"
 )
 
 get_var() { grep -E "^$1=" "$ENV_FILE" | head -n1 | cut -d= -f2-; }
