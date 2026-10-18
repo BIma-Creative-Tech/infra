@@ -37,6 +37,18 @@
    restore); SQLite live (`data/db`) di-exclude, diganti snapshot konsisten `data/snapshot/data.sqlite` (online backup API
    `better-sqlite3` + `integrity_check`) yang dibuat `ExecStartPre=-` drop-in `restic-backup.service`.
 
+## Amandemen 2026-10-19 — dashboard publik + SSO
+
+Atas permintaan user, keputusan #4 diubah: dashboard dibuka di :443 (router `ninerouter-web`, `ninerouter-web-auth` +
+`ratelimit-login`), login **hanya SSO** Keycloak realm `platform` (9router `authMode=oidc`; login password → 403 dari app).
+9router 0.5.104 menerima user OIDC mana pun (tanpa filter email/sub) → pembatasan di Keycloak: client `9router`
+(confidential, PKCE S256, direct grant off, redirect hanya `/api/auth/oidc/callback`) dengan flow override
+`9router browser` = cookie | username+password [+ OTP bila dikonfigurasi user], lalu sub-flow CONDITIONAL
+"Condition - user role" (`9router.access`, negate) → "Deny access". Role `9router.access` hanya
+`am.ademaryadi@gmail.com`. Admin REST memakai service account `kc-realm-sync` (manage-realm untuk flow). Provision:
+`ai/9router/keycloak/provision-9router-sso.sh` (idempoten). Diuji: user sementara tanpa role → "Access denied" (401) di
+Keycloak, user dihapus; `/api/keys`, `/api/settings` tanpa sesi → 401. Router :8443 tetap sebagai jalur cadangan.
+
 ## Alternatives
 
 | Opsi | Alasan tidak dipilih |

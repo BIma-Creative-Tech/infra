@@ -26,6 +26,16 @@ AI router/proxy (OpenAI/Anthropic/Gemini-compatible) di `https://9router.bimacre
 
 ## Akses dashboard
 
+**Sejak 2026-10-19 (amandemen ADR 0019):** `https://9router.bimacreative.tech` → "Masuk dengan SSO Bima Creative" →
+Keycloak realm `platform`. Hanya pemegang client role `9router.access` (saat ini `am.ademaryadi@gmail.com`) yang lolos;
+user lain "Access denied". Tambah/cabut akses: client `9router` → Roles → `access` → assign/unassign user (atau ubah
+`ALLOWED_EMAIL` di `ai/9router/keycloak/provision-9router-sso.sh`, yang menolak bila pemegang ≠ email itu).
+Login password 9router dimatikan (`authMode=oidc`). Pulihkan mode password bila Keycloak bermasalah: jalur :8443 di
+bawah tetap hidup, tetapi login tetap SSO — hapus kunci `authMode` di tabel `settings` (`data/db/data.sqlite`) lalu
+`docker compose restart` (password = `INITIAL_PASSWORD`).
+
+Jalur cadangan (SSH tunnel, router admin):
+
 ```bash
 ssh -p 2221 -L 8443:127.0.0.1:8443 admin@31.97.50.221
 # /etc/hosts laptop: 127.0.0.1 9router.bimacreative.tech  → https://9router.bimacreative.tech:8443

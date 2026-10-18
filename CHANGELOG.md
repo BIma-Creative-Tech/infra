@@ -18,7 +18,10 @@ file `VERSION`.
   - live: AppSec `local/9router-crs-exclusions` — tag CRS isi (sqli/xss/lfi/rfi/rce/php) dihapus HANYA untuk POST `/v1*`
     host ini (prompt LLM berisi kode → 403);
   - backup: `/opt/9router` di `restic_extra_paths`, SQLite live di-exclude, snapshot konsisten lewat drop-in
-    `ExecStartPre` `restic-backup.service` (`ai/9router/systemd/`).
+    `ExecStartPre` `restic-backup.service` (`ai/9router/systemd/`);
+  - amandemen: dashboard publik di :443 dengan login **hanya SSO** Keycloak realm `platform` — client `9router`, flow
+    `9router browser` (deny tanpa client role `9router.access`), role hanya `am.ademaryadi@gmail.com`
+    (`ai/9router/keycloak/provision-9router-sso.sh`).
 
 ### Fixed
 - crowdsec AppSec rule **19104** (2026-10-05): password grant client `admin-cli` di realm `drms`/`drms-staging` diblok di

@@ -2,11 +2,12 @@
 # ADR 0019, runbook docs/03-operations/9router.md. Setelah mengubah: `docker exec traefik kill -HUP 1` (H7; JANGAN `docker kill`).
 # Prasyarat: DNS A 9router.bimacreative.tech → 31.97.50.221 (AAAA kosong) sudah resolve @1.1.1.1 & @8.8.8.8 (ADR 0002 #5).
 #
-# Paparan (pola H5 Grafana/Uptime Kuma/analytics):
-#   :443 (websecure) — HANYA API OpenAI/Anthropic/Gemini-compatible: /v1, /v1/*, /v1beta, /v1beta/* (rewrite Next.js
-#                      image 0.5.104 → /api/v1*, /api/v1beta*). REQUIRE_API_KEY=true → tanpa Bearer key = 401 dari app.
-#                      Dashboard, /login, /api/* lain tanpa router → 404 Traefik.
-#   :8443 (admin, 127.0.0.1 host saja, SSH tunnel) — dashboard + seluruh /api admin + ipallowlist-admin.
+# Paparan (keputusan user 2026-10-19: dashboard tanpa SSH, login SSO Keycloak realm `platform`):
+#   :443 (websecure) — API `/v1*`, `/v1beta*` (API key wajib, REQUIRE_API_KEY=true) + dashboard. Login dashboard HANYA SSO
+#                      (9router authMode=oidc → POST /api/auth/login password = 403 dari app). Client Keycloak `9router`
+#                      memakai flow `9router browser`: user tanpa client role `9router.access` ditolak di Keycloak
+#                      (provision: ai/9router/keycloak/provision-9router-sso.sh). /api/* dashboard tanpa sesi = 401 app.
+#   :8443 (admin) — router lama tetap (jalur cadangan via SSH tunnel).
 # Urutan middleware konvensi platform: crowdsec (termasuk AppSec) → [allowlist] → headers → ratelimit.
 http:
   routers:
@@ -15,6 +16,25 @@ http:
       entryPoints: [websecure]
       rule: "Host(`9router.bimacreative.tech`) && (Path(`/v1`) || PathPrefix(`/v1/`) || Path(`/v1beta`) || PathPrefix(`/v1beta/`))"
       priority: 50
+      middlewares: [crowdsec, security-headers, ratelimit-default]
+      service: ninerouter
+      tls:
+        certResolver: le-http
+
+    # POST /api/auth/* (login password [ditolak app di mode oidc], logout) — rate limit login.
+    ninerouter-web-auth:
+      entryPoints: [websecure]
+      rule: "Host(`9router.bimacreative.tech`) && Method(`POST`) && PathPrefix(`/api/auth/`)"
+      priority: 100
+      middlewares: [crowdsec, security-headers, ratelimit-login]
+      service: ninerouter
+      tls:
+        certResolver: le-http
+    # Dashboard + /api admin (sesi 9router wajib; tanpa sesi → /login → SSO).
+    ninerouter-web:
+      entryPoints: [websecure]
+      rule: "Host(`9router.bimacreative.tech`)"
+      priority: 1
       middlewares: [crowdsec, security-headers, ratelimit-default]
       service: ninerouter
       tls:
