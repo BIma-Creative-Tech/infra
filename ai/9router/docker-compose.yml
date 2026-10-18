@@ -1,0 +1,53 @@
+# 9Router (MIT) — AI router/proxy, dashboard di port 20128. ADR 0019, runbook docs/03-operations/9router.md.
+# Live di /opt/9router (bukan di checkout ini): salin perubahan ke sana lalu `docker compose up -d`.
+# Di belakang Traefik: API publik https://9router.bimacreative.tech/v1/* ; dashboard via :8443 (SSH tunnel
+# `ssh -p 2221 -L 8443:127.0.0.1:8443 <vps>` → https://9router.bimacreative.tech:8443 dengan /etc/hosts → 127.0.0.1).
+# .env (600 root): INITIAL_PASSWORD, JWT_SECRET, API_KEY_SECRET, MACHINE_ID_SALT — dibuat gen-env.sh, jangan dibagikan.
+name: 9router
+
+services:
+  9router:
+    # 0.5.104 (Docker Hub, 2026-10-15). Digest dipin agar tag tidak bergeser.
+    image: decolua/9router:0.5.104@sha256:5fc7020f3cf1ca6831bffe80314ecab9dde915d27ee3c479a4bb66f45dabbc27
+    container_name: 9router
+    restart: unless-stopped
+    init: true
+    env_file: .env
+    environment:
+      DATA_DIR: /app/data
+      REQUIRE_API_KEY: "true"
+      ENABLE_REQUEST_LOGS: "false"
+      AUTH_COOKIE_SECURE: "true"
+    networks:
+      default: {}        # egress ke provider AI (9router_default, bukan internal)
+      9router-edge: {}   # Traefik → 9router:20128 (--internal, 10.100.40.0/24)
+    volumes:
+      - ./data:/app/data
+    # Batas resource agar tidak mengganggu DRMS/Odoo/web lain (host 4 vCPU / 15 GiB).
+    cpus: 0.5
+    mem_limit: 512m
+    memswap_limit: 512m
+    pids_limit: 128
+    blkio_config:
+      weight: 100
+    # entrypoint.sh: chown /app/data lalu su-exec ke user node → butuh CHOWN/SETUID/SETGID.
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID
+      - FOWNER
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  9router-edge:
+    # Dibuat traefik/scripts/bootstrap.sh: 10.100.40.0/24 --internal — anggota: traefik + 9router saja.
+    external: true
+    name: 9router-edge

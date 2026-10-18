@@ -8,6 +8,7 @@
 #     + network `web-edge` (W2b): HANYA traefik + website client web-<slug>-<env>
 #     + network `webmail-edge` (ADR 0012, --internal): HANYA traefik + webmail (Roundcube)
 #     + network `analytics-edge` (ADR 0013, plan 11, --internal): HANYA traefik + umami
+#     + network `9router-edge` (ADR 0019, --internal): HANYA traefik + 9router
 #     + network `kc-edge` / `odoo-edge-stg` (ADR 0010, plan 06): HANYA traefik + keycloak / traefik + odoo-staging
 #  2. direktori acme/ (700) + acme-staging.json & acme.json (600) milik uid Traefik
 #  3. direktori logs/ (750, grup adm) milik uid Traefik + secrets/ (700)
@@ -85,6 +86,9 @@ ensure_network analytics-edge 10.100.17.0/24 10.100.17.1 internal
 # gateway OTP butuh edge non-internal sendiri. Runbook docs/runbooks/erajaya-loyalty-staging.md. (10.100.19 = blok
 # edge 10.100.0–19 terakhir; edge berikutnya perlu blok baru — lihat traefik.md.)
 ensure_network erajaya-edge-stg 10.100.19.0/24 10.100.19.1 internal
+# 9router-edge (ADR 0019, 2026-10-19): traefik + container `9router` (ai/9router, live /opt/9router) saja. --internal: egress
+# 9router ke provider AI lewat network default compose-nya sendiri (9router_default). Blok baru 10.100.40 (edge 0–19 penuh).
+ensure_network 9router-edge 10.100.40.0/24 10.100.40.1 internal
 
 install -d -o "$TRAEFIK_UID" -g "$TRAEFIK_GID" -m 0700 "$STACK_DIR/acme"
 for f in acme-staging.json acme.json; do

@@ -8,6 +8,18 @@ file `VERSION`.
 
 ## [Unreleased]
 
+### Added
+- 9Router AI router `9router.bimacreative.tech` (2026-10-19, ADR 0019, branch `feat/devops-9router`; runbook
+  `docs/03-operations/9router.md`):
+  - stack `ai/9router/` (image 0.5.104 pin digest, 0.5 CPU / 512 MiB / 128 pids, cap minimal, `REQUIRE_API_KEY=true`),
+    live di `/opt/9router`;
+  - live: network `9router-edge` 10.100.40.0/24 (`--internal`, blok edge baru) + router `traefik/dynamic/platform/9router.yml`
+    (publik hanya `/v1*`/`/v1beta*`; dashboard hanya :8443 + `ipallowlist-admin`);
+  - live: AppSec `local/9router-crs-exclusions` — tag CRS isi (sqli/xss/lfi/rfi/rce/php) dihapus HANYA untuk POST `/v1*`
+    host ini (prompt LLM berisi kode → 403);
+  - backup: `/opt/9router` di `restic_extra_paths`, SQLite live di-exclude, snapshot konsisten lewat drop-in
+    `ExecStartPre` `restic-backup.service` (`ai/9router/systemd/`).
+
 ### Fixed
 - crowdsec AppSec rule **19104** (2026-10-05): password grant client `admin-cli` di realm `drms`/`drms-staging` diblok di
   edge (403) — Keycloak 26 tidak mengizinkan mengubah client bawaan itu. `docs/03-operations/crowdsec.md`.

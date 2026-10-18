@@ -77,6 +77,9 @@ services:
       # erajaya-loyalty STAGING (erajaya-staging-web:3000) HANYA di network ini. --internal → tanpa gateway (proxy tetap
       # gw_priority 1). Live: `docker network connect erajaya-edge-stg traefik`.
       erajaya-edge-stg: {}
+      # ADR 0019: 9Router (9router:20128) HANYA di network ini. --internal → tanpa gateway (proxy tetap gw_priority 1).
+      # Live: `docker network connect 9router-edge traefik` (2026-10-19).
+      9router-edge: {}
       # T14a: network internal (--internal, 10.100.5.0/24) — Prometheus scrape :8082. Internal network
       # tidak punya gateway → tidak memengaruhi pemilihan gateway (proxy tetap gw_priority 1).
       metrics: {}
@@ -167,3 +170,7 @@ networks:
     # Dibuat scripts/bootstrap.sh: 10.100.19.0/24 --internal — anggota: traefik + erajaya-staging-web saja.
     external: true
     name: erajaya-edge-stg
+  9router-edge:
+    # Dibuat scripts/bootstrap.sh: 10.100.40.0/24 --internal (ADR 0019) — anggota: traefik + 9router saja.
+    external: true
+    name: 9router-edge

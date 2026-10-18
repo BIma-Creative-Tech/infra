@@ -1,0 +1,28 @@
+# 9Router — NARROW OWASP CRS (crowdsecurity/crs-inband) exclusions untuk API LLM di host 9router.bimacreative.tech SAJA.
+# Disetujui user 2026-10-19 (opsi 1). Pola: appsec-configs/oidc-backchannel-exclusions.yaml (RemoveInBandRuleByTag).
+#
+# Kenapa (diuji 2026-10-19 lewat router ninerouter-api): body JSON prompt chat berisi teks bebas (kode, SQL, HTML, path)
+# → CRS anomaly block 403 sebelum sampai app. Alert yang muncul: sql_injection, xss, lfi, rce, php_injection.
+# Prompt "halo" / kode Python biasa = 401 (app), prompt berisi SQL / <script> / /etc/passwd = 403 (WAF).
+#
+# Cakupan — SEMUA syarat harus terpenuhi:
+#   - in-band; POST; host persis 9router.bimacreative.tech; path /v1/* atau /v1beta/* (rute API LLM image 0.5.104);
+#   - HANYA tag CRS serangan berbasis isi (sqli/xss/lfi/rfi/rce/php). Rule CRS lain (protokol, method, content-type,
+#     scanner), virtual patching (vpatch-*) dan generic rules tetap aktif.
+# Mitigasi sisa: REQUIRE_API_KEY=true → request tanpa key valid ditolak app (401) sebelum body diproses ke provider.
+# Pasang/rollback: docs/03-operations/9router.md §CrowdSec AppSec (salin ke data/config + HUP).
+name: local/9router-crs-exclusions
+default_remediation: ban
+pre_eval:
+  - filter: >-
+      IsInBand &&
+      req.Method == "POST" &&
+      req.Host == "9router.bimacreative.tech" &&
+      (req.URL.Path startsWith "/v1/" || req.URL.Path startsWith "/v1beta/")
+    apply:
+      - RemoveInBandRuleByTag("attack-sqli")
+      - RemoveInBandRuleByTag("attack-xss")
+      - RemoveInBandRuleByTag("attack-lfi")
+      - RemoveInBandRuleByTag("attack-rfi")
+      - RemoveInBandRuleByTag("attack-rce")
+      - RemoveInBandRuleByTag("attack-injection-php")

@@ -274,6 +274,8 @@ lagi 2026-09-26 16:08 WIB (S10, `--force-recreate` dengan email ACME).
   runbook `docs/runbooks/erajaya-loyalty-staging.md` §5 (cron hanya dari 10.100.0.1, OTP 5/menit, POS 10/s, body 10 MiB).
 - **Blok edge 10.100.0–19.0/24 kini penuh** (18 = `ci-runner`, 19 = ini; 1 dan 6 pensiun). Edge berikutnya butuh blok baru
   (mis. 10.100.40.0/24+, di luar cadangan `db-*` 20–39) — catat di ADR 0010.
+- **10.100.40.0/24 = `9router-edge`** (`--internal`, traefik + 9router; ADR 0019, 2026-10-19) — edge pertama di blok baru;
+  edge berikutnya 10.100.41.0/24. Router `dynamic/platform/9router.yml`, runbook `9router.md`.
 - Regresi → hapus file router + `kill -HUP 1`, `docker network disconnect erajaya-edge-stg traefik`.
 
 ## Tenant suspended (SaaS Fase 1, ADR 0018 #6)

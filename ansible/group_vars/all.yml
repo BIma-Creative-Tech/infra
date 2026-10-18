@@ -141,8 +141,13 @@ restic_cache_dir: /var/cache/restic
 # Path file tambahan di luar /opt/infra (keputusan owner K3 2026-10-02): repo sumber /opt/src — sebagian
 # tanpa remote, dan proyekkas-private (keystore, peta pseudonim) yang TIDAK boleh ke GitHub. Exclude = nama
 # direktori di level mana pun (pola restic tanpa '/'), hasil build/dependensi yang bisa dibangun ulang.
-restic_extra_paths: ["/opt/src"]
-restic_extra_excludes: ["node_modules", ".next", ".turbo", "__pycache__", ".pytest_cache", "venv", ".venv"]
+# 2026-10-19: + /opt/9router (compose, .env berisi API_KEY_SECRET/JWT_SECRET — wajib agar API key valid setelah restore — dan
+# data/db/data.sqlite). SQLite live di-exclude; yang di-backup snapshot konsisten (lihat restic_extra_excludes).
+restic_extra_paths: ["/opt/src", "/opt/9router"]
+# /opt/9router/data/db = SQLite live 9router: di-exclude, yang di-backup snapshot konsisten data/snapshot/data.sqlite
+# (ExecStartPre /opt/9router/sqlite-snapshot.sh via drop-in restic-backup.service.d/9router-sqlite.conf — belum dikelola role;
+# sumber drop-in: ai/9router/systemd/9router-sqlite.conf, ADR 0019).
+restic_extra_excludes: ["node_modules", ".next", ".turbo", "__pycache__", ".pytest_cache", "venv", ".venv", "/opt/9router/data/db"]
 # Jadwal systemd (OnCalendar, zona Asia/Jakarta eksplisit — ADR 0006 §Jadwal)
 restic_backup_oncalendar: "*-*-* 01:30:00 Asia/Jakarta"
 restic_prune_oncalendar: "Sun *-*-* 03:00:00 Asia/Jakarta"
