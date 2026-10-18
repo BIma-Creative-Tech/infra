@@ -8,10 +8,10 @@ sample() { # $1 cid
   docker inspect $cid > $E/jobs/$s.inspect.json 2>/dev/null
   echo "ts,anon,file,current,avail_host_kb" > $E/jobs/$s.mem.csv
   while [ -d $cg ]; do
-    read an fi < <(awk '$1=="anon"{a=$2}$1=="file"{f=$2}END{print a,f}' $cg/memory.stat 2>/dev/null)
+    read an fl < <(awk '$1=="anon"{a=$2}$1=="file"{f=$2}END{print a,f}' $cg/memory.stat 2>/dev/null)
     cu=$(cat $cg/memory.current 2>/dev/null)
     [ -n "$an" ] && [ "$an" -gt "$maxa" ] && maxa=$an
-    echo "$(date +%FT%T%z),$an,$fi,$cu,$(awk '/MemAvailable/{print $2}' /proc/meminfo)" >> $E/jobs/$s.mem.csv
+    echo "$(date +%FT%T%z),$an,$fl,$cu,$(awk '/MemAvailable/{print $2}' /proc/meminfo)" >> $E/jobs/$s.mem.csv
     cat $cg/memory.peak > $E/jobs/$s.peak 2>/dev/null; cat $cg/memory.events > $E/jobs/$s.memory.events 2>/dev/null
     echo $maxa > $E/jobs/$s.peak_anon
     sleep 5
