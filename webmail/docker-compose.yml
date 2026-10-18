@@ -43,7 +43,8 @@ services:
       - /var/lock/apache2:size=1m,uid=33,gid=33,mode=0755
     networks:
       webmail-edge: {}        # Traefik → webmail:8000 (--internal)
-      webmail-mail: {}        # IMAPS/submission + helper di mailserver 10.100.16.2 (--internal)
+      webmail-mail:           # IMAPS/submission + helper di mailserver 10.100.16.2 (--internal)
+        ipv4_address: 10.100.16.3  # IP tetap: cegah webmail merebut .2 milik mailserver saat boot (insiden 2026-10-17)
     # Nama sertifikat mail.expomedia.id → IP mailserver di network internal (tanpa hairpin ke IP publik; ADR 0012 §Decision 3).
     extra_hosts:
       - "mail.expomedia.id:10.100.16.2"
