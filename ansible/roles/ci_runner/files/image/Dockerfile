@@ -57,7 +57,7 @@ ENV RUNNER_TOOL_CACHE=/cache/toolcache \
 
 # Entrypoint jalan sebagai root-container (dipetakan sysbox ke uid host tak berhak) untuk dockerd dalam, lalu
 # turun ke uid 1001 (setpriv) untuk run.sh. JIT config dibaca dari STDIN (tidak di argv/env/inspect host).
-# hadolint ignore=DL3002
+# hadolint global ignore=DL3002
 # nosemgrep: dockerfile.security.last-user-is-root.last-user-is-root
 USER root
 WORKDIR /home/runner
