@@ -6,13 +6,13 @@
 	url = https://github.com/bctech-adm/odoo-addons-shared.git
 [submodule "staging/odoo/addons/platform"]
 	path = staging/odoo/addons/platform
-	url = /opt/src/odoo-addons-athera
+	url = https://github.com/BIma-Creative-Tech/odoo-addons-athera.git
 [submodule "staging/odoo/addons/clients/expomedia"]
 	path = staging/odoo/addons/clients/expomedia
-	url = /opt/src/odoo-addons-expomedia
+	url = https://github.com/BIma-Creative-Tech/odoo-addons-expomedia.git
 [submodule "odoo/pool-a/addons/platform"]
 	path = odoo/pool-a/addons/platform
-	url = /opt/src/odoo-addons-athera
+	url = https://github.com/BIma-Creative-Tech/odoo-addons-athera.git
 [submodule "odoo/pool-a/addons/clients/expomedia"]
 	path = odoo/pool-a/addons/clients/expomedia
-	url = /opt/src/odoo-addons-expomedia
+	url = https://github.com/BIma-Creative-Tech/odoo-addons-expomedia.git
