@@ -61,7 +61,12 @@
 | Kuota plan, pemakaian harian, PPN/PPh 23 | control-plane migrasi `0007`, `src/lib/bctone-{tax,quota}.ts` | prod `e8f24c1` |
 | Seed paket `bctone-*` + kuota, ingest `POST /api/bctone/usage` | control-plane `ensureBctonePlans`, `src/app/api/bctone/usage` | prod `e8f24c1`, endpoint 404 sampai `USAGE_INGEST_SECRET` |
 | Agen tenant (kuota + kirim pemakaian) | odoo-addons-shared `sh_bct_tenant_agent` 19.0.1.1.0 | merged, belum di submodule pool |
+| BCT Admin (D-1): form paket/kuota/PPh 23, langganan `bctone-*` = self_serve + invoice pertama | control-plane `/subscriptions`, `updatePlan`, `setClientWithholding` | prod `a0f30b7` |
+| 9router: provider `ollama-local` → `http://ollama:11434` (jalur consent "tanpa Claude"; model `ollama-local/qwen2.5:3b`, `ollama-local/llama3.2:3b`) | `/opt/9router` (SQLite, di luar git) | aktif 2026-11-01 |
 | Job `bctone_tenant_config` (keputusan 4, bagian konfigurasi) | `scripts/bctone-tenant-config.sh`, dispatcher 1.3.0 | repo; belum di allowlist instance |
+
+D-1 (owner 2026-11-01): Keycloak tetap IdP (SSO, Organization, role) di belakang; owner tidak mengelola Keycloak
+langsung — user, client, langganan, paket, dan pajak dikelola lewat form control-plane yang memanggil job Keycloak.
 
 Keputusan 4 diimplementasikan bertahap. Pembuatan DB tetap memakai job `odoo_db_provision` yang sudah ada; pack data
 F&B/retail (`--pack`) dan `tenant_purge` menyusul di PR terpisah. Kunci HMAC per tenant ditulis ke dir secret OIDC
