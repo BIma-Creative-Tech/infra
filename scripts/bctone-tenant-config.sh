@@ -2,12 +2,14 @@
 # Konfigurasi tenant BCTOne self-serve (job `bctone_tenant_config`, ADR 0019 #3/#4). IDEMPOTEN.
 #
 #   scripts/bctone-tenant-config.sh <slug> <prod|demo|staging> --plan <bctone-free|bctone-umkm|bctone-bisnis>
-#       [--limit <metric>=<int> ...] [--disable] [--dry-run]
+#       [--pack <fnb|retail>] [--limit <metric>=<int> ...] [--disable] [--dry-run]
 #
 # Prasyarat: DB <slug>_<env> sudah ada (job odoo_db_provision) dan submodule addons/shared pool memuat
 # sh_bct_tenant_agent >= 19.0.1.1.0. Slug `platform` ditolak (exit 3).
 # Langkah:
 #  1. install sh_bct_tenant_agent (one-off --stop-after-init) bila belum (menarik `account`); --disable tidak meng-install.
+#     --pack: modul paket industri ikut di-install (fnb: point_of_sale, pos_restaurant, stock; retail: point_of_sale,
+#     stock, sale_management, purchase; keduanya + l10n_id). Modul yang sudah ter-install tidak disentuh (tanpa -u).
 #  2. kunci HMAC per tenant = HMAC-SHA256(master, "bctone-usage:<slug>") (sama dengan control-plane
 #     src/lib/usage-ingest.ts tenantUsageKey). Master: /etc/infra-jobs/bctone-usage-<instance>.secret (600 root, di luar
 #     git; nilai sama dengan USAGE_INGEST_SECRET CP instance itu). Ditulis ke <pool>/secrets/oidc/bct-usage.<db>
@@ -37,11 +39,12 @@ usage() {
 [[ $# -ge 2 ]] || usage
 validate_slug_env "$1" "$2"; shift 2
 [[ "$SLUG" != "$PLATFORM_SLUG" ]] || refuse "slug ${PLATFORM_SLUG} bukan tenant BCTOne"
-PLAN=""; ENABLE=1
+PLAN=""; ENABLE=1; PACK=""
 declare -A LIMIT=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --plan) [[ $# -ge 2 ]] || usage; PLAN="$2"; shift 2 ;;
+    --pack) [[ $# -ge 2 ]] || usage; PACK="$2"; shift 2 ;;
     --limit)
       [[ $# -ge 2 ]] || usage
       [[ "$2" =~ ^([a-z_]{1,32})=(0|[1-9][0-9]{0,11})$ ]] || die "--limit harus <metric>=<int>"
@@ -55,6 +58,13 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 case "$PLAN" in bctone-free|bctone-umkm|bctone-bisnis) ;; *) die "--plan harus bctone-free|bctone-umkm|bctone-bisnis" ;; esac
+case "$PACK" in
+  "") PACK_MODULES=() ;;
+  fnb) PACK_MODULES=(l10n_id point_of_sale pos_restaurant stock) ;;
+  retail) PACK_MODULES=(l10n_id point_of_sale stock sale_management purchase) ;;
+  *) die "--pack harus fnb|retail" ;;
+esac
+[[ -z "$PACK" || $ENABLE -eq 1 ]] || die "--pack tidak berlaku dengan --disable"
 case "$TENANT_ENV" in
   staging) INSTANCE=staging; ENDPOINT="https://cp.staging.${PLATFORM_DOMAIN}/api/bctone/usage" ;;
   *) INSTANCE=prod; ENDPOINT="https://cp.${PLATFORM_DOMAIN}/api/bctone/usage" ;;
@@ -91,6 +101,25 @@ if [[ $ENABLE -eq 1 ]]; then
       odoo_cli -i "$MODULE" --stop-after-init --log-level=warn
       ver="$(module_version)"
       [[ -n "$ver" ]] || die "${MODULE} gagal di-install"
+    fi
+  fi
+  # paket industri: hanya modul yang belum ter-install (tidak pernah -u otomatis)
+  if [[ ${#PACK_MODULES[@]} -gt 0 ]]; then
+    missing=()
+    for m in "${PACK_MODULES[@]}"; do
+      st="$([[ $DB_EXISTS -eq 1 ]] && pgq "SELECT state FROM ir_module_module WHERE name = '${m}'" "$DB_NAME" || true)"
+      [[ "$st" == installed ]] || missing+=("$m")
+    done
+    if [[ ${#missing[@]} -gt 0 ]]; then
+      csv="$(IFS=,; echo "${missing[*]}")"
+      if change "install pack ${PACK}: ${csv} (one-off --stop-after-init)"; then
+        odoo_cli -i "$csv" --stop-after-init --log-level=warn
+        for m in "${missing[@]}"; do
+          [[ "$(pgq "SELECT state FROM ir_module_module WHERE name = '${m}'" "$DB_NAME")" == installed ]] || die "modul ${m} gagal di-install"
+        done
+      fi
+    else
+      log "pack ${PACK}: semua modul sudah ter-install"
     fi
   fi
   if [[ -n "$ver" ]] && ! version_ge "$ver" "$MIN_MODULE"; then
