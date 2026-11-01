@@ -123,7 +123,10 @@ services:
       retries: 3
       start_period: 40s
     mem_limit: 384m
-    cpus: 0.75
+    # cpus 0.75 → 1.5 + cpu_shares 10240 (tier prod, cgroup cpu.weight 639): insiden 2026-10-13 22:30 WIB — sama dengan
+    # role Ansible cpu_priority (docs/03-operations/cpu-priority.md); bila nilai di sini diubah, ubah juga di role itu.
+    cpus: 1.5
+    cpu_shares: 10240
 
   # Payload Jobs worker (cron dievaluasi di TZ proses → Asia/Makassar). Mengirim email (SMTP) & job terjadwal.
   drms-pk-worker:
@@ -156,6 +159,7 @@ services:
       start_period: 60s
     mem_limit: 192m
     cpus: 0.25
+    cpu_shares: 10240 # tier prod (role cpu_priority)
 
   # Seed idempoten (role APP, audit source=system). Bootstrap admin opsional via SEED_ADMIN_EMAIL +
   # SEED_ADMIN_KEYCLOAK_SUB (user realm `drms` yang sudah ada). Data master nyata (E11) TIDAK lewat seed ini —

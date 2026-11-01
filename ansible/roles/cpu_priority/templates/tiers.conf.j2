@@ -1,0 +1,22 @@
+# {{ ansible_managed }} — role cpu_priority (docs/03-operations/cpu-priority.md)
+# Dibaca {{ cpu_priority_sbin }} tiap run timer. Ubah lewat defaults/group_vars role, bukan di host.
+# Format: <kunci> <nilai…>   (prod/staging <nama>; cpus <nama> <desimal>)
+prod_shares {{ cpu_priority_prod_shares }}
+staging_shares {{ cpu_priority_staging_shares }}
+adhoc_shares {{ cpu_priority_adhoc_shares }}
+adhoc_cpus {{ cpu_priority_adhoc_cpus }}
+
+# tier prod (cpu-shares {{ cpu_priority_prod_shares }})
+{% for n in cpu_priority_prod %}
+prod {{ n }}
+{% endfor %}
+
+# tier staging (cpu-shares {{ cpu_priority_staging_shares }})
+{% for n in cpu_priority_staging %}
+staging {{ n }}
+{% endfor %}
+
+# override --cpus per container
+{% for n, c in cpu_priority_cpus_overrides.items() %}
+cpus {{ n }} {{ c }}
+{% endfor %}

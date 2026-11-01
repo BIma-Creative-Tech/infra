@@ -1,0 +1,186 @@
+#!/usr/bin/env bash
+# Ansible managed — role cpu_priority (insiden 2026-10-13 22:30 WIB; docs/03-operations/cpu-priority.md)
+#
+# cpu-priority-guard — menegakkan bobot CPU (cpu-shares → cgroup v2 cpu.weight) per tier container secara LIVE.
+# Dijalankan root oleh cpu-priority-guard.timer (tiap 60 s). Hanya `docker update` (tanpa restart); container TIDAK
+# PERNAH di-stop/kill/restart/recreate oleh skrip ini.
+#
+# Latar: 5 container ad-hoc `docker run node:24 … npm ci/tsc/vitest` paralel di VPS 4 vCPU (+ steal hypervisor ±70%)
+# berbobot sama dengan container prod → DRMS prod tidak bisa dipakai. Bobot TIDAK ditulis di compose stack inti
+# (postgres, traefik, keycloak, crowdsec, mailserver, …) karena mengubah hash config compose → `docker compose up -d`
+# rutin berikutnya akan me-RECREATE layanan kritis tanpa diduga.
+#
+# Tiap run:
+#   1. container tier prod/staging (nama di config) yang ADA → cpu-shares disamakan dengan target bila berbeda;
+#      override cpus per container hanya bila NanoCpus berbeda.
+#   2. container ad-hoc = RUNNING, TANPA label com.docker.compose.project, TANPA label ci-runner, CpuShares 0 (belum
+#      diset) → --cpu-shares <adhoc_shares>; bila juga tanpa limit CPU sama sekali (NanoCpus 0, CpuQuota 0, CpuPeriod 0)
+#      → --cpus <adhoc_cpus>. Limit yang sudah ada tidak pernah dilonggarkan/diubah.
+#   3. Container observability/tools (compose, tidak tercantum di tier) dan job runner CI (label ci-runner=1, sudah
+#      --cpu-shares 256 dari ci-runner-supervisor) tidak disentuh.
+# `docker update` hanya dipanggil bila perlu; setiap perubahan dicatat `logger -t cpu-priority-guard` (nama, lama→baru).
+# Container yang hilang di tengah run (mis. `docker run --rm` selesai) dilewati tanpa membuat unit gagal.
+#
+# Pemakaian:  cpu-priority-guard [--dry-run]
+#   --dry-run  cetak perubahan yang AKAN dilakukan ke stdout, tidak mengubah apa pun.
+# Env opsional: CPU_PRIORITY_CONF (default /etc/cpu-priority/tiers.conf)
+# Format config (satu entri per baris, '#' = komentar):
+#   prod_shares <N> | staging_shares <N> | adhoc_shares <N> | adhoc_cpus <D>
+#   prod <nama-container> | staging <nama-container> | cpus <nama-container> <D>
+# Exit: 0 OK (termasuk container hilang di tengah run); 1 docker tidak bisa dihubungi / `docker update` gagal untuk
+#       container yang masih ada; 2 kesalahan pemakaian / config tidak valid.
+set -euo pipefail
+
+CONF="${CPU_PRIORITY_CONF:-/etc/cpu-priority/tiers.conf}"
+TAG=cpu-priority-guard
+DRY_RUN=0
+
+usage() { echo "pemakaian: $TAG [--dry-run]" >&2; exit 2; }
+case "$#:${1:-}" in
+  0:) ;;
+  1:--dry-run) DRY_RUN=1 ;;
+  *) usage ;;
+esac
+
+die() { echo "$TAG: $*" >&2; exit 2; }
+
+
+# "1.5" → 1500000000 (NanoCpus); format sudah divalidasi ^[0-9]+(\.[0-9]{1,9})?$.
+to_nano() {
+  local int=${1%%.*} frac=""
+  [[ "$1" == *.* ]] && frac=${1#*.}
+  frac="${frac}000000000"
+  frac=${frac:0:9}
+  printf '%d' "$(( 10#$int * 1000000000 + 10#$frac ))"
+}
+
+valid_name() { [[ "$1" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]*$ ]]; }
+valid_shares() { [[ "$1" =~ ^[0-9]+$ ]] && (( 10#$1 >= 2 && 10#$1 <= 262144 )); }
+valid_cpus() { [[ "$1" =~ ^[0-9]+(\.[0-9]{1,9})?$ ]] && [[ "$1" =~ [1-9] ]]; }
+
+# --- baca config ----------------------------------------------------------------------------------------------------
+[[ -r "$CONF" ]] || die "config tidak terbaca: $CONF"
+prod_shares="" staging_shares="" adhoc_shares="" adhoc_cpus=""
+declare -A tier_of=() cpus_of=()
+lineno=0
+while IFS= read -r line || [[ -n "$line" ]]; do
+  lineno=$((lineno + 1))
+  line=${line%%#*}
+  read -r key a b extra <<<"$line" || true
+  [[ -z "${key:-}" ]] && continue
+  [[ -z "${extra:-}" ]] || die "$CONF:$lineno: kolom berlebih"
+  case "$key" in
+    prod_shares|staging_shares|adhoc_shares)
+      if [[ -n "${b:-}" ]] || ! valid_shares "${a:-}"; then die "$CONF:$lineno: $key harus bilangan 2..262144"; fi
+      printf -v "$key" '%d' "$((10#$a))" ;;
+    adhoc_cpus)
+      if [[ -n "${b:-}" ]] || ! valid_cpus "${a:-}"; then die "$CONF:$lineno: adhoc_cpus harus desimal > 0"; fi
+      adhoc_cpus=$a ;;
+    prod|staging)
+      if [[ -n "${b:-}" ]] || ! valid_name "${a:-}"; then die "$CONF:$lineno: nama container tidak valid"; fi
+      [[ -z "${tier_of[$a]:-}" ]] || die "$CONF:$lineno: $a tercantum lebih dari sekali"
+      tier_of[$a]=$key ;;
+    cpus)
+      if ! valid_name "${a:-}" || ! valid_cpus "${b:-}"; then die "$CONF:$lineno: format 'cpus <nama> <desimal>'"; fi
+      cpus_of[$a]=$b ;;
+    *) die "$CONF:$lineno: kunci tidak dikenal: $key" ;;
+  esac
+done < "$CONF"
+[[ -n "$prod_shares" && -n "$staging_shares" && -n "$adhoc_shares" && -n "$adhoc_cpus" ]] \
+  || die "config wajib memuat prod_shares, staging_shares, adhoc_shares, adhoc_cpus"
+for n in "${!cpus_of[@]}"; do
+  [[ -n "${tier_of[$n]:-}" ]] || die "cpus $n: container harus tercantum di tier prod/staging"
+done
+adhoc_nano=$(to_nano "$adhoc_cpus")
+
+# --- inventaris container (satu `docker inspect` untuk semua) ---------------------------------------------------------
+if ! ids=$(docker ps -aq --no-trunc); then
+  echo "$TAG: docker ps gagal" >&2
+  exit 1
+fi
+rc=0
+changes=0
+
+# change <deskripsi> <nama> <arg docker update…>
+# dry-run → cetak ke stdout saja. Apply → `docker update`; sukses → logger (nama, lama→baru); gagal karena container
+# sudah hilang → dilewati (bukan error); gagal lain → logger err + exit 1 di akhir run (OnFailure → alert).
+change() {
+  local desc=$1 name=$2 err
+  shift 2
+  if (( DRY_RUN )); then
+    printf '[dry-run] %s: %s\n' "$name" "$desc"
+    changes=$((changes + 1))
+    return 0
+  fi
+  if err=$(docker update "$@" "$name" 2>&1 >/dev/null); then
+    logger -t "$TAG" -- "$name: $desc"
+    changes=$((changes + 1))
+    return 0
+  fi
+  if ! docker inspect --type container "$name" >/dev/null 2>&1; then
+    logger -t "$TAG" -- "$name: hilang di tengah run — dilewati"
+    return 1
+  fi
+  logger -t "$TAG" -p user.err -- "$name: docker update $* gagal: $err"
+  rc=1
+  return 1
+}
+
+if [[ -n "$ids" ]]; then
+  # Name|Running|CpuShares|NanoCpus|CpuQuota|CpuPeriod|,kunci-label,
+  # shellcheck disable=SC2016  # template Go docker, bukan ekspansi shell
+  fmt='{{.Name}}|{{.State.Running}}|{{.HostConfig.CpuShares}}|{{.HostConfig.NanoCpus}}|{{.HostConfig.CpuQuota}}|{{.HostConfig.CpuPeriod}}|,{{range $k, $v := .Config.Labels}}{{$k}},{{end}}'
+  # Container yang hilang antara `ps` dan `inspect` → inspect keluar 1 tetapi tetap mencetak sisanya (diterima).
+  # shellcheck disable=SC2086  # word splitting disengaja (daftar id)
+  inv=$(docker inspect --type container --format "$fmt" $ids 2>/dev/null) || true
+else
+  inv=""
+fi
+
+while IFS='|' read -r name running shares nano quota period labels; do
+  [[ -n "${name:-}" ]] || continue
+  name=${name#/}
+  tier=${tier_of[$name]:-}
+
+  if [[ -n "$tier" ]]; then
+    if [[ "$tier" == prod ]]; then target=$prod_shares; else target=$staging_shares; fi
+    if [[ "$shares" != "$target" ]]; then
+      change "($tier) cpu-shares ${shares}→${target}" "$name" --cpu-shares "$target" || true
+    fi
+    if [[ -n "${cpus_of[$name]:-}" ]]; then
+      want=$(to_nano "${cpus_of[$name]}")
+      if [[ "$nano" != "$want" ]]; then
+        change "($tier) cpus NanoCpus ${nano}→${want}" "$name" --cpus "${cpus_of[$name]}" || true
+      fi
+    fi
+    continue
+  fi
+
+  # Ad-hoc: running, bukan compose, bukan job runner CI, cpu-shares belum diset.
+  [[ "$running" == true ]] || continue
+  [[ "$labels" == *",com.docker.compose.project,"* ]] && continue
+  [[ "$labels" == *",ci-runner,"* ]] && continue
+  [[ "$shares" == 0 ]] || continue
+  args=(--cpu-shares "$adhoc_shares")
+  desc="(ad-hoc) cpu-shares 0→${adhoc_shares}"
+  if [[ "$nano" == 0 && "$quota" == 0 && "$period" == 0 ]]; then
+    args+=(--cpus "$adhoc_cpus")
+    desc+=", cpus NanoCpus 0→${adhoc_nano}"
+  fi
+  change "$desc" "$name" "${args[@]}" || true
+done <<<"$inv"
+
+# Nama tier yang tidak ada di host → hanya informasi di dry-run (container bisa memang belum/tidak dideploy).
+if (( DRY_RUN )); then
+  mapfile -t tier_names < <(printf '%s\n' "${!tier_of[@]}" | sort)
+  for n in "${tier_names[@]}"; do
+    [[ "$inv" == *"/$n|"* ]] || printf '[dry-run] info: %s (%s) tidak ada di host — dilewati\n' "$n" "${tier_of[$n]}"
+  done
+fi
+
+if (( DRY_RUN )); then
+  printf '[dry-run] selesai: %d perubahan direncanakan (tidak ada yang diterapkan)\n' "$changes"
+elif (( changes > 0 )); then
+  logger -t "$TAG" -- "selesai: $changes perubahan diterapkan"
+fi
+exit "$rc"

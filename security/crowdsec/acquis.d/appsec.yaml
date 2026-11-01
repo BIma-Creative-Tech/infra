@@ -26,5 +26,8 @@ appsec_configs:
   # erajaya-loyalty staging: pre_eval — HANYA 920420 (Server Action admin Payload, POST /admin/* + Next-Action) dan 911100
   # (PATCH/DELETE /api/* kecuali /api/pos|member|cron/), host erajaya-loyalty.staging — appsec-configs/erajaya-payload-crs-exclusions.yaml.
   - local/erajaya-payload-crs-exclusions
+  # 9router: pre_eval — HANYA tag CRS isi (sqli/xss/lfi/rfi/rce/php) untuk POST /v1/*, /v1beta/* host
+  # 9router.bimacreative.tech (prompt LLM berisi kode) — appsec-configs/9router-crs-exclusions.yaml.
+  - local/9router-crs-exclusions
 labels:
   type: appsec

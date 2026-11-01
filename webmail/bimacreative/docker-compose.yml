@@ -1,0 +1,83 @@
+# Webmail Roundcube instance ke-2 — https://webmail.bimacreative.tech (mailbox @bimacreative.tech). Pola = instance
+# Expomedia (../docker-compose.yml, ADR 0012 §Revisi 2026-10-25, ops: docs/03-operations/webmail.md §Instance bimacreative.tech).
+# Stack TERPISAH (project `webmail-bimacreative`): DB SQLite, des_key, data & sesi sendiri — tidak berbagi apa pun dengan
+# instance Expomedia kecuali image, network (webmail-edge / webmail-mail) dan token helper pwhelper (helper tunggal).
+# Jalankan scripts/bootstrap.sh (root) sebelum `docker compose up -d`. Stack `mail` harus up dulu (network webmail-mail).
+# Env & perilaku image sama dengan instance Expomedia (docker-entrypoint.sh 1.7.4-apache-nonroot, dibaca 2026-09-25).
+name: webmail-bimacreative
+
+services:
+  # Nama service SENGAJA bukan `webmail`: compose memberi alias DNS = nama service di setiap network. Alias `webmail`
+  # ganda di webmail-edge → Traefik (service url http://webmail:8000) akan round-robin ke dua instance berbeda.
+  webmail-bimacreative:
+    # Image + digest SAMA dengan instance Expomedia (roundcube/roundcubemail 1.7.4, GPL-3, dijalankan apa adanya).
+    image: roundcube/roundcubemail:1.7.4-apache-nonroot@sha256:38e4b5295c6b80da288b023e650286a65e4e3fe9f5b9e7f6b4993cf6b8f27cf4
+    container_name: webmail-bimacreative
+    restart: unless-stopped
+    user: "33:33"
+    environment:
+      TZ: Asia/Jakarta
+      # Nilai final ditimpa config/webmail.inc.php; env di sini hanya agar config.docker.inc.php yang ditulis entrypoint konsisten.
+      ROUNDCUBEMAIL_DEFAULT_HOST: ssl://mail.bimacreative.tech
+      ROUNDCUBEMAIL_DEFAULT_PORT: "993"
+      ROUNDCUBEMAIL_SMTP_SERVER: tls://mail.bimacreative.tech
+      ROUNDCUBEMAIL_SMTP_PORT: "587"
+      ROUNDCUBEMAIL_PLUGINS: archive,zipdownload,password
+      ROUNDCUBEMAIL_SKIN: elastic
+      ROUNDCUBEMAIL_TEMP_DIR: /tmp/roundcube-temp
+      ROUNDCUBEMAIL_DB_TYPE: sqlite
+      ROUNDCUBEMAIL_DB_DIR: /var/roundcube/db
+    secrets:
+      - roundcube_des_key     # → /run/secrets/roundcube_des_key — des_key SENDIRI (bukan milik instance Expomedia)
+      - pwhelper_token        # → /run/secrets/pwhelper_token (Bearer ke helper; salinan dari mail/scripts/pwhelper-secrets.sh)
+    volumes:
+      - ./data/db:/var/roundcube/db                 # SQLite sendiri (user, prefs, kontak, sesi) — ikut backup restic `files`
+      - ./config/webmail.inc.php:/var/roundcube/config/webmail.inc.php:ro
+      - ./config/apache-webmail.conf:/etc/apache2/conf-enabled/zz-webmail.conf:ro
+    read_only: true
+    tmpfs:
+      - /var/www/html:size=96m,uid=33,gid=33,mode=0755,exec
+      - /tmp:size=64m,uid=33,gid=33,mode=1777
+      - /var/run/apache2:size=4m,uid=33,gid=33,mode=0755
+      - /var/lock/apache2:size=1m,uid=33,gid=33,mode=0755
+    networks:
+      webmail-edge: {}        # Traefik → webmail-bimacreative:8000 (--internal, dibagi dengan instance Expomedia)
+      webmail-mail:           # IMAPS/submission + helper di mailserver 10.100.16.2 (--internal)
+        ipv4_address: 10.100.16.4  # IP tetap (.2 mailserver, .3 webmail Expomedia) — cegah rebutan IP saat boot (insiden 2026-10-17)
+    # mail.bimacreative.tech = sertifikat DEFAULT DMS (tanpa SNI map) → IP mailserver di network internal (tanpa hairpin).
+    extra_hosts:
+      - "mail.bimacreative.tech:10.100.16.2"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "-H", "Host: webmail.bimacreative.tech", "-H", "X-Forwarded-Proto: https", "http://127.0.0.1:8000/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+    mem_limit: 128m   # = instance Expomedia (puncak 7 hari 54 MiB)
+    cpus: 0.5
+    pids_limit: 64
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+secrets:
+  roundcube_des_key:
+    file: ./secrets/des_key
+  pwhelper_token:
+    file: ./secrets/pwhelper_token
+
+networks:
+  webmail-edge:
+    # Dibuat traefik/scripts/bootstrap.sh: 10.100.15.0/24 --internal — anggota: traefik + container webmail (semua instance).
+    external: true
+    name: webmail-edge
+  webmail-mail:
+    # Dimiliki stack mail: 10.100.16.0/24 --internal — anggota: mailserver (.2) + webmail (.3) + webmail-bimacreative (.4).
+    external: true
+    name: webmail-mail

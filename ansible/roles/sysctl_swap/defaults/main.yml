@@ -1,0 +1,4 @@
+---
+# Role sysctl_swap — swapfile tambahan opsional di samping swap_file utama (group_vars/all.yml).
+# Format: [{path: /swapfile2, size_mib: 4096}]. Idempoten: file yang sudah ada TIDAK dibuat ulang / di-mkswap ulang.
+swap_extra_files: []

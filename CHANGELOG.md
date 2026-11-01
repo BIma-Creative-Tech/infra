@@ -9,6 +9,15 @@ file `VERSION`.
 ## [Unreleased]
 
 ### Fixed
+- prioritas CPU (insiden 2026-10-13 22:30 WIB, branch `feat/devops-cpu-priority`): DRMS prod tidak bisa dipakai karena 5
+  container ad-hoc `docker run node:24 … npm ci/tsc/vitest` paralel berbobot CPU sama dengan prod (4 vCPU + steal ±70%).
+  Perbaikan live Lead dikodifikasi:
+  - role `cpu_priority`: timer 60 s `cpu-priority-guard` → `docker update` (live, tanpa restart) cpu-shares prod 10240
+    (weight 639) / staging 512 (59) / ad-hoc 64 + `--cpus 1.0`; observability & job runner CI tidak disentuh; drop-in
+    `user.slice` `CPUWeight=20`. Bobot sengaja TIDAK di compose stack inti (hash config → recreate saat `up -d`);
+  - `sysctl_swap`: `swap_extra_files` (opsional) — `/swapfile2` 4 GiB (sudah live → run tanpa perubahan);
+  - DRMS prod compose: `drms-pk-web` `cpus` 0.75 → 1.5, `cpu_shares: 10240` web + worker (berlaku saat deploy berikutnya).
+  Ops `docs/03-operations/cpu-priority.md`.
 - crowdsec AppSec rule **19104** (2026-10-05): password grant client `admin-cli` di realm `drms`/`drms-staging` diblok di
   edge (403) — Keycloak 26 tidak mengizinkan mengubah client bawaan itu. `docs/03-operations/crowdsec.md`.
 - ci_runner supervisor (2026-10-05): watchdog **job diterima tapi tidak pernah mulai** — `Acknowledging runner request`

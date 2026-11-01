@@ -72,6 +72,8 @@
     #   (/var/lib/node-exporter-textfile/containers.prom). --tags container_metrics (--check --diff dulu), lalu recreate
     #   node-exporter (observability/docker-compose.yml). Rollback: container_metrics_state=absent.
     - { role: container_metrics, tags: [container_metrics] }
+    # Insiden 2026-10-13: timer 60 s `docker update` cpu-shares per tier + user.slice CPUWeight=20 (docs/03-operations/cpu-priority.md). Rollback: cpu_priority_state=absent.
+    - { role: cpu_priority, tags: [cpu_priority] }
     # QA-T17B-02 / B18: ekspor HANYA sertifikat mail.* dari acme.json (unit path+timer). Butuh infra-unit-failure@ (healthcheck).
     #   --tags mail_tls_export (--check --diff dulu). Rollback: mail_tls_export_state=absent.
     - { role: mail_tls_export, tags: [mail_tls_export] }

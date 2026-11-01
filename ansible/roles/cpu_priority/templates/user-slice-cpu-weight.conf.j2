@@ -1,0 +1,6 @@
+# {{ ansible_managed }} — role cpu_priority (docs/03-operations/cpu-priority.md)
+# Sesi login (SSH, build/test manual) kalah prioritas dari system.slice (container, default 100).
+# Catatan: nilai live awal dipasang `systemctl set-property` → /etc/systemd/system.control/user.slice.d/50-CPUWeight.conf
+# (prioritas lebih tinggi dari file ini, dibiarkan; isinya sama).
+[Slice]
+CPUWeight={{ cpu_priority_user_slice_weight }}

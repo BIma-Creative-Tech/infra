@@ -1,0 +1,33 @@
+# ADR 0012 §Revisi 2026-10-25 — Webmail Roundcube instance bimacreative.tech: https://webmail.bimacreative.tech → container
+# `webmail-bimacreative:8000` (network --internal `webmail-edge`, 10.100.15.0/24). Ops: docs/03-operations/webmail.md.
+# DNS pre-check lulus 2026-10-25: A webmail.bimacreative.tech = 31.97.50.221 @1.1.1.1, @8.8.8.8, @athena.dns-parking.com,
+# @apollo.dns-parking.com; AAAA kosong, tanpa CNAME. Resolver le-http langsung (pola webmail.expomedia.id / mail-clients).
+# Middleware `webmail-security-headers` didefinisikan di webmail-expomedia.yml (provider file = satu namespace) — dipakai
+# bersama agar header kedua instance identik. File di subdirektori → setelah mengubah: `docker exec traefik kill -HUP 1` (H7).
+#
+# Urutan middleware konvensi platform: crowdsec (paling depan, termasuk AppSec) → headers → ratelimit.
+http:
+  routers:
+    # POST login lebih ketat — aturan & alasan sama persis dengan webmail-expomedia-login (lihat komentar di file itu).
+    webmail-bimacreative-login:
+      entryPoints: [websecure]
+      rule: "Host(`webmail.bimacreative.tech`) && Method(`POST`) && (Query(`_task`, `login`) || !QueryRegexp(`_task`, `^.*$`))"
+      priority: 100
+      middlewares: [crowdsec, webmail-security-headers, ratelimit-login]
+      service: webmail-bimacreative
+      tls:
+        certResolver: le-http
+    webmail-bimacreative:
+      entryPoints: [websecure]
+      rule: "Host(`webmail.bimacreative.tech`)"
+      priority: 1
+      middlewares: [crowdsec, webmail-security-headers, ratelimit-default]
+      service: webmail-bimacreative
+      tls:
+        certResolver: le-http
+
+  services:
+    webmail-bimacreative:
+      loadBalancer:
+        servers:
+          - url: "http://webmail-bimacreative:8000"

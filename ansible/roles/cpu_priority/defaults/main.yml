@@ -1,0 +1,61 @@
+---
+# Role cpu_priority — bobot CPU per tier container + user.slice (insiden 2026-10-13 22:30 WIB: 5 container ad-hoc
+# `docker run node:24 … npm ci/tsc/vitest` paralel → DRMS prod tidak bisa dipakai; docs/03-operations/cpu-priority.md).
+# Bobot ditegakkan oleh timer host (`docker update` live, tanpa restart) — BUKAN di compose stack inti, karena mengubah
+# cpu_shares di compose mengubah hash config → `docker compose up -d` rutin berikutnya me-RECREATE layanan kritis.
+# Terapkan:  ansible-playbook site.yml --tags cpu_priority   (check dulu: --check --diff)
+# Rollback:  cpu_priority_state: absent → timer/service/skrip/config + drop-in user.slice dihapus. Nilai cpu-shares yang
+#            sudah diterapkan di container TETAP sampai container di-recreate (lihat docs §Rollback).
+cpu_priority_state: present # present | absent
+
+cpu_priority_sbin: /usr/local/sbin/cpu-priority-guard
+cpu_priority_etc_dir: /etc/cpu-priority
+cpu_priority_on_boot_sec: 1min
+cpu_priority_on_unit_active_sec: 60s
+
+# cpu-shares → cgroup v2 cpu.weight (runc 1.5.1 host ini; teramati 2026-10-13): 10240 → 639, 512 → 59, tanpa set → 100.
+cpu_priority_prod_shares: 10240
+cpu_priority_staging_shares: 512
+# Container ad-hoc (running, tanpa label com.docker.compose.project & ci-runner, cpu-shares belum diset).
+cpu_priority_adhoc_shares: 64
+cpu_priority_adhoc_cpus: "1.0" # hanya bila container belum punya limit CPU apa pun
+# Job runner CI (label ci-runner=1) sudah --cpu-shares 256 dari ci-runner-supervisor → tidak disentuh.
+# Observability/tools (grafana loki prometheus alloy node-exporter uptime-kuma umami) sengaja TIDAK tercantum (bobot 100).
+
+# Container PROD. Client baru: tambahkan nama container (container_name) di sini lalu jalankan ulang role.
+cpu_priority_prod:
+  - drms-pk-web
+  - drms-pk-worker
+  - postgres
+  - traefik
+  - crowdsec
+  - keycloak
+  - odoo-pool-a
+  - web-ditled-prod
+  - web-expomedia-prod
+  - web-bct-prod
+  - control-plane
+  - control-plane-worker
+  - mailserver
+  - webmail
+
+# Container STAGING.
+cpu_priority_staging:
+  - drms-pk-stg
+  - drms-pk-stg-worker
+  - erajaya-staging-web
+  - web-expomedia-staging
+  - web-bct-staging
+  - web-starter-staging
+  - odoo-staging
+  - control-plane-staging
+  - control-plane-staging-worker
+  - control-plane-staging-mailpit
+
+# Override limit CPU (--cpus) per container; container WAJIB tercantum di tier prod/staging. Nilai harus sama dengan
+# `cpus:` di compose stack itu (bila berbeda, compose dan guard saling menimpa di setiap deploy).
+cpu_priority_cpus_overrides:
+  drms-pk-web: "1.5"
+
+# Bobot user.slice (sesi SSH/login: build/test manual di shell) — drop-in /etc/systemd/system/user.slice.d/.
+cpu_priority_user_slice_weight: 20
