@@ -11,7 +11,7 @@ name: web-control-plane
 x-hardening: &hardening
   # Tag pin (short SHA commit main repo control-plane). Override sementara untuk rollback:
   #   CONTROL_PLANE_TAG=<tag-lama> docker compose up -d   (lihat docs)
-  image: control-plane:${CONTROL_PLANE_TAG:-a0f30b7}   # BCT Admin D-1: form paket/kuota/PPh 23, langganan self-serve (2026-11-01; tanpa migrasi; rollback e8f24c1)
+  image: control-plane:${CONTROL_PLANE_TAG:-9ac740d}   # ADR 0019 job bctone_tenant_config (migrasi 0008 enum aditif; 2026-11-01; rollback a0f30b7)
   env_file:
     - .env
   user: "1001:1001"

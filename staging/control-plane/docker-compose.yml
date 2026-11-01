@@ -8,7 +8,7 @@ name: staging-control-plane
 x-hardening: &hardening
   # Tag pin (short SHA commit main repo control-plane). Override sementara:
   #   CONTROL_PLANE_TAG=<tag> docker compose up -d
-  image: control-plane:${CONTROL_PLANE_TAG:-a0f30b7}   # BCT Admin D-1: form paket/kuota/PPh 23, langganan self-serve (2026-11-01; tanpa migrasi; rollback e8f24c1)
+  image: control-plane:${CONTROL_PLANE_TAG:-9ac740d}   # ADR 0019 job bctone_tenant_config (migrasi 0008 enum aditif; 2026-11-01; rollback a0f30b7)
   env_file:
     - .env
   user: "1001:1001"
@@ -56,7 +56,7 @@ services:
       SERVICE_NAME: control-plane-staging-web
       INFRA_JOBS_INSTANCE: staging   # plan 05 / ADR 0009
       # SaaS Fase 1 (kontrak v1.2): tipe job yang boleh di-enqueue CP staging = allowlist dispatcher staging.conf.
-      INFRA_JOBS_TYPES: odoo_db_provision,odoo_route,odoo_sso_provision,odoo_sso_disable,odoo_sso_user,kc_realm_sync,kc_org_ensure,kc_user_ensure,kc_user_set_roles,kc_user_set_enabled,kc_user_action_email,odoo_user_ensure,odoo_tenant_config,tenant_suspend,tenant_resume
+      INFRA_JOBS_TYPES: odoo_db_provision,odoo_route,odoo_sso_provision,odoo_sso_disable,odoo_sso_user,kc_realm_sync,kc_org_ensure,kc_user_ensure,kc_user_set_roles,kc_user_set_enabled,kc_user_action_email,odoo_user_ensure,odoo_tenant_config,tenant_suspend,tenant_resume,bctone_tenant_config
       PLATFORM_PUBLIC_IPV4: 31.97.50.221   # checklist DNS domain tenant (bukan secret)
       # plan 15: tombol "Buka Odoo" Quotation Tracker (bukan secret). Host Demo = alias demo-erp.expomedia.id.
       DASHBOARD_ODOO_URLS: expomedia=https://demo-erp.expomedia.id
@@ -92,7 +92,7 @@ services:
       INFRA_JOBS_INSTANCE: staging
       INFRA_JOBS_SPOOL_DIR: /jobs/spool
       INFRA_JOBS_RESULTS_DIR: /jobs/results
-      INFRA_JOBS_TYPES: odoo_db_provision,odoo_route,odoo_sso_provision,odoo_sso_disable,odoo_sso_user,kc_realm_sync,kc_org_ensure,kc_user_ensure,kc_user_set_roles,kc_user_set_enabled,kc_user_action_email,odoo_user_ensure,odoo_tenant_config,tenant_suspend,tenant_resume
+      INFRA_JOBS_TYPES: odoo_db_provision,odoo_route,odoo_sso_provision,odoo_sso_disable,odoo_sso_user,kc_realm_sync,kc_org_ensure,kc_user_ensure,kc_user_set_roles,kc_user_set_enabled,kc_user_action_email,odoo_user_ensure,odoo_tenant_config,tenant_suspend,tenant_resume,bctone_tenant_config
       # ADR 0018 D8: email pengingat staging HANYA ke Mailpit (tanpa TLS/auth, network internal stack ini).
       SMTP_HOST: mailpit
       SMTP_PORT: "1025"
