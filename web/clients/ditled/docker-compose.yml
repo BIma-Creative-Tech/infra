@@ -1,0 +1,68 @@
+# Website Dit. LED "Jelajah" (Next.js 15 + Payload CMS 3) — deploy SEMENTARA di ditled.bimacreative.tech,
+# sebelum klien punya VPS sendiri. Stack ditulis manual (pola web/control-plane), BUKAN hasil
+# provision-web-client.sh: aplikasi ini stateful (CMS) → butuh volume data dan memori lebih besar
+# daripada template website client statis. Lihat README.md di direktori ini.
+#
+# Image dibangun LOKAL dari sumber di /home/admin/src/led-website (Dockerfile repo aplikasi):
+#   docker build --build-arg NEXT_PUBLIC_SERVER_URL=https://ditled.bimacreative.tech -t web-ditled:<tag> .
+# Kontrak image: port 3000, GET /api/health → 200, uid 1001:1001, rootfs read-only (tulis: /tmp, /app/.next/cache,
+# dan volume /data = unggahan media/attachments; DB = Postgres shared, network db-ditled).
+# Tidak ada port di-publish; Traefik → http://web-ditled-prod:3000 (network web-edge,
+# router traefik/dynamic/clients/web-ditled-prod.yml). Secret (PAYLOAD_SECRET) di .env (600 root, di-ignore git).
+name: web-ditled-prod
+
+services:
+  web:
+    image: web-ditled:${DITLED_TAG:?DITLED_TAG wajib (tag image, lihat README)}
+    container_name: web-ditled-prod
+    restart: unless-stopped
+    user: "1001:1001"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+    env_file:
+      - .env
+    environment:
+      SITE_URL: https://ditled.bimacreative.tech
+      NEXT_PUBLIC_SERVER_URL: https://ditled.bimacreative.tech
+      # DATABASE_URI (postgres://ditled:…@postgres:5432/ditled) ada di .env — secret. Sejak 2026-10-18 DB di cluster
+      # Postgres shared (network db-ditled); skema = migrasi Payload (src/migrations) yang jalan otomatis saat start.
+      # /data/dittel.db (SQLite lama) dibiarkan sebagai arsip, tidak dipakai.
+      UPLOAD_DIR: /data
+      # Subdomain sementara: robots.txt Disallow + meta noindex, agar tidak terindeks sebelum pindah ke domain resmi.
+      NOINDEX: "1"
+    tmpfs:
+      # tmpfs dihitung ke mem_limit. /tmp dipakai unggahan sementara (batas berkas 10 MB di Payload).
+      - /tmp:uid=1001,gid=1001,mode=0700,size=64m
+      - /app/.next/cache:uid=1001,gid=1001,mode=0700,size=128m
+    volumes:
+      # Unggahan (media/, attachments/): /srv/ditled/data (1001:1001, 0700). Backup = direktori ini + pg_dump DB ditled.
+      - type: bind
+        source: /srv/ditled/data
+        target: /data
+        bind: { create_host_path: false }
+    networks: [web-edge, db-ditled]
+    healthcheck:
+      # Sama dengan HEALTHCHECK Dockerfile: 200 bila proses hidup dan DB bisa dibaca.
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+      start_interval: 2s
+    # Payload + Next server + sharp: lebih berat dari website statis (template 256m). Pantau `docker stats`, turunkan bila stabil.
+    mem_limit: 1g
+    cpus: 1
+    pids_limit: 256
+
+networks:
+  web-edge:
+    external: true
+    name: web-edge
+  db-ditled:
+    # --internal, anggota hanya postgres + web-ditled-prod (postgres/scripts/bootstrap.sh, 10.100.30.0/24)
+    external: true
+    name: db-ditled

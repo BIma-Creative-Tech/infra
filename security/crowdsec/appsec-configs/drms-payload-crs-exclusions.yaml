@@ -21,6 +21,11 @@
 #   path diawali /api/. Body tetap diinspeksi CRS (XSS/SQLi pada JSON tetap 403).
 # 2026-10-07 (keputusan owner, alert 1845/1846): PUT ikut (editor tahapan PUT /api/v1/projects/<id>/stages) → 403 di
 #   prod. Cakupan lain sama.
+# 2026-10-21 (keputusan user, alert 3334–3340, permintaan sesi ProyekKas): uraian LPJ prod
+#   POST /api/v1/expense-requests/<id>/lpj/submit berisi baris diawali "AC SHARP …" → CRS 932125 (alias PowerShell `ac`)
+#   di ARGS.json.usageNotes → 403. Blok pre_eval KETIGA: HANYA tag attack-rce (REQUEST-932), host drms-kas(.staging),
+#   POST/PUT/PATCH, path /api/v1/. XSS/SQLi/LFI/RFI/PHP, protokol, virtual patching & generic rules TETAP aktif.
+#   Rollback blok ini: hapus blok ketiga → `docker exec crowdsec kill -HUP 1`.
 # Rollback: hapus file ini + appsec-rules/drms-payload-server-action.yaml + barisnya di acquis.d/appsec.yaml + kedua
 # mount di docker-compose.yml → `docker compose up -d` (recreate, fail-closed ±40 s).
 name: local/drms-payload-crs-exclusions
@@ -48,3 +53,20 @@ pre_eval:
       req.URL.Path startsWith "/api/"
     apply:
       - RemoveInBandRuleByID(911100)
+  - filter: >-
+      IsInBand &&
+      req.Method in ["POST", "PUT", "PATCH"] &&
+      req.Host in ["drms-kas.staging.bimacreative.tech", "drms-kas.bimacreative.tech"] &&
+      req.URL.Path startsWith "/api/v1/"
+    apply:
+      - RemoveInBandRuleByTag("attack-rce")
+  # 2026-10-22 (user setuju): callback OIDC DRMS — state/session_state/code acak Keycloak kadang cocok libinjection
+  # SQLi (942100, mis. "--" di session_state) → 403 login. HANYA tag attack-sqli, HANYA GET /auth/callback. Pola sama
+  # dengan oidc-backchannel-exclusions (BUG-S5-01).
+  - filter: >-
+      IsInBand &&
+      req.Method == "GET" &&
+      req.Host in ["drms-kas.staging.bimacreative.tech", "drms-kas.bimacreative.tech"] &&
+      req.URL.Path == "/auth/callback"
+    apply:
+      - RemoveInBandRuleByTag("attack-sqli")

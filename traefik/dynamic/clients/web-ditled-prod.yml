@@ -1,0 +1,46 @@
+# Website Dit. LED (sementara) ditled.bimacreative.tech → container `web-ditled-prod:3000` (network web-edge).
+# Stack: /opt/infra/web/clients/ditled (ditulis manual, pola dynamic/platform/cp.yml — bukan hasil provision-web-client.sh).
+# DNS pre-check (ADR 0002 #5): A = 31.97.50.221 @1.1.1.1 & @8.8.8.8, tanpa AAAA.
+# Urutan middleware = konvensi router lain: crowdsec → security-headers → ratelimit-*. CSP tidak diset di Traefik.
+http:
+  routers:
+    # Formulir Tanya Dit. LED = Server Action (POST /tanya-dit-led, lampiran PDF ≤ 1 MB) → limit per IP lebih ketat.
+    web-ditled-prod-form:
+      entryPoints: [websecure]
+      rule: "Host(`ditled.bimacreative.tech`) && Method(`POST`) && Path(`/tanya-dit-led`)"
+      priority: 100
+      middlewares: [crowdsec, security-headers, web-ditled-prod-ratelimit-form]
+      service: web-ditled-prod
+      tls:
+        certResolver: le-http
+    # Login admin CMS (Payload): POST /api/users/login → limit ketat terhadap brute-force.
+    web-ditled-prod-login:
+      entryPoints: [websecure]
+      rule: "Host(`ditled.bimacreative.tech`) && Method(`POST`) && Path(`/api/users/login`)"
+      priority: 100
+      middlewares: [crowdsec, security-headers, web-ditled-prod-ratelimit-form]
+      service: web-ditled-prod
+      tls:
+        certResolver: le-http
+    web-ditled-prod:
+      entryPoints: [websecure]
+      rule: "Host(`ditled.bimacreative.tech`)"
+      priority: 1
+      middlewares: [crowdsec, security-headers, ratelimit-default]
+      service: web-ditled-prod
+      tls:
+        certResolver: le-http
+
+  middlewares:
+    # 5 req/menit per IP sumber, burst 5 (sama dengan ratelimit-contact di templates/traefik-web-client.yml).
+    web-ditled-prod-ratelimit-form:
+      rateLimit:
+        average: 5
+        period: 1m
+        burst: 5
+
+  services:
+    web-ditled-prod:
+      loadBalancer:
+        servers:
+          - url: "http://web-ditled-prod:3000"

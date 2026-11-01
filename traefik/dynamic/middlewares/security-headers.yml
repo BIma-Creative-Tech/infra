@@ -9,7 +9,8 @@ http:
         # includeSubdomains & preload TETAP false (keputusan terpisah; preload tidak direncanakan).
         # Nilai sama WAJIB dijaga di auth-security-headers (platform/auth.yml), odoo-security-headers
         # (platform/odoo-pools.yml), webmail-security-headers (clients/webmail-expomedia.yml, ADR 0012) &
-        # analytics-headers (platform/analytics.yml, ADR 0013).
+        # analytics-headers (platform/analytics.yml, ADR 0013) & drms-security-headers
+        # (clients/drms-proyekkas-middlewares.yml; beda HANYA permissionsPolicy camera/geolocation=(self), 2026-10-18).
         stsSeconds: 604800
         stsIncludeSubdomains: false
         stsPreload: false

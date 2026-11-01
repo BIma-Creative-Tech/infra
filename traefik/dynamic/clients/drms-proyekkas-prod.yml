@@ -31,7 +31,7 @@ http:
       entryPoints: [websecure]
       rule: "Host(`drms-kas.bimacreative.tech`) && (PathPrefix(`/auth/`) || PathPrefix(`/api/v1/auth/`))"
       priority: 100
-      middlewares: [crowdsec, security-headers, ratelimit-login]
+      middlewares: [crowdsec, drms-security-headers, ratelimit-login]
       service: drms-pk-web
       tls:
         certResolver: le-http
@@ -40,7 +40,7 @@ http:
       entryPoints: [websecure]
       rule: "Host(`drms-kas.bimacreative.tech`) && PathPrefix(`/api/v1/`)"
       priority: 90
-      middlewares: [crowdsec, security-headers, ratelimit-pk-api, buffering-pk]
+      middlewares: [crowdsec, drms-security-headers, ratelimit-pk-api, buffering-pk]
       service: drms-pk-web
       tls:
         certResolver: le-http
@@ -49,7 +49,7 @@ http:
       entryPoints: [websecure]
       rule: "Host(`drms-kas.bimacreative.tech`) && PathPrefix(`/api/`) && !PathPrefix(`/api/v1/`)"
       priority: 50
-      middlewares: [crowdsec, security-headers, ratelimit-default, strip-authorization, buffering-pk]
+      middlewares: [crowdsec, drms-security-headers, ratelimit-default, strip-authorization, buffering-pk]
       service: drms-pk-web
       tls:
         certResolver: le-http
@@ -58,7 +58,7 @@ http:
       entryPoints: [websecure]
       rule: "Host(`drms-kas.bimacreative.tech`)"
       priority: 1
-      middlewares: [crowdsec, security-headers, ratelimit-default, strip-authorization]
+      middlewares: [crowdsec, drms-security-headers, ratelimit-default, strip-authorization]
       service: drms-pk-web
       tls:
         certResolver: le-http

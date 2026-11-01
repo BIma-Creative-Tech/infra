@@ -28,6 +28,12 @@ install -o root -g root -m 0600 "$TOKEN" "$CONF/token"
 install -d -o root -g root -m 0755 "$WM_SECRET_DIR"
 install -o "$WM_UID" -g "$WM_UID" -m 0400 "$TOKEN" "$WM_SECRET_DIR/pwhelper_token"
 echo "token: disalin ke data/config/pwhelper/token + webmail/secrets/pwhelper_token"
+# Instance webmail tambahan (ADR 0012 §Revisi 2026-10-25): satu helper = satu token; setiap instance mendapat salinan.
+for wm in bimacreative; do
+  install -d -o root -g root -m 0755 "$INFRA_DIR/webmail/$wm/secrets"
+  install -o "$WM_UID" -g "$WM_UID" -m 0400 "$TOKEN" "$INFRA_DIR/webmail/$wm/secrets/pwhelper_token"
+  echo "token: disalin ke webmail/$wm/secrets/pwhelper_token"
+done
 
 # Deny list dari password awal alamat-alamat di allowlist.
 mapfile -t ADDRS < <(grep -Ev '^\s*(#|$)' "$STACK_DIR/config/pwhelper/allowlist.txt")
