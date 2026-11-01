@@ -8,7 +8,7 @@ name: staging-control-plane
 x-hardening: &hardening
   # Tag pin (short SHA commit main repo control-plane). Override sementara:
   #   CONTROL_PLANE_TAG=<tag> docker compose up -d
-  image: control-plane:${CONTROL_PLANE_TAG:-0d359af}   # BCTOne Console + batas konkurensi AI (tanpa migrasi; 2026-11-01; rollback 7d93551)
+  image: control-plane:${CONTROL_PLANE_TAG:-6a3e726}   # BCTOne wizard /daftar (migrasi 0010 aditif; 2026-11-01; rollback 0d359af)
   env_file:
     - .env
   user: "1001:1001"
@@ -60,6 +60,9 @@ services:
       PLATFORM_PUBLIC_IPV4: 31.97.50.221   # checklist DNS domain tenant (bukan secret)
       # plan 15: tombol "Buka Odoo" Quotation Tracker (bukan secret). Host Demo = alias demo-erp.expomedia.id.
       DASHBOARD_ODOO_URLS: expomedia=https://demo-erp.expomedia.id
+      # BCTOne registrasi self-serve /daftar (publik) — staging saja; prod tetap 0 (404) sampai GATE 2.
+      BCTONE_REGISTER_ENABLED: "1"
+      BCTONE_CAPACITY: "15"   # D-2: pool 10–15 tenant, lebih = waitlist
     tmpfs:
       - /tmp:uid=1001,gid=1001,mode=0700
       - /app/.next/cache:uid=1001,gid=1001,mode=0700
