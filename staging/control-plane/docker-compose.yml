@@ -8,7 +8,7 @@ name: staging-control-plane
 x-hardening: &hardening
   # Tag pin (short SHA commit main repo control-plane). Override sementara:
   #   CONTROL_PLANE_TAG=<tag> docker compose up -d
-  image: control-plane:${CONTROL_PLANE_TAG:-6a2ca45}   # BCTOne wizard /daftar + registrasi selesai otomatis (migrasi 0010; 2026-11-02; rollback 0d359af)
+  image: control-plane:${CONTROL_PLANE_TAG:-9b7b979}   # BCTOne email registrasi + Console Tagihan (tanpa migrasi; 2026-11-02; rollback 6a2ca45)
   env_file:
     - .env
   user: "1001:1001"
@@ -63,6 +63,7 @@ services:
       # BCTOne registrasi self-serve /daftar (publik) — staging saja; prod tetap 0 (404) sampai GATE 2.
       BCTONE_REGISTER_ENABLED: "1"
       BCTONE_CAPACITY: "15"   # D-2: pool 10–15 tenant, lebih = waitlist
+      PAYMENT_INSTRUCTIONS: "Transfer ke rekening PT Bima Creative Tech (STAGING — contoh, bukan rekening asli)"
     tmpfs:
       - /tmp:uid=1001,gid=1001,mode=0700
       - /app/.next/cache:uid=1001,gid=1001,mode=0700
@@ -102,6 +103,7 @@ services:
       SMTP_TLS: "off"   # hanya diterima kode bila INFRA_JOBS_INSTANCE=staging
       SMTP_FROM: noreply@bimacreative.tech
       BILLING_EMAIL: billing@bimacreative.tech
+      CP_PUBLIC_URL: https://cp.staging.bimacreative.tech   # tautan di email worker (registrasi BCTOne)
     tmpfs:
       - /tmp:uid=951,gid=951,mode=0700
     volumes:
