@@ -847,7 +847,7 @@ class TestPhase1Fixtures(unittest.TestCase):
             self.assertGreaterEqual(len([c for c in FX["invalid"] if c.get("job", {}).get("type") == t]), 3, t)
 
     def test_scripts_map_and_versions(self) -> None:
-        self.assertEqual(ij.VERSION, "1.3.0")
+        self.assertEqual(ij.VERSION, "1.4.0")
         self.assertEqual(set(ij.VALIDATORS), set(ALL_TYPES))
         self.assertEqual(set(ij.SCRIPTS), set(ALL_TYPES))
         self.assertTrue(set(ALL_TYPES) - {"dry_run"} <= set(ij.DEFAULT_TIMEOUTS))
@@ -1030,9 +1030,9 @@ class TestBctoneTenantConfig(unittest.TestCase):
         self.assertEqual(ij.BCTONE_JOB_TYPES, ("bctone_tenant_config",))
         self.assertNotIn("bctone_tenant_config", ij.DEFAULT_JOB_TYPES)
         self.assertEqual(ij.SCRIPTS["bctone_tenant_config"], "bctone-tenant-config.sh")
-        self.assertEqual(ij.DEFAULT_TIMEOUTS["bctone_tenant_config"], 600)
+        self.assertEqual(ij.DEFAULT_TIMEOUTS["bctone_tenant_config"], 900)
         self.assertEqual(ij.DEFAULT_QUOTA["bctone_tenant_config_per_hour"], 30)
-        self.assertEqual(ij.VERSION, "1.3.0")
+        self.assertEqual(ij.VERSION, "1.4.0")
 
     def test_metric_order_is_canonical(self) -> None:
         job = self.job({"plan": "bctone-free", "enabled": True, "limits": {"trx_per_month": 300, "users": 1}})
@@ -1046,6 +1046,16 @@ class TestBctoneTenantConfig(unittest.TestCase):
         self.assertEqual(self.job({"plan": "bctone-free", "enabled": False}).alert_reason,
                          "bctone_tenant_config enabled=false")
         self.assertIsNone(self.job({"plan": "bctone-free", "enabled": False}, dry_run=True).alert_reason)
+
+    def test_pack(self) -> None:
+        job = self.job({"plan": "bctone-umkm", "enabled": True, "pack": "fnb", "limits": {"users": 5}})
+        self.assertEqual(ij.build_argv(self.CFG, job, False)[3:],
+                         ["--plan", "bctone-umkm", "--pack", "fnb", "--limit", "users=5"])
+        for bad in ("FNB", "", "manufaktur", 1, None):
+            with self.subTest(bad=bad), self.assertRaises(ij.Reject):
+                self.job({"plan": "bctone-umkm", "enabled": True, "pack": bad})
+        with self.assertRaises(ij.Reject):
+            self.job({"plan": "bctone-umkm", "enabled": False, "pack": "retail"})
 
     def test_limit_bounds(self) -> None:
         self.job({"plan": "bctone-umkm", "enabled": True, "limits": {"omzet_per_month": 0}})

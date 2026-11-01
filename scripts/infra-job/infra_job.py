@@ -43,7 +43,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
-VERSION = "1.3.0"
+VERSION = "1.4.0"
 
 # ------------------------------------------------------------------------------------------------ konstanta (kontrak)
 # Instance → env yang boleh disentuh + user host penulis job.
@@ -144,6 +144,7 @@ TENANT_CHECK_MODES = ("off", "compat", "strict")
 BCTONE_PLANS = ("bctone-free", "bctone-umkm", "bctone-bisnis")
 BCTONE_METRICS = ("users", "devices", "outlets", "trx_per_month", "omzet_per_month", "ai_prompts_per_day")
 BCTONE_LIMIT_MAX = 999_999_999_999
+BCTONE_PACKS = ("fnb", "retail")
 APPROVE_ENVS = ("prod", "demo")  # kc_realm_sync apply di env ini wajib args.approve=true
 MAX_HOSTS = 5
 
@@ -197,7 +198,7 @@ DEFAULT_TIMEOUTS = {
     "odoo_tenant_config": 300,
     "tenant_suspend": 60,
     "tenant_resume": 60,
-    "bctone_tenant_config": 600,  # install sh_bct_tenant_agent (menarik `account`) di DB baru
+    "bctone_tenant_config": 900,  # install sh_bct_tenant_agent + pack (POS, stock, …) di DB baru
     # dry-run pendahulu (odoo_sso_provision / odoo_sso_disable / odoo_sso_user grant|resend_invite / semua tipe Fase 1)
     # dan job dry_run=true
     "dry_run": 60,
@@ -711,9 +712,10 @@ def v_tenant_state(job: Job, args: dict[str, Any]) -> None:
 
 
 def v_bctone_tenant_config(job: Job, args: dict[str, Any]) -> None:
-    """ADR 0019: {plan, enabled, limits?}. limits = objek metrik → int 0..BCTONE_LIMIT_MAX (metrik tanpa nilai =
+    """ADR 0019: {plan, enabled, limits?, pack?}. pack = paket modul industri (fnb|retail), hanya bila enabled.
+    limits = objek metrik → int 0..BCTONE_LIMIT_MAX (metrik tanpa nilai =
     tanpa batas). Nonaktif (enabled=false) memicu alert (tenant berhenti ditegakkan kuotanya)."""
-    _keys(args, {"plan", "enabled"}, {"limits"}, "args")
+    _keys(args, {"plan", "enabled"}, {"limits", "pack"}, "args")
     _deny_platform(job)
     job.args["plan"] = _enum(args, "plan", BCTONE_PLANS, "args.plan")
     job.args["enabled"] = _bool(args, "enabled", "args.enabled")
@@ -730,6 +732,10 @@ def v_bctone_tenant_config(job: Job, args: dict[str, Any]) -> None:
     if out and not job.args["enabled"]:
         raise Reject("rejected_validation", "args.limits tidak berlaku bila enabled=false")
     job.args["limits"] = out
+    if "pack" in args:
+        if not job.args["enabled"]:
+            raise Reject("rejected_validation", "args.pack tidak berlaku bila enabled=false")
+        job.args["pack"] = _enum(args, "pack", BCTONE_PACKS, "args.pack")
     job.pre_dry_run = not job.dry_run
     if not job.args["enabled"] and not job.dry_run:
         job.alert_reason = "bctone_tenant_config enabled=false"
@@ -824,6 +830,8 @@ def build_argv(cfg: Config, job: Job, dry: bool) -> list[str]:
         argv.append("--resume")
     elif job.type == "bctone_tenant_config":
         argv += ["--plan", a["plan"]]
+        if "pack" in a:
+            argv += ["--pack", a["pack"]]
         for m, v in a["limits"].items():
             argv += ["--limit", f"{m}={v}"]
         if not a["enabled"]:
