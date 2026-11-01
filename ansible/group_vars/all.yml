@@ -212,6 +212,7 @@ infra_jobs_job_types:
     - odoo_tenant_config
     - tenant_suspend
     - tenant_resume
+    - bctone_tenant_config   # ADR 0019 — staging dulu (2026-11-01)
   prod:
     - odoo_db_provision
     - odoo_route
