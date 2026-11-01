@@ -26,7 +26,7 @@ Isi tiap direktori pool:
 |---|---|---|
 | `docker-compose.yml` | service `odoo`, network `db-odoo-pool-a` + `odoo-edge` (prod) / `db-odoo-staging` + `odoo-edge-stg` (staging) — ADR 0010, tanpa port publish | ya |
 | `odoo.conf` | opsi server — **tanpa secret** (lihat §Secret) | ya |
-| `addons/shared` | **git submodule** `odoo-addons-shared` ter-pin: staging `64f8a8a` (2026-11-01, + `sh_bct_tenant_agent` 19.0.1.1.0, ADR 0019), prod `1773770` (`sh_auth_oidc` 19.0.1.5.0); riwayat: `4bd278a` plan 06, `35e6a99` plan 04 | gitlink |
+| `addons/shared` | **git submodule** `odoo-addons-shared` ter-pin: staging `64f8a8a` (2026-11-02, `sh_bct_tenant_agent` 19.0.1.2.0, ADR 0019), prod `1773770` (`sh_auth_oidc` 19.0.1.5.0); riwayat: `4bd278a` plan 06, `35e6a99` plan 04 | gitlink |
 | `addons/platform` | **git submodule** `odoo-addons-athera` (modul platform Athera `custom_*`, ADR 0015) — staging `v19.0.1.1.0` sejak 2026-09-29 (plan 13); pool-a **belum** | gitlink |
 | `pylib/` | dependensi Python modul platform (httpx, xmlschema), dibangun `addons/platform/tools/build-pylib.sh ./pylib`, mount ro `/mnt/extra-python` + `PYTHONPATH` | **tidak** |
 | `addons/clients/<slug>` | repo addons client (`odoo-addons-<slug>`) — kosong saat ini | ya (per client) |
