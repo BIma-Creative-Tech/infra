@@ -308,7 +308,8 @@ def _make_valid(case: dict):
         self.assertEqual([os.path.relpath(argv[0], self.env.scripts), *argv[1:]], case["argv"])
         pre = [c for c in calls if c["dry"]]
         expect_pre = (not case["job"]["dry_run"]) and (
-            case["job"]["type"] in ("odoo_sso_provision", "odoo_sso_disable", *ij.PHASE1_JOB_TYPES)
+            case["job"]["type"] in ("odoo_sso_provision", "odoo_sso_disable",
+                                   *ij.PHASE1_JOB_TYPES, *ij.BCTONE_JOB_TYPES)
             or (case["job"]["type"] == "odoo_sso_user" and case["job"]["args"]["action"] != "revoke"))
         if not case["job"]["dry_run"]:
             self.assertEqual(len(pre), 1 if expect_pre else 0, "dry-run pendahulu")
@@ -846,7 +847,7 @@ class TestPhase1Fixtures(unittest.TestCase):
             self.assertGreaterEqual(len([c for c in FX["invalid"] if c.get("job", {}).get("type") == t]), 3, t)
 
     def test_scripts_map_and_versions(self) -> None:
-        self.assertEqual(ij.VERSION, "1.2.0")
+        self.assertEqual(ij.VERSION, "1.3.0")
         self.assertEqual(set(ij.VALIDATORS), set(ALL_TYPES))
         self.assertEqual(set(ij.SCRIPTS), set(ALL_TYPES))
         self.assertTrue(set(ALL_TYPES) - {"dry_run"} <= set(ij.DEFAULT_TIMEOUTS))
@@ -1012,6 +1013,46 @@ class TestPhase1Validators(unittest.TestCase):
         with self.assertRaises(ij.Reject) as cm:
             ij.validate_job(obj, "staging", obj["job_id"], ALL_TYPES)
         self.assertEqual(cm.exception.detail, "type tidak dikenal")
+
+
+class TestBctoneTenantConfig(unittest.TestCase):
+    """ADR 0019: validator + argv `bctone_tenant_config` (tanpa spool)."""
+
+    CFG = ij.Config(instance="staging", scripts_dir="/s")
+
+    def job(self, args: dict, slug: str = "acme-co", dry_run: bool = False) -> ij.Job:
+        obj = {"v": 1, "job_id": "3f2c7a9e-1b4d-4e8a-9c3f-5a6b7c8d9e0f", "type": "bctone_tenant_config", "slug": slug,
+               "env": "staging", "dry_run": dry_run, "actor": "user:x", "requested_at": "2026-09-25T10:00:00Z",
+               "args": args}
+        return ij.validate_job(obj, "staging", obj["job_id"], ALL_TYPES)
+
+    def test_registered_but_not_default(self) -> None:
+        self.assertEqual(ij.BCTONE_JOB_TYPES, ("bctone_tenant_config",))
+        self.assertNotIn("bctone_tenant_config", ij.DEFAULT_JOB_TYPES)
+        self.assertEqual(ij.SCRIPTS["bctone_tenant_config"], "bctone-tenant-config.sh")
+        self.assertEqual(ij.DEFAULT_TIMEOUTS["bctone_tenant_config"], 600)
+        self.assertEqual(ij.DEFAULT_QUOTA["bctone_tenant_config_per_hour"], 30)
+        self.assertEqual(ij.VERSION, "1.3.0")
+
+    def test_metric_order_is_canonical(self) -> None:
+        job = self.job({"plan": "bctone-free", "enabled": True, "limits": {"trx_per_month": 300, "users": 1}})
+        self.assertEqual(ij.build_argv(self.CFG, job, False),
+                         ["/s/bctone-tenant-config.sh", "acme-co", "staging", "--plan", "bctone-free",
+                          "--limit", "users=1", "--limit", "trx_per_month=300"])
+        self.assertTrue(job.pre_dry_run)
+        self.assertIsNone(job.alert_reason)
+
+    def test_disable_alerts_only_on_apply(self) -> None:
+        self.assertEqual(self.job({"plan": "bctone-free", "enabled": False}).alert_reason,
+                         "bctone_tenant_config enabled=false")
+        self.assertIsNone(self.job({"plan": "bctone-free", "enabled": False}, dry_run=True).alert_reason)
+
+    def test_limit_bounds(self) -> None:
+        self.job({"plan": "bctone-umkm", "enabled": True, "limits": {"omzet_per_month": 0}})
+        self.job({"plan": "bctone-umkm", "enabled": True, "limits": {"omzet_per_month": ij.BCTONE_LIMIT_MAX}})
+        for bad in (-1, ij.BCTONE_LIMIT_MAX + 1, 1.5, "1", None, False):
+            with self.subTest(bad=bad), self.assertRaises(ij.Reject):
+                self.job({"plan": "bctone-umkm", "enabled": True, "limits": {"users": bad}})
 
 
 class TestPhase1Allowlist(Base):
@@ -1330,6 +1371,11 @@ class TestPhase1Quota(Base):
         self.assertEqual(self.state("tenant_suspend_staging"), ("failed", "rejected_quota"))
         self.assertEqual(self.state("tenant_resume_demo", env="staging"), ("failed", "rejected_quota"))
         self.assertEqual(self.state("odoo_tenant_config_strict")[0], "succeeded")
+
+    def test_bctone_tenant_config_per_hour(self) -> None:
+        self.fill(30, ("bctone_tenant_config",))
+        self.assertEqual(self.state("bctone_tenant_config_free_staging"), ("failed", "rejected_quota"))
+        self.assertEqual(self.state("odoo_user_ensure_admin_full")[0], "succeeded")
 
     def test_odoo_user_per_hour(self) -> None:
         self.fill(60, ("odoo_user_ensure",))
