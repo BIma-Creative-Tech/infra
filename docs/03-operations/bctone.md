@@ -47,3 +47,18 @@ docker exec -i odoo-staging odoo shell -c /etc/odoo/odoo.conf -d <db> --no-http 
 - Satu tenant: job `bctone_tenant_config` dengan `enabled=false` (`--disable`): ICP `enabled=0`, file kunci dihapus.
   Modul tetap ter-install tetapi inert.
 - Semua: kosongkan `USAGE_INGEST_SECRET` di CP (endpoint 404). Tenant tetap berjalan; kiriman gagal tercatat WARNING.
+
+## Status prod (2026-11-02, GATE 2 "deploy prod")
+
+Kode CP `9b7b979` (migrasi `0008`-`0010`) dan modul `sh_bct_tenant_agent` (gitlink `64f8a8a`) sudah terpasang di prod,
+tetapi **pendaftaran self-serve masih mati**: `BCTONE_REGISTER_ENABLED` tidak diisi di `web/control-plane/.env`
+→ `/daftar` 404. Endpoint `POST /api/bctone/usage` juga 404 (`USAGE_INGEST_SECRET` kosong) dan gateway AI 404
+(`AI_*` kosong), sama seperti perilaku lama.
+
+Sebelum membuka self-serve di prod, selesaikan berurutan:
+1. `USAGE_INGEST_SECRET` + `/etc/infra-jobs/bctone-usage-prod.secret` (lihat bagian Rahasia), lalu `compose up -d`.
+2. `bctone_tenant_config` ke `job_types` `/etc/infra-jobs/prod.conf` **dan** `INFRA_JOBS_TYPES` compose prod, lalu role
+   `infra_jobs` (`ansible-playbook site.yml --tags infra_jobs`).
+3. SMTP prod: worker prod sekarang **tidak** punya `SMTP_*` ("email pengingat nonaktif"), jadi email notifikasi
+   registrasi tidak akan terkirim sampai SMTP diisi.
+4. Teks S&K/Privasi, rekening asli (`PAYMENT_INSTRUCTIONS`), DNS `one`/`*.one`, lalu `BCTONE_REGISTER_ENABLED=1`.
