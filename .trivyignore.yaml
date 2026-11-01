@@ -1,0 +1,10 @@
+# Pengecualian trivy config (security.yml: --ignorefile /src/.trivyignore.yaml). Setiap entri WAJIB dibatasi path
+# + alasan; jangan tambah pengecualian global. Disetujui user 2026-10-18.
+misconfigurations:
+  - id: DS-0002
+    paths:
+      - "ansible/roles/ci_runner/files/image/Dockerfile"
+    statement: >-
+      USER root disengaja (plan 12, ADR 0014): container jalan di sysbox-runc yang memetakan root container ke uid
+      host tak berhak; entrypoint menyalakan dockerd dalam lalu turun ke uid 1001 (setpriv) untuk run.sh.
+      Sama dengan `hadolint ignore=DL3002` di Dockerfile.

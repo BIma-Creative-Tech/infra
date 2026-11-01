@@ -43,7 +43,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
-VERSION = "1.2.0"
+VERSION = "1.3.0"
 
 # ------------------------------------------------------------------------------------------------ konstanta (kontrak)
 # Instance → env yang boleh disentuh + user host penulis job.
@@ -66,7 +66,9 @@ PHASE1_JOB_TYPES = (
     "tenant_suspend",
     "tenant_resume",
 )
-JOB_TYPES = LEGACY_JOB_TYPES + PHASE1_JOB_TYPES
+# BCTOne self-serve (ADR 0019 #4). Aktif hanya bila tercantum di `job_types` conf instance.
+BCTONE_JOB_TYPES = ("bctone_tenant_config",)
+JOB_TYPES = LEGACY_JOB_TYPES + PHASE1_JOB_TYPES + BCTONE_JOB_TYPES
 # Allowlist per instance bila /etc/infra-jobs/<inst>.conf tidak memuat `job_types` (kontrak §0.5): hanya 5 tipe lama.
 DEFAULT_JOB_TYPES = LEGACY_JOB_TYPES
 ERROR_CODES = (
@@ -95,6 +97,7 @@ SCRIPTS = {
     "odoo_tenant_config": "odoo-tenant-config.sh",
     "tenant_suspend": "tenant-state.sh",
     "tenant_resume": "tenant-state.sh",
+    "bctone_tenant_config": "bctone-tenant-config.sh",
 }
 # Subperintah kc-user.sh — argv: kc-user.sh <sub> <slug> <env> … (kontrak §1; tipe lain: <skrip> <slug> <env> …).
 KC_USER_SUBCOMMANDS = {
@@ -137,6 +140,10 @@ ODOO_ACCESS = ("none", "user", "admin")
 ODOO_USER_ROLES = ("user", "admin")
 KC_EMAIL_ACTIONS = ("UPDATE_PASSWORD", "VERIFY_EMAIL", "CONFIGURE_TOTP")
 TENANT_CHECK_MODES = ("off", "compat", "strict")
+# ADR 0019: paket & metrik kuota BCTOne (= control-plane lib/bctone-quota.ts QUOTA_METRICS, plans BCTONE_PLANS).
+BCTONE_PLANS = ("bctone-free", "bctone-umkm", "bctone-bisnis")
+BCTONE_METRICS = ("users", "devices", "outlets", "trx_per_month", "omzet_per_month", "ai_prompts_per_day")
+BCTONE_LIMIT_MAX = 999_999_999_999
 APPROVE_ENVS = ("prod", "demo")  # kc_realm_sync apply di env ini wajib args.approve=true
 MAX_HOSTS = 5
 
@@ -172,6 +179,7 @@ DEFAULT_QUOTA = {
     "kc_realm_sync_per_day": 10,  # kc_realm_sync (termasuk dry_run)
     "tenant_state_per_day": 20,  # tenant_suspend + tenant_resume (termasuk dry_run)
     "odoo_user_per_hour": 60,  # odoo_user_ensure (termasuk dry_run)
+    "bctone_tenant_config_per_hour": 30,  # ADR 0019 (termasuk dry_run)
 }
 DEFAULT_TIMEOUTS = {
     "odoo_db_provision": 900,
@@ -189,6 +197,7 @@ DEFAULT_TIMEOUTS = {
     "odoo_tenant_config": 300,
     "tenant_suspend": 60,
     "tenant_resume": 60,
+    "bctone_tenant_config": 600,  # install sh_bct_tenant_agent (menarik `account`) di DB baru
     # dry-run pendahulu (odoo_sso_provision / odoo_sso_disable / odoo_sso_user grant|resend_invite / semua tipe Fase 1)
     # dan job dry_run=true
     "dry_run": 60,
@@ -201,6 +210,7 @@ TYPE_QUOTAS: tuple[tuple[tuple[str, ...], int, str, str], ...] = (
     (("kc_realm_sync",), 86400, "kc_realm_sync_per_day", "kuota kc_realm_sync/24 jam habis"),
     (("tenant_suspend", "tenant_resume"), 86400, "tenant_state_per_day", "kuota tenant_suspend/resume/24 jam habis"),
     (("odoo_user_ensure",), 3600, "odoo_user_per_hour", "kuota odoo_user_ensure/jam habis"),
+    (BCTONE_JOB_TYPES, 3600, "bctone_tenant_config_per_hour", "kuota bctone_tenant_config/jam habis"),
 )
 QUOTA_BOUNDS = (0, 10000)
 TIMEOUT_BOUNDS = (5, 7200)
@@ -700,6 +710,31 @@ def v_tenant_state(job: Job, args: dict[str, Any]) -> None:
         job.alert_reason = "tenant_suspend"
 
 
+def v_bctone_tenant_config(job: Job, args: dict[str, Any]) -> None:
+    """ADR 0019: {plan, enabled, limits?}. limits = objek metrik → int 0..BCTONE_LIMIT_MAX (metrik tanpa nilai =
+    tanpa batas). Nonaktif (enabled=false) memicu alert (tenant berhenti ditegakkan kuotanya)."""
+    _keys(args, {"plan", "enabled"}, {"limits"}, "args")
+    _deny_platform(job)
+    job.args["plan"] = _enum(args, "plan", BCTONE_PLANS, "args.plan")
+    job.args["enabled"] = _bool(args, "enabled", "args.enabled")
+    limits = args.get("limits", {})
+    if not isinstance(limits, dict) or set(limits) - set(BCTONE_METRICS):
+        raise Reject("rejected_validation", "args.limits: metrik tidak dikenal")
+    out: dict[str, int] = {}
+    for m in BCTONE_METRICS:  # urutan tetap → argv deterministik
+        if m in limits:
+            v = limits[m]
+            if type(v) is not int or not 0 <= v <= BCTONE_LIMIT_MAX:
+                raise Reject("rejected_validation", "args.limits: nilai harus int 0..999999999999")
+            out[m] = v
+    if out and not job.args["enabled"]:
+        raise Reject("rejected_validation", "args.limits tidak berlaku bila enabled=false")
+    job.args["limits"] = out
+    job.pre_dry_run = not job.dry_run
+    if not job.args["enabled"] and not job.dry_run:
+        job.alert_reason = "bctone_tenant_config enabled=false"
+
+
 VALIDATORS: dict[str, Callable[[Job, dict[str, Any]], None]] = {
     "odoo_db_provision": v_db_provision,
     "odoo_route": v_route,
@@ -716,6 +751,7 @@ VALIDATORS: dict[str, Callable[[Job, dict[str, Any]], None]] = {
     "odoo_tenant_config": v_odoo_tenant_config,
     "tenant_suspend": v_tenant_state,
     "tenant_resume": v_tenant_state,
+    "bctone_tenant_config": v_bctone_tenant_config,
 }
 
 
@@ -786,6 +822,12 @@ def build_argv(cfg: Config, job: Job, dry: bool) -> list[str]:
         argv.append("--suspend")
     elif job.type == "tenant_resume":
         argv.append("--resume")
+    elif job.type == "bctone_tenant_config":
+        argv += ["--plan", a["plan"]]
+        for m, v in a["limits"].items():
+            argv += ["--limit", f"{m}={v}"]
+        if not a["enabled"]:
+            argv.append("--disable")
     else:  # pragma: no cover — VALIDATORS dan cabang di atas harus sinkron
         raise ValueError(f"tipe tanpa argv: {job.type}")
     if dry:

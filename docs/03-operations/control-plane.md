@@ -91,6 +91,7 @@ Network tidak berubah oleh plan 05 (worker hanya network DB; sejak plan 06: `db-
 
 | Tag image | Commit repo control-plane | Isi | Migrasi | Dipakai |
 |---|---|---|---|---|
+| `e71dc36` | `e71dc36` (PR #1) | patch CVE: `next` 16.3.8 (CVE-2026-94483), `sharp` 0.35.5, `source-map-js` 1.2.2 — hanya dependency | tidak ada baru | staging + prod 2026-10-18 18:05 WIB (**sekarang**; rollback `11be44d`, aman — tanpa migrasi). Smoke: 307 `/login` + CSP nonce, providers 200, `POST /login` Server Action lewat WAF → 200 + `x-action-redirect` (id hex 42) |
 | `6d94d2b` | `6d94d2b` (kode = tag lokal `v0.2.0` `31411f0`, yang hanya menambah CHANGELOG + versi) | jembatan + perbaikan QA J5 | 0001–0003 | staging `6845ea1`, prod `682e32b` (**sekarang**) |
 | `7b85a78` | `7b85a78` | jembatan J2/J2b | 0001–0002 | staging `84f8246` (J4, digantikan) |
 | `4fc3828` | `4fc3828` | sebelum plan 05 | 0000 | prod & staging sebelum plan 05 |

@@ -4,8 +4,8 @@
   Halaman ini = ringkasan operasional harian.
 - **Terkait:** ADR 0007 (`docs/adr/0007-web-client-ui-stack.md`), plan 03 (`docs/plans/03-web-client-template.md`),
   `traefik.md` §Network web-edge, `crowdsec.md` (CRS 920420), `observability.md` (Uptime Kuma).
-- **Repo aplikasi:** `web-starter` (`/opt/src/web-starter`, GitHub `bctech-adm/web-starter`, private) → disalin menjadi
-  `web-<slug>` per client. Image GHCR `ghcr.io/bctech-adm/web-<slug>`: push `main` → `:sha-<12>`, tag `vX.Y.Z` → `:X.Y.Z`
+- **Repo aplikasi:** `web-starter` (`/opt/src/web-starter`, GitHub `BIma-Creative-Tech/web-starter`, private) → disalin menjadi
+  `web-<slug>` per client. Image GHCR `ghcr.io/bima-creative-tech/web-<slug>` (sebelum 2026-10-18: `ghcr.io/bctech-adm/…` — org lama, tidak bisa di-push lagi): push `main` → `:sha-<12>`, tag `vX.Y.Z` → `:X.Y.Z`
   (tag harus = `version` di `package.json`).
 
 ## Di mana file berada
@@ -26,9 +26,9 @@ Nama container = project compose = router = `web-<slug>-<env>`; hanya network `w
 
 | Host | Stack | Image | Catatan |
 |---|---|---|---|
-| `starter.staging.bimacreative.tech` | `staging/web-clients/starter/` (container `web-starter-staging`) | `web-starter:dev-d5f6148` (lokal) | Demo plan 03. **TEMPORARY(2026-09-25):** image dibangun lokal di VPS karena VPS belum punya token baca GHCR (menunggu user). Setelah token ada dan tag `v0.1.0` di-push + CI hijau: `docker login ghcr.io` lalu upgrade ke `ghcr.io/bctech-adm/web-starter:0.1.0` (§Upgrade) |
-| `expomedia.id` (+ `www` → 301) | `web/clients/expomedia/` (container `web-expomedia-prod`) | `web-expomedia:dev-148b002` (lokal, repo `/opt/src/web-expomedia`) | Client Expomedia Indo Karya (plan 07). **Mode coming soon** (`src/config/launch.ts`, host prod) sampai konten asli dikonfirmasi client; form kontak ON (SMTP `info@expomedia.id`). **TEMPORARY(2026-09-25):** image lokal (tanpa GHCR). |
-| `expomedia.staging.bimacreative.tech` | `staging/web-clients/expomedia/` (container `web-expomedia-staging`) | `web-expomedia:dev-a173509` (lokal, v0.4.0 branch `feat/contact-odoo-lead`) | Website lengkap (konten PLACEHOLDER) untuk review client; form kontak ON + lead CRM ke `expomedia_staging` (plan 13). TEMPORARY sama dengan prod. |
+| `starter.staging.bimacreative.tech` | `staging/web-clients/starter/` (container `web-starter-staging`) | `ghcr.io/bima-creative-tech/web-starter:sha-9f36bd86f28e` (`@sha256:7d7ec2bb…`, main `9f36bd8`, next 16.3.8) | Demo plan 03. Sejak 2026-10-18 dari GHCR (TEMPORARY image lokal 2026-09-25 selesai; rollback lokal `web-starter:dev-d5f6148`). Tanpa contact/Umami/www; `mem_limit` 192m dipulihkan setelah render (§Upgrade, jebakan render ulang). |
+| `expomedia.id` (+ `www` → 301) | `web/clients/expomedia/` (container `web-expomedia-prod`) | `web-expomedia:dev-8408d19` (lokal, repo `/opt/src/web-expomedia` branch `fix/deps-cve-2026-10` = v0.6.0 `033f5b1` + patch CVE next 16.3.8) | Client Expomedia Indo Karya (plan 07). **Mode coming soon** (`src/config/launch.ts`, host prod) sampai konten asli dikonfirmasi client; form kontak ON (SMTP `info@expomedia.id`). **TEMPORARY(2026-09-25):** image lokal (tanpa GHCR). **2026-10-18:** patch CVE; rollback `dev-033f5b1`. Commit `8408d19` hanya lokal — deploy key VPS ditolak GitHub (repo pindah org?), push setelah akses pulih. |
+| `expomedia.staging.bimacreative.tech` | `staging/web-clients/expomedia/` (container `web-expomedia-staging`) | `web-expomedia:dev-8408d19` (lokal, sama dengan prod) | Website lengkap (konten PLACEHOLDER) untuk review client; form kontak ON + lead CRM ke `expomedia_staging` (plan 13). TEMPORARY sama dengan prod. **2026-10-18:** `.env` sebelumnya masih `dev-cc9ce18` (v0.5.0) sementara container jalan `dev-033f5b1` lewat override shell → `up -d` sempat turun ke v0.5.0 ±1 menit; `.env` kedua stack kini `dev-8408d19` (owner via `!`, backup `.env.bak-20261018`). Cek `docker compose up -d --dry-run` = Running sebelum deploy. |
 | `erajaya-loyalty.staging.bimacreative.tech` | `staging/erajaya-loyalty/` (container `erajaya-staging-web`) — **bukan** template web-client | `erajaya-loyalty:<tag>` (lokal, repo `/opt/src/erajaya-loyalty`) | Next.js 16 + **Payload CMS 3 + Postgres** (portal member, `/admin`, API POS HMAC, cron expiry). Stack manual pola DRMS: edge sendiri `erajaya-edge-stg` (internal, tanpa egress), DB `erajaya_loyalty_stg` (`db-erajaya-stg`), 512m. **Disiapkan 2026-10-07, container belum dijalankan** — runbook `docs/runbooks/erajaya-loyalty-staging.md`. `OTP_DEV_MODE=true` (demo, TEMPORARY). |
 
 Cek image yang sedang berjalan: `docker inspect -f '{{.Config.Image}}' web-<slug>-<env>`.
@@ -37,7 +37,7 @@ Cek image yang sedang berjalan: `docker inspect -f '{{.Config.Image}}' web-<slug
 
 ```
 sudo /opt/infra/scripts/provision-web-client.sh <slug> <env> --host <fqdn> \
-  --image ghcr.io/bctech-adm/web-<slug>:<tag-baru> [--www] [--contact …]
+  --image ghcr.io/bima-creative-tech/web-<slug>:<tag-baru> [--www] [--contact …]
 ```
 
 - Opsi lain **harus sama** dengan provision sebelumnya (`--www`/`--contact` yang terlewat akan dilepas).
@@ -46,6 +46,12 @@ sudo /opt/infra/scripts/provision-web-client.sh <slug> <env> --host <fqdn> \
 - Catat tag baru di pesan commit infra / `provision_job` (`.env` tidak di git).
 - Verifikasi: baris `RESULT … changed=yes`, lalu `curl -sI https://<fqdn>/ | grep -iE '^(HTTP|content-security|strict-transport)'`
   dan `docker stats --no-stream web-<slug>-<env>`.
+- **Jebakan render ulang (2026-10-18):** skrip menyalin ulang `docker-compose*.yml` dari `templates/web-client/`. Override
+  per stack yang di-commit (mis. `staging/web-clients/bct/docker-compose.yml` `mem_limit: 192m`, owner 2026-10-04) kembali ke
+  template → setelah provision: `git checkout -- <dir>/docker-compose.yml && docker compose up -d`. File override yang belum
+  pernah ada (mis. `docker-compose.odoo.yml`) ikut tersalin tanpa aktif; hapus bila tidak dipakai.
+- Riwayat: bct staging + prod 2026-10-18 → `ghcr.io/bima-creative-tech/bct-website:sha-0aca342802ad`
+  (`@sha256:cf391406…`, next 16.3.8/sharp 0.35.5; rollback `ghcr.io/bctech-adm/bct-website:0.2.0` masih ada lokal).
 
 ## Analytics Umami (opsional, plan 11 / ADR 0013)
 

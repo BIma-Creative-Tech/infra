@@ -94,7 +94,7 @@ jobs:
       - name: trivy config (Dockerfile/Containerfile/IaC)
         run: |
           docker run --rm -v "$PWD:/src:ro" -v "$RUNNER_TEMP/trivy-cache:/root/.cache" "$TRIVY_IMAGE" \
-            config --quiet --severity HIGH,CRITICAL --exit-code 1 /src
+            config --quiet --severity HIGH,CRITICAL --ignorefile /src/.trivyignore.yaml --exit-code 1 /src
 
   hadolint:
     name: hadolint

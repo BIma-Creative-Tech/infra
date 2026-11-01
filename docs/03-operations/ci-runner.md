@@ -1,4 +1,10 @@
-# Operasi — runner GitHub Actions self-hosted (`bctech-adm/drms`)
+# Operasi — runner GitHub Actions self-hosted (`BIma-Creative-Tech/drms`)
+
+> **Status 2026-10-14: DIMATIKAN** (`ci_runner_supervisor_enabled: false`, service + path unit disabled/stopped). Repo drms
+> sekarang **public** → CI berjalan di runner GitHub (menit gratis). Runner self-hosted tidak boleh melayani repo public
+> (PR fork menjalankan kode asing di VPS prod). Disk `/srv/ci`, image, sysbox, network tetap ada. Menyalakan lagi (hanya
+> bila repo kembali private): set `true` → `--tags ci_runner_supervisor`, PAT fine-grained resource owner org
+> `BIma-Creative-Tech` (repo drms, Administration RW) di `/etc/ci-runner/pat`, variabel repo `CI_RUNS_ON`.
 
 Plan 12 (`docs/plans/12-gh-runner-drms.md`), ADR 0014. Role Ansible `ci_runner` (`ansible/roles/ci_runner`), tag per bagian:
 `ci_runner_disk | ci_runner_sysbox | ci_runner_network | ci_runner_image | ci_runner_toolchain | ci_runner_gc | ci_runner_supervisor`.
@@ -79,7 +85,7 @@ broker (`TaskCanceledException`, log berhenti), re-run job tag v0.6.1 tidak diam
 
 ## 4. Rotasi PAT
 
-PAT fine-grained: hanya repo `bctech-adm/drms`, izin **Administration: Read and write**. Kedaluwarsa ≤ 90 hari.
+PAT fine-grained: resource owner org `BIma-Creative-Tech`, hanya repo `drms`, izin **Administration: Read and write**. Kedaluwarsa ≤ 90 hari.
 
 1. Owner membuat PAT baru di GitHub, lalu di host:
    `sudo install -m 600 -o root -g root /dev/stdin /etc/ci-runner/pat` (tempel PAT, Enter, Ctrl-D).

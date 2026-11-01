@@ -300,6 +300,21 @@ Web `sha256:b90bf50b…`, migrate `sha256:31c076ca…`. 5 migrasi: p2s_operator_
 ### Upgrade 2026-10-13 00:30 WIB → `0.9.1` (dari `0.7.0-stg-3bc8b94`) — build rilis yang sama dengan prod
 Image namespace baru `ghcr.io/bima-creative-tech/proyekkas-web:0.9.1@sha256:a4ac2848…`, migrate `@sha256:9ceb6277…` (tag rilis, bukan `-stg-`). 20 migrasi (approval_pm_direktur … attachments_owner_link) → Done; log: 2 project ber-RAB tanpa RAP (`DRMS/PRJ-LT-E9`, `DRMS/UJI-PRJ`), aturan "Pengajuan Direktur" dibuat untuk DRMS & CS1, linked kosong. Dump `backups/proyekkas/pk_drms_stg-20261013-002906-pre-0.9.1.dump`. Smoke: health/admin login/privasi/unduh 200, list expense tanpa sesi 302, 0 log error. Rollback: restore dump + `PK_*_IMAGE` → `0.7.0-stg-3bc8b94` (web `@sha256:b90bf50b…`, migrate `@sha256:31c076ca…`).
 
+### Upgrade 2026-10-14 22:00 WIB → `0.10.0` (dari `0.9.1`) — build rilis yang sama dengan prod
+Web `ghcr.io/bima-creative-tech/proyekkas-web:0.10.0@sha256:b8f04685…`, migrate `@sha256:9c4adf8e…` (tag v0.10.0 = 00a02d0, run ci 38580134248). 15 migrasi aditif (20261013_610000_d1310_renumber … 20261014_100300_d1310_intercompany_data) → Done (±1,5 s). Log data: 630200 level Owner pada rule 1,4,7,8 (PT 1 & 2) + rule baru 9 (PT 1), 10 (PT 2); 700200 rule vendor PT 1,2; 100300 sumber ANTAR-PT + rule antar-PT PT 1,2. Dump `backups/proyekkas/pk_drms_stg-20261014-215329-pre-0.10.0.dump`. Dijalankan dengan override env shell (`PK_*_IMAGE=… docker compose up -d`; hook melarang Lead membaca/menyalin `.env`) — **`.env` staging belum mengikuti** (mtime 2026-10-11, kemungkinan masih 0.7.0-stg) → owner perbarui via `!` sebelum `docker compose up` berikutnya; `.env.pre-0.10.0` belum dibuat (hook). Smoke: `/api/v1/health` 200 ok, `/admin/login` 200, `/auth/login` 302 realm drms-staging, privasi/unduh 200, 0 log error; web 98 MiB / worker 69 MiB. Login + buka pengajuan/PDF diserahkan ke sesi proyekkas/owner (UAT). Rollback: restore dump + `PK_*_IMAGE` → 0.9.1 (web `@sha256:a4ac2848…`, migrate `@sha256:9ceb6277…`).
+
+### Upgrade 2026-10-15 09:35 WIB → `0.11.0` (dari `0.10.0`) — build rilis yang sama dengan prod
+Web `@sha256:58b525b3…`, migrate `@sha256:c8e4d1f0…` (tag v0.11.0 = bbe893a, run ci 38669780867). 4 migrasi 20261015_100000…100300 (fundcheck enums/loans/guard/data: urutan PJA PT 1,2) → Done. `fund_check_enabled` = false PT 1,2. Dump `backups/proyekkas/pk_drms_stg-20261015-093203-pre-0.11.0.dump`. Smoke: health/admin login/privasi/unduh 200, `/auth/login` 302, 0 log error. Override env shell — `.env` staging belum mengikuti (owner via `!`). Rollback: restore dump + `PK_*_IMAGE` → 0.10.0 (`b8f04685…`/`9c4adf8e…`).
+
+### Upgrade 2026-10-16 00:30 WIB → `0.12.0` (dari `0.11.0`) — build rilis yang sama dengan prod
+Web `@sha256:b5d716bb…`, migrate `@sha256:32523f69…` (tag v0.12.0 = 484642a). Pratinjau read-only (preview.sql/preview-trim.sql tag v0.12.0): 4 aturan UBAH (DRMS 1/2, CS1 4/5), 1 pengajuan TETAP, trim 0. 3 migrasi data → Done (rulesAligned 4, requestsRerouted 0, trimmed 0). Dump `backups/proyekkas/pk_drms_stg-20261016-002618-pre-0.12.0.dump`. Smoke 200/302, 0 error. Override env shell — `.env` staging belum 0.12.0 (owner via `!`).
+
+### Upgrade 2026-10-16 06:42 WIB → `0.13.0` (dari `0.12.0`) — build rilis yang sama dengan prod
+Web `@sha256:50b314db…`, migrate `@sha256:82ff4cc9…` (tag v0.13.0 = 375c981, label revision cocok). 3 migrasi aditif (partner_contacts, soft_delete_enums, soft_delete) → Done; backfill vendors_contacts 1. Dump `backups/proyekkas/pk_drms_stg-20261016-064014-pre-0.13.0.dump`. Smoke 200/302, 0 error. Override env shell — `.env` staging belum 0.13.0 (owner via `!`).
+
+### Upgrade 2026-10-17 09:35 WIB → `0.14.0` (dari `0.13.1`) — build rilis yang sama dengan prod
+Web `@sha256:4e4592ad…`, migrate `@sha256:42009cd7…` (rev 04a5850 = v0.14.0). 1 migrasi d1710_service_types → Done 151 ms (service_types 8 = 4 × 2 PT, 0 laporan tanpa jenis). Dump `backups/proyekkas/pk_drms_stg-20261017-093223-pre-0.14.0.dump`. Smoke 200/302, 0 error. Rollback: image 0.13.1 (`99d2705e…`/`ef4c2acf…`) tanpa migrate:down. Override env shell — `.env` staging belum 0.14.0.
+
 ## Rollback
 
 - **Postgres:** `git revert` commit postgres → `docker compose restart postgres` (pg_hba tanpa baris pk_drms → login
