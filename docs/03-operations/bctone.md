@@ -56,9 +56,10 @@ tetapi **pendaftaran self-serve masih mati**: `BCTONE_REGISTER_ENABLED` tidak di
 (`AI_*` kosong), sama seperti perilaku lama.
 
 Sebelum membuka self-serve di prod, selesaikan berurutan:
-1. `USAGE_INGEST_SECRET` + `/etc/infra-jobs/bctone-usage-prod.secret` (lihat bagian Rahasia), lalu `compose up -d`.
-2. `bctone_tenant_config` ke `job_types` `/etc/infra-jobs/prod.conf` **dan** `INFRA_JOBS_TYPES` compose prod, lalu role
-   `infra_jobs` (`ansible-playbook site.yml --tags infra_jobs`).
+1. ✅ (2026-11-02) `USAGE_INGEST_SECRET` + `/etc/infra-jobs/bctone-usage-prod.secret` (lihat bagian Rahasia), lalu
+   `compose up -d` → `POST https://cp.<domain>/api/bctone/usage` = 401.
+2. ✅ (2026-11-02) `bctone_tenant_config` ke `job_types` `/etc/infra-jobs/prod.conf` **dan** `INFRA_JOBS_TYPES` compose
+   prod, lalu role `infra_jobs` (`/opt/ansible-venv/bin/ansible-playbook site.yml --tags infra_jobs`).
 3. SMTP prod: worker prod sekarang **tidak** punya `SMTP_*` ("email pengingat nonaktif"), jadi email notifikasi
    registrasi tidak akan terkirim sampai SMTP diisi.
 4. Teks S&K/Privasi, rekening asli (`PAYMENT_INSTRUCTIONS`), DNS `one`/`*.one`, lalu `BCTONE_REGISTER_ENABLED=1`.
