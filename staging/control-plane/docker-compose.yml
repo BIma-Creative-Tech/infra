@@ -8,7 +8,7 @@ name: staging-control-plane
 x-hardening: &hardening
   # Tag pin (short SHA commit main repo control-plane). Override sementara:
   #   CONTROL_PLANE_TAG=<tag> docker compose up -d
-  image: control-plane:${CONTROL_PLANE_TAG:-9b7b979}   # BCTOne email registrasi + Console Tagihan (tanpa migrasi; 2026-11-02; rollback 6a2ca45)
+  image: control-plane:${CONTROL_PLANE_TAG:-952fa48}   # BCTOne /syarat /privasi + rekening Mandiri (tanpa migrasi; 2026-11-03; rollback 9b7b979)
   env_file:
     - .env
   user: "1001:1001"
