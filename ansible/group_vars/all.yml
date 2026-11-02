@@ -228,6 +228,7 @@ infra_jobs_job_types:
     - odoo_tenant_config
     - tenant_suspend
     - tenant_resume
+    - bctone_tenant_config   # ADR 0019 — prod 2026-11-02 (self-serve tetap mati: BCTONE_REGISTER_ENABLED kosong)
 
 # erajaya-loyalty staging expiry timer (docs/runbooks/erajaya-loyalty-staging.md §7) — aktif sejak 2026-10-08
 erajaya_staging_cron_state: present
