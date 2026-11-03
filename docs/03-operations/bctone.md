@@ -60,9 +60,13 @@ Sebelum membuka self-serve di prod, selesaikan berurutan:
    `compose up -d` → `POST https://cp.<domain>/api/bctone/usage` = 401.
 2. ✅ (2026-11-02) `bctone_tenant_config` ke `job_types` `/etc/infra-jobs/prod.conf` **dan** `INFRA_JOBS_TYPES` compose
    prod, lalu role `infra_jobs` (`/opt/ansible-venv/bin/ansible-playbook site.yml --tags infra_jobs`).
-3. SMTP prod: worker prod sekarang **tidak** punya `SMTP_*` ("email pengingat nonaktif"), jadi email notifikasi
-   registrasi tidak akan terkirim sampai SMTP diisi.
-4. Teks S&K/Privasi, rekening asli (`PAYMENT_INSTRUCTIONS`), DNS `one`/`*.one`, lalu `BCTONE_REGISTER_ENABLED=1`.
+3. ✅ (2026-11-03) SMTP worker prod → `mail.bimacreative.tech:587` (no-reply@), uji AUTH 235 + kirim `status=sent`
+   (§Email prod). Catatan: MX iCloud/Amazon SES inbound tidak terjangkau :25 dari VPS (mail.md §Antrean macet).
+4. ✅ (2026-11-03, CP `952fa48`) `/syarat` + `/privasi` (DRAF operasional, tinjauan hukum owner menyusul) dan rekening
+   Mandiri default (`src/lib/company.ts`; `PAYMENT_INSTRUCTIONS` hanya override).
+5. Host tenant prod = `<slug>.erp.bimacreative.tech` (wildcard `*.erp` sudah ada) → **tidak** butuh DNS `*.one` untuk
+   pendaftaran. `one`/`*.one` (marketing + web profil, v2.1 D-3) menyusul bersama web marketing.
+6. Owner: `BCTONE_REGISTER_ENABLED=1` di `web/control-plane/.env` → `docker compose up -d web` → `/daftar` 200.
 
 ## Email prod (2026-11-03)
 
