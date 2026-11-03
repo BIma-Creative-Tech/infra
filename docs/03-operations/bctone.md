@@ -62,7 +62,7 @@ Sebelum membuka self-serve di prod, selesaikan berurutan:
    prod, lalu role `infra_jobs` (`/opt/ansible-venv/bin/ansible-playbook site.yml --tags infra_jobs`).
 3. ✅ (2026-11-03) SMTP worker prod → `mail.bimacreative.tech:587` (no-reply@), uji AUTH 235 + kirim `status=sent`
    (§Email prod). Catatan: MX iCloud/Amazon SES inbound tidak terjangkau :25 dari VPS (mail.md §Antrean macet).
-4. ✅ (2026-11-03, CP `952fa48`) `/syarat` + `/privasi` (DRAF operasional, tinjauan hukum owner menyusul) dan rekening
+4. ✅ (2026-11-03, CP `952fa48`; tautan langkah akun `890efa9`) `/syarat` + `/privasi` (DRAF operasional, tinjauan hukum owner menyusul) dan rekening
    Mandiri default (`src/lib/company.ts`; `PAYMENT_INSTRUCTIONS` hanya override).
 5. Host tenant prod = `<slug>.erp.bimacreative.tech` (wildcard `*.erp` sudah ada) → **tidak** butuh DNS `*.one` untuk
    pendaftaran. `one`/`*.one` (marketing + web profil, v2.1 D-3) menyusul bersama web marketing.
