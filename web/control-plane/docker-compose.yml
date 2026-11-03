@@ -11,7 +11,7 @@ name: web-control-plane
 x-hardening: &hardening
   # Tag pin (short SHA commit main repo control-plane). Override sementara untuk rollback:
   #   CONTROL_PLANE_TAG=<tag-lama> docker compose up -d   (lihat docs)
-  image: control-plane:${CONTROL_PLANE_TAG:-890efa9}   # = image live prod. 2026-11-03: tautan S&K/Privasi langkah akun /daftar (tanpa migrasi); BCTONE_REGISTER_ENABLED=0. Rollback: 952fa48
+  image: control-plane:${CONTROL_PLANE_TAG:-890efa9}   # = image live prod. 2026-11-03: tautan S&K/Privasi langkah akun /daftar (tanpa migrasi); /daftar DIBUKA 2026-11-03 (BCTONE_REGISTER_ENABLED=1). Rollback: 952fa48
   env_file:
     - .env
   user: "1001:1001"
@@ -62,6 +62,9 @@ services:
       PLATFORM_PUBLIC_IPV4: 31.97.50.221   # checklist DNS domain tenant (bukan secret)
       # plan 15: tombol "Buka Odoo" Quotation Tracker (bukan secret).
       DASHBOARD_ODOO_URLS: expomedia=https://erp.expomedia.id
+      # BCTOne registrasi self-serve /daftar (publik) — dibuka 2026-11-03 atas keputusan owner (GATE 2). Tutup = "0".
+      BCTONE_REGISTER_ENABLED: "1"
+      BCTONE_CAPACITY: "15"   # D-2: pool-a 10–15 tenant self-serve aktif, lebih = waitlist
     tmpfs:
       - /tmp:uid=1001,gid=1001,mode=0700
       - /app/.next/cache:uid=1001,gid=1001,mode=0700

@@ -66,7 +66,9 @@ Sebelum membuka self-serve di prod, selesaikan berurutan:
    Mandiri default (`src/lib/company.ts`; `PAYMENT_INSTRUCTIONS` hanya override).
 5. Host tenant prod = `<slug>.erp.bimacreative.tech` (wildcard `*.erp` sudah ada) → **tidak** butuh DNS `*.one` untuk
    pendaftaran. `one`/`*.one` (marketing + web profil, v2.1 D-3) menyusul bersama web marketing.
-6. Owner: `BCTONE_REGISTER_ENABLED=1` di `web/control-plane/.env` → `docker compose up -d web` → `/daftar` 200.
+6. ✅ (2026-11-03) Pendaftaran prod DIBUKA: `BCTONE_REGISTER_ENABLED: "1"` + `BCTONE_CAPACITY: "15"` di `environment`
+   web `web/control-plane/docker-compose.yml` → `docker compose up -d web` → `/daftar` 200. Menutup lagi: ubah ke `"0"`
+   lalu `up -d web` (pendaftar yang sedang provisioning tetap diproses worker).
 
 ## Email prod (2026-11-03)
 
