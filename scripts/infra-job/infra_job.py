@@ -43,7 +43,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
-VERSION = "1.4.0"
+VERSION = "1.5.0"
 
 # ------------------------------------------------------------------------------------------------ konstanta (kontrak)
 # Instance → env yang boleh disentuh + user host penulis job.
@@ -144,7 +144,8 @@ TENANT_CHECK_MODES = ("off", "compat", "strict")
 BCTONE_PLANS = ("bctone-free", "bctone-umkm", "bctone-bisnis")
 BCTONE_METRICS = ("users", "devices", "outlets", "trx_per_month", "omzet_per_month", "ai_prompts_per_day")
 BCTONE_LIMIT_MAX = 999_999_999_999
-BCTONE_PACKS = ("fnb", "retail")
+# = control-plane job-contract BCTONE_PACK_ARGS; modul per pack di scripts/bctone-tenant-config.sh
+BCTONE_PACKS = ("fnb", "retail", "jasa", "bengkel", "distribusi", "manufaktur", "kecantikan", "lainnya")
 APPROVE_ENVS = ("prod", "demo")  # kc_realm_sync apply di env ini wajib args.approve=true
 MAX_HOSTS = 5
 
@@ -712,7 +713,7 @@ def v_tenant_state(job: Job, args: dict[str, Any]) -> None:
 
 
 def v_bctone_tenant_config(job: Job, args: dict[str, Any]) -> None:
-    """ADR 0019: {plan, enabled, limits?, pack?}. pack = paket modul industri (fnb|retail), hanya bila enabled.
+    """ADR 0019: {plan, enabled, limits?, pack?}. pack = paket modul industri (BCTONE_PACKS), hanya bila enabled.
     limits = objek metrik → int 0..BCTONE_LIMIT_MAX (metrik tanpa nilai =
     tanpa batas). Nonaktif (enabled=false) memicu alert (tenant berhenti ditegakkan kuotanya)."""
     _keys(args, {"plan", "enabled"}, {"limits", "pack"}, "args")

@@ -2,14 +2,14 @@
 # Konfigurasi tenant BCTOne self-serve (job `bctone_tenant_config`, ADR 0019 #3/#4). IDEMPOTEN.
 #
 #   scripts/bctone-tenant-config.sh <slug> <prod|demo|staging> --plan <bctone-free|bctone-umkm|bctone-bisnis>
-#       [--pack <fnb|retail>] [--limit <metric>=<int> ...] [--disable] [--dry-run]
+#       [--pack <fnb|retail|jasa|bengkel|distribusi|manufaktur|kecantikan|lainnya>] [--limit <metric>=<int> ...] [--disable] [--dry-run]
 #
 # Prasyarat: DB <slug>_<env> sudah ada (job odoo_db_provision) dan submodule addons/shared pool memuat
 # sh_bct_tenant_agent >= 19.0.1.1.0. Slug `platform` ditolak (exit 3).
 # Langkah:
 #  1. install sh_bct_tenant_agent (one-off --stop-after-init) bila belum (menarik `account`); --disable tidak meng-install.
-#     --pack: modul paket industri ikut di-install (fnb: point_of_sale, pos_restaurant, stock; retail: point_of_sale,
-#     stock, sale_management, purchase; keduanya + l10n_id). Modul yang sudah ter-install tidak disentuh (tanpa -u).
+#     --pack: modul paket industri ikut di-install (daftar per pack di `case "$PACK"` di bawah; semua + l10n_id,
+#     hanya modul Odoo CE yang ada di image pool). Modul yang sudah ter-install tidak disentuh (tanpa -u).
 #  2. kunci HMAC per tenant = HMAC-SHA256(master, "bctone-usage:<slug>") (sama dengan control-plane
 #     src/lib/usage-ingest.ts tenantUsageKey). Master: /etc/infra-jobs/bctone-usage-<instance>.secret (600 root, di luar
 #     git; nilai sama dengan USAGE_INGEST_SECRET CP instance itu). Ditulis ke <pool>/secrets/oidc/bct-usage.<db>
@@ -62,7 +62,13 @@ case "$PACK" in
   "") PACK_MODULES=() ;;
   fnb) PACK_MODULES=(l10n_id point_of_sale pos_restaurant stock) ;;
   retail) PACK_MODULES=(l10n_id point_of_sale stock sale_management purchase) ;;
-  *) die "--pack harus fnb|retail" ;;
+  jasa) PACK_MODULES=(l10n_id sale_management project hr_timesheet sale_timesheet crm) ;;
+  bengkel) PACK_MODULES=(l10n_id point_of_sale stock repair sale_management purchase) ;;
+  distribusi) PACK_MODULES=(l10n_id stock sale_management purchase crm) ;;
+  manufaktur) PACK_MODULES=(l10n_id mrp stock sale_management purchase) ;;
+  kecantikan) PACK_MODULES=(l10n_id point_of_sale stock) ;;
+  lainnya) PACK_MODULES=(l10n_id sale_management project) ;;
+  *) die "--pack harus fnb|retail|jasa|bengkel|distribusi|manufaktur|kecantikan|lainnya" ;;
 esac
 [[ -z "$PACK" || $ENABLE -eq 1 ]] || die "--pack tidak berlaku dengan --disable"
 case "$TENANT_ENV" in
