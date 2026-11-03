@@ -392,6 +392,22 @@ docker exec crowdsec cscli explain --log '<baris mail.log>' --type syslog      #
 | Backup | `restic backup --dry-run` | path mail ikut |
 | Firewall | `ansible-playbook site.yml --tags firewall` ×2 | run 1 changed=1, run 2 changed=0; `ufw status` 25/465/587/993 (v4) |
 
+## Antrean macet (diagnosa 2026-11-03)
+
+Gejala 16 Okt-3 Nov: ±350 email tertahan, log penuh `connect to alt4.gmail-smtp-in…:25: Connection timed out` dan
+`delivery temporarily suspended`. **Bukan blokir port 25** (Gmail utama/iCloud/Yahoo/Amazon tetap `status=sent` tiap hari).
+Akar: penerima alert `am.ademaryadi@gmail.com` penuh (`452 4.2.2 … out of storage space`) → Postfix mencoba MX cadangan
+sampai `alt4` (tak terjangkau :25 dari VPS) → timeout → cohort limit 1 menangguhkan seluruh gmail.com. Penanganan:
+311 alert basi ke alamat itu dihapus (`postsuper -d` per queue-id, penerima tunggal), cohort limit 10 + connect timeout
+10 s (`config/postfix-main.cf`). Cek cepat:
+
+```bash
+docker exec mailserver postqueue -j | python3 -c 'import sys,json,collections as c;print(c.Counter(r["address"] for l in sys.stdin for r in json.loads(l)["recipients"]).most_common(5))'
+grep -E "status=deferred" /var/log/mailserver/dms/mail.log | sed -E "s/.*status=deferred \((.{0,70}).*/\1/" | sort | uniq -c | sort -rn | head
+```
+
+Relay/smarthost (draf ADR 0020, PR #29 versi awal) **tidak diperlukan** selama pola di atas yang terjadi.
+
 ## Rollback
 
 - Stack: `cd /opt/infra/mail && docker compose down` — layanan lain tidak terpengaruh; pengirim eksternal me-retry (MX tetap).

@@ -96,6 +96,15 @@ services:
       INFRA_JOBS_TYPES: odoo_db_provision,odoo_route,odoo_sso_provision,odoo_sso_disable,odoo_sso_user,kc_org_ensure,kc_user_ensure,kc_user_set_roles,kc_user_set_enabled,kc_user_action_email,odoo_user_ensure,odoo_tenant_config,tenant_suspend,tenant_resume,bctone_tenant_config   # M7: = allowlist prod.conf (tanpa kc_realm_sync)
       INFRA_JOBS_SPOOL_DIR: /jobs/spool
       INFRA_JOBS_RESULTS_DIR: /jobs/results
+      # Email pengingat/registrasi BCTOne (ADR 0018 D8) via submission mailserver sendiri (:587 STARTTLS, hairpin).
+      # From = login (SPOOF_PROTECTION). Password HANYA dari secret file (0400 uid 950, di-ignore git).
+      SMTP_HOST: mail.bimacreative.tech
+      SMTP_PORT: "587"
+      SMTP_USER: no-reply@bimacreative.tech
+      SMTP_FROM: no-reply@bimacreative.tech
+      SMTP_PASSWORD_FILE: /run/secrets/smtp_password
+    secrets:
+      - smtp_password
     tmpfs:
       - /tmp:uid=950,gid=950,mode=0700
     volumes:
@@ -110,7 +119,8 @@ services:
         read_only: true
         bind: { create_host_path: false }
     networks:
-      - db-cp   # hanya DB; tidak butuh egress
+      - db-cp            # DB
+      - cp-mail-egress   # egress SMTP :587 hairpin ke mail.bimacreative.tech (anggota: worker saja)
     healthcheck:
       test: ["CMD", "node", "-e", "const t=+require('fs').readFileSync('/tmp/worker-heartbeat','utf8');process.exit(Date.now()-t<60000?0:1)"]
       interval: 30s
@@ -120,7 +130,21 @@ services:
     mem_limit: 128m   # 2026-10-04: 256m → 128m worker (puncak 7 hari 44 MiB — owner opsi 3)
     cpus: 0.25
 
+secrets:
+  smtp_password:
+    # salinan mail/secrets/no-reply@bimacreative.tech.password; 0400 950:950 (Compose non-swarm mengabaikan mode/uid secret)
+    file: ./secrets/smtp_password.secret
+
 networks:
+  cp-mail-egress:
+    # 10.100.43.0/24, BUKAN --internal (egress SMTP). Dibuat stack ini; anggota HANYA control-plane-worker.
+    name: cp-mail-egress
+    driver: bridge
+    enable_ipv6: false
+    ipam:
+      config:
+        - subnet: 10.100.43.0/24
+          gateway: 10.100.43.1
   db-cp:
     # postgres/scripts/bootstrap.sh: 10.100.23.0/24 --internal — anggota hanya postgres + migrate/web/worker stack ini (ADR 0010).
     external: true
