@@ -63,3 +63,15 @@ Sebelum membuka self-serve di prod, selesaikan berurutan:
 3. SMTP prod: worker prod sekarang **tidak** punya `SMTP_*` ("email pengingat nonaktif"), jadi email notifikasi
    registrasi tidak akan terkirim sampai SMTP diisi.
 4. Teks S&K/Privasi, rekening asli (`PAYMENT_INSTRUCTIONS`), DNS `one`/`*.one`, lalu `BCTONE_REGISTER_ENABLED=1`.
+
+## Email prod (2026-11-03)
+
+Worker CP prod mengirim lewat `mail.bimacreative.tech:587` (login/From `no-reply@bimacreative.tech`), network
+`cp-mail-egress` 10.100.43.0/24 (worker saja). Secret (sekali):
+```bash
+cd /opt/infra/web/control-plane && sudo install -d -m 0700 secrets
+sudo install -o 950 -g 950 -m 0400 /opt/infra/mail/secrets/no-reply@bimacreative.tech.password secrets/smtp_password.secret
+sudo docker compose up -d worker
+sudo docker logs --since 1m control-plane-worker | grep -ci "nonaktif"   # 0
+```
+Rollback: hapus blok SMTP_*/secrets/cp-mail-egress di compose → `docker compose up -d worker` (email nonaktif lagi).

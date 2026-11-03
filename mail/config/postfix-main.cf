@@ -19,3 +19,11 @@
 tls_server_sni_maps = inline:{
     { mail.bimacreative.tech = /etc/dms/tls/key, /etc/dms/tls/cert },
     { mail.expomedia.id = /etc/dms-tls/mail.expomedia.id/chain.pem } }
+
+# 2026-11-03 — ketahanan pengiriman keluar (mail.md §Antrean macet). Kasus 16 Okt-3 Nov: satu penerima Gmail penuh
+# (452 4.2.2) membuat Postfix mencoba MX cadangan sampai alt4 (tidak terjangkau :25 dari jaringan VPS → timeout 30 s);
+# cohort limit 1 lalu menandai SELURUH gmail.com "delivery temporarily suspended" → email klien ke Gmail lain ikut tertahan.
+# - cohort limit 1 → 10: tujuan baru dianggap mati setelah 10 kegagalan beruntun, bukan 1 (postconf(5)).
+# - connect timeout 30 s → 10 s: MX tak terjangkau cepat dilewati ke MX berikut.
+default_destination_concurrency_failed_cohort_limit = 10
+smtp_connect_timeout = 10s
