@@ -8,6 +8,13 @@ file `VERSION`.
 
 ## [Unreleased]
 
+### Added
+- BCTOne (ADR 0019) dispatcher **1.5.0**: `bctone_tenant_config` `args.pack` menerima 6 pack industri baru selain
+  `fnb|retail` — `jasa` (sale_management, project, hr_timesheet, sale_timesheet, crm), `bengkel` (POS, stock, repair,
+  sales, purchase), `distribusi` (stock, sales, purchase, crm), `manufaktur` (mrp, stock, sales, purchase), `kecantikan`
+  (POS, stock), `lainnya` (sales, project); semua + `l10n_id`, hanya modul Odoo CE yang ada di image pool-a. Aditif:
+  pack lama tidak berubah. Pasang via role `infra_jobs` sebelum CP mengirim pack baru.
+
 ### Fixed
 - prioritas CPU (insiden 2026-10-13 22:30 WIB, branch `feat/devops-cpu-priority`): DRMS prod tidak bisa dipakai karena 5
   container ad-hoc `docker run node:24 … npm ci/tsc/vitest` paralel berbobot CPU sama dengan prod (4 vCPU + steal ±70%).
