@@ -54,6 +54,7 @@ Website (Website ID bukan secret — muncul di HTML):
 |---|---|---|---|
 | `bimacreative.tech` | `bimacreative.tech` | `dd77fb50-e047-49fe-919f-682dc6d10f44` | prod (plan 11 U9) |
 | `bct-staging` | `bct.staging.bimacreative.tech` | `f43f3730-811d-4846-8c43-c9c8ac80b840` | hanya selama QA (U8), lalu flag dicabut dari staging; berisi 5 event uji 2026-09-27 |
+| `ditled` | `ditled.bimacreative.tech` | _(isi setelah dibuat di UI)_ | prod sementara Dit. LED; dasbor di CMS (§Konsumen API) |
 
 Integrasi website: `provision-web-client.sh … --umami-script-url https://analytics.bimacreative.tech/insight.js
 --umami-website-id <uuid>` (`web-clients.md` §Analytics).
@@ -92,6 +93,19 @@ curl -s -o /dev/null -w '%{http_code}\n' --resolve $H:8443:127.0.0.1 https://$H:
 DB `umami` ikut dump dinamis (`db:umami`); `.env` (APP_SECRET) + `secrets/` ikut snapshot `files` (diverifikasi `restic ls`).
 Restore: `sudo /opt/infra/scripts/restore.sh umami umami_restoretest` (uji) — restore sungguhan ke DB baru lalu ganti
 `DATABASE_URL` (`backup.md`).
+
+## Konsumen API: dasbor CMS Dit. LED
+
+Menu **Statistik pengunjung** di CMS `ditled.bimacreative.tech/admin` (repo `bctech-adm/led-website`) membaca API Umami
+server ke server. Tidak ada router publik baru: `/api/*` tetap 404 dari internet.
+
+- Network `analytics-api` (10.100.60.0/24, `--internal`, dibuat stack ini): anggota `umami` + `web-ditled-prod`.
+- Login sebagai user Umami **`ditled-cms`** (bukan admin). Akses ke website ditled saja: team `Dit. LED` berisi website
+  `ditled`, user itu anggota ber-role view-only. Password hanya di `.env` stack ditled (`UMAMI_API_PASSWORD`).
+- Env app (`/opt/infra/web/clients/ditled/.env`): `UMAMI_SCRIPT_URL=https://analytics.bimacreative.tech/insight.js`,
+  `UMAMI_WEBSITE_ID=<uuid>`, `UMAMI_API_URL=http://umami:3000`, `UMAMI_API_USER=ditled-cms`, `UMAMI_API_PASSWORD=<acak>`.
+- Endpoint yang dipakai: `POST /api/auth/login`, `GET /api/websites/<id>/{stats,pageviews,metrics,active}`.
+- Cabut akses: hapus user `ditled-cms` di UI Umami, atau `docker network disconnect analytics-api web-ditled-prod`.
 
 ## Upgrade (migrasi DB maju otomatis)
 

@@ -44,7 +44,9 @@ services:
         source: /srv/ditled/data
         target: /data
         bind: { create_host_path: false }
-    networks: [web-edge, db-ditled]
+    # analytics-api: CMS membaca API Umami (http://umami:3000) untuk menu Statistik pengunjung. Network dibuat stack
+    # analytics/umami → jalankan `docker compose up -d` di sana lebih dulu.
+    networks: [web-edge, db-ditled, analytics-api]
     healthcheck:
       # Sama dengan HEALTHCHECK Dockerfile: 200 bila proses hidup dan DB bisa dibaca.
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
@@ -66,3 +68,6 @@ networks:
     # --internal, anggota hanya postgres + web-ditled-prod (postgres/scripts/bootstrap.sh, 10.100.30.0/24)
     external: true
     name: db-ditled
+  analytics-api:
+    external: true
+    name: analytics-api
