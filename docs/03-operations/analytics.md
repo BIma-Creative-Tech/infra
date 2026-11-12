@@ -54,7 +54,7 @@ Website (Website ID bukan secret — muncul di HTML):
 |---|---|---|---|
 | `bimacreative.tech` | `bimacreative.tech` | `dd77fb50-e047-49fe-919f-682dc6d10f44` | prod (plan 11 U9) |
 | `bct-staging` | `bct.staging.bimacreative.tech` | `f43f3730-811d-4846-8c43-c9c8ac80b840` | hanya selama QA (U8), lalu flag dicabut dari staging; berisi 5 event uji 2026-09-27 |
-| `ditled` | `ditled.bimacreative.tech` | _(isi setelah dibuat di UI)_ | prod sementara Dit. LED; dasbor di CMS (§Konsumen API) |
+| `ditled` | `ditled.bimacreative.tech` | `34790232-b5d1-484d-a2ec-a089c40a5e35` | prod sementara Dit. LED (dibuat 2026-11-12, milik team `Dit. LED`); dasbor di CMS (§Konsumen API) |
 
 Integrasi website: `provision-web-client.sh … --umami-script-url https://analytics.bimacreative.tech/insight.js
 --umami-website-id <uuid>` (`web-clients.md` §Analytics).
@@ -104,6 +104,9 @@ server ke server. Tidak ada router publik baru: `/api/*` tetap 404 dari internet
   `ditled`, user itu anggota ber-role view-only. Password hanya di `.env` stack ditled (`UMAMI_API_PASSWORD`).
 - Env app (`/opt/infra/web/clients/ditled/.env`): `UMAMI_SCRIPT_URL=https://analytics.bimacreative.tech/insight.js`,
   `UMAMI_WEBSITE_ID=<uuid>`, `UMAMI_API_URL=http://umami:3000`, `UMAMI_API_USER=ditled-cms`, `UMAMI_API_PASSWORD=<acak>`.
+- Dibuat 2026-11-12 langsung di DB (admin UI tidak dipakai): user `ditled-cms` role `view-only` (bcrypt), team `Dit. LED`
+  (`team_user.role=team-view-only`), website `ditled` → `user_id NULL, team_id=<team>` (= "Transfer" di UI). Diuji: login
+  200, stats/pageviews/metrics/active 200, website lain 401.
 - Endpoint yang dipakai: `POST /api/auth/login`, `GET /api/websites/<id>/{stats,pageviews,metrics,active}`.
 - Cabut akses: hapus user `ditled-cms` di UI Umami, atau `docker network disconnect analytics-api web-ditled-prod`.
 
