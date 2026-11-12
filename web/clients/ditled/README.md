@@ -51,3 +51,13 @@ Subdomain ini di-set `NOINDEX=1` (robots Disallow + meta noindex). Saat pindah k
 - Rollback ke image SQLite lama (`0.1.0-202610090059`) butuh `DATABASE_URI: file:/data/dittel.db` lagi di compose
   (data yang ditulis setelah 2026-10-18 tidak ikut).
 - Pindah ke VPS Komdigi: `pg_dump`/`pg_restore` + salin media/attachments, runbook di `docs/deploy-postgres.md` repo aplikasi.
+
+## Statistik pengunjung (Umami + log IP tersamar, sejak 2026-11)
+
+- Halaman publik memuat tracker Umami (`UMAMI_SCRIPT_URL` + `UMAMI_WEBSITE_ID` di `.env`; kosong = tracker mati).
+- CMS → **Statistik pengunjung** membaca API Umami lewat network `analytics-api` (`UMAMI_API_URL=http://umami:3000`,
+  `UMAMI_API_USER`, `UMAMI_API_PASSWORD`; user view-only). Detail: `docs/03-operations/analytics.md` §Konsumen API.
+- Log IP tersamar (`114.122.x.x`, IPv6 /48) di tabel `visitor_logs` DB `ditled`, dihapus otomatis setelah 90 hari oleh
+  aplikasi. Tidak butuh env. IP diambil dari `X-Real-Ip` (ditimpa Traefik, tidak bisa dipalsukan pengunjung).
+- Urutan pasang: `docker compose up -d` di `analytics/umami` (membuat network) → isi `.env` ini → `docker compose up -d` di sini.
+

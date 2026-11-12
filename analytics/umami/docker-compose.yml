@@ -30,6 +30,7 @@ services:
     networks:
       analytics-edge: {}   # Traefik → umami:3000 (--internal, 10.100.17.0/24)
       db-umami: {}         # → postgres:5432 DB umami (--internal, 10.100.28.0/24)
+      analytics-api: {}    # ← konsumen API baca (CMS Dit. LED) → umami:3000 (--internal, 10.100.60.0/24)
     read_only: true
     tmpfs:
       - /tmp:size=16m,uid=1001,gid=65533,mode=0700
@@ -62,3 +63,13 @@ networks:
     # Dibuat postgres/scripts/bootstrap.sh: 10.100.28.0/24 --internal — anggota: postgres + umami saja.
     external: true
     name: db-umami
+  analytics-api:
+    # Dibuat stack INI (pola cp-mail-egress): 10.100.60.0/24 --internal — anggota: umami + konsumen API dasbor
+    # (web-ditled-prod, external di stack-nya). Konsumen login sebagai user Umami view-only (bukan admin), API
+    # baca saja; Umami tetap tanpa egress. Blok 60+ = di luar cadangan db-* (20–39) dan odoo-edge-<slug> (40–59).
+    name: analytics-api
+    internal: true
+    ipam:
+      config:
+        - subnet: 10.100.60.0/24
+          gateway: 10.100.60.1
