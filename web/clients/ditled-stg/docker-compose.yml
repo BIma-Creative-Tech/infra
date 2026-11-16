@@ -1,0 +1,93 @@
+# Staging website Dit. LED: ditled.staging.bimacreative.tech (wildcard DNS *.staging). Same pattern as
+# web/clients/ditled (prod), with two differences:
+#  1. DB = its OWN Postgres container (service db), NOT the shared cluster. The shared cluster has a stale
+#     pg_hba inode (new lines need a restart of all prod DBs) and role ditled has connlimit 10 (memory:
+#     a second container on the prod DB → 53300). Data volume: /srv/ditled-stg/pg.
+#  2. The image is built with NEXT_PUBLIC_SERVER_URL=https://ditled.staging.bimacreative.tech (inlined at build), tag *-stg.
+# Secrets (.env, 600 root): DITLED_TAG, PAYLOAD_SECRET, POSTGRES_PASSWORD, DATABASE_URI, EPENYIARAN_*.
+# Created by setup-env.sh. Data: prod mirror (sanitized) via mirror-from-prod.sh. See README.md.
+name: web-ditled-stg
+
+services:
+  db:
+    image: postgres:16.15-bookworm@sha256:0ea6700a3b4f0ae6ce746519073558aed4d88a79d8d07622a9a644946c7319c4
+    container_name: web-ditled-stg-db
+    restart: unless-stopped
+    user: "999:999"
+    environment:
+      POSTGRES_USER: ditled
+      POSTGRES_DB: ditled
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD wajib (setup-env.sh)}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - type: bind
+        source: /srv/ditled-stg/pg
+        target: /var/lib/postgresql/data
+        bind: { create_host_path: false }
+    networks: [db]
+    shm_size: 64m
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "ditled", "-d", "ditled"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    mem_limit: 256m
+    cpus: 0.5
+    pids_limit: 128
+
+  web:
+    image: web-ditled:${DITLED_TAG:?DITLED_TAG wajib (tag image -stg, lihat README)}
+    container_name: web-ditled-stg
+    restart: unless-stopped
+    depends_on:
+      db: { condition: service_healthy }
+    user: "1001:1001"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+    env_file:
+      - .env
+    environment:
+      SITE_URL: https://ditled.staging.bimacreative.tech
+      NEXT_PUBLIC_SERVER_URL: https://ditled.staging.bimacreative.tech
+      UPLOAD_DIR: /data
+      NOINDEX: "1"
+      # Umami off on staging (would mix stats with prod); the Visitor statistics menu shows "not configured".
+      UMAMI_SCRIPT_URL: ""
+      UMAMI_WEBSITE_ID: ""
+      UMAMI_API_URL: ""
+    tmpfs:
+      - /tmp:uid=1001,gid=1001,mode=0700,size=64m
+      - /app/.next/cache:uid=1001,gid=1001,mode=0700,size=128m
+    volumes:
+      - type: bind
+        source: /srv/ditled-stg/data
+        target: /data
+        bind: { create_host_path: false }
+    # web-edge: Traefik + egress (e-Penyiaran API). db: internal, members web + db only.
+    networks: [web-edge, db]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+      start_interval: 2s
+    mem_limit: 768m
+    cpus: 0.5
+    pids_limit: 256
+
+networks:
+  web-edge:
+    external: true
+    name: web-edge
+  db:
+    name: web-ditled-stg-db
+    internal: true
