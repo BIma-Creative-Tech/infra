@@ -26,7 +26,7 @@ cd /opt/infra/web/clients/ditled-stg && docker compose up -d
 ```
 
 **Data:** `mirror-from-prod.sh` = prod pg_dump (read-only) → restore to staging + media rsync, sanitized
-(questions/Tanya Dit. LED, attachments, visitor_logs, sessions). CMS users are kept (same passwords as prod).
+(questions/Tanya Dit. LED, attachments, visitor_logs, sessions). CMS users are kept (same passwords as prod). The prod dump in /root is deleted automatically after restore (or on failure).
 Umami is off on staging. Email has no adapter (console), same as prod.
 
 Remove staging: `docker compose down`, delete the route file, `rm -rf /srv/ditled-stg`.
