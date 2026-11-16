@@ -2,11 +2,13 @@
 # Mirror prod → staging Dit. LED: DB `ditled` (shared cluster, read-only pg_dump) + media. Idempotent, can be rerun.
 # Staging is overwritten in full. Sanitized: questions (Tanya Dit. LED: name/email/phone), attachments (PDF
 # attachments), visitor_logs, users_sessions, payload_locked_documents. CMS users are kept (same passwords as prod).
+# The prod dump (unsanitized) is deleted right after restore, and by the EXIT trap if the script fails.
 # Run as root after .env exists (setup-env.sh): bash /opt/infra/web/clients/ditled-stg/mirror-from-prod.sh
 set -euo pipefail
 D=/opt/infra/web/clients/ditled-stg
 DUMP="/root/ditled-stg-mirror-$(date +%Y%m%d-%H%M%S).dump"
 cd "$D"
+trap 'rm -f "$DUMP"' EXIT
 
 echo "== db up"
 docker compose up -d db
@@ -26,6 +28,8 @@ echo "== restore → staging (schema public reset)"
 docker exec -i web-ditled-stg-db psql -q -v ON_ERROR_STOP=1 -U ditled -d ditled \
   -c 'DROP SCHEMA IF EXISTS public CASCADE' -c 'CREATE SCHEMA public'
 docker exec -i web-ditled-stg-db pg_restore --no-owner --no-acl --exit-on-error -U ditled -d ditled < "$DUMP"
+rm -f "$DUMP"
+echo "== dump deleted"
 
 echo "== sanitize"
 docker exec -i web-ditled-stg-db psql -v ON_ERROR_STOP=1 -U ditled -d ditled <<'SQL'
@@ -48,4 +52,4 @@ for _ in $(seq 1 60); do
 done
 echo "== web-ditled-stg: $s"
 [[ "$s" == healthy ]] || { docker logs --tail 60 web-ditled-stg; exit 1; }
-echo "OK. Dump kept at $DUMP (delete when no longer needed)."
+echo "OK."
