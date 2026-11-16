@@ -1,0 +1,42 @@
+# Staging website Dit. LED ditled.staging.bimacreative.tech → container `web-ditled-stg:3000` (network web-edge).
+# Stack: /opt/infra/web/clients/ditled-stg. DNS: wildcard *.staging.bimacreative.tech → 31.97.50.221.
+# Same as web-ditled-prod.yml (crowdsec → security-headers → ratelimit), router/middleware names suffixed -stg.
+http:
+  routers:
+    web-ditled-stg-form:
+      entryPoints: [websecure]
+      rule: "Host(`ditled.staging.bimacreative.tech`) && Method(`POST`) && Path(`/tanya-dit-led`)"
+      priority: 100
+      middlewares: [crowdsec, security-headers, web-ditled-stg-ratelimit-form]
+      service: web-ditled-stg
+      tls:
+        certResolver: le-http
+    web-ditled-stg-login:
+      entryPoints: [websecure]
+      rule: "Host(`ditled.staging.bimacreative.tech`) && Method(`POST`) && Path(`/api/users/login`)"
+      priority: 100
+      middlewares: [crowdsec, security-headers, web-ditled-stg-ratelimit-form]
+      service: web-ditled-stg
+      tls:
+        certResolver: le-http
+    web-ditled-stg:
+      entryPoints: [websecure]
+      rule: "Host(`ditled.staging.bimacreative.tech`)"
+      priority: 1
+      middlewares: [crowdsec, security-headers, ratelimit-default]
+      service: web-ditled-stg
+      tls:
+        certResolver: le-http
+
+  middlewares:
+    web-ditled-stg-ratelimit-form:
+      rateLimit:
+        average: 5
+        period: 1m
+        burst: 5
+
+  services:
+    web-ditled-stg:
+      loadBalancer:
+        servers:
+          - url: "http://web-ditled-stg:3000"
