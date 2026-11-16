@@ -10,7 +10,7 @@ cd "$D"
 
 echo "== db up"
 docker compose up -d db
-for i in $(seq 1 30); do
+for _ in $(seq 1 30); do
   [[ "$(docker inspect -f '{{.State.Health.Status}}' web-ditled-stg-db)" == healthy ]] && break; sleep 2
 done
 [[ "$(docker inspect -f '{{.State.Health.Status}}' web-ditled-stg-db)" == healthy ]] || { docker logs --tail 40 web-ditled-stg-db; exit 1; }
@@ -42,7 +42,7 @@ chown -R 1001:1001 /srv/ditled-stg/data
 
 echo "== web up"
 docker compose up -d web
-for i in $(seq 1 60); do
+for _ in $(seq 1 60); do
   s="$(docker inspect -f '{{.State.Health.Status}}' web-ditled-stg 2>/dev/null || echo absent)"
   [[ "$s" == healthy ]] && break; sleep 2
 done
