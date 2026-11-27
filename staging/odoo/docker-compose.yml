@@ -75,9 +75,9 @@ services:
       timeout: 5s
       retries: 3
       start_period: 60s
-    # ADR 0004 §2: staging 1280 MiB / 1.0 CPU (workers=2, max_cron_threads=1), always-on.
-    mem_limit: 1280m
-    cpus: 1.0
+    # ADR 0004 §2 (revisi 2026-11-27): staging 2304 MiB / 1.5 CPU (workers=4, max_cron_threads=1), always-on.
+    mem_limit: 2304m
+    cpus: 1.5
     cap_drop:
       - ALL
     security_opt:
