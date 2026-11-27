@@ -75,8 +75,8 @@ services:
       timeout: 5s
       retries: 3
       start_period: 60s
-    # ADR 0004 §2: 2560 MiB / 2.0 CPU (workers=3, max_cron_threads=1).
-    mem_limit: 2560m
+    # ADR 0004 §2 (revisi 2026-11-27): 3328 MiB / 2.0 CPU (workers=4, max_cron_threads=1).
+    mem_limit: 3328m
     cpus: 2.0
     cap_drop:
       - ALL
