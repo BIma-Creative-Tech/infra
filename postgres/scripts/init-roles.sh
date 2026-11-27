@@ -82,7 +82,7 @@ unset pw
 # DB tenant dibatasi pg_hba (regex nama DB per pool) + kepemilikan (list_dbs hanya DB milik role).
 # role:VAR_PASSWORD:connection_limit  — limit = ESTIMASI (db_maxconn × proses pool), revisi T07/T19.
 ODOO_ROLES=(
-  "odoo_pool_a:PG_ODOO_POOL_A_PASSWORD:48"
+  "odoo_pool_a:PG_ODOO_POOL_A_PASSWORD:56"
   "odoo_staging:PG_ODOO_STAGING_PASSWORD:36"
 )
 for r in "${ODOO_ROLES[@]}"; do
