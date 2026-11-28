@@ -1,0 +1,5 @@
+# smtp_delivery_status_filter (postconf(5), Postfix ≥ 3.0) — input: "<enhanced-status> <penjelasan>".
+# 2026-11-28 (user): mailbox penerima penuh = tidak dikirim ulang. Gmail menjawab 452 4.2.2 (sementara) sehingga Postfix
+# me-retry sampai 5 hari dan badai retry melewati batas keluar Hostinger (±5 email/menit). Ubah jadi 5.2.2 → bounce
+# sekali ke pengirim. Gangguan sementara lain (timeout, ratelimit 421, greylisting) TETAP di-retry.
+/^4(\.2\.2 .*(out of storage|over ?quota|quota exceeded|mailbox (is )?full).*)$/	5$1
