@@ -27,3 +27,11 @@ tls_server_sni_maps = inline:{
 # - connect timeout 30 s → 10 s: MX tak terjangkau cepat dilewati ke MX berikut.
 default_destination_concurrency_failed_cohort_limit = 10
 smtp_connect_timeout = 10s
+
+# 2026-11-28 — batas laju keluar. Hostinger membatasi pengiriman ±5 email/menit per VPS (jawaban support 28-11, bukan
+# blokir port 25); koneksi di atas batas di-drop → "Connection timed out". Badai retry ke mailbox Gmail penuh (452) dengan
+# 5 MX per percobaan + konkurensi 20 membuat ±10+ koneksi/menit → hampir semua koneksi :25 timeout (sent ±12/hari).
+# - rate delay 20 s per tujuan (= konkurensi 1, ±3 email/menit ke gmail.com; ±180/jam, volume normal ±100/hari).
+# - MX dicoba maks 2 per pengiriman (utama + 1 cadangan), bukan 5.
+default_destination_rate_delay = 20s
+smtp_mx_address_limit = 2

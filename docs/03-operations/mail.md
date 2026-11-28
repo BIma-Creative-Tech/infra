@@ -406,6 +406,13 @@ docker exec mailserver postqueue -j | python3 -c 'import sys,json,collections as
 grep -E "status=deferred" /var/log/mailserver/dms/mail.log | sed -E "s/.*status=deferred \((.{0,70}).*/\1/" | sort | uniq -c | sort -rn | head
 ```
 
+**Kambuh 2026-11-28** (±400 email tertahan, Gmail sent ±12/hari vs ±14 rb timeout/hari sejak Okt): mailbox yang sama penuh
+lagi. Support Hostinger (28-11): port 25 tidak ditutup, tetapi pengiriman dibatasi **±5 email/menit** — koneksi :25 di atas
+batas di-drop (timeout), termasuk ke MX utama. Penanganan: 268 alert + 50 email DRMS ke alamat itu dihapus dari antrean,
+alamat dicabut dari `infra_alert_to` (alert hanya ke postmaster@), alert palsu `ci-runner-outdated` dimatikan (PR #41),
+`default_destination_rate_delay = 20s` + `smtp_mx_address_limit = 2` (`config/postfix-main.cf`). Penerima eksternal yang
+penuh (`452 4.2.2`) → hapus antreannya + minta pemilik mengosongkan mailbox.
+
 Relay/smarthost (draf ADR 0020, PR #29 versi awal) **tidak diperlukan** selama pola di atas yang terjadi.
 
 ## Rollback

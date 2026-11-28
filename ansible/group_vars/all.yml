@@ -162,7 +162,9 @@ restic_restore_test_oncalendar: "*-*-01 04:00:00 Asia/Jakarta"
 # Alamat di luar domain lokal mail (mis. email pribadi) baru terkirim setelah guard `defer_transports`
 # dilepas (PTR — docs/03-operations/mail.md §PTR); sampai itu tertahan di antrean Postfix.
 # ---------------------------------------------------------------------------
-infra_alert_to: am.ademaryadi@gmail.com,postmaster@bimacreative.tech
+# 2026-11-28: am.ademaryadi@gmail.com dicabut — mailbox Gmail penuh (452 4.2.2) memicu badai retry yang melewati
+# batas keluar Hostinger (±5 email/menit) dan menangguhkan seluruh gmail.com (docs/03-operations/mail.md §Antrean macet).
+infra_alert_to: postmaster@bimacreative.tech
 infra_alert_from: alerts@bimacreative.tech # mailbox dibuat mail/scripts/mailbox-add.sh (password di mail/secrets/)
 infra_alert_smtp_host: mail.bimacreative.tech
 infra_alert_smtp_port: 587 # submission, STARTTLS + AUTH wajib
