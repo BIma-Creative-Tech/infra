@@ -39,6 +39,7 @@ sync_file() { # sync_file <src> <dst> — salin hanya bila isi berbeda
   fi
 }
 sync_file "$STACK_DIR/config/postfix-main.cf" "$STACK_DIR/data/config/postfix-main.cf"
+sync_file "$STACK_DIR/config/postfix-dsn-filter.pcre" "$STACK_DIR/data/config/postfix-dsn-filter.pcre"   # smtp_delivery_status_filter
 sync_file "$STACK_DIR/config/dovecot.cf" "$STACK_DIR/data/config/dovecot.cf"   # → /etc/dovecot/local.conf saat start
 # ADR 0012 (plan 08): helper ganti password webmail. user-patches.sh hanya dijalankan DMS saat container BARU (recreate);
 # pwhelper.py dibaca ulang saat `supervisorctl restart pwhelper`; allowlist.txt dibaca setiap request.
